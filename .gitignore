@@ -21,6 +21,7 @@ node_modules/
 *.jpg
 *.png
 !examples/**/*.png
+!panel/assets/**/*.png
 
 # ── 本机/编辑器 ─────────────────────────────────────────
 .env
