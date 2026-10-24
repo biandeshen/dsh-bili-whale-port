@@ -1,0 +1,12 @@
+{
+  "name": "dsh-bili-whale-opencode",
+  "version": "0.1.0",
+  "description": "whale 的 OpenCode adapter：常驻生物钟 daemon（经 opencode server API 投递）+ bili 工具 MCP 包装（全部请求仍过 tools/ 的 traffic 风控闸）",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "daemon": "node daemon.js",
+    "mcp": "node mcp-stdio.js",
+    "test": "node --test test/contract.test.mjs"
+  }
+}
