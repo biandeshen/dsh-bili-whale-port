@@ -18,7 +18,7 @@ async function boot(t) {
   fs.writeFileSync(path.join(wh, 'whale-diary.md'), '## 看过\n| 10-25 | BV1 | 标题 | 想法 |\n')
   const port = 18441 + Math.floor(Math.random() * 900)
   const srv = spawn(process.execPath, [path.join(ROOT, 'panel', 'server.js'), '--port', String(port)], {
-    env: { ...process.env, WHALE_HOME: wh, BILI_WHALE_CONFIG: path.join(wh, 'bili-whale.config.json'), USERPROFILE: home, HOME: home, ProgramFiles: 'C:\\nonexistent', PANEL_NO_SCHED: '1' },
+    env: { ...process.env, WHALE_HOME: wh, BILI_WHALE_CONFIG: path.join(wh, 'bili-whale.config.json'), USERPROFILE: home, HOME: home, ProgramFiles: 'C:\\nonexistent' },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   t.after(() => srv.kill('SIGKILL'))
@@ -45,7 +45,7 @@ test('token 下：vitals/timeline/diary/settings 形状正确（补三缺口的�
   const { base, token } = await boot(t)
   const v = await (await get(base, '/api/vitals', token)).json()
   assert.equal(v.ok, true)
-  assert.equal(v.scheduler.ok, false, 'PANEL_NO_SCHED → 时钟状态如实上报，不装活')
+  assert.equal(v.scheduler.ok, false, 'PANEL_SCHED（默认关） → 时钟状态如实上报，不装活')
   assert.ok(v.traffic.settings.readDaily >= 100)
   const tl = await (await get(base, '/api/timeline?limit=1', token)).json()
   assert.equal(tl.items.length, 1); assert.equal(tl.items[0].kind, 'wake'); assert.equal(tl.next, null)
@@ -57,6 +57,10 @@ test('token 下：vitals/timeline/diary/settings 形状正确（补三缺口的�
   assert.equal(asset.status, 200)
   assert.ok((await asset.json()).states.idle, '序列帧 manifest 必须可读')
   assert.equal((await get(base, '/assets/whale-girl/manifest.json')).status, 503, '资产同样要鉴权')
+  const png = await get(base, '/assets/whale-girl/idle.png?t=' + encodeURIComponent(token), token)
+  assert.equal(png.status, 200, 'P0：序列帧 PNG 必须能带 token 加载')
+  assert.ok((png.headers.get('content-type')||'').includes('image/png'))
+  assert.ok((await get(base, '/assets/%2e%2e/server.js', token)).status >= 400, '编码穿越必须被拒')
 })
 
 test('页面 HTML 内联可用（零外部资源、含鱼缸与三页签）', async (t) => {

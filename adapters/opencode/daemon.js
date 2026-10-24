@@ -12,21 +12,21 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { startScheduler } from '../../core/scheduler.js'
+import { DSH_HOME as WHALE_HOME, configPath } from '../../tools/lib/paths.mjs'
 import { createOpenCodeController } from './controller.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(HERE, '..', '..')
 
 function readCfg() {
-  const p = process.env.BILI_WHALE_CONFIG || path.join(process.env.WHALE_HOME || path.join(process.env.USERPROFILE || process.env.HOME || process.env.HOMEDRIVE + process.env.HOMEPATH || '.', '.dsh'), 'bili-whale.config.json')
-  try { return { file: p, ...JSON.parse(fs.readFileSync(p, 'utf8')) } } catch { return { file: p } }
+  try { return { file: configPath, ...JSON.parse(fs.readFileSync(configPath, 'utf8')) } } catch { return { file: configPath } }
 }
 
 const ONCE = process.argv.includes('--once')
 
 async function main() {
   const cfg = readCfg()
-  const whaleHome = process.env.WHALE_HOME || path.dirname(cfg.file)
+  const whaleHome = WHALE_HOME
   fs.mkdirSync(whaleHome, { recursive: true })
   const controller = createOpenCodeController()
   let sched

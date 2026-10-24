@@ -17,4 +17,4 @@
 ## 代码
 
 - 上游 [Alterssss/dsh-bili-whale](https://github.com/Alterssss/dsh-bili-whale)（MIT）
-- AMpath 借用件（`core/ports/temporal.mjs` 的纯函数思路与时间线分页契约）：私有仓库、无 LICENSE，**仅自用，对外发布前须移除**。
+- 时间线分页契约参考内部经验（自实现）；AMpath 借用件（`core/ports/temporal.mjs` 的纯函数思路与时间线分页契约）：私有仓库、无 LICENSE，**仅自用，对外发布前须移除**。

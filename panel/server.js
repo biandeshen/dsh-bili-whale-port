@@ -7,7 +7,7 @@
  *   只绑 127.0.0.1 + Bearer/token fail-closed（取代 DSH requestRejection）。
  * 新增三条：/api/vitals（HUD 聚合，补 traffic 余量缺口）、/api/timeline、/api/diary。
  * 生物钟：面板进程自带 startScheduler（controller 默认 OpenCode 端口实现，
- *   设 PANEL_NO_SCHED=1 可关，交给 pm2 的 whale-daemon 跑）。
+ *   设 PANEL_SCHED（默认关）=1 可关，交给 pm2 的 whale-daemon 跑）。
  */
 import http from 'node:http'
 import fs from 'node:fs'

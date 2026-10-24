@@ -7,8 +7,8 @@
 
 ```bash
 pkg update && pkg install nodejs-lts git
-git clone <本仓库> && cd dsh-bili-whale && npm ci --omit=dev   # core 零运行时依赖，装的是个寂寞但 pm2 要
-npm i -g pm2
+git clone <本仓库> && cd dsh-bili-whale && npm install --omit=dev   # 仓库无 lockfile，勿用 npm ci
+npm i -g opencode-ai pm2   # daemon 投递依赖 opencode serve
 ```
 
 ## 2. 环境与凭据
@@ -20,7 +20,10 @@ cp -r ~/.bili-ai ~/.whale-bili-ai && ln -s ~/.whale-bili-ai ~/.bili-ai   # cooki
 export WHALE_HOME=~/.whale
 export WHALE_NODE=$PREFIX/bin/node                 # Termux 里就是系统 node，显式写上更稳
 export BILI_WHALE_CONFIG=~/.whale/bili-whale.config.json
-export OPENCODE_BASE_URL=http://127.0.0.1:4096     # 如果同时跑 opencode serve（手机也能跑）
+export OPENCODE_BASE_URL=http://127.0.0.1:4096
+export OPENCODE_SERVER_PASSWORD=改成你的密码
+opencode serve --port 4096 &   # 先起 server，daemon 才有投递目标
+opencode serve --port 4096 &   # daemon 必须能连到它
 ```
 
 ## 3. 起时钟 + 面板
@@ -28,8 +31,10 @@ export OPENCODE_BASE_URL=http://127.0.0.1:4096     # 如果同时跑 opencode se
 ```bash
 pm2 start adapters/opencode/daemon.js --name whale
 pm2 start panel/server.js --name panel -- --port 8447   # 面板默认不自带时钟（时钟归 whale，避免双调度）
-pm2 save && pm2 startup hostname -u    # Termux 无 systemd，用 boot 脚本：
-echo 'pm2 resurrect' >> ~/.bashrc      # 或 Termux:Boot + 自启脚本
+pm2 save && mkdir -p ~/.termux/boot && printf '#!/data/data/com.termux/files/usr/bin/sh
+termux-wake-lock
+pm2 resurrect
+' > ~/.termux/boot/whale.sh && chmod +x ~/.termux/boot/whale.sh   # 需装 Termux:Boot
 termux-wake-lock                       # 防休眠杀进程
 ```
 

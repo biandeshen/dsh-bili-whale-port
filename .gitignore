@@ -21,7 +21,7 @@ node_modules/
 *.jpg
 *.png
 !examples/**/*.png
-!panel/assets/**/*.png
+!panel/assets/whale-girl/*.png
 
 # ── 本机/编辑器 ─────────────────────────────────────────
 .env
@@ -31,3 +31,6 @@ Thumbs.db
 .vscode/
 .idea/
 *.log
+
+# ── panel 凭据 ──
+panel.token

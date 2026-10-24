@@ -1,6 +1,5 @@
 /**
- * 时间感知纯函数（移植自 AMpath packages/shared/src/embodiment/temporal.ts，
- * 去 TS/zod 化；私用借用，AMpath 无 LICENSE，禁止随本仓库对外分发）。
+ * 时间感知纯函数（自实现：昼夜相位/季节/时间元信息；仅用于展示与提示词）。
  *
  * 用途：
  *   · panel 昼夜场景与 HUD（phase/isNight）

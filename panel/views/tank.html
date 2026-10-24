@@ -58,7 +58,7 @@ textarea{width:100%;min-height:260px;font-family:ui-monospace,Menlo,monospace}
 .okmsg{color:var(--glow);font-size:12px}
 #toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:var(--glass);border:1px solid var(--line);border-radius:10px;padding:7px 14px;opacity:0;transition:opacity .4s;pointer-events:none;z-index:9}
 #toast.show{opacity:1}
-@media(max-width:820px){.grid2{grid-template-columns:1fr}#girl{width:104px}}
+@media(max-width:820px){.grid2{grid-template-columns:1fr}#girl{width:104px}#sprite{width:104px;height:104px}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style></head><body>
 <div class="wrap">
@@ -148,9 +148,11 @@ async function loadAll(){
   const silDays=0 // 沉默衰减数据在 share 侧，暂以今日有无分享近似
   bar($('v-rice'),v.shares>0?70:40,100);$('n-rice').textContent='白饭'+(v.shares>0?70:40)
   bar($('v-share'),v.shares,v.sharesMax??3,true);$('n-share').textContent='分享'+v.shares+'/'+(v.sharesMax??3)
-  const nightOn=v.plan&&['wake','skip'].includes(v.plan.action)&&!v.plan.fired
-  document.body.classList.toggle('night',!nightOn)
-  applySprite(nightOn,v)
+  const nowMs=Date.now()
+  const inWindow=v.plan&&v.plan.startsAt&&v.plan.endsAt&&nowMs>=v.plan.startsAt&&nowMs<=v.plan.endsAt
+  const asleep=!v.scheduler.ok||v.plan?.action==='done'||!inWindow
+  document.body.classList.toggle('night',asleep)
+  applySprite(asleep,v)
   $('eyeL').style.transform=$('eyeR').style.transform=nightOn?'':'scaleY(0.06)'
   $('eyeL').style.transformOrigin=$('eyeR').style.transformOrigin='60% 44%'
   const why=!v.scheduler.ok?('时钟未跑：'+v.scheduler.reason):(v.plan?.action==='done'?'今天份用完，睡了':(v.plan?.action==='wake'?'排定了 '+v.plan.atText:'今天不想看'))
@@ -200,24 +202,32 @@ async function initSprite(){
   try{
     const m=await api('/assets/whale-girl/manifest.json')
     if(!m||!m.states)return
-    SPR=m;document.getElementById('girl').style.display='none'
-    const sp=document.getElementById('sprite');sp.hidden=false
+    SPR=m;document.getElementById('sprite').hidden=false
   }catch{}
 }
+let SPSHOWN=false
 function setSprite(state){
   if(!SPR||!SPR.states[state]||SPSTATE===state)return
   const st=SPR.states[state],el=document.getElementById('sprite')
   SPSTATE=state
-  el.style.backgroundImage='url(/assets/whale-girl/'+st.sheet+')'
-  el.style.backgroundSize=(st.frames*150)+'px 100%'
-  let i=0;clearInterval(SPT)
-  SPT=setInterval(()=>{el.style.backgroundPosition=(-i*150)+'px 0';i=(i+1)%st.frames},Math.max(80,1000/(st.fps||2)))
+  const w=el.clientWidth||150
+  const url='/assets/whale-girl/'+st.sheet+'?t='+encodeURIComponent(T)
+  const img=new Image()
+  img.onload=()=>{
+    el.style.backgroundImage='url('+url+')'
+    el.style.backgroundSize=(st.frames*w)+'px 100%'
+    el.style.backgroundPosition='0 0'
+    if(!SPSHOWN){SPSHOWN=true;document.getElementById('girl').style.display='none'}
+    let i=0;clearInterval(SPT)
+    SPT=setInterval(()=>{el.style.backgroundPosition=(-i*w)+'px 0';i=(i+1)%st.frames},Math.max(80,1000/(st.fps||2)))
+  }
+  img.onerror=()=>{SPR=null;el.hidden=true;document.getElementById('girl').style.display=''}
+  img.src=url
 }
-function applySprite(nightOn,v){
+function applySprite(asleep,v){
   if(!SPR)return
-  setSprite(nightOn?'sleep':(v.pendingCount?'think':(v.plan&&v.plan.fired?'working':(v.shares>0?'joy':'idle'))))
+  setSprite(asleep?'sleep':(v.pendingCount?'think':(v.plan&&v.plan.fired?'working':(v.shares>0?'joy':'idle'))))
 }
-initSprite()
-loadAll().catch(e=>{$('clock').textContent='✗ '+e.message})
+initSprite().then(()=>loadAll()).catch(()=>loadAll()).catch(e=>{$('clock').textContent='✗ '+e.message})
 setInterval(()=>loadAll().catch(()=>{}),60000)
 </script></body></html>
