@@ -1,3 +1,32 @@
+## port-0.1.0（2026-10-25）—— 多宿主移植
+
+把 DSH 专用插件拆成 **core + adapters + panel**，同一份配置/风控/日记可跑在 DSH、OpenCode 与手机 Termux。
+上游 0.4.6 行为冻结（`docs/BASELINE.md`），上游 110 项测试全绿 + 新增 12 项契约/快照。
+
+### 新增
+
+- **OpenCode adapter**：`whale-daemon`（pm2/`--once`）经 `POST /session` + `prompt_async` 投递；MCP stdio 包装把 40 个 B 站命令暴露为一个 `bili` 工具（只 spawn `tools/bili.mjs`，风控闸不可绕过）。
+- **whale-panel**：独立 http 服务，Bearer token fail-closed；补 `/api/vitals`、`/api/timeline`（游标分页）、`/api/diary` 三个缺口；鱼缸界面 + 鲸鱼娘 15 状态序列帧（缺失自动回落内联 SVG）。
+- **手机推送**：`notify` 新增 `ntfy` / `bark`（仅 https 或局域网 http）。
+- **tick-catchup**：进程停机后补投递带「补觉醒来」留痕，准点不标注。
+- **可移植层**：`WHALE_HOME`/`WHALE_NODE`（兼容 `DSH_HOME`/`DSH_NODE`）；唤醒提示词按宿主切换 `node bili.mjs` ↔ `bili` 工具。
+
+### 修复（团队三轮评审）
+
+- P0 采纳 `create()` 返回的宿主会话 id（OpenCode 不再造孤儿会话）。
+- P0 端口 `isBusy` 异步化并 await（修「Promise 恒真导致时钟永不 tick」）。
+- P1 panel 写操作合并 Authorization；P1 单时钟（panel 默认 `PANEL_SCHED` 关）。
+- P0 序列帧 URL 带 token + 预载成功才隐藏 SVG；night 判定改为窗口起止。
+- P2 fetch 超时、MCP 截断标记、Bearer 常量时间比较、发布 `files` 补目录、PNG 白名单收窄。
+
+### 文档
+
+`docs/CURRENT.md`（恢复入口）、`docs/PR-port-core-opencode-panel.md`（评审与验证）、`adapters/opencode/README.md`、`docs/TERMUX.md`、`docs/CREDITS.md`、`scripts/evaluate.sh`。
+
+### 未完成
+
+CodeBuddy adapter、DSH/OpenCode 真机端到端验收、CI workflow、`client.js` schema/render 单源化。
+
 ## 0.4.6（2026-10-24）
 
 这一版把 10-23 晚上到 10-24 凌晨改的东西收拢：**分享前多一道 AI 评论闸**、

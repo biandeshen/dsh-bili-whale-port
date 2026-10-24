@@ -7,6 +7,13 @@
 
 她该长成什么，见 [VISION.md](VISION.md)；每一版的改动见 [CHANGELOG.md](CHANGELOG.md)。
 
+> **本分支是移植版（port/core-opencode-panel）**：DSH 不再是唯一宿主。
+> 恢复入口 [docs/CURRENT.md](docs/CURRENT.md) · 变更与评审记录 [docs/PR-port-core-opencode-panel.md](docs/PR-port-core-opencode-panel.md)
+> · OpenCode 接入 [adapters/opencode/README.md](adapters/opencode/README.md) · 手机部署 [docs/TERMUX.md](docs/TERMUX.md)
+> · 独立面板 `node panel/server.js --port 8447`（用启动日志里的 `?t=` 链接打开）
+> · 素材与许可 [docs/CREDITS.md](docs/CREDITS.md)（鲸鱼娘图形 CC BY-NC-SA 4.0，仅个人非商用）
+> · 行为基线 [docs/BASELINE.md](docs/BASELINE.md)；改调度/预算/路由前先读它。
+
 ## ⚠️ 默认值是按「刚创的小号」定的（先看这个）
 
 新装用户的默认配置是**保守**的。原因很直接：**长时间高频轮询是小号被风控的头号原因** ✗
