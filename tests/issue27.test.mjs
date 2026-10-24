@@ -5,7 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import {spawnSync} from 'node:child_process'
 import {fileURLToPath} from 'node:url'
-import {createSessionDelivery} from '../lib/session-delivery.js'
+import {createSessionDelivery} from '../core/session-delivery.js'
 import {watchOptions} from '../tools/lib/watch-options.mjs'
 
 function fixture(t,cfg={}) {

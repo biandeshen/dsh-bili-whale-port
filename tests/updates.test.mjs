@@ -1,15 +1,15 @@
 import test from 'node:test'
-import { wakePrompt } from '../lib/scheduler.js'
+import { wakePrompt } from '../core/scheduler.js'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { resolveWorkDir } from '../lib/work-dir.js'
+import { resolveWorkDir } from '../core/work-dir.js'
 import { resolveRuntime, probeRuntime } from '../tools/lib/runtime.mjs'
 import { execFileSync } from '../tools/lib/capture.mjs'
 import { makePlan, completePlan, historyOf } from '../tools/lib/night-plan.mjs'
 import { newReplies } from '../tools/lib/feedback.mjs'
-import { mentionSummaryLines } from '../lib/mention-summary.js'
+import { mentionSummaryLines } from '../core/mention-summary.js'
 import { translateNamed } from '../tools/lib/cli-args.mjs'
 const temp = t => { const p=fs.mkdtempSync(path.join(os.tmpdir(),'whale-updates-'));t.after(()=>fs.rmSync(p,{recursive:true,force:true}));return p }
 test('issue 5: named positional arguments keep unrelated valued/boolean flags',()=>{

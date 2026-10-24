@@ -304,7 +304,9 @@ window.__ModuleLoader__.load({
     function NotifyEditor({ cfg, set, save }) {
       const n = cfg.notify ?? {};
       // 旧配置里可能是 stdout / file → 界面上按「不推送」显示（不误导 ✓），选新方式时会被覆盖 ✓
-      const type = ["none", "desktop", "dm", "webhook", "command"].includes(n.type) ? n.type : "none";
+      const MOBILE_TYPES = ["none", "desktop", "dm", "webhook", "command", "ntfy", "bark"];
+      const MOBILE_LABELS = ["不推送", "桌面通知", "B站私信", "Webhook", "自定义命令", "ntfy 手机推送", "Bark（iOS）"];
+      const type = MOBILE_TYPES.includes(n.type) ? n.type : "none";
       const [testing, setTesting] = useState(false);
       const [testOut, setTestOut] = useState("");
       const setType = (v) => set(["notify", "type"], v);
@@ -332,8 +334,20 @@ window.__ModuleLoader__.load({
           h("div", { className: "blw-row" },
             h("div", null, h("div", { className: "blw-label" }, "方式"),
               h("div", { className: "blw-hint" }, "不推送 = 只写日记与事件流")),
-            h("div", null, ["none", "desktop", "dm", "webhook", "command"].map((v, i) =>
-              radio([v, ["不推送", "桌面通知", "B站私信", "Webhook", "自定义命令"][i]])))),
+            h("div", null, MOBILE_TYPES.map((v, i) =>
+              radio([v, MOBILE_LABELS[i]])))),
+
+          (type === "ntfy" || type === "bark") ? h("div", null,
+            h("div", { className: "blw-row" },
+              h("div", null, h("div", { className: "blw-label" }, type === "ntfy" ? "ntfy 地址（topic）" : "Bark 地址"),
+                h("div", { className: "blw-hint" }, type === "ntfy"
+                  ? "自建或公共服务器均可：https://ntfy.sh/<你的topic> 或 http://192.168.x.x:8080/<topic>（仅 https 或局域网 http 放行）"
+                  : "https://bark.example.com/<device_key>（仅 https 或局域网 http 放行）")),
+              h("input", { className: "blw-input blw-wide", style: { minWidth: "300px" }, value: n.url ?? "", placeholder: type === "ntfy" ? "https://ntfy.sh/whale-xxxx" : "https://bark.host/<device_key>", onChange: (e) => set(["notify", "url"], e.target.value) })),
+            type === "ntfy" ? h("div", { className: "blw-row" },
+              h("div", null, h("div", { className: "blw-label" }, "标题（可留空）"),
+                h("div", { className: "blw-hint" }, "手机通知栏显示的标题，默认「通知」")),
+              h("input", { className: "blw-input", value: n.topic ?? "", onChange: (e) => set(["notify", "topic"], e.target.value) })) : null) : null,
 
           type === "webhook" ? h("div", null,
             h("div", { className: "blw-row" },

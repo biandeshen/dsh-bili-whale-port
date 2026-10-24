@@ -11,7 +11,7 @@ import { pollDelay } from '../tools/lib/poll-policy.mjs'
  * 做法（不需要任何外部 CLI）：
  *   · 插件宿主**常驻在 DSH 里** → 自己每 60 秒 tick 一次 ✓
  *   · tick 与 `bili.mjs night plan` 共用同一个计划引擎，持久化绝对时间与窗口记录
- *   · 到点了 → 用 **`ctx.sessionController.prompt({ sessionId, mode:'queue', content:[…] })`**
+ *   · 到点了 → 用宿主注入的 **`controller.prompt({ sessionId, mode:'queue', content })`**（AgentSessionPort）
  *     往她自己的专用会话里塞一个"你醒了"的回合 ✓ → agent 真的醒来干活 ✓
  *   · 醒来后立刻标记 `woke` → 下一次 tick 自动排下一趟（多窗口 × 多次 ✓）
  *   · 只有作息修改才清除计划；历史计数保留，修改其它设置不会重新抽签
@@ -153,7 +153,13 @@ export function wakePrompt(st, personaText, maxVideos = 5, shareVia = 'dm') {
   ].join('\n')
 }
 
-export function startScheduler(ctx, opts) {
+/**
+ * 阶段 2 端口化：不再收宿主 ctx，只收 AgentSessionPort ——
+ *   controller { create({sessionId,cwd}), prompt(request,signal) }
+ *   isBusy?    () => false|'cooldown'|'still-working'（宿主可提供；缺省回落到会话文件 mtime 探测）
+ * dsh/opencode/codebuddy 各自实现该端口；核心调度与监听逻辑宿主无关。
+ */
+export function startScheduler({controller, isBusy: hostIsBusy}, opts) {
   const {
     dshHome,
     biliMjs,          // 指向 tools/bili.mjs（绝对路径）
@@ -233,6 +239,7 @@ export function startScheduler(ctx, opts) {
   const IDLE_MS = 90 * 1000            // 会话文件 90 秒没动 → 认为她干完了
   function sheIsBusy() {
     if (Date.now() < busyUntil) return 'cooldown'
+    if (hostIsBusy) return hostIsBusy() ? 'still-working' : false
     if (!sessionFileCache) sessionFileCache = findSessionFile()
     if (!sessionFileCache) return false
     try {
@@ -254,7 +261,7 @@ export function startScheduler(ctx, opts) {
       }
       return
     }
-    if (stopped || waking || !ctx.sessionController || sheIsBusy()) return
+    if (stopped || waking || !controller || sheIsBusy()) return
     waking = true
     wakingAt = Date.now()
     wakingWarned = false
@@ -263,12 +270,19 @@ export function startScheduler(ctx, opts) {
       writeState(st)
       if (st.action === 'done' || Date.now() < st.atMs) return
       if (stopped) return
-      if (stopped) return
-      const text = networkPaused() ? `${personaLine()}\n【请求保护暂停】本轮仅整理本地日记，记录暂停原因。不要浏览、评论或私信，不把未发生的浏览写成经历；等待保护恢复。` : st.action === 'skip' ? [
+      // tick-catchup（借鉴 AMpath engine/core/tick-catchup 的"离线补偿留痕"）：
+      //   pending 计划本来就跨重启保留；进程停过 → 醒来后补投递时告诉她"这是迟到的唤醒"，
+      //   并把迟到时长记进事件流，panel 时间线可见（手机/备用机部署刚需：断电半天后她不撒谎）。
+      const lateMs = Date.now() - st.atMs
+      const late = lateMs > 10 * 60_000
+        ? `\n【补觉醒来】这次比计划晚了 ${Math.round(lateMs / 60000)} 分钟（进程之前不在）。按实际时刻叙述，别把迟到的经历说成准点发生的。`
+        : ''
+      const text = (networkPaused() ? `${personaLine()}\n【请求保护暂停】本轮仅整理本地日记，记录暂停原因。不要浏览、评论或私信，不把未发生的浏览写成经历；等待保护恢复。` : st.action === 'skip' ? [
         personaLine(), '【今晚不看】' + st.reason,
         '照常写两本日记，说明本次跳过的理由；记录 diary log night-skip。',
         ...diaryPushLines(),
-      ].join('\n') : wakePrompt(st, personaLine(), Number(readCfgNow().night?.maxVideos ?? 5) || 5, String(readCfgNow().share?.via ?? 'dm'))
+      ].join('\n') : wakePrompt(st, personaLine(), Number(readCfgNow().night?.maxVideos ?? 5) || 5, String(readCfgNow().share?.via ?? 'dm'))) + late
+      if (late) log(`[bili-whale] 补偿投递：迟到 ${Math.round(lateMs / 60000)} 分钟 · ${st.atText}`)
       await delivery.send({ requestId: 'bili-whale-' + Date.now(), sessionId,
         mode: 'queue', content: [{ type: 'text', text }] }, lifecycle.signal)
       const completed = completePlan(st)
@@ -337,7 +351,7 @@ export function startScheduler(ctx, opts) {
 
 
   const personaLine = () => '' // Added at delivery time, after session selection.
-  const delivery = createSessionDelivery({controller:ctx.sessionController,dshHome,cwd,sessionId,config:readCfgNow,persona:personaBlock,isBusy:sheIsBusy,log,onSession:id=>{ if(activeSessionId!==id) { activeSessionId=id; sessionFileCache=null } }})
+  const delivery = createSessionDelivery({controller,dshHome,cwd,sessionId,config:readCfgNow,persona:personaBlock,isBusy:sheIsBusy,log,onSession:id=>{ if(activeSessionId!==id) { activeSessionId=id; sessionFileCache=null } }})
 
     async function dmTick() {
     // A timeout is not proof of failed delivery. Keep single-flight ownership
@@ -526,7 +540,7 @@ export function startScheduler(ctx, opts) {
     if (stopped) return
     if (networkPaused()) { if (liveProc) { liveStopping=true; try { liveProc.kill() } catch {} ;liveProc=null }; return }
     // ⚠️ 2026-10-18 主人定：直播间是**独立开关** —— 点开就开始、关掉就停（不受作息影响 ✓）
-    if (ctx.sessionController) {
+    if (controller) {
       let cur = {}
       try { cur = JSON.parse(fs.readFileSync(CFG_FILE_REF, 'utf8')) } catch {}
       if (!cur.listen?.live && liveProc !== null) {           // 开关被关掉 → 立刻停子进程 ✓
@@ -550,7 +564,7 @@ export function startScheduler(ctx, opts) {
       }
     }
     if (liveProc !== null || liveWaking || liveRetryAt > Date.now()) return
-    if (!ctx.sessionController) return
+    if (!controller) return
     let cfg = {}
     try { cfg = JSON.parse(fs.readFileSync(CFG_FILE_REF, 'utf8')) } catch {}
     const L = cfg.listen ?? {}

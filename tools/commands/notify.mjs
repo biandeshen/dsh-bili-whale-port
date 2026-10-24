@@ -80,6 +80,35 @@ async function sendWebhook(url, tpl) {
   console.log(`webhook ${r.status} ✓ ${raw.slice(0, 120)}`)
 }
 
+// 2026-10-25 阶段 1 新增：手机推送两通道（Termux/备用机方案的落地件）。
+//   校验：https 或回环/内网 http（自建 ntfy 常见于局域网），其余明文 http 拒绝 —— 凭据性质的内容不走裸奔链路。
+function assertPushUrl(url) {
+  const u = new URL(url)
+  const local = /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(u.hostname)
+  if (u.protocol !== 'https:' && !(u.protocol === 'http:' && local)) throw new Error(`推送地址须为 https 或局域网/回环 http：${url}`)
+  return u
+}
+async function sendNtfy(url, topic) {
+  assertPushUrl(url)
+  const t = topic || String(title)
+  if (DRY) { console.log(`[dry] ntfy → ${url} · Title=${t} · Priority=high\n${text}`); return }
+  const r = await fetch(url, { method: 'POST', headers: { Title: encodeURIComponent(t), Priority: 'high' }, body: String(text) })
+  const raw = await r.text().catch(() => '')
+  if (!r.ok) throw new Error(`ntfy HTTP ${r.status} ${raw.slice(0, 160)}`)
+  console.log(`ntfy ${r.status} ✓`)
+}
+async function sendBark(url) {
+  const u = assertPushUrl(url)
+  const pathArr = u.pathname.split('/').filter(Boolean)
+  if (u.hostname === 'bark2.qzapp.foobar.rent' || !pathArr.length) throw new Error('bark 地址须形如 https://bark.host/<device_key>')
+  const body = JSON.stringify({ title: String(title), body: String(text), group: 'bili-whale' })
+  if (DRY) { console.log(`[dry] bark POST ${u.origin}/${pathArr[0]} ${body}`); return }
+  const r = await fetch(`${u.origin}/${pathArr[0]}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body })
+  const raw = await r.text().catch(() => '')
+  if (!r.ok) throw new Error(`bark HTTP ${r.status} ${raw.slice(0, 160)}`)
+  console.log(`bark ${r.status} ✓`)
+}
+
 function sendDesktop() {
   if (DRY) { console.log('[dry] 桌面通知：' + String(text).slice(0, 60)); return }
   if (process.platform !== 'win32') { console.log(`[通知] ${title}\n${text}`); return }
@@ -147,6 +176,14 @@ try {
   } else if (type === 'webhook') {
     if (!n.url) throw new Error('config.notify.url 没配')
     await sendWebhook(n.url, n.template)
+  } else if (type === 'ntfy') {
+    // 手机推送（Android/iOS，自建或官方公共服务器）：url = topic 地址，可选 n.topic 作标题
+    if (!n.url) throw new Error('config.notify.url 没配（ntfy 的 topic 地址）')
+    await sendNtfy(n.url, n.topic)
+  } else if (type === 'bark') {
+    // iOS Bark：url = https://bark.host/<device_key>[/<sound>]，POST JSON 保留 path 首段
+    if (!n.url) throw new Error('config.notify.url 没配（bark 服务器地址，含 device_key）')
+    await sendBark(n.url)
   } else if (type === 'command') {
     // 2026-10-18：命令不存在（换电脑/插件被删/写死路径失效）→ 直接改用桌面通知 ✓ 别静默失败 ✗
     const c = String(n.cmd ?? '')

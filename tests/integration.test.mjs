@@ -7,14 +7,17 @@ import path from 'node:path'
 import {spawnSync} from 'node:child_process'
 import {fileURLToPath,pathToFileURL} from 'node:url'
 const root=fileURLToPath(new URL('../',import.meta.url))
-function sandbox(t,cfg={}) {
+function sandbox(t,cfg={},opts={}) {
   const home=fs.mkdtempSync(path.join(os.tmpdir(),'bili-whale-test-'))
   t.after(()=>fs.rmSync(home,{recursive:true,force:true}))
   const dsh=path.join(home,'portable/profile')
   fs.mkdirSync(dsh,{recursive:true});fs.mkdirSync(path.join(home,'.bili-ai'))
   fs.writeFileSync(path.join(dsh,'bili-whale.config.json'),JSON.stringify({owner:{mid:'222',name:'Owner'},listen:{comment:false,dm:false,live:false},...cfg}))
   fs.writeFileSync(path.join(home,'.bili-ai/credentials.json'),JSON.stringify({sessdata:'test-cookie-not-a-real-account',bili_jct:'a'.repeat(32)}))
-  return {...process.env,USERPROFILE:home,HOME:home,DSH_HOME:dsh,DSH_NODE:process.execPath,BILI_WHALE_CONFIG:path.join(dsh,'bili-whale.config.json'),TEST_REQUESTS:path.join(home,'requests.jsonl'),NODE_OPTIONS:'--import='+pathToFileURL(path.join(root,'tests/helpers/mock-fetch.mjs')).href}
+  const env={...process.env,USERPROFILE:home,HOME:home,DSH_HOME:dsh,DSH_NODE:process.execPath,BILI_WHALE_CONFIG:path.join(dsh,'bili-whale.config.json'),TEST_REQUESTS:path.join(home,'requests.jsonl'),NODE_OPTIONS:'--import='+pathToFileURL(path.join(root,'tests/helpers/mock-fetch.mjs')).href}
+  // 开发机上全局 ~/.dsh/dsh-runtimes 会被 resolveRuntime 兜底扫到，"无运行时"类测试必须禁用该回退 ✗
+  if (opts.noNode) { env.DSH_NODE=''; env.DSH_DESKTOP_NODE_EXECUTABLE='' }
+  return env
 }
 function run(env,file,args=[]) { const r=spawnSync(process.execPath,[path.join(root,file),...args],{env,encoding:'utf8',timeout:15000});assert.ifError(r.error);return r }
 const requests=env=>fs.existsSync(env.TEST_REQUESTS)?fs.readFileSync(env.TEST_REQUESTS,'utf8'):''
@@ -27,7 +30,7 @@ test('ordinary owner DM does not require sharing score',t=>{const env=sandbox(t,
 test('comment uses the same score rule',t=>{const env=sandbox(t);const r=run(env,'tools/commands/comment.mjs',['--oid','1','--bvid','BV1234567890','--message','hello','--share','--auto','--go']);assert.notEqual(r.status,0);assert.equal(requests(env),'')})
 test('custom home, persona, diary and failed approval recovery',t=>{const r=run(sandbox(t),'tests/helpers/plugin.mjs');assert.equal(r.status,0,r.stderr)})
 test('successful approval removes draft',t=>{const env=sandbox(t);env.TEST_SEND_SUCCESS='1';const r=run(env,'tests/helpers/plugin.mjs');assert.equal(r.status,0,r.stderr)})
-test('missing runtime reports scheduler failure',t=>{const env=sandbox(t);delete env.DSH_NODE;env.PATH='';delete env.ProgramFiles;env.TEST_NO_NODE='1';const r=run(env,'tests/helpers/plugin.mjs');assert.equal(r.status,0,r.stderr)})
+test('missing runtime reports scheduler failure',t=>{const env=sandbox(t,{},{noNode:true});env.PATH='';delete env.ProgramFiles;env.TEST_NO_NODE='1';const r=run(env,'tests/helpers/plugin.mjs');assert.equal(r.status,0,r.stderr)})
 test('real scheduler: midnight, retries, history, persona and disposal',t=>{const r=run(sandbox(t),'tests/helpers/scheduler.mjs');assert.equal(r.status,0,r.stderr)})
 test('DM delivery retries persisted message and acknowledges only after success',t=>{const r=run(sandbox(t),'tests/helpers/dm-delivery.mjs');assert.equal(r.status,0,r.stderr)})
 

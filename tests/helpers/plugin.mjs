@@ -17,7 +17,7 @@ cp.execFile=(exe,args,options,cb)=>{
   return {kill(){}}
 }
 syncBuiltinESMExports()
-const {default:plugin}=await import('../../lib/index.js')
+const {default:plugin}=await import('../../core/index.js')
 const routes=new Map()
 plugin.apply({get:()=>({requestRejection:()=>null}),webServer:{register(r){routes.set(r.path,r.handler);return ()=>{}}},effect:()=>{}})
 async function request(url,body={},method='POST') {

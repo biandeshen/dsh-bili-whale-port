@@ -22,7 +22,8 @@ export function resolveRuntime(dshHome, options = {}) {
   const current = options.execPath ?? process.execPath
   const probe = options.probe ?? probeRuntime
   const bin = platform === 'win32' ? 'node.exe' : 'node'
-  const cands = [env.DSH_NODE, env.DSH_DESKTOP_NODE_EXECUTABLE]
+  // WHALE_NODE：非 DSH 宿主（OpenCode/panel/Termux）的规范覆盖；DSH_NODE 原样生效。
+  const cands = [env.WHALE_NODE, env.DSH_NODE, env.DSH_DESKTOP_NODE_EXECUTABLE]
   for (const root of new Set([path.join(dshHome, 'dsh-runtimes'), path.join(home, '.dsh', 'dsh-runtimes')])) {
     try { for (const d of fs.readdirSync(root)) cands.push(path.join(root, d, 'dependencies', 'node', 'bin', bin)) } catch {}
   }

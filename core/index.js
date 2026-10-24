@@ -44,10 +44,10 @@ function execNode(args, options, cb) {
 
 
 // 2026-10-19：真 node 路径（Electron 的 process.execPath 是 Harness.exe ✗ 跑不了 node 脚本）
+// 阶段 1：home 解析统一走 paths.mjs（WHALE_HOME 优先，DSH_HOME 兼容），不再本地读 env ✗
 const NODE_EXE = (() => {
-  const dshHome = process.env.DSH_HOME || path.join(os.homedir(), '.dsh')
   try {
-    return resolveNodeRuntime(dshHome)
+    return resolveNodeRuntime(DSH_HOME)
   } catch (e) {
     // 不静默回退：process.execPath 在桌面端是 Electron 主程序，跑不了脚本。
     // 这里只记录，具体失败由各调用点按自身语义报出（设置页体检会显示原因）。
@@ -517,7 +517,7 @@ function isLoopbackReq(req) {
     // 2026-10-21 修（Issue #8-3）：时钟起不来时以前只 console.warn ✗
     //   用户在设置页看不出「它永远不会醒」→ 现在把状态记下来，/deps 带出去 ✓
     try {
-      sched = startScheduler(ctx, {
+      sched = startScheduler({ controller: ctx.sessionController }, {
         dshHome: DSH_HOME,
         biliMjs: resolveBiliMjs(),
         cwd: resolveWorkDir(readConfig().home, WORK_DIR),

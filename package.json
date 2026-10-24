@@ -12,16 +12,17 @@
   ],
   "type": "module",
   "scripts": {
-    "test": "node --test tests/planner.test.mjs tests/integration.test.mjs tests/updates.test.mjs tests/supplement.test.mjs tests/review.test.mjs tests/traffic.test.mjs tests/edit-dynamic.test.mjs tests/ai-share.test.mjs tests/issue27.test.mjs tests/listener-polling.test.mjs tests/dm-history.test.mjs tests/dm-exit-integration.test.mjs"
+    "test": "node --test tests/planner.test.mjs tests/integration.test.mjs tests/updates.test.mjs tests/supplement.test.mjs tests/review.test.mjs tests/traffic.test.mjs tests/edit-dynamic.test.mjs tests/ai-share.test.mjs tests/issue27.test.mjs tests/listener-polling.test.mjs tests/dm-history.test.mjs tests/dm-exit-integration.test.mjs tests/scheduler-snapshot.test.mjs"
   },
-  "main": "lib/index.js",
+  "main": "core/index.js",
   "exports": {
-    ".": "./lib/index.js",
-    "./client": "./lib/client.js",
+    ".": "./core/index.js",
+    "./client": "./core/client.js",
     "./package.json": "./package.json"
   },
   "files": [
-    "lib",
+    "core",
+
     "tools",
     "cordis.patch.yml",
     "README.md",

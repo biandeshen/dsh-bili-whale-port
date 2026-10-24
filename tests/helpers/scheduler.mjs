@@ -7,7 +7,7 @@ globalThis.Date=class extends RealDate{constructor(...args){super(...(args.lengt
 const timers=[]
 globalThis.setInterval=globalThis.setTimeout=(fn)=>{const t={fn};timers.push(t);return t}
 globalThis.clearInterval=globalThis.clearTimeout=t=>{t.cleared=true}
-const {startScheduler}=await import('../../lib/scheduler.js')
+const {startScheduler}=await import('../../core/scheduler.js')
 const {makePlan,completePlan,historyOf}=await import('../../tools/lib/night-plan.mjs')
 const dsh=process.env.DSH_HOME,state=path.join(dsh,'whale-night.json')
 const cfg={night:{windows:[{start:'23:00',end:'01:00',wakes:1}],skipChance:0},listen:{comment:false,dm:false,live:false},diary:{push:false}}
@@ -16,7 +16,7 @@ const persona=path.join(process.env.USERPROFILE,'.bili-ai/persona.md')
 fs.writeFileSync(persona,'测试专属人设')
 const messages=[]
 let fail=true,attempts=0
-const sched=startScheduler({sessionController:{create:async()=>{},prompt:async p=>{attempts++;if(fail)throw Error('delivery failure');messages.push(p.content[0].text)}}},
+const sched=startScheduler({controller:{create:async()=>{},prompt:async p=>{attempts++;if(fail)throw Error('delivery failure');messages.push(p.content[0].text)}}},
   {dshHome:dsh,biliMjs:'unused',cwd:process.env.USERPROFILE})
 const samples=[.75,.9];const p=makePlan(cfg.night,{},now,()=>samples.shift())
 fs.writeFileSync(state,JSON.stringify(p))
@@ -41,18 +41,35 @@ now=new RealDate('2026-10-23T23:00:00').getTime()
 cfg.night.skipChance=1;fs.writeFileSync(process.env.BILI_WHALE_CONFIG,JSON.stringify(cfg))
 const skip=makePlan(cfg.night,historyOf(before,now),now,()=>0)
 fs.writeFileSync(state,JSON.stringify(skip))
-const s2=startScheduler({sessionController:{create:async()=>{},prompt:async p=>messages.push(p.content[0].text)}},{dshHome:dsh,biliMjs:'unused',cwd:process.env.USERPROFILE})
+const s2=startScheduler({controller:{create:async()=>{},prompt:async p=>messages.push(p.content[0].text)}},{dshHome:dsh,biliMjs:'unused',cwd:process.env.USERPROFILE})
 await s2.tick();s2.stop()
 assert.match(messages.at(-1),/今晚不看/);assert.ok(messages.at(-1).includes('关掉了推送'))
 assert.ok(messages.at(-1).includes('测试专属人设'))
 const end=JSON.parse(fs.readFileSync(state));assert.ok((end.usedCount?.[skip.windowKey]??0)>0,'skip 应消耗一次机会')
+// tick-catchup：进程停机后 pending 计划仍在，醒来补投递必须带「补觉」留痕（借鉴 AMpath tick-catchup）。
+now=new RealDate('2026-10-24T21:30:00').getTime()
+cfg.night={windows:[{start:'20:00',end:'24:00',wakes:2}],skipChance:0}
+fs.writeFileSync(process.env.BILI_WHALE_CONFIG,JSON.stringify(cfg))
+const latePlan={...makePlan(cfg.night,{},now,()=>0.5),fired:false,atMs:new RealDate('2026-10-24T20:00:00').getTime()}
+fs.writeFileSync(state,JSON.stringify(latePlan))
+const sLate=startScheduler({controller:{create:async()=>{},prompt:async p=>messages.push(p.content[0].text)}},{dshHome:dsh,biliMjs:'unused',cwd:process.env.USERPROFILE})
+await sLate.tick();sLate.stop()
+assert.match(messages.at(-1),/补觉醒来/, '迟到 90 分钟应标注补偿：'+messages.at(-1).slice(0,120))
+assert.match(messages.at(-1),/90 分钟/)
+// 准点（迟到 <10min）不标注
+now=new RealDate('2026-10-24T22:04:00').getTime()
+const onTime={...makePlan(cfg.night,historyOf(JSON.parse(fs.readFileSync(state)),now),now,()=>0.5),fired:false,atMs:now-4*60000}
+fs.writeFileSync(state,JSON.stringify(onTime))
+const sOn=startScheduler({controller:{create:async()=>{},prompt:async p=>messages.push(p.content[0].text)}},{dshHome:dsh,biliMjs:'unused',cwd:process.env.USERPROFILE})
+await sOn.tick();sOn.stop()
+assert.ok(!messages.at(-1).includes('补觉醒来'),'准点投递不应带补偿标注')
 // Owner mention summary is wired into the real listener, once per fresh batch.
 now=new RealDate('2026-10-24T12:00:00').getTime()
 cfg.owner={mid:'222'};cfg.listen={comment:true,allDay:true,commentIntervalSec:60,dm:false,live:false,mentionSummary:true}
 fs.writeFileSync(process.env.BILI_WHALE_CONFIG,JSON.stringify(cfg))
 process.env.TEST_FEEDS=path.join(process.env.USERPROFILE,'listen-feeds.json')
 fs.writeFileSync(process.env.TEST_FEEDS,JSON.stringify({reply:[],at:[]}))
-const s3=startScheduler({sessionController:{create:async()=>{},prompt:async p=>messages.push(p.content[0].text)}},{dshHome:dsh,biliMjs:'unused',cwd:process.env.USERPROFILE})
+const s3=startScheduler({controller:{create:async()=>{},prompt:async p=>messages.push(p.content[0].text)}},{dshHome:dsh,biliMjs:'unused',cwd:process.env.USERPROFILE})
 await s3.listenTick()
 now+=901000
 fs.writeFileSync(process.env.TEST_FEEDS,JSON.stringify({reply:[],at:[{id:'request1',at_time:Math.floor(now/1000),user:{mid:'222',nickname:'Owner'},item:{source_content:'请总结这个视频',uri:'https://www.bilibili.com/video/BV1234567890'}}]}))
