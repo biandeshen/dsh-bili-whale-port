@@ -20,7 +20,7 @@ cd E:/WorkSpace_Qoder/dsh-bili-whale
 npm test                         # 全量回归
 node scripts/preflight.mjs        # 部署预检（凭据/风控/端口/OpenCode）
 bash scripts/evaluate.sh quick   # 快速验收剧本
-# 真机上线按 docs/DEPLOY.md 走
+# 真机上线按 docs/DEPLOY.md 走；交给 AI 执行用 docs/RUNBOOK.md
 node panel/server.js --port 8447 # 鱼缸面板（浏览器打开启动日志里的 ?t= 地址）
 node adapters/opencode/daemon.js --once   # 时钟冒烟（窗口外应零投递）
 ```
