@@ -60,5 +60,6 @@ test('页面 HTML 内联可用（零外部资源、含鱼缸与三页签）', as
   const r = await fetch(base + '/?t=' + token)
   const html = await r.text()
   assert.match(html, /她的一天/)
+  assert.match(html, /headers:\{\.\.\.H,\.\.\.\(opt\.headers\|\|\{\}\)\}/, 'P1：POST 必须合并 Authorization，不能被 opt.headers 覆盖')
   assert.ok(!/<link|src="http|@import/.test(html), '不得引用外部资源')
 })

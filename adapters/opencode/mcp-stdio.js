@@ -48,8 +48,8 @@ function runBili(args, timeoutSec) {
   const r = spawnSync(process.execPath, [BILI, ...args], {
     encoding: 'utf8', timeout: Math.min(600, Math.max(5, Number(timeoutSec) || 120)) * 1000, windowsHide: true,
   })
-  const out = String(r.stdout ?? '') + (r.stderr ? '\n[stderr] ' + String(r.stderr) : '')
-  return { text: out || `（无输出，exit=${r.status}）`, isError: r.status !== 0 }
+  const out = String(r.stdout ?? '') + (r.stderr ? '\n[stderr] ' + String(r.stderr) : '') + (r.error ? '\n[spawn] ' + String(r.error.message ?? r.error) : '')
+  return { text: out || `（无输出，exit=${r.status}）`, isError: r.status !== 0 || !!r.error }
 }
 
 function send(msg) { process.stdout.write(JSON.stringify(msg) + '\n') }
@@ -67,8 +67,9 @@ rl.on('line', (line) => {
     try {
       if (params?.name !== 'bili') throw new Error('未知工具：' + params?.name)
       const args = sanitizeArgs(params.arguments?.args ?? [])
-      const { text, isError } = runBili(args.length ? args : ['help'], params.arguments?.timeoutSec)
-      reply(id, { content: [{ type: 'text', text: text.slice(0, 200_000) }], isError })
+      const { text: raw, isError } = runBili(args.length ? args : ['help'], params.arguments?.timeoutSec)
+      const text = String(raw ?? '')
+      reply(id, { content: [{ type: 'text', text: text.length > 200_000 ? text.slice(0, 200_000) + `\n…[已截断 ${text.length - 200_000} 字符]` : text }], isError })
     } catch (e) { replyErr(id, String(e?.message ?? e)) }
   } else if (method === 'notifications/initialized') { /* no reply */ }
   else if (id !== undefined) replyErr(id, '不支持的方法：' + method)

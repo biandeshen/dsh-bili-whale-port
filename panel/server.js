@@ -32,9 +32,9 @@ let NODE_EXE = null
 try { NODE_EXE = resolveNodeRuntime(WHALE_HOME) } catch (e) { globalThis.__biliWhaleNodeError = String(e?.message ?? e) }
 const execNode = makeExecNode(() => NODE_EXE)
 
-let schedStatus = { ok: false, reason: '未启动（PANEL_NO_SCHED=1）', at: null }
+let schedStatus = { ok: false, reason: '未启动（面板默认只做管理端；时钟由 whale-daemon 负责，PANEL_SCHED=1 可内置）', at: null }
 let sched = null
-if (!process.env.PANEL_NO_SCHED) {
+if (process.env.PANEL_SCHED === '1') {
   try {
     let userCfg = {}
     try { userCfg = JSON.parse(fs.readFileSync(configPath, 'utf8')) } catch {}
@@ -43,6 +43,7 @@ if (!process.env.PANEL_NO_SCHED) {
       biliMjs: userCfg.toolsPath || path.join(ROOT, 'tools', 'bili.mjs'),
       cwd: userCfg.home || path.join(WHALE_HOME, 'whale-work'),
       sessionId: 'bili-whale',
+      host: 'opencode',
       log: (m) => { try { console.log(m) } catch {} },
     })
     schedStatus = { ok: true, reason: '已启动（每 60 秒 tick）', at: new Date().toISOString() }

@@ -15,7 +15,7 @@ export function createOpenCodeController({ baseUrl = process.env.OPENCODE_BASE_U
   const headers = { 'content-type': 'application/json' }
   if (password) headers.authorization = 'Basic ' + Buffer.from(`opencode:${password}`).toString('base64')
   async function req(method, p, body) {
-    const r = await fetchFn(baseUrl + p, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) })
+    const r = await fetchFn(baseUrl + p, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(30_000) })
     if (!r.ok && r.status !== 204) {
       const t = await r.text().catch(() => '')
       throw new Error(`opencode server ${method} ${p} → HTTP ${r.status} ${t.slice(0, 160)}`)

@@ -21,8 +21,8 @@ export function loadToken(whaleHome) {
 }
 
 export function isLoopback(req) {
-  const host = String(req.headers?.host ?? '').toLowerCase()
-  const h = host.split(':')[0]
+  const raw = String(req.headers?.host ?? '').toLowerCase()
+  const h = raw.startsWith('[') ? raw.slice(0, raw.indexOf(']') + 1) : raw.split(':')[0]
   if (!(h === '127.0.0.1' || h === 'localhost' || h === '[::1]' || h === '::1')) return false
   const ip = String(req.socket?.remoteAddress ?? '')
   return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1'
@@ -30,9 +30,9 @@ export function isLoopback(req) {
 
 export function authorized(req, token) {
   if (!isLoopback(req)) return { ok: false, code: 403, error: '只接受本机回环访问' }
-  const bearer = String(req.headers?.authorization ?? '')
+  const bearer = String(req.headers?.authorization ?? '').replace(/^Bearer\s+/i, '')
   const q = new URL(req.url, 'http://x').searchParams.get('t') || ''
   const eq = (a) => a.length === token.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(token))
-  if (bearer === `Bearer ${token}` || eq(q)) return { ok: true }
+  if (eq(bearer) || eq(q)) return { ok: true }
   return { ok: false, code: 503, error: '缺少或错误的访问令牌（fail-closed）：Bearer 头或 ?t= 均可' }
 }

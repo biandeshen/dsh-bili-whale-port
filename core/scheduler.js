@@ -110,8 +110,10 @@ function diaryPushLines() {
 // 2026-10-22：share.via 也得由调用方传进来（同 maxVideos 的理由 ✗ 模块级函数够不到 cfg）
 //   动机：主人明明设了 via=comment，她还是走私信 ✗
 //   原因：提示里只写「先看 share.via」却没给便宜的读法，而旁边 notify.type=dm 容易带偏 ✓
-export function wakePrompt(st, personaText, maxVideos = 5, shareVia = 'dm') {
-  return [
+export function wakePrompt(st, personaText, maxVideos = 5, shareVia = 'dm', host = 'dsh') {
+  // 阶段 2 端口化：DSH 用 `node bili.mjs …`；OpenCode 用 MCP 工具 `bili …`（同一套命令名）。
+  //   「AGENTS.md 流程」在非 DSH 宿主可能不存在 → 明确降级为"按下方步骤"。
+  const RAW = [
     // 2026-10-21 修：这个函数在模块级，够不到关闭体里的 personaLine() ✗
     //   → 最主要的「你醒了」提示一直没带过她的人设 ✗（所以换了人设她还是老样子）
     ...(personaText ? [personaText, ''] : []),
@@ -133,7 +135,7 @@ export function wakePrompt(st, personaText, maxVideos = 5, shareVia = 'dm') {
     ...silenceLines(),
     '按 AGENTS.md 的「看的那晚」流程走一遍（不要等我说话，直接做）：',
     '1) `node bili.mjs deps` —— 红着就报备我、只做读、不对外发',
-    '2) 读 DSH_HOME 下 whale-diary.md 与 whale-diary-private.md（缺失则首次写入时创建）',
+    '2) 读运行目录（WHALE_HOME；DSH 下即 DSH_HOME）的 whale-diary.md 与 whale-diary-private.md（缺失则首次写入时创建）',
     '3) feed 选题（≤' + maxVideos + ' 条） → 每条 `debrief --no-frames`；排序看「偏好命中+弹幕密度」不看播放量',
     '4) 挑 2–3 条深读（完整 `debrief`，含抽帧）',
     '4.5) 想留着的 → `fav <BV> --reason "..." --dry` → `--go`；判据缺一不收：三个月后还想点开 / 说得出为什么（≥6字）/ 同类 ≥2 条要 --better。一天 ≤3 条、同视频 30 天一次、不占额度；看完就完的不收',
@@ -150,7 +152,10 @@ export function wakePrompt(st, personaText, maxVideos = 5, shareVia = 'dm') {
     ...diaryPushLines(),
     '',
     '9) 收工：记 `diary log`，别再自己加戏',
-  ].join('\n')
+  ]
+  let text = RAW.join('\n')
+  if (host === 'opencode') text = text.replaceAll('node bili.mjs', 'bili 工具').replace('按 AGENTS.md 的「看的那晚」流程走一遍', '按工作区 AGENTS.md 的「看的那晚」流程（没有该文件就按下面步骤）')
+  return text
 }
 
 /**
@@ -165,6 +170,7 @@ export function startScheduler({controller, isBusy: hostIsBusy}, opts) {
     biliMjs,          // 指向 tools/bili.mjs（绝对路径）
     cwd,              // 她那个会话的工作目录
     sessionId = 'bili-whale',
+    host = 'dsh',        // 'dsh' | 'opencode'：唤醒提示词里的命令形态（node bili.mjs ↔ bili 工具）
     log = () => {},
   } = opts
 
@@ -237,9 +243,9 @@ export function startScheduler({controller, isBusy: hostIsBusy}, opts) {
   let busyUntil = 0   // 硬冷却：上次叫醒后至少隔这么久才允许下一次
   const COOLDOWN_MS = 8 * 60 * 1000   // 8 分钟（她一轮通常 3–6 分钟 ✓）
   const IDLE_MS = 90 * 1000            // 会话文件 90 秒没动 → 认为她干完了
-  function sheIsBusy() {
+  async function sheIsBusy() {
     if (Date.now() < busyUntil) return 'cooldown'
-    if (hostIsBusy) return hostIsBusy() ? 'still-working' : false
+    if (hostIsBusy) { const b = await hostIsBusy(); return b ? 'still-working' : false }
     if (!sessionFileCache) sessionFileCache = findSessionFile()
     if (!sessionFileCache) return false
     try {
@@ -261,7 +267,7 @@ export function startScheduler({controller, isBusy: hostIsBusy}, opts) {
       }
       return
     }
-    if (stopped || waking || !controller || sheIsBusy()) return
+    if (stopped || waking || !controller || await sheIsBusy()) return
     waking = true
     wakingAt = Date.now()
     wakingWarned = false
@@ -281,7 +287,7 @@ export function startScheduler({controller, isBusy: hostIsBusy}, opts) {
         personaLine(), '【今晚不看】' + st.reason,
         '照常写两本日记，说明本次跳过的理由；记录 diary log night-skip。',
         ...diaryPushLines(),
-      ].join('\n') : wakePrompt(st, personaLine(), Number(readCfgNow().night?.maxVideos ?? 5) || 5, String(readCfgNow().share?.via ?? 'dm'))) + late
+      ].join('\n') : wakePrompt(st, personaLine(), Number(readCfgNow().night?.maxVideos ?? 5) || 5, String(readCfgNow().share?.via ?? 'dm'), host)) + late
       if (late) log(`[bili-whale] 补偿投递：迟到 ${Math.round(lateMs / 60000)} 分钟 · ${st.atText}`)
       await delivery.send({ requestId: 'bili-whale-' + Date.now(), sessionId,
         mode: 'queue', content: [{ type: 'text', text }] }, lifecycle.signal)

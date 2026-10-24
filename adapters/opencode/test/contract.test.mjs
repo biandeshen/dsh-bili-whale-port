@@ -44,14 +44,14 @@ test('controller→session-delivery：固定会话 + 人设前缀 + prompt_async
   const cfgFile = path.join(dshHome, 'bili-whale.config.json')
   fs.writeFileSync(cfgFile, JSON.stringify({ sessionRotateDays: 0, personaOncePerSession: false }))
   const delivery = createSessionDelivery({
-    controller, dshHome, cwd: home, sessionId: 'ses_mock_1',
+    controller, dshHome, cwd: home, sessionId: 'bili-whale', // 故意用占位 id：create 返回宿主真 id 后必须被采纳
     config: () => JSON.parse(fs.readFileSync(cfgFile, 'utf8')),
     persona: () => '你是小鲸', log: () => {},
   })
-  await delivery.send({ requestId: 'r1', sessionId: 'ses_mock_1', mode: 'queue', content: [{ type: 'text', text: '醒了去刷B站' }] }, new AbortController().signal)
+  await delivery.send({ requestId: 'r1', sessionId: 'bili-whale', mode: 'queue', content: [{ type: 'text', text: '醒了去刷B站' }] }, new AbortController().signal)
   const prompt = log.find(x => x[0] === 'prompt')
   assert.ok(prompt, '必须走 prompt_async')
-  assert.equal(prompt[1], 'ses_mock_1')
+  assert.equal(prompt[1], 'ses_mock_1', 'P0：必须采纳 create() 返回的 ses_* id（不是占位 bili-whale）')
   const parts = JSON.parse(prompt[2]).parts
   assert.match(parts[0].text, /^你是小鲸[\s\S]*醒了去刷B站$/, '人设前缀注入到第一段')
 })

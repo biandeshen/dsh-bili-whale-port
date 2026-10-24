@@ -22,7 +22,10 @@
   },
   "files": [
     "core",
-
+    "adapters",
+    "panel",
+    "docs",
+    "scripts",
     "tools",
     "cordis.patch.yml",
     "README.md",

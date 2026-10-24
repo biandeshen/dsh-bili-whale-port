@@ -27,13 +27,17 @@ export function createSessionDelivery({controller,dshHome,cwd,sessionId,config,p
         signal?.throwIfAborted()
         const cfg=config(),days=Number(cfg.sessionRotateDays??0),once=cfg.personaOncePerSession===true
         const persist=once||(Number.isFinite(days)&&days>0)
-        const rotating=Number.isFinite(days)&&days>0&&now()-state.startedAt>=days*86400000&&now()-lastDelivered>=8*60000&&!isBusy()
+        // 端口 isBusy 允许返回 Promise（OpenCode 查会话状态是 IO）——先 await，否则 Promise 恒真 ✗
+        const rotating=Number.isFinite(days)&&days>0&&now()-state.startedAt>=days*86400000&&now()-lastDelivered>=8*60000&&!(await isBusy())
         const next=rotating?{id:crypto.randomUUID(),startedAt:now(),rotatedFrom:state.id}:state
         let created = null
         if(!ready||rotating) {
           try {created = await controller.create({sessionId:next.id,cwd})}
           catch(e) {if(rotating)throw e;log('沿用现有会话；若投递失败将保留重试状态')}
         }
+        // 端口契约：create() 可能返回宿主自生成的会话 id（OpenCode POST /session 即如此）。
+        // DSH 返回与传入相同；OpenCode 返回新 id —— 必须采纳，否则 prompt 会打到不存在的会话 ✗
+        if(created?.sessionId && String(created.sessionId)!==next.id) next.id=String(created.sessionId)
         // 2026-10-24 修第二版（审查报告第 3 条 + 复审）：
         //   上一版想靠 create() 的返回字段判断"是不是新建会话" ✗
         //   但 DSH 的 sessionController.create 返回的是 { sessionId, agentPreset? }

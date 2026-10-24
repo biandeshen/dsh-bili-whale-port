@@ -132,7 +132,7 @@ textarea{width:100%;min-height:260px;font-family:ui-monospace,Menlo,monospace}
 const T=new URLSearchParams(location.search).get('t')||''
 const H={authorization:'Bearer '+T}
 const $=id=>document.getElementById(id)
-async function api(p,opt={}){const r=await fetch(p,{headers:H,...opt});return r.json()}
+async function api(p,opt={}){const r=await fetch(p,{...opt,headers:{...H,...(opt.headers||{})}});return r.json()}
 function toast(m){$('toast').textContent=m;$('toast').classList.add('show');setTimeout(()=>$('toast').classList.remove('show'),2400)}
 const EMO={ 'wake':'🌊','skip':'🎲','fired':'🌊','reply-sent':'💌','reply-failed':'⚠️','reply-rejected':'✗','night-skip':'🎲','diary':'📖','share':'💌' }
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))

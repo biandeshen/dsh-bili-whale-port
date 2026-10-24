@@ -31,11 +31,15 @@ async function main() {
   const controller = createOpenCodeController()
   let sched
   try {
-    sched = startScheduler({ controller, isBusy: () => controller.isBusy({ sessionId: sched?.sessionId ?? 'bili-whale' }).catch(() => false) }, {
+    // 不传 isBusy：OpenCode 的会话状态查询是异步且依赖运行期生成的 ses_* id，
+    // 同步端口传 Promise 会被当成"她一直在忙"→ tick 永不执行（复审 P0）。
+    // 忙闲由 core 的 8 分钟硬冷却兜底；等 controller 暴露可靠的同步缓存再接回来。
+    sched = startScheduler({ controller }, {
       dshHome: whaleHome,
       biliMjs: cfg.toolsPath || path.join(ROOT, 'tools', 'bili.mjs'),
       cwd: cfg.home || path.join(whaleHome, 'whale-work'),
       sessionId: 'bili-whale',
+      host: 'opencode',
       log: (m) => console.log(m),
     })
     console.log(`[whale-daemon] 生物钟已启动 · home=${whaleHome} · opencode=${process.env.OPENCODE_BASE_URL || 'http://127.0.0.1:4096'}`)

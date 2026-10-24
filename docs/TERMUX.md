@@ -27,7 +27,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:4096     # 如果同时跑 opencode se
 
 ```bash
 pm2 start adapters/opencode/daemon.js --name whale
-pm2 start panel/server.js --name panel --node-args="--experimental no" -- --port 8447
+pm2 start panel/server.js --name panel -- --port 8447   # 面板默认不自带时钟（时钟归 whale，避免双调度）
 pm2 save && pm2 startup hostname -u    # Termux 无 systemd，用 boot 脚本：
 echo 'pm2 resurrect' >> ~/.bashrc      # 或 Termux:Boot + 自启脚本
 termux-wake-lock                       # 防休眠杀进程
