@@ -26,7 +26,8 @@ import { timeline, diary, vitals } from './data.js'
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(HERE, '..')
 const pi = process.argv.indexOf('--port')
-const PORT = Number(pi >= 0 ? process.argv[pi + 1] : (process.env.PANEL_PORT || 8441))
+const rawPort = pi >= 0 ? process.argv[pi + 1] : (process.env.PANEL_PORT || 8447)
+const PORT = (() => { const n = Number(rawPort); return Number.isInteger(n) && n >= 1 && n <= 65535 ? n : 8447 })()
 
 let NODE_EXE = null
 try { NODE_EXE = resolveNodeRuntime(WHALE_HOME) } catch (e) { globalThis.__biliWhaleNodeError = String(e?.message ?? e) }
