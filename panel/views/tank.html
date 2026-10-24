@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>whale-panel · 她的一天</title><style>
+:root{--water-top:#173a52;--water-mid:#0e2a40;--water-deep:#081a2b;--glass:#12304a;--glass2:#0d2740;
+--ink:#e6f2fb;--ink-dim:#9db8cf;--ink-faint:#6c8aa5;--line:rgba(140,200,255,.16);
+--sun:#ffd97a;--coral:#ff9d7a;--jelly:#8fd1ff;--glow:#5ee0bd;--bad:#ff8080;--hood:#5b9bd5;--hood-dk:#3f7ab0;--apron:#f2f7fc;--skin:#ffe2cf;
+--hair1:#4c86d8;--hair2:#9fd8ff}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(1200px 600px at 70% -10%,#12314a 0%,var(--water-deep) 55%);color:var(--ink);font:13px/1.55 ui-rounded,"Segoe UI","Microsoft YaHei",sans-serif;padding:20px 12px 60px}
+.wrap{max-width:1060px;margin:0 auto}
+#tank{position:relative;border-radius:18px;overflow:hidden;border:1px solid var(--line);background:linear-gradient(180deg,var(--water-top),var(--water-mid) 45%,var(--water-deep));min-height:380px}
+.sunbeam{position:absolute;top:-40px;width:80px;height:280px;background:linear-gradient(180deg,rgba(255,232,150,.2),transparent 80%);filter:blur(6px);animation:sway 9s ease-in-out infinite alternate}
+@keyframes sway{from{transform:skewX(-8deg)}to{transform:skewX(10deg)}}
+.bub{position:absolute;bottom:-14px;border-radius:50%;background:radial-gradient(circle at 35% 30%,rgba(255,255,255,.5),rgba(180,230,255,.08) 70%);animation:rise linear infinite}
+@keyframes rise{to{transform:translateY(-400px)}}
+.kelp{position:absolute;bottom:0;width:24px;height:110px;background:radial-gradient(60% 40% at 50% 100%,#1d5c4d 60%,transparent 61%);animation:sway 6s ease-in-out infinite alternate}
+.sand{position:absolute;left:0;right:0;bottom:0;height:38px;background:linear-gradient(180deg,#20364a,#182b3d)}
+#girl{position:absolute;left:6%;top:26%;width:140px;animation:swim 16s ease-in-out infinite alternate}
+@keyframes swim{from{transform:translate(0,0) rotate(-2deg)}45%{transform:translate(50%,-16px) rotate(2deg)}to{transform:translate(92%,8px) rotate(-1deg)}}
+#girl svg{width:100%;display:block;filter:drop-shadow(0 8px 18px rgba(0,0,0,.35))}
+.ahoge{transform-origin:54px 12px;animation:wig 3.4s ease-in-out infinite}
+@keyframes wig{50%{transform:rotate(9deg)}}
+.night #girl{animation:none;top:52%}
+.night .sunbeam{opacity:.12}
+.night #tankscene{filter:brightness(.75) saturate(.8)}
+#tankscene{transition:filter 1s}
+.hud{position:absolute;left:12px;top:10px;display:flex;flex-direction:column;gap:6px;z-index:5}
+.vital{display:flex;align-items:center;gap:8px;background:rgba(8,20,32,.55);border:1px solid var(--line);border-radius:999px;padding:3px 11px}
+.vital .bar{width:80px;height:6px;border-radius:3px;background:rgba(255,255,255,.12);overflow:hidden}.vital .bar i{display:block;height:100%}
+.vital .num{font-size:11px;color:var(--ink-dim)}
+.clock{font-size:11.5px;color:var(--ink-dim);background:rgba(8,20,32,.55);border:1px solid var(--line);border-radius:999px;padding:3px 11px}
+.bubble{position:absolute;right:3%;top:6%;max-width:240px;background:var(--glass);border:1px solid var(--line);border-radius:14px 14px 14px 4px;padding:9px 12px;font-size:12.5px}
+.bubble .t{font-size:11px;color:var(--ink-faint)}
+#tabs{display:flex;gap:8px;margin:14px 0 12px;flex-wrap:wrap}
+#tabs button{font:inherit;font-size:13px;color:var(--ink-dim);background:var(--glass2);border:1px solid var(--line);border-radius:999px;padding:6px 16px;cursor:pointer}
+#tabs button[aria-selected=true]{color:#082233;background:var(--jelly);font-weight:500}
+.pane{display:none}.pane.on{display:block}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.card{background:var(--glass);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:12px}
+.card h2{font-size:12px;color:var(--ink-dim);letter-spacing:1px;margin-bottom:8px}
+.beat{display:flex;gap:10px;padding:8px 0;border-bottom:.5px solid var(--line)}.beat:last-child{border:none}
+.beat .tm{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--ink-faint);min-width:78px}
+.beat .em{font-size:16px}.beat .tx{font-size:12.5px}.beat .sub{color:var(--ink-dim);font-size:11.5px}
+.meter{height:6px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:3px}
+.meter i{display:block;height:100%;background:linear-gradient(90deg,var(--hood-dk),var(--jelly))}
+.meter i.hot{background:linear-gradient(90deg,#b06020,var(--sun))}
+.quest{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px}
+.quest .h{font-size:12.5px;font-weight:500}.quest .q{font-size:12px;color:var(--ink-dim);border-left:2px solid var(--line);padding-left:8px;margin:4px 0}
+.quest .a{font-size:12.5px;margin:4px 0}
+button.act{font:inherit;font-size:12px;border-radius:8px;padding:5px 12px;cursor:pointer;border:1px solid var(--line);background:transparent;color:var(--ink-dim);margin-right:6px}
+button.ok{background:var(--glow);color:#04231b;border-color:var(--glow);font-weight:500}
+textarea,input,select{font:inherit;font-size:12px;background:var(--glass2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:5px 8px}
+textarea{width:100%;min-height:260px;font-family:ui-monospace,Menlo,monospace}
+.row{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:6px 0;border-bottom:.5px solid var(--line)}.row:last-child{border:none}
+.hint{font-size:11px;color:var(--ink-faint)}
+.err{color:var(--bad);font-size:12px;white-space:pre-wrap}
+.okmsg{color:var(--glow);font-size:12px}
+#toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:var(--glass);border:1px solid var(--line);border-radius:10px;padding:7px 14px;opacity:0;transition:opacity .4s;pointer-events:none;z-index:9}
+#toast.show{opacity:1}
+@media(max-width:820px){.grid2{grid-template-columns:1fr}#girl{width:104px}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style></head><body>
+<div class="wrap">
+  <div id="tank"><div id="tankscene">
+    <div class="sunbeam" style="left:16%"></div><div class="sunbeam" style="left:55%;width:56px"></div>
+    <div class="kelp" style="left:3%"></div><div class="kelp" style="left:8%;height:80px"></div><div class="kelp" style="right:4%;height:130px"></div>
+    <div class="sand"></div>
+    <div class="hud">
+      <div class="clock" id="clock">连接中…</div>
+      <div class="vital">✨<span class="bar"><i id="v-mood" style="background:var(--glow)"></i></span><span class="num" id="n-mood"></span></div>
+      <div class="vital">🌾<span class="bar"><i id="v-rice" style="background:var(--sun)"></i></span><span class="num" id="n-rice"></span></div>
+      <div class="vital">💌<span class="bar"><i id="v-share" style="background:var(--coral)"></i></span><span class="num" id="n-share"></span></div>
+    </div>
+    <div id="girl"><svg viewBox="0 0 120 132" aria-hidden="true">
+      <defs><linearGradient id="hg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4c86d8"/><stop offset="1" stop-color="#9fd8ff"/></linearGradient></defs>
+      <g class="ahoge"><path d="M54 12 C50 2 62 0 60 10 C59 15 55 16 54 12 Z" fill="#bfe4ff"/></g>
+      <path d="M96 96 C112 88 116 104 104 112 C96 117 84 114 80 106 Z" fill="var(--hood-dk)"/>
+      <path d="M38 84 L82 84 L92 116 C78 124 42 124 28 116 Z" fill="var(--hood-dk)"/>
+      <path d="M46 88 L74 88 L80 114 C70 119 50 119 40 114 Z" fill="var(--apron)"/>
+      <path d="M60 8 C86 8 98 30 96 52 C94 74 80 88 60 88 C40 88 26 74 24 52 C22 30 34 8 60 8 Z" fill="var(--hood)"/>
+      <ellipse cx="60" cy="14" rx="5" ry="3" fill="var(--hood-dk)"/>
+      <ellipse cx="60" cy="56" rx="30" ry="28" fill="var(--skin)"/>
+      <path d="M30 52 C31 36 40 32 36 52 C35 64 38 74 44 78 C34 76 29 66 30 52 Z" fill="url(#hg)"/>
+      <path d="M90 52 C89 36 80 32 84 52 C85 64 82 74 76 78 C86 76 91 66 90 52 Z" fill="url(#hg)"/>
+      <path d="M32 46 C34 26 46 20 60 20 C74 20 86 26 88 46 C80 36 74 40 68 32 C64 38 56 38 52 32 C46 40 40 36 32 46 Z" fill="url(#hg)"/>
+      <path d="M33 40 C44 30 76 30 87 40" fill="none" stroke="#e9f4ff" stroke-width="5" stroke-linecap="round"/>
+      <circle cx="60" cy="30" r="3.4" fill="#e9f4ff"/>
+      <g id="eyeL"><ellipse cx="48" cy="58" rx="5.6" ry="7.2" fill="#dbeeff"/><circle cx="48" cy="59" r="3.4" fill="#123a58"/><circle cx="46.5" cy="57" r="1.3" fill="#fff"/></g>
+      <g id="eyeR"><ellipse cx="72" cy="58" rx="5.6" ry="7.2" fill="#dbeeff"/><circle cx="72" cy="59" r="3.4" fill="#123a58"/><circle cx="70.5" cy="57" r="1.3" fill="#fff"/></g>
+      <ellipse cx="40" cy="66" rx="4.6" ry="2.6" fill="#ffb3a0" opacity=".7"/><ellipse cx="80" cy="66" rx="4.6" ry="2.6" fill="#ffb3a0" opacity=".7"/>
+      <path d="M56 70 Q60 74 64 70" fill="none" stroke="#c26b5a" stroke-width="2.4" stroke-linecap="round"/>
+    </svg></div>
+    <div class="bubble"><div class="t" id="bub-t">她现在是</div><div id="bub">…</div></div>
+  </div></div>
+
+  <div id="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-p="p1">她的一天</button>
+    <button role="tab" aria-selected="false" data-p="p2">信箱与事件</button>
+    <button role="tab" aria-selected="false" data-p="p3">养鱼设置</button>
+  </div>
+
+  <div class="pane on" id="p1">
+    <div class="grid2">
+      <div class="card"><h2>请求预算（写死值 · 面板自算余量）</h2><div id="traffic"></div></div>
+      <div class="card"><h2>今日 / 风控</h2><div id="today"></div></div>
+    </div>
+    <div class="card"><h2>她的一天 · 事件流（whale-log.jsonl）</h2><div id="story"><span class="hint">载入中…</span></div></div>
+  </div>
+
+  <div class="pane" id="p2">
+    <div class="grid2">
+      <div class="card"><h2>💌 给主人的信（whale-diary.md）</h2><div id="d1" class="hint">载入中…</div></div>
+      <div class="card"><h2>🌑 给她自己的（whale-diary-private.md）</h2><div id="d2" class="hint">载入中…</div></div>
+    </div>
+    <div class="card"><h2>待审草稿（发前审核）</h2><div id="pending"><span class="hint">载入中…</span></div></div>
+  </div>
+
+  <div class="pane" id="p3">
+    <div class="card"><h2>养鱼设置（bili-whale.config.json · 与 DSH/daemon 同一份文件）</h2>
+      <textarea id="cfg" spellcheck="false"></textarea>
+      <div class="row"><span class="hint">风控预算为写死值，改 risk 段不会绕过闸（值在 tools/lib/traffic.mjs 强制下限）</span></div>
+      <div class="row"><button class="act ok" id="save">保存</button><button class="act" id="reload">放弃重载</button><button class="act" id="ntest">发条测试推送</button><span id="saveout"></span></div>
+    </div>
+    <div class="card"><h2>🐋 她的人设（~/.bili-ai/persona.md，只影响她）</h2>
+      <textarea id="persona" spellcheck="false" style="min-height:160px"></textarea>
+      <div class="row"><button class="act ok" id="savep">保存人设</button><span id="pout"></span></div>
+    </div>
+  </div>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+<script>
+const T=new URLSearchParams(location.search).get('t')||''
+const H={authorization:'Bearer '+T}
+const $=id=>document.getElementById(id)
+async function api(p,opt={}){const r=await fetch(p,{headers:H,...opt});return r.json()}
+function toast(m){$('toast').textContent=m;$('toast').classList.add('show');setTimeout(()=>$('toast').classList.remove('show'),2400)}
+const EMO={ 'wake':'🌊','skip':'🎲','fired':'🌊','reply-sent':'💌','reply-failed':'⚠️','reply-rejected':'✗','night-skip':'🎲','diary':'📖','share':'💌' }
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))
+function bar(el,n,total,hot){const v=Math.max(0,Math.min(1,total?n/total:0));el.style.width=(v*100).toFixed(0)+'%';el.classList.toggle('hot',!!hot)}
+async function loadAll(){
+  const [v,st,tl,dy,cfg,pd]=await Promise.all([api('/api/vitals'),api('/api/status'),api('/api/timeline?limit=60'),api('/api/diary'),api('/api/settings'),api('/api/pending')])
+  // HUD
+  const rem=v.traffic?.remaining, s=v.traffic?.settings
+  const moodPct=rem&&s?Math.round(100*(0.5*rem.readDay/s.readDaily+0.5*rem.writeDay/s.writeDaily)):null
+  bar($('v-mood'),moodPct??0,100); $('n-mood').textContent=moodPct!=null?('心情'+moodPct):'心情—'
+  const silDays=0 // 沉默衰减数据在 share 侧，暂以今日有无分享近似
+  bar($('v-rice'),v.shares>0?70:40,100);$('n-rice').textContent='白饭'+(v.shares>0?70:40)
+  bar($('v-share'),v.shares,v.sharesMax??3,true);$('n-share').textContent='分享'+v.shares+'/'+(v.sharesMax??3)
+  const nightOn=v.plan&&['wake','skip'].includes(v.plan.action)&&!v.plan.fired
+  document.body.classList.toggle('night',!nightOn)
+  $('eyeL').style.transform=$('eyeR').style.transform=nightOn?'':'scaleY(0.06)'
+  $('eyeL').style.transformOrigin=$('eyeR').style.transformOrigin='60% 44%'
+  const why=!v.scheduler.ok?('时钟未跑：'+v.scheduler.reason):(v.plan?.action==='done'?'今天份用完，睡了':(v.plan?.action==='wake'?'排定了 '+v.plan.atText:'今天不想看'))
+  $('clock').textContent=(v.plan?.atText??v.today)+' · '+(v.scheduler.ok?'✓':'⛔')+' '+why
+  $('bub-t').textContent='她现在是'
+  $('bub').textContent=v.pendingCount?('有 '+v.pendingCount+' 条草稿等你审'):(v.shares?('今天已经 @ 了你 '+v.shares+' 次'):'在窗里游着，没事')
+  // traffic
+  $('traffic').innerHTML=rem?['readHour','readDay','writeHour','writeDay'].map(k=>{
+    const cap={readHour:s.readHourly,readDay:s.readDaily,writeHour:s.writeHourly,writeDay:s.writeDaily}[k]
+    return '<div class="row"><span>'+k.replace('read','读 · ').replace('write','写 · ').replace('Hour','/时').replace('Day','/天')+'</span><span>'+rem[k]+' / '+cap+'<div class="meter"><i class="'+(rem[k]/cap<0.25?'hot':'')+'" style="width:'+(rem[k]/cap*100).toFixed(0)+'%"></i></div></span></div>'}).join('')
+    +'<div class="hint">熔断：'+(v.traffic.pausedUntil?('⛔ 暂停到 '+new Date(v.traffic.pausedUntil).toLocaleTimeString()):'未触发 ✓')+' · streak '+(v.traffic.streak??0)+'</div>'
+    :'<span class="hint">还没发过请求（traffic-state 为空）</span>'
+  $('today').innerHTML='<div class="row"><span>今日评论</span><span>'+v.commentsToday+' 条 · 已回复 '+(st.repliedPeople??'—')+' 人</span></div>'
+    +'<div class="row"><span>生物钟</span><span>'+(v.scheduler.ok?'✓ 每 60s tick':'✗ '+esc(v.scheduler.reason))+'</span></div>'
+    +'<div class="row"><span>计划</span><span>'+esc(v.plan?.withinWindow??v.plan?.reason??'—')+'</span></div>'
+  // story
+  $('story').innerHTML=(tl.items?.length?tl.items.map(e=>{
+    const d=e.at?new Date(e.at):null
+    return '<div class="beat"><span class="tm">'+(d?(d.getMonth()+1)+'-'+String(d.getDate())+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'):'—')+'</span><span class="em">'+(EMO[e.kind]??'·')+'</span><span><div class="tx">'+esc(e.kind)+(e.target?' · '+esc(e.target):'')+'</div><div class="sub">'+esc(e.note??'')+'</div></span></div>'}).join('')
+    :'<span class="hint">还没有事件流（她醒来干活后这里会一条条长出来）</span>')
+  // diary
+  const show=(el,d)=>el.innerHTML=d?('<div class="hint">'+d.updatedAt+' · '+d.bytes+'B（尾 12K）</div><pre style="white-space:pre-wrap;font-size:12px">'+esc(d.text)+'</pre>'):'<span class="hint">还没写过</span>'
+  show($('d1'),dy.owner);show($('d2'),dy.private)
+  $('pending').innerHTML=(pd.items?.length?pd.items.map(x=>
+    '<div class="quest"><div class="h">'+esc(x.who)+' · '+esc(x.bvid??x.oid)+'</div><div class="q">'+esc(x.src??'')+'</div><div class="a">'+esc(x.message)+'</div>'
+    +'<button class="act ok" data-id="'+esc(x.id)+'" data-a="ok">✓ 让她说</button><button class="act" data-id="'+esc(x.id)+'" data-a="no">✗ 算了</button></div>').join('')
+    :'<span class="hint">队列是空的 ✓</span>')
+  $('cfg').value=JSON.stringify(cfg.config,null,2)
+  if(!$('persona').value){const pe=await api('/api/persona');$('persona').value=pe.text??''}
+}
+document.addEventListener('click',async e=>{
+  const b=e.target.closest('[data-a]')
+  if(b){const r=await api('/api/pending/'+(b.dataset.a==='ok'?'approve':'reject'),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:b.dataset.id})})
+    toast(r.ok?(b.dataset.a==='ok'?'✓ 已发出':'✗ 已拒绝'):('失败：'+(r.error??r.err??'')));loadAll();return}
+  const t=e.target.closest('#tabs button')
+  if(t){document.querySelectorAll('#tabs button').forEach(x=>x.setAttribute('aria-selected',x===t));document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id===t.dataset.p));return}
+  if(e.target.id==='save'){const r=await api('/api/settings',{method:'POST',headers:{'content-type':'application/json'},body:$('cfg').value})
+    $('saveout').className=r.ok?'okmsg':'err';$('saveout').textContent=r.ok?'✓ 已保存（生物钟已按新作息重算）':'✗ '+(r.error??'')}
+  if(e.target.id==='reload')loadAll()
+  if(e.target.id==='savep'){const r=await api('/api/persona',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text:$('persona').value})})
+    $('pout').className=r.ok?'okmsg':'err';$('pout').textContent=r.ok?(r.detail??'✓'):(r.error??'✗')}
+  if(e.target.id==='ntest'){const r=await api('/api/notify-test',{method:'POST'});toast(r.ok?'✓ 测试已发送':'✗ '+(r.err||r.error||'失败').slice(0,80))}
+})
+loadAll().catch(e=>{$('clock').textContent='✗ '+e.message})
+setInterval(()=>loadAll().catch(()=>{}),60000)
+</script></body></html>
