@@ -96,6 +96,20 @@ const server = http.createServer(async (req, res) => {
     return
   }
   const handler = table.get(pathname)
+  if (!handler && pathname.startsWith('/assets/')) {
+    const a = authorized(req, token)
+    if (!a.ok) { json(res, a.code, { ok: false, error: a.error }); return }
+    const base = path.join(HERE, 'assets')
+    const f = path.normalize(path.join(base, pathname.slice('/assets/'.length)))
+    if (!f.startsWith(base + path.sep)) { json(res, 403, { ok: false, error: '非法资产路径' }); return }
+    try {
+      const body = fs.readFileSync(f)
+      const ext = path.extname(f).toLowerCase()
+      res.writeHead(200, { 'Content-Type': ext === '.png' ? 'image/png' : ext === '.json' ? 'application/json; charset=utf-8' : 'application/octet-stream', 'Cache-Control': 'max-age=3600' })
+      res.end(body)
+    } catch { json(res, 404, { ok: false, error: '没有这个资产' }) }
+    return
+  }
   if (!handler) { json(res, 404, { ok: false, error: '未知路径' }); return }
   const a = authorized(req, token)
   if (!a.ok) { json(res, a.code, { ok: false, error: a.error }); return }

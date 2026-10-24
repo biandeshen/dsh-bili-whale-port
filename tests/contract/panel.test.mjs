@@ -53,6 +53,10 @@ test('token 下：vitals/timeline/diary/settings 形状正确（补三缺口的�
   assert.match(dy.owner.text, /## 看过/); assert.equal(dy.private, null)
   const cfg = await (await get(base, '/api/settings', token)).json()
   assert.equal(cfg.config.owner.mid, '1')
+  const asset = await get(base, '/assets/whale-girl/manifest.json', token)
+  assert.equal(asset.status, 200)
+  assert.ok((await asset.json()).states.idle, '序列帧 manifest 必须可读')
+  assert.equal((await get(base, '/assets/whale-girl/manifest.json')).status, 503, '资产同样要鉴权')
 })
 
 test('页面 HTML 内联可用（零外部资源、含鱼缸与三页签）', async (t) => {

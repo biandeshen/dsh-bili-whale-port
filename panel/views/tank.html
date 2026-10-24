@@ -16,6 +16,7 @@ body{background:radial-gradient(1200px 600px at 70% -10%,#12314a 0%,var(--water-
 .kelp{position:absolute;bottom:0;width:24px;height:110px;background:radial-gradient(60% 40% at 50% 100%,#1d5c4d 60%,transparent 61%);animation:sway 6s ease-in-out infinite alternate}
 .sand{position:absolute;left:0;right:0;bottom:0;height:38px;background:linear-gradient(180deg,#20364a,#182b3d)}
 #girl{position:absolute;left:6%;top:26%;width:140px;animation:swim 16s ease-in-out infinite alternate}
+#sprite{position:absolute;left:6%;top:26%;width:150px;height:150px;background-repeat:no-repeat;filter:drop-shadow(0 8px 18px rgba(0,0,0,.35));animation:swim 16s ease-in-out infinite alternate;image-rendering:auto}
 @keyframes swim{from{transform:translate(0,0) rotate(-2deg)}45%{transform:translate(50%,-16px) rotate(2deg)}to{transform:translate(92%,8px) rotate(-1deg)}}
 #girl svg{width:100%;display:block;filter:drop-shadow(0 8px 18px rgba(0,0,0,.35))}
 .ahoge{transform-origin:54px 12px;animation:wig 3.4s ease-in-out infinite}
@@ -90,6 +91,7 @@ textarea{width:100%;min-height:260px;font-family:ui-monospace,Menlo,monospace}
       <ellipse cx="40" cy="66" rx="4.6" ry="2.6" fill="#ffb3a0" opacity=".7"/><ellipse cx="80" cy="66" rx="4.6" ry="2.6" fill="#ffb3a0" opacity=".7"/>
       <path d="M56 70 Q60 74 64 70" fill="none" stroke="#c26b5a" stroke-width="2.4" stroke-linecap="round"/>
     </svg></div>
+    <div id="sprite" hidden></div>
     <div class="bubble"><div class="t" id="bub-t">她现在是</div><div id="bub">…</div></div>
   </div></div>
 
@@ -148,6 +150,7 @@ async function loadAll(){
   bar($('v-share'),v.shares,v.sharesMax??3,true);$('n-share').textContent='分享'+v.shares+'/'+(v.sharesMax??3)
   const nightOn=v.plan&&['wake','skip'].includes(v.plan.action)&&!v.plan.fired
   document.body.classList.toggle('night',!nightOn)
+  applySprite(nightOn,v)
   $('eyeL').style.transform=$('eyeR').style.transform=nightOn?'':'scaleY(0.06)'
   $('eyeL').style.transformOrigin=$('eyeR').style.transformOrigin='60% 44%'
   const why=!v.scheduler.ok?('时钟未跑：'+v.scheduler.reason):(v.plan?.action==='done'?'今天份用完，睡了':(v.plan?.action==='wake'?'排定了 '+v.plan.atText:'今天不想看'))
@@ -191,6 +194,30 @@ document.addEventListener('click',async e=>{
     $('pout').className=r.ok?'okmsg':'err';$('pout').textContent=r.ok?(r.detail??'✓'):(r.error??'✗')}
   if(e.target.id==='ntest'){const r=await api('/api/notify-test',{method:'POST'});toast(r.ok?'✓ 测试已发送':'✗ '+(r.err||r.error||'失败').slice(0,80))}
 })
+// ── 序列帧（vlln/whale-girl，图形 CC BY-NC-SA 4.0 · 署名 ZipZipPipe / 上善无形）──
+let SPR=null,SPT=null,SPSTATE=''
+async function initSprite(){
+  try{
+    const m=await api('/assets/whale-girl/manifest.json')
+    if(!m||!m.states)return
+    SPR=m;document.getElementById('girl').style.display='none'
+    const sp=document.getElementById('sprite');sp.hidden=false
+  }catch{}
+}
+function setSprite(state){
+  if(!SPR||!SPR.states[state]||SPSTATE===state)return
+  const st=SPR.states[state],el=document.getElementById('sprite')
+  SPSTATE=state
+  el.style.backgroundImage='url(/assets/whale-girl/'+st.sheet+')'
+  el.style.backgroundSize=(st.frames*150)+'px 100%'
+  let i=0;clearInterval(SPT)
+  SPT=setInterval(()=>{el.style.backgroundPosition=(-i*150)+'px 0';i=(i+1)%st.frames},Math.max(80,1000/(st.fps||2)))
+}
+function applySprite(nightOn,v){
+  if(!SPR)return
+  setSprite(nightOn?'sleep':(v.pendingCount?'think':(v.plan&&v.plan.fired?'working':(v.shares>0?'joy':'idle'))))
+}
+initSprite()
 loadAll().catch(e=>{$('clock').textContent='✗ '+e.message})
 setInterval(()=>loadAll().catch(()=>{}),60000)
 </script></body></html>
