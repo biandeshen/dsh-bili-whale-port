@@ -43,6 +43,11 @@ for (let i = 0; i < argv.length; i += 1) {
     if (argv[i + 1] && !argv[i + 1].startsWith('--')) { opt[k] = argv[i + 1]; i += 1 } else opt[k] = true
   } else positional.push(argv[i])
 }
+import { shouldGate, queueGo } from '../lib/go-gate.mjs'
+if (shouldGate(argv)) {
+  queueGo({ argv: ['fav', ...argv.filter((a) => a !== '--go')], kind: '收藏', bvid: positional[0] ?? '', oid: positional[0] ?? '', message: opt.reason ?? '', src: positional[0] ?? '' })
+  process.exit(0)
+}
 const DRY = !!opt.dry
 const GO = !!opt.go
 const DAY = 86400000

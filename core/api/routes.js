@@ -228,6 +228,16 @@ export function makeRoutes(deps) {
       let item = null
       try { item = JSON.parse(String(stdout ?? '')) } catch {}
       if (!item) { json(res, 400, { ok: false, error: '队列里没有这条（可能已经发过）' }); return }
+      // go-gate 项：重放原始 argv 并补 --go（普通评论/收藏/弹幕统一走待审）
+      if (item.argv) {
+        execNode([bili, ...item.argv, '--go'], { timeout: 120000, windowsHide: true }, (e2, out2, err2) => {
+          const text = String(out2 ?? '')
+          const ok = !e2 && /code=0/.test(text)
+          try { fs.appendFileSync(path.join(whaleHome, 'whale-log.jsonl'), JSON.stringify({ at: new Date().toISOString(), kind: ok ? 'reply-sent' : 'reply-failed', target: item.who, note: `${ok ? '主人放行' : '发送失败'} · ${item.kind} · ${String(item.message).slice(0, 60)}` }) + '\n') } catch {}
+          json(res, 200, { ok, out: text.slice(-600), err: String(err2 ?? '').slice(0, 400) })
+        })
+        return
+      }
       const args = ['comment', '--oid', item.oid, '--root', item.root, '--parent', item.parent,
         '--message', item.message, '--auto', ...(cfgNow.listen?.oncePerPerson !== false ? ['--once-per-person'] : []), '--go']
       if (item.bvid) args.push('--bvid', item.bvid)

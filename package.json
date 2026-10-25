@@ -12,7 +12,7 @@
   ],
   "type": "module",
   "scripts": {
-    "test": "node --test tests/planner.test.mjs tests/integration.test.mjs tests/updates.test.mjs tests/supplement.test.mjs tests/review.test.mjs tests/traffic.test.mjs tests/edit-dynamic.test.mjs tests/ai-share.test.mjs tests/issue27.test.mjs tests/listener-polling.test.mjs tests/dm-history.test.mjs tests/dm-exit-integration.test.mjs tests/scheduler-snapshot.test.mjs tests/contract/routes.test.mjs adapters/opencode/test/contract.test.mjs tests/contract/panel.test.mjs tests/contract/injection.test.mjs"
+    "test": "node --test tests/planner.test.mjs tests/integration.test.mjs tests/updates.test.mjs tests/supplement.test.mjs tests/review.test.mjs tests/traffic.test.mjs tests/edit-dynamic.test.mjs tests/ai-share.test.mjs tests/issue27.test.mjs tests/listener-polling.test.mjs tests/dm-history.test.mjs tests/dm-exit-integration.test.mjs tests/scheduler-snapshot.test.mjs tests/contract/routes.test.mjs adapters/opencode/test/contract.test.mjs tests/contract/panel.test.mjs tests/contract/injection.test.mjs tests/contract/go-gate.test.mjs"
   },
   "main": "core/index.js",
   "exports": {

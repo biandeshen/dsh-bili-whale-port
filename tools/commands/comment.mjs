@@ -89,7 +89,13 @@ const type = String(args.get('type') ?? '1')
 // 动态评论的 referer 要指到 opus 页；给了它就可以不给 --bvid。
 const refererArg = args.get('referer') ? String(args.get('referer')) : ''
 const dry = args.get('dry') === true || args.has('dry')
+import { shouldGate, queueGo } from '../lib/go-gate.mjs'
 const go = args.get('go') === true || args.has('go')
+// 方案三 go-gate：非分享评论（被注入诱导的主要面）必须主人放行
+if (shouldGate(process.argv.slice(2), { exemptFlags: ['--auto', '--share'] })) {
+  queueGo({ argv: ['comment', ...process.argv.slice(2).filter((a) => a !== '--go')], kind: '评论', oid: args.get('oid') ?? '', bvid: args.get('bvid') ?? '', message: args.get('message') ?? '', src: args.get('referer') ?? '' })
+  process.exit(0)
+}
 
 // 2026-10-22：--check 只读预检 —— 回答「这条回复到底能不能发」✗ 不发文、不占额度
 //   动机：她撞过几次 fail-closed 之后就开始凭记忆说「又被拒了」✗

@@ -11,7 +11,9 @@
 - **tick-catchup**：进程停机后补投递带「补觉醒来」留痕，准点不标注。
 - **可移植层**：`WHALE_HOME`/`WHALE_NODE`（兼容 `DSH_HOME`/`DSH_NODE`）；唤醒提示词按宿主切换 `node bili.mjs` ↔ `bili` 工具。
 
-### 修复（团队三轮评审）
+### 修复（团队四轮评审）
+
+- **P0 go-gate 代码闸（方案三）**：普通评论/收藏/弹幕的 --go 一律进待审队列，panel 放行才发出；注入者拿不到主人的点击。分享链路（--share --auto）沿用评分闸。
 
 - P0 采纳 `create()` 返回的宿主会话 id（OpenCode 不再造孤儿会话）。
 - P0 端口 `isBusy` 异步化并 await（修「Promise 恒真导致时钟永不 tick」）。
