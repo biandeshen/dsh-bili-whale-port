@@ -4,7 +4,7 @@
 
 ### 最快路径：双击 setup.cmd
 
-自动完成：建配置 → 合并 OpenCode MCP（备份原文件）→ 起 opencode serve（密码存 ）→ 起面板；**有 cookie 才启动时钟**（避免空烧 token）。填完 cookie 后重跑一次即可。
+自动完成：建配置 → 合并 OpenCode MCP（备份原文件）→ 起 opencode serve（密码存 `WHALE_HOME/.opencode-password`）→ 起面板；**有 cookie 才启动时钟**（避免空烧 token）。填完 cookie 后重跑一次即可。
 
 # 共同前提
 
