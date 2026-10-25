@@ -87,7 +87,7 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/' || pathname === '/index.html') {
     if (!authorized(req, token).ok && !/t=/.test(req.url)) {
       res.writeHead(401, { 'Content-Type': 'text/plain; charset=utf-8' })
-      res.end('whale-panel 需要访问令牌：第一次请用 http://127.0.0.1:' + PORT + '/?t=' + token + ' 打开（token 也在 ' + path.join(WHALE_HOME, 'panel.token') + '）')
+      res.end('whale-panel 需要访问令牌：第一次请用 http://127.0.0.1:' + PORT + '/?t=<见 panel.token>' + ' 打开（token 也在 ' + path.join(WHALE_HOME, 'panel.token') + '）')
       return
     }
     const a = authorized(req, token)
@@ -126,7 +126,7 @@ server.on('error', (e) => {
   process.exit(2)
 })
 server.listen(PORT, '127.0.0.1', () => {
-  console.log(`[whale-panel] http://127.0.0.1:${PORT}/?t=${token}`)
+  console.log(`[whale-panel] http://127.0.0.1:${PORT}/  （已带 token 自动打开；token 存 ${path.join(WHALE_HOME, 'panel.token')}，勿外传/勿截屏）`)
   console.log(`[whale-panel] home=${WHALE_HOME} · 生物钟=${schedStatus.ok ? '✓ ' + schedStatus.reason : '✗ ' + schedStatus.reason}`)
 })
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { try { sched?.stop() } catch {}; server.close(); setTimeout(() => process.exit(0), 200).unref() })

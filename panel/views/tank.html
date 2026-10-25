@@ -92,6 +92,7 @@ textarea{width:100%;min-height:260px;font-family:ui-monospace,Menlo,monospace}
       <path d="M56 70 Q60 74 64 70" fill="none" stroke="#c26b5a" stroke-width="2.4" stroke-linecap="round"/>
     </svg></div>
     <div id="sprite" hidden></div>
+    <div id="wiz" class="card" style="position:absolute;right:3%;bottom:12%;max-width:300px;display:none;z-index:6"><h2>🐋 三步把她养起来</h2><div class="row"><span>① 主人 mid</span><b id="wz1">…</b></div><div class="row"><span>② B 站 cookie</span><b id="wz2">…</b></div><div class="row"><span>③ 作息/推送</span><b id="wz3">…</b></div><div class="hint" id="wzhint"></div></div>
     <div class="bubble"><div class="t" id="bub-t">她现在是</div><div id="bub">…</div></div>
   </div></div>
 
@@ -180,6 +181,8 @@ async function loadAll(){
     '<div class="quest"><div class="h">'+esc(x.who)+' · '+esc(x.bvid??x.oid)+'</div><div class="q">'+esc(x.src??'')+'</div><div class="a">'+esc(x.message)+'</div>'
     +'<button class="act ok" data-id="'+esc(x.id)+'" data-a="ok">✓ 让她说</button><button class="act" data-id="'+esc(x.id)+'" data-a="no">✗ 算了</button></div>').join('')
     :'<span class="hint">队列是空的 ✓</span>')
+  const wiz=$('wiz');const s1=!!(cfg.config.owner&&cfg.config.owner.mid);const s2=!!(cfg.credentials&&cfg.credentials.hasSess&&cfg.credentials.hasJct);const s3=true
+  if(!(s1&&s2)){wiz.style.display='block';$('wz1').textContent=s1?'✓':'去设置里填';$('wz2').textContent=s2?'✓':'去设置里粘贴';$('wz3').textContent='默认 20:00–24:00 醒 1 次；ntfy/bark 可选';$('wzhint').textContent='都亮 ✓ 后，装 DSH 插件或起 whale-daemon，到窗口她就自己醒（见 docs/RUNBOOK.md）'}else wiz.style.display='none'
   $('cfg').value=JSON.stringify(cfg.config,null,2)
   if(!$('persona').value){const pe=await api('/api/persona');$('persona').value=pe.text??''}
 }

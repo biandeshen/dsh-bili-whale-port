@@ -22,12 +22,11 @@ async function boot(t) {
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   t.after(() => srv.kill('SIGKILL'))
-  const token = await new Promise((res, rej) => {
-    const to = setTimeout(() => rej(new Error('panel 启动超时')), 8000)
-    let out = ''
-    srv.stdout.on('data', (d) => { out += d; const m = out.match(/\?t=([a-f0-9]+)/); if (m) { clearTimeout(to); res(m[1]) } })
-    srv.stderr.on('data', (d) => { if (/Error/.test(String(d))) { clearTimeout(to); rej(new Error(String(d).slice(0, 200))) } })
-  })
+  const token = await (async () => {
+  const tf = path.join(wh, 'panel.token')
+  for (let k = 0; k < 40; k++) { try { const v = fs.readFileSync(tf, 'utf8').trim(); if (v) return v } catch {}; await new Promise(r => setTimeout(r, 200)) }
+  throw new Error('panel.token 未生成')
+})()
   return { base: `http://127.0.0.1:${port}`, token, home, wh }
 }
 const get = (base, p, token) => fetch(base + p, { headers: token ? { authorization: 'Bearer ' + token } : {} })

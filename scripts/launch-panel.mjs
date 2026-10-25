@@ -27,13 +27,13 @@ const open = (url) => {
   const cmd = process.platform === 'win32' ? 'cmd' : process.platform === 'darwin' ? 'open' : 'xdg-open'
   const args = process.platform === 'win32' ? ['/c', 'start', '', url] : [url]
   spawn(cmd, args, { detached: true, stdio: 'ignore' }).unref()
-  console.log(`\n[whale] 面板：${url}\n`)
+  console.log(`\n[whale] 面板已打开：http://127.0.0.1:${port}/（含 ?t=，勿截屏外传）\n`)
 }
 
 const token = readToken()
 for (let port = BASE; port < BASE + 10; port++) {
   if (!(await free(port))) {
-    if (await healthy(port, token)) { console.log(`[whale] ${port} 已有面板在跑，直接打开`); open(`http://127.0.0.1:${port}/?t=${token}`); process.exit(0) }
+    if (await healthy(port, token)) { console.log(`[whale] ${port} 已有面板在跑，直接打开`); open('http://127.0.0.1:'+port+'/?t='+token); process.exit(0) }
     console.log(`[whale] ${port} 被其他程序占用，尝试 ${port + 1}`)
     continue
   }
@@ -44,7 +44,7 @@ for (let port = BASE; port < BASE + 10; port++) {
   })
   const waiter = setInterval(() => {
     const t = readToken()
-    if (t) { clearInterval(waiter); if (!process.env.WHALE_NO_BROWSER) open(`http://127.0.0.1:${port}/?t=${t}`) }
+    if (t) { clearInterval(waiter); if (!process.env.WHALE_NO_BROWSER) open('http://127.0.0.1:'+port+'/?t='+t) }
   }, 400)
   const stop = () => { try { child.kill() } catch {}; clearInterval(waiter) }
   process.on('SIGINT', () => { stop(); process.exit(0) })
