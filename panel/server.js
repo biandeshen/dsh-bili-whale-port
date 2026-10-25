@@ -67,6 +67,9 @@ const extra = {
     json(res, 200, timeline(WHALE_HOME, { cursor: u.searchParams.get('cursor') || 0, limit: u.searchParams.get('limit') || 50 }))
   },
   '/api/diary': (req, res) => json(res, 200, diary(WHALE_HOME)),
+  '/api/avatar': (req, res) => {
+    try { const b = fs.readFileSync(path.join(WHALE_HOME, 'avatar.png')); res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'max-age=60' }); res.end(b) } catch { json(res, 404, { ok: false, error: '未设置头像：放一张 png 到 ' + path.join(WHALE_HOME, 'avatar.png') }) }
+  },
   '/api/vitals': (req, res) => json(res, 200, vitals({ whaleHome: WHALE_HOME, home: HOME, traffic: trafficGuard(), schedStatusGetter: () => schedStatus })),
 }
 

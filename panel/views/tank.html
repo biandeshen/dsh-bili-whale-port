@@ -93,7 +93,7 @@ textarea{width:100%;min-height:260px;font-family:ui-monospace,Menlo,monospace}
     </svg></div>
     <div id="sprite" hidden></div>
     <div id="wiz" class="card" style="position:absolute;right:3%;bottom:12%;max-width:300px;display:none;z-index:6"><h2>🐋 三步把她养起来</h2><div class="row"><span>① 主人 mid</span><b id="wz1">…</b></div><div class="row"><span>② B 站 cookie</span><b id="wz2">…</b></div><div class="row"><span>③ 作息/推送</span><b id="wz3">…</b></div><div class="hint" id="wzhint"></div></div>
-    <div class="bubble"><div class="t" id="bub-t">她现在是</div><div id="bub">…</div></div>
+    <div class="bubble"><img id="ava" alt="小鱼" style="width:40px;height:40px;border-radius:50%;float:left;margin:0 8px 4px 0;object-fit:cover;border:1px solid var(--line)"><div id="avasrc" hidden></div><div class="t" id="bub-t">她现在是</div><div id="bub">…</div></div>
   </div></div>
 
   <div id="tabs" role="tablist">
@@ -231,6 +231,7 @@ function applySprite(asleep,v){
   if(!SPR)return
   setSprite(asleep?'sleep':(v.pendingCount?'think':(v.plan&&v.plan.fired?'working':(v.shares>0?'joy':'idle'))))
 }
+const ava=document.getElementById('ava');ava.src='/api/avatar?t='+encodeURIComponent(T);ava.onerror=()=>ava.remove()
 initSprite().then(()=>loadAll()).catch(()=>loadAll()).catch(e=>{$('clock').textContent='✗ '+e.message})
 setInterval(()=>loadAll().catch(()=>{}),60000)
 </script></body></html>
