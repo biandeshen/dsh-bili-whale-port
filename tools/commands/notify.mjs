@@ -72,6 +72,7 @@ function buildWebhookBody(url, tpl) {
 }
 
 async function sendWebhook(url, tpl) {
+  assertPushUrl(url)
   const body = buildWebhookBody(url, tpl)
   if (DRY) { console.log('[dry] webhook 报文：\n' + JSON.stringify(body, null, 2)); return }
   const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
