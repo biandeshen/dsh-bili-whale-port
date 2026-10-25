@@ -27,6 +27,7 @@ async function boot(t) {
   for (let k = 0; k < 40; k++) { try { const v = fs.readFileSync(tf, 'utf8').trim(); if (v) return v } catch {}; await new Promise(r => setTimeout(r, 200)) }
   throw new Error('panel.token 未生成')
 })()
+  for (let k = 0; k < 40; k++) { try { const r = await fetch(`http://127.0.0.1:${port}/api/vitals`); if (r.status === 503 || r.status === 200) break } catch {}; await new Promise(r => setTimeout(r, 150)) }
   return { base: `http://127.0.0.1:${port}`, token, home, wh }
 }
 const get = (base, p, token) => fetch(base + p, { headers: token ? { authorization: 'Bearer ' + token } : {} })

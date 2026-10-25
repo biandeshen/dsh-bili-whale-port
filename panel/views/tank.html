@@ -135,7 +135,7 @@ textarea{width:100%;min-height:260px;font-family:ui-monospace,Menlo,monospace}
 const T=new URLSearchParams(location.search).get('t')||''
 const H={authorization:'Bearer '+T}
 const $=id=>document.getElementById(id)
-async function api(p,opt={}){const r=await fetch(p,{...opt,headers:{...H,...(opt.headers||{})}});if(r.status===401||r.status===503)throw new Error('访问令牌无效：请双击桌面「小鱼面板」或带 ?t= 的地址打开');return r.json()}
+async function api(p,opt={}){const r=await fetch(p,{...opt,headers:{...H,...(opt.headers||{})}});if(r.status===401||r.status===503)throw new Error('访问令牌无效：请双击桌面「小鱼面板」或带 ?t= 的地址打开');if(!r.ok)throw new Error('接口错误 HTTP '+r.status);return r.json()}
 function toast(m){$('toast').textContent=m;$('toast').classList.add('show');setTimeout(()=>$('toast').classList.remove('show'),2400)}
 const EMO={ 'wake':'🌊','skip':'🎲','fired':'🌊','reply-sent':'💌','reply-failed':'⚠️','reply-rejected':'✗','night-skip':'🎲','diary':'📖','share':'💌' }
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))
@@ -150,11 +150,11 @@ async function loadAll(){
   bar($('v-rice'),v.shares>0?70:40,100);$('n-rice').textContent='白饭'+(v.shares>0?70:40)
   bar($('v-share'),v.shares,v.sharesMax??3,true);$('n-share').textContent='分享'+v.shares+'/'+(v.sharesMax??3)
   const nowMs=Date.now()
-  const inWindow=v.plan&&v.plan.startsAt&&v.plan.endsAt&&nowMs>=v.plan.startsAt&&nowMs<=v.plan.endsAt
+  const inWindow=v.plan?(v.plan.startsAt&&v.plan.endsAt?(nowMs>=v.plan.startsAt&&nowMs<=v.plan.endsAt):true):true
   const asleep=!v.scheduler.ok||v.plan?.action==='done'||!inWindow
   document.body.classList.toggle('night',asleep)
   applySprite(asleep,v)
-  $('eyeL').style.transform=$('eyeR').style.transform=nightOn?'':'scaleY(0.06)'
+  $('eyeL').style.transform=$('eyeR').style.transform=asleep?'scaleY(0.06)':''
   $('eyeL').style.transformOrigin=$('eyeR').style.transformOrigin='60% 44%'
   const why=!v.scheduler.ok?('时钟未跑：'+v.scheduler.reason):(v.plan?.action==='done'?'今天份用完，睡了':(v.plan?.action==='wake'?'排定了 '+v.plan.atText:'今天不想看'))
   $('clock').textContent=(v.plan?.atText??v.today)+' · '+(v.scheduler.ok?'✓':'⛔')+' '+why
@@ -183,8 +183,8 @@ async function loadAll(){
     :'<span class="hint">队列是空的 ✓</span>')
   const wiz=$('wiz');const s1=!!(cfg.config.owner&&cfg.config.owner.mid);const s2=!!(cfg.credentials&&cfg.credentials.hasSess&&cfg.credentials.hasJct);const s3=true
   if(!(s1&&s2)){wiz.style.display='block';$('wz1').textContent=s1?'✓':'去设置里填';$('wz2').textContent=s2?'✓':'去设置里粘贴';$('wz3').textContent='默认 20:00–24:00 醒 1 次；ntfy/bark 可选';$('wzhint').textContent='都亮 ✓ 后，装 DSH 插件或起 whale-daemon，到窗口她就自己醒（见 docs/RUNBOOK.md）'}else wiz.style.display='none'
-  $('cfg').value=JSON.stringify(cfg.config,null,2)
-  if(!$('persona').value){const pe=await api('/api/persona');$('persona').value=pe.text??''}
+  if(!$('cfg').dataset.loaded){$('cfg').value=JSON.stringify(cfg.config,null,2);$('cfg').dataset.loaded='1'}
+  if(!$('persona').value){try{const pe=await api('/api/persona');$('persona').value=pe.text??''}catch{}}
 }
 document.addEventListener('click',async e=>{
   const b=e.target.closest('[data-a]')
@@ -192,9 +192,9 @@ document.addEventListener('click',async e=>{
     toast(r.ok?(b.dataset.a==='ok'?'✓ 已发出':'✗ 已拒绝'):('失败：'+(r.error??r.err??'')));loadAll();return}
   const t=e.target.closest('#tabs button')
   if(t){document.querySelectorAll('#tabs button').forEach(x=>x.setAttribute('aria-selected',x===t));document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id===t.dataset.p));return}
-  if(e.target.id==='save'){const r=await api('/api/settings',{method:'POST',headers:{'content-type':'application/json'},body:$('cfg').value})
-    $('saveout').className=r.ok?'okmsg':'err';$('saveout').textContent=r.ok?'✓ 已保存（生物钟已按新作息重算）':'✗ '+(r.error??'')}
-  if(e.target.id==='reload')loadAll()
+  if(e.target.id==='save'){try{const r=await api('/api/settings',{method:'POST',headers:{'content-type':'application/json'},body:$('cfg').value})
+    $('saveout').className=r.ok?'okmsg':'err';$('saveout').textContent=r.ok?'✓ 已保存（生物钟已按新作息重算）':'✗ '+(r.error??'')}catch(err){$('saveout').className='err';$('saveout').textContent='✗ '+err.message}}
+  if(e.target.id==='reload'){delete $('cfg').dataset.loaded;loadAll()}
   if(e.target.id==='savep'){const r=await api('/api/persona',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text:$('persona').value})})
     $('pout').className=r.ok?'okmsg':'err';$('pout').textContent=r.ok?(r.detail??'✓'):(r.error??'✗')}
   if(e.target.id==='ntest'){const r=await api('/api/notify-test',{method:'POST'});toast(r.ok?'✓ 测试已发送':'✗ '+(r.err||r.error||'失败').slice(0,80))}
@@ -236,3 +236,5 @@ const fail=e=>{const msg='✗ '+(e&&e.message||'加载失败');for(const id of [
 initSprite().then(()=>loadAll()).catch(fail)
 setInterval(()=>loadAll().catch(()=>{}),60000)
 </script></body></html>
+
+if(typeof window!=='undefined')window.addEventListener('unhandledrejection',e=>{try{toast('操作失败：'+((e.reason&&e.reason.message)||e.reason||'未知'))}catch{}})
