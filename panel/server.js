@@ -117,6 +117,14 @@ const server = http.createServer(async (req, res) => {
   try { await handler(req, res) } catch (e) { json(res, 500, { ok: false, error: String(e?.message ?? e) }) }
 })
 
+server.on('error', (e) => {
+  if (e.code === 'EADDRINUSE') {
+    console.error('[whale-panel] 端口 ' + PORT + ' 已被占用：可能已有一个面板在跑。')
+    console.error('  → 直接用浏览器打开 http://127.0.0.1:' + PORT + '/?t=<panel.token>')
+    console.error('  → 或双击 start.cmd（会自动复用/换端口）')
+  } else console.error('[whale-panel] 启动失败：' + e.message)
+  process.exit(2)
+})
 server.listen(PORT, '127.0.0.1', () => {
   console.log(`[whale-panel] http://127.0.0.1:${PORT}/?t=${token}`)
   console.log(`[whale-panel] home=${WHALE_HOME} · 生物钟=${schedStatus.ok ? '✓ ' + schedStatus.reason : '✗ ' + schedStatus.reason}`)
