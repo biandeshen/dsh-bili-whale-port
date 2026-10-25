@@ -137,8 +137,8 @@ export function wakePrompt(st, personaText, maxVideos = 5, shareVia = 'dm', host
     '按 AGENTS.md 的「看的那晚」流程走一遍（不要等我说话，直接做）：',
     '1) `node bili.mjs deps` —— 红着就报备我、只做读、不对外发',
     '2) 读运行目录（WHALE_HOME；DSH 下即 DSH_HOME）的 whale-diary.md 与 whale-diary-private.md（缺失则首次写入时创建）',
-    '3) feed 选题（≤' + maxVideos + ' 条） → 每条 `debrief --no-frames`；排序看「偏好命中+弹幕密度」不看播放量',
-    '4) 挑 2–3 条深读（完整 `debrief`，含抽帧）',
+    '3) feed 选题（≤' + maxVideos + ' 条） → 每条 `debrief --no-frames --top 3 --comments 3 --bucket 60`；排序看「偏好命中+弹幕密度」不看播放量',
+    '4) 挑 1 条深读（`debrief --no-frames --top 3 --comments 3 --bucket 60`；验收期不抽帧）',
     '4.5) 想留着的 → `fav <BV> --reason "..." --dry` → `--go`（自动进待审队列，主人在面板放行后才收）；判据缺一不收：三个月后还想点开 / 说得出为什么（≥6字）/ 同类 ≥2 条要 --better。一天 ≤3 条、同视频 30 天一次、不占额度；看完就完的不收',
     '5) 按标尺打分排序，只对第一名考虑分享。本机 share.via = ' + shareVia + '，只走下面这一条',
     shareVia === 'comment'

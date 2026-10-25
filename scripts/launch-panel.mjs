@@ -24,10 +24,12 @@ const healthy = async (port, token) => {
   } catch { return false }
 }
 const open = (url) => {
+  const origin = new URL(url).origin
+  if (process.env.WHALE_NO_BROWSER) { console.log(`\n[whale] 面板已就绪：${origin}（含 ?t=，勿截屏外传）\n`); return }
   const cmd = process.platform === 'win32' ? 'cmd' : process.platform === 'darwin' ? 'open' : 'xdg-open'
   const args = process.platform === 'win32' ? ['/c', 'start', '', url] : [url]
   spawn(cmd, args, { detached: true, stdio: 'ignore' }).unref()
-  console.log(`\n[whale] 面板已打开：http://127.0.0.1:${port}/（含 ?t=，勿截屏外传）\n`)
+  console.log(`\n[whale] 面板已打开：${origin}（含 ?t=，勿截屏外传）\n`)
 }
 
 const token = readToken()
