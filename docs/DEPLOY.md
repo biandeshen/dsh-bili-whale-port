@@ -2,7 +2,11 @@
 
 > 预检先行：`node scripts/preflight.mjs`（OpenCode 部署加 `OPENCODE_WANTED=1`）。`✗` 不解决不要上线。
 
-## 共同前提
+### 最快路径：双击 setup.cmd
+
+自动完成：建配置 → 合并 OpenCode MCP（备份原文件）→ 起 opencode serve（密码存 ）→ 起面板；**有 cookie 才启动时钟**（避免空烧 token）。填完 cookie 后重跑一次即可。
+
+# 共同前提
 
 ```bash
 npm test                      # 122/122
