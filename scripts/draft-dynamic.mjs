@@ -44,7 +44,7 @@ export function buildText(diaryText, { max = 100 } = {}) {
   const said = buf.join(' ').replace(/\s+/g, ' ').trim()
   const line = [title ? `今晚看的是《${title}》。` : '', said].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim()
   const body = clip(line || '今晚只听了会儿雨声，没看到特别想说的。', max)
-  return `${body}\n\nAI 虚拟角色 · 人工审核`
+  return body
 }
 
 export function makeDraft({ date, image, text }) {

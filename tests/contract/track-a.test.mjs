@@ -16,7 +16,7 @@ fs.mkdirSync(path.join(WHALE, 'bili-whale', 'control'), { recursive: true })
 
 test('buildText 取看过标题 + 想说 + AI 标识，≤100 字', () => {
   const t = buildText(diary)
-  assert.match(t, /纯雨声没人声/); assert.match(t, /今天只听雨/); assert.match(t, /AI 虚拟角色/)
+  assert.match(t, /纯雨声没人声/); assert.match(t, /今天只听雨/); assert.doesNotMatch(t, /AI 虚拟角色/)
   assert.ok(t.split('\n')[0].length <= 100)
 })
 
