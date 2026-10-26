@@ -1,0 +1,72 @@
+/**
+ * 生成每日动态草稿（不发送）。
+ *   node scripts/draft-dynamic.mjs [--date YYYY-MM-DD] [--force]
+ */
+import fs from 'node:fs'
+import path from 'node:path'
+import crypto from 'node:crypto'
+import { pickDailyImage } from '../tools/lib/pick-image.mjs'
+import { DSH_HOME as WHALE_HOME } from '../tools/lib/paths.mjs'
+
+const argv = process.argv.slice(2)
+const arg = (k, d) => { const i = argv.indexOf('--' + k); return i >= 0 ? argv[i + 1] : d }
+const FORCE = argv.includes('--force')
+const date = arg('date', new Date().toLocaleDateString('sv-SE'))
+const DIARY = path.join(WHALE_HOME, 'whale-diary.md')
+const DRAFTS = arg('drafts', 'D:/AI/养鱼/drafts')
+const IMAGES = arg('images', 'D:/AI/养鱼/assets/daily')
+
+function clip(s, max) {
+  if (s.length <= max) return s
+  const head = s.slice(0, max)
+  const marks = '。！？…'
+  let cut = -1
+  for (let i = head.length - 1; i >= 0; i -= 1) if (marks.includes(head[i])) { cut = i; break }
+  if (cut >= 0) return head.slice(0, cut + 1)
+  let out = head.trimEnd()
+  while (out && '，、；：'.includes(out[out.length - 1])) out = out.slice(0, -1)
+  return out + '…'
+}
+
+export function buildText(diaryText, { max = 100 } = {}) {
+  const sections = String(diaryText || '').split(/^## /m)
+  const find = (name) => sections.find((s) => s.startsWith(name)) || ''
+  const rows = find('看过').split('\n').map((l) => l.trim()).filter(Boolean)
+  const watched = rows.find((l) => /^\|\s*\d{4}-\d{2}-\d{2}/.test(l)) || ''
+  const title = watched ? (watched.split('|')[3] || '').trim() : ''
+  const lines = find('想说').split('\n')
+  const buf = []
+  let started = false
+  for (const l of lines) {
+    if (/^-\s+/.test(l)) { if (started) break; started = true; buf.push(l.replace(/^-\s+/, '')); continue }
+    if (started) buf.push(l.trim())
+  }
+  const said = buf.join(' ').replace(/\s+/g, ' ').trim()
+  const line = [title ? `今晚看的是《${title}》。` : '', said].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim()
+  const body = clip(line || '今晚只听了会儿雨声，没看到特别想说的。', max)
+  return `${body}\n\nAI 虚拟角色 · 人工审核`
+}
+
+export function makeDraft({ date, image, text }) {
+  const id = 'dyn-' + String(date).replace(/-/g, '') + '-' + crypto.createHash('sha1').update(String(text) + String(image)).digest('hex').slice(0, 6)
+  return { id, date, image, text, status: 'pending', createdAt: new Date().toISOString() }
+}
+
+if (process.argv[1] && process.argv[1].endsWith('draft-dynamic.mjs')) {
+  fs.mkdirSync(DRAFTS, { recursive: true })
+  const outJson = path.join(DRAFTS, date + '.json')
+  if (fs.existsSync(outJson) && !FORCE) {
+    const cur = JSON.parse(fs.readFileSync(outJson, 'utf8'))
+    console.log(JSON.stringify({ ok: false, error: '当天草稿已存在', status: cur.status, file: outJson }, null, 2))
+    process.exit(0)
+  }
+  let diaryText = ''
+  try { diaryText = fs.readFileSync(DIARY, 'utf8') } catch {}
+  const img = pickDailyImage(IMAGES)
+  if (!img.ok) { console.log(JSON.stringify({ ok: false, error: img.error }, null, 2)); process.exit(1) }
+  const text = buildText(diaryText)
+  const draft = makeDraft({ date, image: img.file, text })
+  fs.writeFileSync(outJson, JSON.stringify(draft, null, 2) + '\n', 'utf8')
+  fs.writeFileSync(path.join(DRAFTS, date + '.md'), `# 小鱼动态草稿 ${date}\n\n- id: ${draft.id}\n- 图片: ${draft.image}\n- 状态: pending\n\n---\n\n${draft.text}\n`, 'utf8')
+  console.log(JSON.stringify({ ok: true, ...draft }, null, 2))
+}
