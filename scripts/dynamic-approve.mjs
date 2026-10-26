@@ -1,7 +1,7 @@
 /**
- * 草稿审批（Track A）：list / approve <id> / reject <id> [--dry]
+ * 草稿审批（Track A）：list / approve <id> / reject <id> [--go]
  * 默认 dry：只打印将执行的命令；--go 才真正发送（需显式，且过 kill 开关）。
- * 幂等：已 approved/sent 的草稿拒绝再次执行；失败记 failed，不自动重试。
+ * 幂等：已 sent/rejected/failed 拒绝重放；dry-run 不消耗审批。
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -24,14 +24,24 @@ function load(id) {
   }
   return null
 }
-function save(file, draft) { fs.writeFileSync(file, JSON.stringify(draft, null, 2) + '\n', 'utf8') }
-function audit(entry) { fs.mkdirSync(DRAFTS, { recursive: true }); fs.appendFileSync(AUDIT, JSON.stringify({ at: new Date().toISOString(), ...entry }) + '\n') }
+function save(file, draft) { fs.writeFileSync(file, JSON.stringify(draft, null, 2) + String.fromCharCode(10), 'utf8') }
+function audit(entry) { fs.mkdirSync(DRAFTS, { recursive: true }); fs.appendFileSync(AUDIT, JSON.stringify({ at: new Date().toISOString(), ...entry }) + String.fromCharCode(10)) }
+function markUsed(image) {
+  try {
+    const f = path.join(path.dirname(image), 'used-images.json')
+    const cur = JSON.parse(fs.readFileSync(f, 'utf8'))
+    cur.used = [...new Set([...(cur.used || []), path.basename(image)])]
+    cur.updatedAt = new Date().toISOString()
+    fs.writeFileSync(f, JSON.stringify(cur, null, 2) + String.fromCharCode(10))
+  } catch {}
+}
 
 export function approve({ id, go = false, runner } = {}) {
   const hit = load(id)
   if (!hit) return { ok: false, error: '找不到草稿 ' + id }
   const d = hit.draft
-  if (['approved', 'sent', 'rejected', 'failed'].includes(d.status)) return { ok: false, error: '草稿已处理过：' + d.status }
+  const blocked = ['sent', 'rejected', 'failed']
+  if (blocked.includes(d.status)) return { ok: false, error: '草稿已处理过：' + d.status }
   if (fs.existsSync(KILL)) { audit({ id: d.id, action: 'approve', result: 'blocked-kill' }); return { ok: false, error: 'kill switch 已触发' } }
   audit({ id: d.id, action: 'approve', mode: go ? 'go' : 'dry', image: d.image, textHash: crypto.createHash('sha1').update(d.text).digest('hex') })
   const args = ['dynamic-image', '--image', d.image, '--text', d.text, go ? '--go' : '--dry']
@@ -42,8 +52,7 @@ export function approve({ id, go = false, runner } = {}) {
   d.status = ok ? (go ? 'sent' : 'dry-run') : 'failed'
   d.result = { ok, at: new Date().toISOString(), mode: go ? 'go' : 'dry', out: out.slice(-800) }
   save(hit.file, d)
-  if (go && ok) { try { const dir = path.dirname(d.image); const f = path.join(dir, 'used-images.json'); const cur = JSON.parse(fs.readFileSync(f, 'utf8')); cur.used = [...new Set([...(cur.used || []), path.basename(d.image)])]; cur.updatedAt = new Date().toISOString(); fs.writeFileSync(f, JSON.stringify(cur, null, 2) + '
-') } catch {} }
+  if (go && ok) markUsed(d.image)
   audit({ id: d.id, action: go ? 'send' : 'dry-run', result: ok ? d.status : 'failed', exit: r.status ?? null, outHash: crypto.createHash('sha1').update(out).digest('hex') })
   return { ok, status: d.status, out: out.slice(-800) }
 }

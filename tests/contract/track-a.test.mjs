@@ -61,3 +61,15 @@ test('reject 后不能再 approve', () => {
   assert.equal(r.ok, false)
   assert.ok(list().some((x) => x.id === d.id && x.status === 'rejected'))
 })
+
+test('只有 go 成功才标记图片已用；dry 不标记', async () => {
+  const imgDir = fs.mkdtempSync(path.join(os.tmpdir(), 'used-'))
+  const img = path.join(imgDir, 'daily-99.png'); fs.writeFileSync(img, 'x')
+  fs.writeFileSync(path.join(imgDir, 'used-images.json'), JSON.stringify({ used: [] }))
+  const d = makeDraft({ date: '2026-10-29', image: img, text: 't' })
+  fs.writeFileSync(path.join(DRAFTS, '2026-10-29.json'), JSON.stringify(d))
+  approve({ id: d.id, go: false, runner: () => ({ status: 0, stdout: 'dry' }) })
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(imgDir, 'used-images.json'), 'utf8')).used, [])
+  approve({ id: d.id, go: true, runner: () => ({ status: 0, stdout: 'dyn_id=1' }) })
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(imgDir, 'used-images.json'), 'utf8')).used, ['daily-99.png'])
+})
