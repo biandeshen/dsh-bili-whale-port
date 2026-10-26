@@ -62,7 +62,7 @@ if (process.argv[1] && process.argv[1].endsWith('draft-dynamic.mjs')) {
   }
   let diaryText = ''
   try { diaryText = fs.readFileSync(DIARY, 'utf8') } catch {}
-  const img = pickDailyImage(IMAGES)
+  const img = pickDailyImage(IMAGES, { mark: false })
   if (!img.ok) { console.log(JSON.stringify({ ok: false, error: img.error }, null, 2)); process.exit(1) }
   const text = buildText(diaryText)
   const draft = makeDraft({ date, image: img.file, text })

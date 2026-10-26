@@ -42,6 +42,8 @@ export function approve({ id, go = false, runner } = {}) {
   d.status = ok ? (go ? 'sent' : 'dry-run') : 'failed'
   d.result = { ok, at: new Date().toISOString(), mode: go ? 'go' : 'dry', out: out.slice(-800) }
   save(hit.file, d)
+  if (go && ok) { try { const dir = path.dirname(d.image); const f = path.join(dir, 'used-images.json'); const cur = JSON.parse(fs.readFileSync(f, 'utf8')); cur.used = [...new Set([...(cur.used || []), path.basename(d.image)])]; cur.updatedAt = new Date().toISOString(); fs.writeFileSync(f, JSON.stringify(cur, null, 2) + '
+') } catch {} }
   audit({ id: d.id, action: go ? 'send' : 'dry-run', result: ok ? d.status : 'failed', exit: r.status ?? null, outHash: crypto.createHash('sha1').update(out).digest('hex') })
   return { ok, status: d.status, out: out.slice(-800) }
 }
