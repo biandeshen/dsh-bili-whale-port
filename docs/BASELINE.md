@@ -20,7 +20,7 @@ panel 移植时另加两条只读：/api/diary（含 private）、/api/timeline�
 
 ## 配置写白名单（KNOWN，index.js:231）
 
-persona, preferences, notify, aliases, owner, self, quota, share, listen, diary, night, toolsPath, home, risk, sessionRotateDays, personaOncePerSession
+persona, preferences, notify, aliases, owner, self, quota, share, listen, diary, night, toolsPath, home, risk, publish, sessionRotateDays, personaOncePerSession
 
 服务端强校验：sessionRotateDays 0–365 · personaOncePerSession 必须布尔 · night.windows 非空 · maxWakesPerDay ≤12 · skipChance 0–0.95 · minGapMin ≥1 · maxVideos 1–20。
 
