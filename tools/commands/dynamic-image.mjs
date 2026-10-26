@@ -141,6 +141,8 @@ if (upJson.code !== 0) { console.error(`     上传失败: ${JSON.stringify(upJs
 const { image_url: imgSrc, image_width: w, image_height: h, img_size: kb } = upJson.data ?? {}
 console.log(`     image_url=${imgSrc}  ${w}x${h}  ${kb}KB`)
 
+// 上传与发帖是两次写；补足风控写冷却，避免被自己的间隔拦住
+await new Promise((r) => setTimeout(r, Number(process.env.DYNAMIC_WRITE_GAP_MS || 125000)))
 console.log('\n[2/2] 发布图文动态…')
 const contents = []
 if (text) contents.push({ raw_text: (atMid && !/\s$/.test(text)) ? `${text}\n` : text, type: 1, biz_id: '' })
