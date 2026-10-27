@@ -77,11 +77,25 @@ export function list() {
 
 if (process.argv[1] && process.argv[1].endsWith('dynamic-approve.mjs')) {
   const [cmd, id] = process.argv.slice(2).filter((a) => !a.startsWith('--'))
+  if (cmd === 'list') {
+    const drafts = list()
+    const pend = ack.listPending(WHALE_HOME)
+    const byDraft = new Map(pend.map((p) => [p.payload?.draftId, p]))
+    if (!drafts.length) console.log('（没有草稿）')
+    for (const d of drafts) {
+      const p = byDraft.get(d.id)
+      console.log(`${d.id}  [${d.status}]  ${path.basename(d.image)}`)
+      console.log(`   ${String(d.text).replace(/\s+/g, ' ').slice(0, 70)}`)
+      if (p) console.log(`   待审 token: ${p.token.slice(0, 8)}…  过期 ${new Date(p.expiresAt).toLocaleString()}`)
+      else if (d.status === 'pending') console.log('   待审 token: （无，旧草稿不能真发；请重新生成）')
+    }
+    process.exitCode = 0
+    process.exit(0)
+  }
   const go = process.argv.includes('--go')
   const ti = process.argv.indexOf('--token')
   const token = ti >= 0 ? process.argv[ti + 1] : ''
-  const out = cmd === 'list' ? { ok: true, items: list(), pending: ack.listPending(WHALE_HOME) }
-    : cmd === 'approve' ? approve({ id, token, go })
+  const out = cmd === 'approve' ? approve({ id, token, go })
     : cmd === 'reject' ? reject(id)
     : { ok: false, error: '用法：list | approve <id> [--token T] [--go] | reject <id>' }
   console.log(JSON.stringify(out, null, 2))
