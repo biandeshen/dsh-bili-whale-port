@@ -1,4 +1,4 @@
-// Cortico 链路健康检查：代理 Responses / WebUI / 21:40 排程 / World 日志
+// Cortico 链路健康检查：代理 Responses / WebUI / 状态驱动的节奏 / World 日志
 import fs from 'node:fs'
 import path from 'node:path'
 const H = process.env.USERPROFILE || ''
@@ -14,15 +14,16 @@ try {
 try { const r = await fetch('http://127.0.0.1:7799/'); pass = ok(r.ok, 'Cortico WebUI', 'HTTP ' + r.status) && pass } catch (e) { pass = ok(false, 'Cortico WebUI', e.message) && pass }
 try {
   const st = JSON.parse(fs.readFileSync(path.join(H, '.dsh', 'bili-whale', 'control', 'cortico-wake.json'), 'utf8'))
-  pass = ok(st.nextWakeAt > Date.now(), '下次唤醒', new Date(st.nextWakeAt).toLocaleString()) && pass
-} catch (e) { pass = ok(false, '下次唤醒', 'cortico-wake.json 缺失') && pass }
+  const label = st.mode === 'state-driven' ? '下次节奏评估' : '下次唤醒'
+  const detail = new Date(st.nextWakeAt).toLocaleString()
+    + (st.mode === 'state-driven' ? `（状态驱动；今天已醒 ${st.wakesToday ?? 0} 次${st.lastKind ? '，上次 ' + st.lastKind : ''}）` : '')
+  pass = ok(st.nextWakeAt > Date.now(), label, detail) && pass
+} catch (e) { pass = ok(false, '下次节奏评估', 'cortico-wake.json 缺失') && pass }
 try { const k = fs.existsSync(path.join(H, '.dsh', 'bili-whale', 'control', 'kill')); pass = ok(!k, 'kill switch', k ? '已触发（应关闭）' : '未触发') && pass } catch {}
 try {
-  const dir = path.join(H, '.dsh', 'bili-whale', 'control', 'pending')
-  const items = fs.existsSync(dir)
-    ? fs.readdirSync(dir).filter((f) => f.endsWith('.json')).map((f) => { try { return JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')) } catch { return null } }).filter((x) => x && !x.used)
-    : []
+  const { listPending } = await import('./ack.mjs')
   const now = Date.now()
+  const items = listPending(path.join(H, '.dsh'))
   const soonest = items.map((x) => Date.parse(x.expiresAt)).filter(Number.isFinite).sort((a, b) => a - b)[0]
   const detail = items.length
     ? `${items.length} 条待审，最近过期 ${new Date(soonest).toLocaleString()}${soonest - now < 30 * 60000 ? '（⚠ <30 分钟）' : ''}`

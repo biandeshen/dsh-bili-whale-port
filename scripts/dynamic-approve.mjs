@@ -10,22 +10,30 @@ import { spawnSync } from 'node:child_process'
 import { DSH_HOME as WHALE_HOME } from '../tools/lib/paths.mjs'
 import * as ack from './ack.mjs'
 
-const DRAFTS = process.env.WHALE_DRAFTS || 'D:/AI/养鱼/drafts'
+const LEGACY_DRAFTS = 'D:/AI/养鱼/drafts'
+const DRAFTS = process.env.WHALE_DRAFTS || (fs.existsSync(LEGACY_DRAFTS) ? LEGACY_DRAFTS : path.join(WHALE_HOME, 'bili-whale', 'drafts'))
 const CONTROL = path.join(WHALE_HOME, 'bili-whale', 'control')
 const KILL = path.join(CONTROL, 'kill')
 const AUDIT = path.join(DRAFTS, 'audit.jsonl')
 const BILI = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..', 'tools', 'bili.mjs')
 
 function load(id) {
+  if (!id) return null
   const files = fs.existsSync(DRAFTS) ? fs.readdirSync(DRAFTS).filter((f) => f.endsWith('.json')) : []
   for (const f of files) {
     const p = path.join(DRAFTS, f)
-    const d = JSON.parse(fs.readFileSync(p, 'utf8'))
-    if (d.id === id || f === id + '.json' || f.startsWith(id)) return { file: p, draft: d }
+    try {
+      const d = JSON.parse(fs.readFileSync(p, 'utf8'))
+      if (d.id === id || f === id + '.json') return { file: p, draft: d }
+    } catch {}
   }
   return null
 }
-function save(file, draft) { fs.writeFileSync(file, JSON.stringify(draft, null, 2) + String.fromCharCode(10), 'utf8') }
+function save(file, draft) {
+  const tmp = file + '.' + process.pid + '.' + crypto.randomBytes(3).toString('hex') + '.tmp'
+  fs.writeFileSync(tmp, JSON.stringify(draft, null, 2) + String.fromCharCode(10), 'utf8')
+  fs.renameSync(tmp, file)
+}
 function audit(entry) { fs.mkdirSync(DRAFTS, { recursive: true }); fs.appendFileSync(AUDIT, JSON.stringify({ at: new Date().toISOString(), ...entry }) + String.fromCharCode(10)) }
 function markUsed(image) {
   try {
@@ -72,7 +80,12 @@ export function reject(id) {
 }
 export function list() {
   const files = fs.existsSync(DRAFTS) ? fs.readdirSync(DRAFTS).filter((f) => f.endsWith('.json')).sort().reverse() : []
-  return files.map((f) => { const d = JSON.parse(fs.readFileSync(path.join(DRAFTS, f), 'utf8')); return { id: d.id, date: d.date, status: d.status, image: d.image, text: d.text } })
+  return files.map((f) => {
+    try {
+      const d = JSON.parse(fs.readFileSync(path.join(DRAFTS, f), 'utf8'))
+      return { id: d.id, date: d.date, status: d.status, image: d.image, text: d.text }
+    } catch { return null }
+  }).filter(Boolean)
 }
 
 if (process.argv[1] && process.argv[1].endsWith('dynamic-approve.mjs')) {
@@ -86,8 +99,8 @@ if (process.argv[1] && process.argv[1].endsWith('dynamic-approve.mjs')) {
       const p = byDraft.get(d.id)
       console.log(`${d.id}  [${d.status}]  ${path.basename(d.image)}`)
       console.log(`   ${String(d.text).replace(/\s+/g, ' ').slice(0, 70)}`)
-      if (p) console.log(`   待审 token: ${p.token.slice(0, 8)}…  过期 ${new Date(p.expiresAt).toLocaleString()}`)
-      else if (d.status === 'pending') console.log('   待审 token: （无，旧草稿不能真发；请重新生成）')
+      if (p) console.log(`   待审 token: ${p.token}  过期 ${new Date(p.expiresAt).toLocaleString()}`)
+      else if (d.status === 'pending') console.log('   待审 token: （无或已过期，不能真发；请重新生成草稿）')
     }
     process.exitCode = 0
     process.exit(0)

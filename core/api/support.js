@@ -41,11 +41,12 @@ export const DEFAULTS = {
   listen: { comment: true, commentIntervalSec: 60, scope: 'both', oncePerPerson: false, allDay: false, dm: false, live: false, liveRoom: '', liveScope: 'owner' },
   publish: { enabled: false, dailyMax: 1, window: { start: '21:30', end: '23:30' }, requireApproval: true, imageDir: '' },
   share: { aiCommentGuard: false, aiThreshold: 30, enabled: true, via: 'comment', minScore: 13, silentAfterDays: 3 },
+  clock: { enabled: true },
   toolsPath: '',
 }
 
 /** 写白名单（tests 与 docs/BASELINE 以此为唯一事实源） */
-export const KNOWN_CONFIG_KEYS = ['persona', 'preferences', 'notify', 'aliases', 'owner', 'self', 'quota', 'share', 'listen', 'diary', 'night', 'toolsPath', 'home', 'risk', 'publish', 'sessionRotateDays', 'personaOncePerSession']
+export const KNOWN_CONFIG_KEYS = ['persona', 'preferences', 'notify', 'aliases', 'owner', 'self', 'quota', 'share', 'listen', 'diary', 'night', 'clock', 'toolsPath', 'home', 'risk', 'publish', 'sessionRotateDays', 'personaOncePerSession']
 
 /** execFile 安全包装：NODE_EXE 解析失败时把原因交回调，不抛 TypeError */
 export function makeExecNode(nodeExeGetter) {

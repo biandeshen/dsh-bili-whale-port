@@ -63,7 +63,8 @@ export function makeRoutes(deps) {
     }
     next.sessionRotateDays = rotateDays
     const n = next.night
-    if (!Array.isArray(n.windows) || !n.windows.length) { json(res, 400, { ok: false, error: '至少要有一个作息窗口' }); return }
+    const clockEnabled = next.clock?.enabled !== false
+    if (!Array.isArray(n.windows) || (clockEnabled && !n.windows.length)) { json(res, 400, { ok: false, error: '至少要有一个作息窗口（除非生物钟已交给外部宿主）' }); return }
     n.maxWakesPerDay = Math.min(12, Math.max(0, Number(n.maxWakesPerDay ?? 0) || 0))
     n.skipChance = Math.min(0.95, Math.max(0, Number(n.skipChance) || 0))
     n.minGapMin = Number.isFinite(Number(n.minGapMin)) ? Math.max(1, Number(n.minGapMin)) : 10

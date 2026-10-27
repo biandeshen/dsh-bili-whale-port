@@ -29,8 +29,25 @@ function clip(s, max) {
   return out + '…'
 }
 
-export function buildText(diaryText, { max = 100 } = {}) {
-  const sections = String(diaryText || '').split(/^## /m)
+/** 把日记按 `## YYYY-MM-DD` 切天；只取当天那段，避免旧文案被重复拿来出稿。 */
+export function dayBlocks(diaryText) {
+  const blocks = []
+  let cur = null
+  for (const line of String(diaryText || '').split(/\r?\n/)) {
+    const m = /^##\s+(\d{4}-\d{2}-\d{2})/.exec(line)
+    if (m) { cur = { date: m[1], lines: [line] }; blocks.push(cur); continue }
+    if (cur) cur.lines.push(line)
+  }
+  return blocks
+}
+
+export function buildText(diaryText, { max = 100, date } = {}) {
+  const blocks = dayBlocks(diaryText)
+  // 有日期头 → 只认当天/最后一天；没有日期头（旧格式）→ 整篇当一段
+  const today = date && blocks.length
+    ? blocks.filter((b) => b.date === date).pop()
+    : (blocks.length ? blocks[blocks.length - 1] : { lines: String(diaryText || '').split(/\r?\n/) })
+  const sections = (today ? today.lines.join('\n') : '').split(/^## /m)
   const find = (name) => sections.find((s) => s.startsWith(name)) || ''
   const rows = find('看过').split('\n').map((l) => l.trim()).filter(Boolean)
   const watched = rows.find((l) => /^\|\s*\d{4}-\d{2}-\d{2}/.test(l)) || ''
@@ -53,6 +70,11 @@ export function makeDraft({ date, image, text }) {
   return { id, date, image, text, status: 'pending', createdAt: new Date().toISOString() }
 }
 
+/** 和别的日期已有草稿一字不差 → 说明拿旧日记复用了，拒稿。返回撞上的那条。 */
+export function findDuplicateText(drafts, { date, text }) {
+  return (drafts || []).find((d) => d && d.date !== date && d.text === text) || null
+}
+
 if (process.argv[1] && process.argv[1].endsWith('draft-dynamic.mjs')) {
   fs.mkdirSync(DRAFTS, { recursive: true })
   const outJson = path.join(DRAFTS, date + '.json')
@@ -65,7 +87,15 @@ if (process.argv[1] && process.argv[1].endsWith('draft-dynamic.mjs')) {
   try { diaryText = fs.readFileSync(DIARY, 'utf8') } catch {}
   const img = pickDailyImage(IMAGES, { mark: false })
   if (!img.ok) { console.log(JSON.stringify({ ok: false, error: img.error }, null, 2)); process.exit(1) }
-  const text = buildText(diaryText)
+  const text = buildText(diaryText, { date })
+  const existing = fs.readdirSync(DRAFTS).filter((f) => f.endsWith('.json')).map((f) => {
+    try { return JSON.parse(fs.readFileSync(path.join(DRAFTS, f), 'utf8')) } catch { return null }
+  }).filter(Boolean)
+  const dup = findDuplicateText(existing, { date, text })
+  if (dup && !FORCE) {
+    console.log(JSON.stringify({ ok: false, error: '这条文案和 ' + dup.date + ' 的草稿一字不差——别拿旧日记复用，重写今天的「想说」再出稿', duplicateOf: dup.id }, null, 2))
+    process.exit(0)
+  }
   const draft = makeDraft({ date, image: img.file, text })
   try { draft.ackId = enqueue(WHALE_HOME, { draftId: draft.id, date }).id } catch {}
   fs.writeFileSync(outJson, JSON.stringify(draft, null, 2) + '\n', 'utf8')

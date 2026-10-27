@@ -8,7 +8,7 @@ const DRAFTS = fs.mkdtempSync(path.join(os.tmpdir(), 'tracka-'))
 const WHALE = fs.mkdtempSync(path.join(os.tmpdir(), 'tracka-whale-'))
 process.env.WHALE_DRAFTS = DRAFTS
 process.env.DSH_HOME = WHALE
-const { buildText, makeDraft } = await import('../../scripts/draft-dynamic.mjs')
+const { buildText, makeDraft, findDuplicateText } = await import('../../scripts/draft-dynamic.mjs')
 const { approve, reject, list } = await import('../../scripts/dynamic-approve.mjs')
 const ack = await import('../../scripts/ack.mjs')
 function attachAck(draft, date) {
@@ -26,10 +26,44 @@ test('buildText 取看过标题 + 想说 + AI 标识，≤100 字', () => {
   assert.ok(t.split('\n')[0].length <= 100)
 })
 
+test('buildText 只取当天那一段：旧日记不会拿来重复出稿', () => {
+  const twoDays = [
+    '## 2026-10-25',
+    '## 看过',
+    '| 时间 | BV | 标题 | 简介 | 想法 |',
+    '| --- | --- | --- | --- | --- |',
+    '| 2026-10-25 | BVold | 昨天的视频 | 雨 | 安稳 |',
+    '## 想说',
+    '- 昨天的话。',
+    '',
+    '## 2026-10-26',
+    '## 看过',
+    '| 时间 | BV | 标题 | 简介 | 想法 |',
+    '| --- | --- | --- | --- | --- |',
+    '| 2026-10-26 | BVnew | 今天的新视频 | 浪 | 新鲜 |',
+    '## 想说',
+    '- 今天的话。',
+    '',
+  ].join('\n')
+  const today = buildText(twoDays, { date: '2026-10-26' })
+  assert.match(today, /今天的新视频/)
+  assert.match(today, /今天的话/)
+  assert.doesNotMatch(today, /昨天/)
+  const old = buildText(twoDays, { date: '2026-10-25' })
+  assert.match(old, /昨天的视频/)
+})
+
 test('makeDraft id 稳定，重复输入同 id', () => {
   const a = makeDraft({ date: '2026-10-25', diaryText: diary, image: 'x.png', text: buildText(diary) })
   const b = makeDraft({ date: '2026-10-25', diaryText: diary, image: 'x.png', text: buildText(diary) })
   assert.equal(a.id, b.id); assert.equal(a.status, 'pending')
+})
+
+test('findDuplicateText：和别的日期一字不差就拒稿（旧日记复用）', () => {
+  const drafts = [{ id: 'old', date: '2026-10-25', text: '同一句' }]
+  assert.equal(findDuplicateText(drafts, { date: '2026-10-27', text: '同一句' })?.id, 'old')
+  assert.equal(findDuplicateText(drafts, { date: '2026-10-25', text: '同一句' }), null)
+  assert.equal(findDuplicateText(drafts, { date: '2026-10-27', text: '新的一句' }), null)
 })
 
 test('approve dry 不消耗审批；重复 dry 允许；go 后拒绝', () => {

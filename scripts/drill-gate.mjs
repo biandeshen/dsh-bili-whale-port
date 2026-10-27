@@ -52,10 +52,23 @@ check('纪律违规写入 causal.jsonl', violations.length >= 2, '条数=' + vio
 check('违规原因可区分', new Set(violations.map((v) => v.reason)).size >= 2,
   [...new Set(violations.map((v) => v.reason))].join(' / '))
 
-// —— 场景 3：正常顺序（feed → debrief → draft）应当放行
+// —— 场景 3：正常顺序（feed → debrief → 写日记 → draft）应当放行
 await tools.bili_debrief.handler({ bvid: 'BV1TESTTEST1' })
+const roundAfter = JSON.parse(fs.readFileSync(path.join(home, 'bili-whale', 'control', 'round.json'), 'utf8'))
+check('debrief 状态落盘（进程重启后仍算这一轮）', roundAfter.debriefed === true && roundAfter.bvid === 'BV1TESTTEST1', JSON.stringify(roundAfter))
+const staleDraft = await tools.bili_draft_dynamic.handler({})
+check('没写当天日记时 draft 被拒', staleDraft.startsWith('[refused]') && !staleDraft.includes('DRAFT_WRITTEN'))
+const today = new Date().toLocaleDateString('sv-SE')
+const diaryOut = await tools.bili_diary_append.handler({
+  book: 'public', heading: '看过',
+  text: ['| 时间 | BV | 标题 | 简介 | 想法 |', '| --- | --- | --- | --- | --- |', `| ${today} | BV1TESTTEST1 | demo 雨声 | x | 想再看 |`].join('\n'),
+})
+check('日记写入成功（当天日期块）', diaryOut.startsWith('[diary]'))
+await tools.bili_diary_append.handler({ book: 'public', heading: '想说', text: '- 今天这条雨声挺好，留着。' })
+const diaryText = fs.readFileSync(path.join(home, 'whale-diary.md'), 'utf8')
+check('日记按天/按节写入且不重复', (diaryText.match(new RegExp('## ' + today, 'g')) || []).length === 1 && (diaryText.match(/## 看过/g) || []).length === 1)
 const okDraft = await tools.bili_draft_dynamic.handler({})
-check('debrief 后 draft 放行', okDraft.includes('DRAFT_WRITTEN'))
+check('debrief + 当天日记后 draft 放行', okDraft.includes('DRAFT_WRITTEN'))
 
 // —— 场景 4：下一步动作对新的 feed 生效（debriefed 被重置）
 await tools.bili_feed.handler({ n: 1 })

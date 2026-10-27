@@ -120,15 +120,20 @@ export default {
     try {
       let userCfg = {}
       try { userCfg = JSON.parse(fs.readFileSync(configPath, 'utf8')) } catch {}
-      const biliMjs = userCfg.toolsPath || path.join(TOOLS_ROOT, 'tools', 'bili.mjs')
-      sched = startScheduler({ controller: ctx.sessionController }, {
-        dshHome: DSH_HOME,
-        biliMjs,
-        cwd: resolveWorkDir(userCfg.home, WORK_DIR),
-        sessionId: 'bili-whale',
-        log: (m) => { try { console.log(m) } catch {} },
-      })
-      SCHED_STATUS = { ok: true, reason: '已启动（每 60 秒 tick）', at: new Date().toISOString() }
+      if (userCfg.clock?.enabled === false) {
+        // 生物钟交给外部宿主（如 Cortico World）时，插件不再自己排唤醒，避免两套调度撞车
+        SCHED_STATUS = { ok: false, reason: '已禁用（clock.enabled=false，调度交给外部宿主）', at: new Date().toISOString() }
+      } else {
+        const biliMjs = userCfg.toolsPath || path.join(TOOLS_ROOT, 'tools', 'bili.mjs')
+        sched = startScheduler({ controller: ctx.sessionController }, {
+          dshHome: DSH_HOME,
+          biliMjs,
+          cwd: resolveWorkDir(userCfg.home, WORK_DIR),
+          sessionId: 'bili-whale',
+          log: (m) => { try { console.log(m) } catch {} },
+        })
+        SCHED_STATUS = { ok: true, reason: '已启动（每 60 秒 tick）', at: new Date().toISOString() }
+      }
     } catch (e) {
       SCHED_STATUS = { ok: false, reason: String(e?.message ?? e).slice(0, 300), at: new Date().toISOString() }
       try { console.warn('[bili-whale] 生物钟启动失败：' + e.message) } catch {}
