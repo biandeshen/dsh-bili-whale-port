@@ -5,6 +5,7 @@
 - Cortico WebUI：`http://127.0.0.1:7799/`
 - 一键启动：`start-cortico.cmd`（已注册 HKCU Run：WhaleCortico）
 - 部署：`E:\WorkSpace_Qoder\Cortico\deployments\mybot`
+- **单一调度器**：只由 Cortico World 排唤醒。DSH 插件时钟已停用（`clock.enabled=false`，`night.windows=[]`），HKCU `WhaleDraft`（21:30 nightly-scheduler）已删除；不要再把它们加回来，否则会抢着出稿。
 
 ## Provider
 - 端点：`opencode-go` → `http://127.0.0.1:18910/v1`
@@ -13,26 +14,31 @@
 - 必须字段：`spec.thinking` 为布尔值
 
 ## World：bili-account
-工具：`bili_traffic / bili_feed / bili_debrief / bili_diary_read / bili_draft_dynamic`
-- 定时：每天 21:40 pushEvent `bili.diary_due`
-- 事件：`bili.diary_due`（trigger flush）
-- 写操作只入待审队列，工具本身不发送
+工具：`bili_traffic / bili_feed / bili_debrief / bili_diary_read / bili_diary_append / bili_mood_read / bili_mood_apply / bili_draft_dynamic`
+- 节奏：**状态驱动，没有固定作息表**。`persona-core/src/rhythm.ts` 每 3–7 分钟评估一次：无聊(刺激<0.45)/想他(连接<0.45 且不在冷战)/睡不着 × 体力 × 随机；单日 ≤3 次、两次 ≥2.5h；睡着时体力按 0.003/h 恢复。醒不醒、几点醒每天都不同，整天不醒也正常。
+- 唤醒记录：`control/rhythm.json`（当天次数/上次类型）；`control/cortico-wake.json`（`mode=state-driven`，给健康检查看）。
+- 事件：`bili.diary_due`（trigger flush），唤醒文本自带她的情绪+成因+最近因果+上一条草稿审批结果。
+- 写操作只入待审队列，工具本身不发送。
 
-## 每日流程
-- 21:30 Track A 脚本出稿：`D:\AI\养鱼\drafts\<date>.json/md`
-- 21:40 Cortico 醒来：预算 → feed → debrief → 读日记 → 确认/生成草稿 → 汇报
-- 审批：
-  - `node scripts/dynamic-approve.mjs list`
-  - `node scripts/dynamic-approve.mjs approve <id>`（dry）
-  - `node scripts/dynamic-approve.mjs approve <id> --go`（真发）
+## 每轮流程（ORIENTATION 已内置）
+`mood_read → traffic → feed → debrief（必须）→ diary_read → diary_append（公开"看过/想说" + 私人"本轮留下的判断"）→ draft_dynamic → mood_apply → 汇报`。
+出稿三闸：feed 后必须 debrief；公开日记 24h 内更新过；文案不能与其它日期草稿一字不差。
+
+## 审批
+- 列表（会打印完整一次性 token）：`node scripts/dynamic-approve.mjs list`
+- 试发（不消耗审批）：`node scripts/dynamic-approve.mjs approve <id>`
+- 真发：`node scripts/dynamic-approve.mjs approve <id> --token <完整token> --go`
+- token 默认 12 小时；只剩 12h 内有效。冷却/风控类失败会退回 token，可原 token 重试；成功后一次性作废。
 
 ## 纪律
 - 正文不写 AI 声明；披露在简介与平台标签
 - 每天最多 1 条动态；遇 412/-352/-101 立即停
-- 21:30 出稿与 21:40 唤醒错开，避免重复；草稿工具幂等拒绝当天重复
+- 草稿工具幂等：当天已有草稿会拒绝重复
 
 ## 排障
 - WebUI 打不开：看 `start-cortico.cmd` 窗口；确认 7799 未被旧实例占用
 - Provider 不可用：确认 18910 在跑、`.env` 有 key、`thinking:false`
 - 启动即暂停：`curl -X POST http://127.0.0.1:7799/api/run/resume`
 - World 未挂载：看日志 `World 已启动: bili-account`；缺少 `envPromptVars` 或实例 `id` 会失败
+- 一直不醒：先跑 `node scripts/cortico-health.mjs`；再看 `control/rhythm.json` 的 `lastCheckAt` 是否还在前进（3–7 分钟一次）、`fields.json` 的 `stimulation` 是否在缓慢下降。两者都停了说明 tick 没在跑。
+- 电脑睡眠/断电：不用补醒概念——醒来后第一次 tick 会按真实时间结算场值，她该醒才醒。

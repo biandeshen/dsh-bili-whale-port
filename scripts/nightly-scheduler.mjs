@@ -1,3 +1,5 @@
+// 已停用（2026-10-27）：调度统一到 Cortico World 的状态驱动节奏（persona-core/src/rhythm.ts）。
+// 这个脚本只在手动运行时才会做事，HKCU Run 的 WhaleDraft 已删除；不要再注册自启，否则会和 Cortico 抢着出稿。
 // 用户级每晚 21:30 出稿（登录自启；不发送）
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
