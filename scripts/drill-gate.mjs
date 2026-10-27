@@ -17,10 +17,11 @@ fs.mkdirSync(path.join(home, 'bili-whale'), { recursive: true })
 fs.mkdirSync(path.join(repo, 'tools'), { recursive: true })
 fs.mkdirSync(path.join(repo, 'scripts'), { recursive: true })
 
-// 假 CLI：feed 返回一个候选 BV，debrief 成功，draft 「真的出稿」打标记
+// 假 CLI：feed 返回一个候选 BV，debrief 回一份带「标题/UP」的回执（形状对齐真实 debrief），draft 「真的出稿」打标记
 fs.writeFileSync(path.join(repo, 'tools', 'bili.mjs'),
   'const a = process.argv.slice(2)\n' +
   'if (a[0] === "feed") console.log("candidate BV1TESTTEST1 title=demo")\n' +
+  'else if (a[0] === "debrief") console.log("标题: demo 雨声无人声\\nUP: 测试UP   时长: 44:00")\n' +
   'else console.log("ok")\n')
 fs.writeFileSync(path.join(repo, 'scripts', 'draft-dynamic.mjs'), 'console.log("DRAFT_WRITTEN")\n')
 
@@ -69,6 +70,14 @@ const diaryText = fs.readFileSync(path.join(home, 'whale-diary.md'), 'utf8')
 check('日记按天/按节写入且不重复', (diaryText.match(new RegExp('## ' + today, 'g')) || []).length === 1 && (diaryText.match(/## 看过/g) || []).length === 1)
 const okDraft = await tools.bili_draft_dynamic.handler({})
 check('debrief + 当天日记后 draft 放行', okDraft.includes('DRAFT_WRITTEN'))
+
+// —— 场景 3b：debrief 成功要把这条片子写进记忆（否则"有连续记忆"没有运行证据）
+const stateAfterDebrief = JSON.parse(fs.readFileSync(path.join(home, 'bili-whale', 'fields.json'), 'utf8'))
+const memHit = (stateAfterDebrief.memories || []).find((m) => String(m.content).includes('BV1TESTTEST1'))
+check('debrief 后写入长期记忆', !!memHit, memHit ? JSON.stringify(memHit.content) : 'memories=' + (stateAfterDebrief.memories || []).length)
+check('记忆带编码强度与来源', !!memHit && memHit.encodingStrength > 0 && memHit.source === 'npc_self')
+const stateDesc = await tools.bili_mood_read.handler({})
+check('状态回读里能看到这条记忆', stateDesc.includes('BV1TESTTEST1') || String(stateDesc).includes('看过《'))
 
 // —— 场景 4：下一步动作对新的 feed 生效（debriefed 被重置）
 await tools.bili_feed.handler({ n: 1 })
@@ -121,6 +130,24 @@ check('无 token 真发被拒', approve({ id: 'd-prod', go: true, runner: fakeRu
 check('错 token 真发被拒', approve({ id: 'd-prod', go: true, token: 'bad', runner: fakeRun }).code === 'bad-token')
 check('正确 token 真发放行', approve({ id: 'd-prod', go: true, token: ackItem.token, runner: fakeRun }).ok === true)
 check('同 token 二次放行被拒', approve({ id: 'd-prod', go: true, token: ackItem.token, runner: fakeRun }).ok === false)
+
+// —— 场景 9：审批结果回写因果，醒来时由代码结算（不靠模型自觉）
+const resultLines = fs.readFileSync(causalFile, 'utf8').trim().split('\n').filter(Boolean)
+  .map((l) => JSON.parse(l)).filter((o) => o.kind === 'draft-result')
+check('真发成功写入 draft-result 因果', resultLines.length === 1 && resultLines[0].result === 'sent', JSON.stringify(resultLines[0]?.result))
+
+const d2 = { id: 'd-prod2', text: 't2', image: 'x.png', status: 'pending', ackId: ack.enqueue(home, { draftId: 'd-prod2' }).id }
+fs.writeFileSync(path.join(draftDir, 'd-prod2.json'), JSON.stringify(d2))
+const { reject } = await import('./dynamic-approve.mjs')
+check('拒稿成功', reject('d-prod2').ok === true)
+check('已发出的草稿不能再改成 rejected', reject('d-prod').ok === false)
+
+const stateBefore = JSON.parse(fs.readFileSync(path.join(home, 'bili-whale', 'fields.json'), 'utf8'))
+const allEntries = fs.readFileSync(causalFile, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l))
+const settled = mod.consumeDraftResults(stateBefore, allEntries, 0)
+check('醒来时代码结算出情绪效果', settled.applied.length === 2 && settled.applied.includes('draftApproved') && settled.applied.includes('draftRejected'), JSON.stringify(settled.applied))
+const settledAgain = mod.consumeDraftResults(stateBefore, allEntries, settled.consumedAt)
+check('结算游标生效，不会重复扣', settledAgain.applied.length === 0)
 
 fs.rmSync(tmp, { recursive: true, force: true })
 const failed = checks.filter((c) => !c.ok)

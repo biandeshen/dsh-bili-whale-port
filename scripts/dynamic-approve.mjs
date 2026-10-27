@@ -35,6 +35,25 @@ function save(file, draft) {
   fs.renameSync(tmp, file)
 }
 function audit(entry) { fs.mkdirSync(DRAFTS, { recursive: true }); fs.appendFileSync(AUDIT, JSON.stringify({ at: new Date().toISOString(), ...entry }) + String.fromCharCode(10)) }
+
+/**
+ * 把审批结果写进她自己的因果链：她下次醒来会由代码结算成 draftApproved/draftRejected。
+ * 只写事件，不改场值——场值归 World（唯一事实源）管，这里不越权。
+ */
+function recordDraftResult(draft, result) {
+  try {
+    const file = path.join(WHALE_HOME, 'bili-whale', 'causal.jsonl')
+    fs.mkdirSync(path.dirname(file), { recursive: true })
+    fs.appendFileSync(file, JSON.stringify({
+      at: new Date().toISOString(),
+      kind: 'draft-result',
+      draftId: draft.id,
+      date: draft.date,
+      result,
+      textHash: crypto.createHash('sha1').update(String(draft.text ?? '')).digest('hex').slice(0, 12),
+    }) + String.fromCharCode(10))
+  } catch {}
+}
 function markUsed(image) {
   try {
     const f = path.join(path.dirname(image), 'used-images.json')
@@ -49,7 +68,9 @@ export function approve({ id, token, go = false, runner } = {}) {
   const hit = load(id)
   if (!hit) return { ok: false, error: '找不到草稿 ' + id }
   const d = hit.draft
-  const blocked = ['sent', 'rejected', 'failed']
+  // failed 允许重试：写之前就可能失败（网络/超时/风控），拦住等于一条草稿报废。
+  // 重复发送由 traffic 层的幂等与间隔保护兜底，不靠这里挡。
+  const blocked = ['sent', 'rejected']
   if (blocked.includes(d.status)) return { ok: false, error: '草稿已处理过：' + d.status }
   if (fs.existsSync(KILL)) { audit({ id: d.id, action: 'approve', result: 'blocked-kill' }); return { ok: false, error: 'kill switch 已触发' } }
   if (go) {
@@ -68,18 +89,24 @@ export function approve({ id, token, go = false, runner } = {}) {
   d.status = ok ? (go ? 'sent' : 'dry-run') : (transient ? 'cooldown' : 'failed')
   d.result = { ok, at: new Date().toISOString(), mode: go ? 'go' : 'dry', out: out.slice(-800) }
   save(hit.file, d)
-  // 冷却/风控是写之前的拒绝：把一次性令牌退回去，主人可以用同一个 token 重试
-  if (go && transient && d.ackId) {
+  // 没发出去就把一次性令牌退回去，主人/她能拿同一个 token 重试。
+  // （10-26 那轮连撞 6 次 send failed，旧逻辑每次都在发送前吞掉令牌，一条草稿就废了）
+  if (go && !ok && d.ackId) {
     try { ack.release(WHALE_HOME, d.ackId) } catch {}
   }
   if (go && ok) markUsed(d.image)
+  // 只有真正发出去/明确被拒才回写因果；dry 与冷却不算审批结果
+  if (go && ok) recordDraftResult(d, 'sent')
   audit({ id: d.id, action: go ? 'send' : 'dry-run', result: ok ? d.status : 'failed', exit: r.status ?? null, outHash: crypto.createHash('sha1').update(out).digest('hex') })
   return { ok, status: d.status, out: out.slice(-800) }
 }
 export function reject(id) {
   const hit = load(id)
   if (!hit) return { ok: false, error: '找不到草稿 ' + id }
+  // 已发出的草稿不能被改成 rejected：那会让审计和她的记忆都对不上真实发生过的事
+  if (hit.draft.status === 'sent') return { ok: false, error: '这条已经发出去了，不能再拒' }
   hit.draft.status = 'rejected'; hit.draft.rejectedAt = new Date().toISOString(); save(hit.file, hit.draft)
+  recordDraftResult(hit.draft, 'rejected')
   audit({ id: hit.draft.id, action: 'reject' })
   return { ok: true }
 }

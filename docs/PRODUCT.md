@@ -1,7 +1,7 @@
 # PRODUCT · 小鱼（Cortico 人格体）
 
 > 版本：v0.1（草案，待主人拍板） · 日期：2026-10-27
-> 本文件是产品定义，不是实现说明。实现看 `docs/CORTICO-PATCHES.md` 与 `docs/CORTICO-RUNBOOK.md`。
+> 本文件是产品定义，不是实现说明。**架构与 50 项能力清单见 [BLUEPRINT.md](./BLUEPRINT.md)（唯一真相源）**；实现看 `docs/CORTICO-PATCHES.md` 与 `docs/CORTICO-RUNBOOK.md`。
 
 ## 0. 一句话
 

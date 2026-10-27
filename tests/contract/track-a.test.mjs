@@ -115,8 +115,7 @@ test('冷却失败退回一次性令牌：同一个 token 可以重试', () => {
   assert.equal(again.ok, false)
 })
 
-test('only go 成功才标记图片已用；dry 不标记', async () => {
-  const imgDir = fs.mkdtempSync(path.join(os.tmpdir(), 'used-'))
+test('only go 成功才标记图片已用；dry 不标记', async () => {  const imgDir = fs.mkdtempSync(path.join(os.tmpdir(), 'used-'))
   const img = path.join(imgDir, 'daily-99.png'); fs.writeFileSync(img, 'x')
   fs.writeFileSync(path.join(imgDir, 'used-images.json'), JSON.stringify({ used: [] }))
   const d = makeDraft({ date: '2026-10-29', image: img, text: 't' })
@@ -126,4 +125,37 @@ test('only go 成功才标记图片已用；dry 不标记', async () => {
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(imgDir, 'used-images.json'), 'utf8')).used, [])
   approve({ id: d.id, go: true, token, runner: () => ({ status: 0, stdout: 'dyn_id=1' }) })
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(imgDir, 'used-images.json'), 'utf8')).used, ['daily-99.png'])
+})
+
+test('发送失败不锁死草稿：failed 可重试，且不消耗图片', () => {
+  const d = makeDraft({ date: '2026-10-23', image: 'D:/z.png', text: '重试用例' })
+  const token = attachAck(d)
+  fs.writeFileSync(path.join(DRAFTS, '2026-10-23.json'), JSON.stringify(d))
+  const fail = approve({ id: d.id, go: true, token, runner: () => ({ status: 1, stdout: '', stderr: '网络断了' }) })
+  assert.equal(fail.ok, false); assert.equal(fail.status, 'failed')
+  // 旧实现把 failed 列进 blocked → 这条草稿永远发不出去
+  const retry = approve({ id: d.id, go: true, token, runner: () => ({ status: 0, stdout: 'dyn_id=9 ok' }) })
+  assert.equal(retry.ok, true); assert.equal(retry.status, 'sent')
+})
+
+test('审批结果写进因果，醒来可由代码结算（不靠模型自觉）', async () => {
+  const causalFile = path.join(WHALE, 'bili-whale', 'causal.jsonl')
+  const readResults = () => (fs.existsSync(causalFile) ? fs.readFileSync(causalFile, 'utf8').trim().split('\n').filter(Boolean) : [])
+    .map((l) => JSON.parse(l)).filter((o) => o.kind === 'draft-result')
+  const before = readResults().length
+  const sent = makeDraft({ date: '2026-10-22', image: 'D:/s.png', text: '要发的' })
+  const sentTok = attachAck(sent)
+  fs.writeFileSync(path.join(DRAFTS, '2026-10-22.json'), JSON.stringify(sent))
+  approve({ id: sent.id, go: true, token: sentTok, runner: () => ({ status: 0, stdout: 'dyn_id=7 ok' }) })
+  const rejected = makeDraft({ date: '2026-10-21', image: 'D:/r.png', text: '被拒的' })
+  fs.writeFileSync(path.join(DRAFTS, '2026-10-21.json'), JSON.stringify(rejected))
+  reject(rejected.id)
+  const rows = readResults().slice(before)
+  assert.deepEqual(rows.map((r) => r.result).sort(), ['rejected', 'sent'])
+  assert.equal(rows.find((r) => r.result === 'sent').draftId, sent.id)
+  // dry 不算审批结果
+  const dryDraft = makeDraft({ date: '2026-10-20', image: 'D:/d.png', text: '只看不发' })
+  fs.writeFileSync(path.join(DRAFTS, '2026-10-20.json'), JSON.stringify(dryDraft))
+  approve({ id: dryDraft.id, go: false, runner: () => ({ status: 0, stdout: 'dry ok' }) })
+  assert.equal(readResults().length, before + 2)
 })
