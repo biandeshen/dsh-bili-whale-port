@@ -37,7 +37,7 @@
 13. **日记闭环（产品 P0）**：新增 `bili_diary_append`（`src/worlds/bili-account/diary.ts` 纯函数，按 `## YYYY-MM-DD` 块 + 小节"有则替换、无则追加"；公开用 h2、私人用 h3；≤6000 字；只写两本固定文件）。`bili_draft_dynamic` 增加两条闸：公开日记 24h 内没更新 → 拒绝出稿（`draft-with-stale-diary`）；`draft-dynamic.mjs` 只解析**当天**日期块（`buildText(diary,{date})`），并拒掉与其它日期草稿一字不差的文案（`findDuplicateText`）。ORIENTATION 增加"写今天两本日记"步骤。
 14. **审批回流（自我修正）**：唤醒文本会读最近一条 `sent`/`rejected` 草稿；若她还没用 `mood_apply` 消化（链里没有更晚的 `draftApproved/draftRejected`），就提醒她记下来。
 15. **第三方复审后的追加修复（2026-10-27）**：
-   - **节奏停摆（最关键）**：`rhythmTick` 原先把"睡着恢复"攒到 0.005 才写盘，却每 tick 重置计时 → 恢复永不发生；决策读的是上次落盘的旧场值（刺激量不衰减）→ 默认状态下**再也不会醒**。现在每 tick 都走一次 `applyEffects`（结算离线衰减 + 按真实 elapsed 恢复），并 `try/finally` 保证写盘失败也不会停摆。
+   - **节奏停摆（最关键）**：`rhythmTick` 原先把"睡着恢复"攒到 0.005 才写盘，却每 tick 重置计时 → 恢复永不发生；决策读的是上次落盘的旧场值（刺激量不衰减）→ 默认状态下**再也不会醒**。现在每 tick 都走一次 `applyEffects`（结算离线衰减 + 按真实 elapsed 恢复），并 `try/finally` 保证写盘失败也不会停摆。另外"下次评估时间"与 `setTimeout` 现在共用同一个随机延迟（之前抽两次，文件写 15:19 实际可能 15:22 才跑，看起来像停摆）。
    - **跨天计数**：先清 `wakesToday` 再 +1（原实现先改 day 再加，第二天从 4 开始，之后每天只能醒 1 次）。`connectMisses` 加 `lastMissAt`，几天不等会回落到 0（不会永远不再找他）。
    - **一次性令牌**：默认 TTL 2h → 12h（隔夜草稿早上还能批）；冷却/风控这类"写之前就拒了"的失败会 `ack.release` 退回令牌，同一个 token 可重试（有测试）。
    - **日记注入**：heading 去 `#`/换行；正文里禁止出现日期标题（会打乱按天解析）；小节匹配由 `startsWith` 改为精确相等；日期匹配用 `^##\s+DATE(\D|$)`（不会误命中 `2026-10-270`）。
