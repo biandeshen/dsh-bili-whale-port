@@ -28,3 +28,29 @@
 4. traffic 读写额度
 5. 重启后 catch-up 日志
 6. `npm test` 140/140（Track A 侧）
+
+## 已交付能力（2026-10-27 更新）
+
+### World 工具（7）
+| 工具 | 语义 |
+|---|---|
+| bili_traffic | 读预算/熔断 |
+| bili_feed | 选题；回执带 `[NEXT] bvid` |
+| bili_debrief | 深读一条（必须） |
+| bili_diary_read | 读两本日记 |
+| bili_mood_read | 场值 + 情绪 + 成因（近因按 7 天半衰加权） |
+| bili_mood_apply | 预设/自定义效果；写 before/after/effects 因果链 |
+| bili_draft_dynamic | 出稿入队（带 ackId），不发送 |
+
+### 门禁与安全
+- feed 后未 debrief：draft 与 watchedVideo 均被拒，并写 `discipline-violation`
+- 下一轮 kick 自动点名昨日违规
+- `--go` 必须 `--token`（一次性，TTL 2h，used/expired/bad-token 明确拒绝）
+- kill switch：spawn 前拦截，演练通过
+- 审计：`audit.jsonl` + `causal.jsonl` + run 目录 toolcalls
+
+### 验证
+- drill-gate：21/21（含 ack 4 例）
+- core.test：5/5
+- track-a：6/6
+- Cortico 消费侧测试：18/18

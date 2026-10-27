@@ -17,5 +17,17 @@ try {
   pass = ok(st.nextWakeAt > Date.now(), '下次唤醒', new Date(st.nextWakeAt).toLocaleString()) && pass
 } catch (e) { pass = ok(false, '下次唤醒', 'cortico-wake.json 缺失') && pass }
 try { const k = fs.existsSync(path.join(H, '.dsh', 'bili-whale', 'control', 'kill')); pass = ok(!k, 'kill switch', k ? '已触发（应关闭）' : '未触发') && pass } catch {}
+try {
+  const dir = path.join(H, '.dsh', 'bili-whale', 'control', 'pending')
+  const items = fs.existsSync(dir)
+    ? fs.readdirSync(dir).filter((f) => f.endsWith('.json')).map((f) => { try { return JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')) } catch { return null } }).filter((x) => x && !x.used)
+    : []
+  const now = Date.now()
+  const soonest = items.map((x) => Date.parse(x.expiresAt)).filter(Number.isFinite).sort((a, b) => a - b)[0]
+  const detail = items.length
+    ? `${items.length} 条待审，最近过期 ${new Date(soonest).toLocaleString()}${soonest - now < 30 * 60000 ? '（⚠ <30 分钟）' : ''}`
+    : '无待审'
+  pass = ok(true, '待审令牌', detail) && pass
+} catch (e) { pass = ok(true, '待审令牌', '读取失败：' + e.message) && pass }
 console.log(out.join('\n')); console.log(pass ? '\n健康检查通过' : '\n健康检查失败')
 process.exitCode = pass ? 0 : 1
