@@ -10,6 +10,12 @@ process.env.WHALE_DRAFTS = DRAFTS
 process.env.DSH_HOME = WHALE
 const { buildText, makeDraft } = await import('../../scripts/draft-dynamic.mjs')
 const { approve, reject, list } = await import('../../scripts/dynamic-approve.mjs')
+const ack = await import('../../scripts/ack.mjs')
+function attachAck(draft, date) {
+  const it = ack.enqueue(WHALE, { draftId: draft.id, date })
+  draft.ackId = it.id
+  return it.token
+}
 
 const diary = `## 看过\n| 时间 | BV | 标题 | 简介 | 想法 |\n| --- | --- | --- | --- | --- |\n| 2026-10-25 | BV1x | 纯雨声没人声 | 雨 | 很安稳 |\n## 想说\n- 今天只听雨，没看到特别想说的。\n`
 fs.mkdirSync(path.join(WHALE, 'bili-whale', 'control'), { recursive: true })
@@ -28,6 +34,7 @@ test('makeDraft id 稳定，重复输入同 id', () => {
 
 test('approve dry 不消耗审批；重复 dry 允许；go 后拒绝', () => {
   const d = makeDraft({ date: '2026-10-26', diaryText: diary, image: 'D:/x.png', text: buildText(diary) })
+  const token = attachAck(d)
   fs.writeFileSync(path.join(DRAFTS, '2026-10-26.json'), JSON.stringify(d))
   const calls = []
   const runner = (a) => { calls.push(a); return { status: 0, stdout: 'dry ok' } }
@@ -35,9 +42,9 @@ test('approve dry 不消耗审批；重复 dry 允许；go 后拒绝', () => {
   assert.equal(r1.ok, true); assert.equal(r1.status, 'dry-run')
   const r2 = approve({ id: d.id, go: false, runner })
   assert.equal(r2.ok, true)
-  const r3 = approve({ id: d.id, go: true, runner: () => ({ status: 0, stdout: 'dyn_id=1 ok' }) })
+  const r3 = approve({ id: d.id, go: true, token, runner: () => ({ status: 0, stdout: 'dyn_id=1 ok' }) })
   assert.equal(r3.ok, true); assert.equal(r3.status, 'sent')
-  const r4 = approve({ id: d.id, go: true, runner })
+  const r4 = approve({ id: d.id, go: true, token, runner })
   assert.equal(r4.ok, false)
 })
 
@@ -67,9 +74,10 @@ test('只有 go 成功才标记图片已用；dry 不标记', async () => {
   const img = path.join(imgDir, 'daily-99.png'); fs.writeFileSync(img, 'x')
   fs.writeFileSync(path.join(imgDir, 'used-images.json'), JSON.stringify({ used: [] }))
   const d = makeDraft({ date: '2026-10-29', image: img, text: 't' })
+  const token = attachAck(d)
   fs.writeFileSync(path.join(DRAFTS, '2026-10-29.json'), JSON.stringify(d))
   approve({ id: d.id, go: false, runner: () => ({ status: 0, stdout: 'dry' }) })
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(imgDir, 'used-images.json'), 'utf8')).used, [])
-  approve({ id: d.id, go: true, runner: () => ({ status: 0, stdout: 'dyn_id=1' }) })
+  approve({ id: d.id, go: true, token, runner: () => ({ status: 0, stdout: 'dyn_id=1' }) })
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(imgDir, 'used-images.json'), 'utf8')).used, ['daily-99.png'])
 })

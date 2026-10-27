@@ -8,6 +8,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 import { DSH_HOME as WHALE_HOME } from '../tools/lib/paths.mjs'
+import * as ack from './ack.mjs'
 
 const DRAFTS = process.env.WHALE_DRAFTS || 'D:/AI/养鱼/drafts'
 const CONTROL = path.join(WHALE_HOME, 'bili-whale', 'control')
@@ -36,13 +37,18 @@ function markUsed(image) {
   } catch {}
 }
 
-export function approve({ id, go = false, runner } = {}) {
+export function approve({ id, token, go = false, runner } = {}) {
   const hit = load(id)
   if (!hit) return { ok: false, error: '找不到草稿 ' + id }
   const d = hit.draft
   const blocked = ['sent', 'rejected', 'failed']
   if (blocked.includes(d.status)) return { ok: false, error: '草稿已处理过：' + d.status }
   if (fs.existsSync(KILL)) { audit({ id: d.id, action: 'approve', result: 'blocked-kill' }); return { ok: false, error: 'kill switch 已触发' } }
+  if (go) {
+    if (!d.ackId) return { ok: false, error: '旧草稿没有一次性令牌，请重新生成草稿再发' }
+    const a = ack.approve(WHALE_HOME, d.ackId, token)
+    if (!a.ok) return { ok: false, error: '一次性令牌校验失败：' + a.error, code: a.code }
+  }
   audit({ id: d.id, action: 'approve', mode: go ? 'go' : 'dry', image: d.image, textHash: crypto.createHash('sha1').update(d.text).digest('hex') })
   const args = ['dynamic-image', '--image', d.image, '--text', d.text, go ? '--go' : '--dry']
   const run = runner || ((a) => spawnSync(process.execPath, [BILI, ...a], { encoding: 'utf8', timeout: 300000, env: { ...process.env, BILI_SEND: go ? '1' : '0' } }))
@@ -72,10 +78,12 @@ export function list() {
 if (process.argv[1] && process.argv[1].endsWith('dynamic-approve.mjs')) {
   const [cmd, id] = process.argv.slice(2).filter((a) => !a.startsWith('--'))
   const go = process.argv.includes('--go')
-  const out = cmd === 'list' ? { ok: true, items: list() }
-    : cmd === 'approve' ? approve({ id, go })
+  const ti = process.argv.indexOf('--token')
+  const token = ti >= 0 ? process.argv[ti + 1] : ''
+  const out = cmd === 'list' ? { ok: true, items: list(), pending: ack.listPending(WHALE_HOME) }
+    : cmd === 'approve' ? approve({ id, token, go })
     : cmd === 'reject' ? reject(id)
-    : { ok: false, error: '用法：list | approve <id> [--go] | reject <id>' }
+    : { ok: false, error: '用法：list | approve <id> [--token T] [--go] | reject <id>' }
   console.log(JSON.stringify(out, null, 2))
   process.exitCode = out.ok ? 0 : 1
 }

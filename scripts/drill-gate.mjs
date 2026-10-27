@@ -73,6 +73,42 @@ if (traced.length) {
   console.log('      回读：' + applyOut.split('\n')[0])
 }
 
+// —— 场景 6：ack 一次性批准（错误 token / 正常 / 重复 / 过期）
+const ack = await import('./ack.mjs')
+const q = ack.enqueue(home, { kind: 'dynamic', text: 'demo' }, { ttlMs: 60_000 })
+check('入队返回 id+token', !!q.id && !!q.token)
+check('错误 token 被拒', ack.approve(home, q.id, 'wrong').code === 'bad-token')
+const a1 = ack.approve(home, q.id, q.token)
+check('正确 token 放行', a1.ok && a1.payload.kind === 'dynamic')
+check('重复放行被拒', ack.approve(home, q.id, q.token).code === 'used')
+const q2 = ack.enqueue(home, { kind: 'expire' }, { ttlMs: 1 })
+await new Promise((r) => setTimeout(r, 5))
+check('过期被拒', ack.approve(home, q2.id, q2.token).code === 'expired')
+check('不存在的 id 被拒', ack.approve(home, 'ack-missing', 'x').code === 'not-found')
+
+// —— 场景 7：昨日违规 → kick 点名
+const gates = await import('file:///' + CORTICO.replace(/\\/g, '/') + '/src/worlds/bili-account/gates.ts')
+const yesterday = new Date(Date.now() - 20 * 3600_000).toISOString()
+fs.appendFileSync(causalFile, JSON.stringify({ at: yesterday, kind: 'discipline-violation', reason: 'draft-without-debrief' }) + '\n')
+const entries = fs.readFileSync(causalFile, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l))
+const notice = gates.violationNotice(entries)
+check('kick 点名昨日违规', /上一轮.*debrief/.test(notice), notice)
+check('无违规时点名为空', gates.violationNotice([]) === '')
+
+// —— 场景 8：生产审批必须带一次性 token
+process.env.DSH_HOME = home
+const draftDir = path.join(tmp, 'drafts')
+fs.mkdirSync(draftDir, { recursive: true })
+process.env.WHALE_DRAFTS = draftDir
+const { approve } = await import('./dynamic-approve.mjs')
+const ackItem = ack.enqueue(home, { draftId: 'd-prod' })
+fs.writeFileSync(path.join(draftDir, 'd-prod.json'), JSON.stringify({ id: 'd-prod', text: 't', image: 'x.png', status: 'pending', ackId: ackItem.id }))
+const fakeRun = () => ({ status: 0, stdout: 'dyn_id=1', stderr: '' })
+check('无 token 真发被拒', approve({ id: 'd-prod', go: true, runner: fakeRun }).ok === false)
+check('错 token 真发被拒', approve({ id: 'd-prod', go: true, token: 'bad', runner: fakeRun }).code === 'bad-token')
+check('正确 token 真发放行', approve({ id: 'd-prod', go: true, token: ackItem.token, runner: fakeRun }).ok === true)
+check('同 token 二次放行被拒', approve({ id: 'd-prod', go: true, token: ackItem.token, runner: fakeRun }).ok === false)
+
 fs.rmSync(tmp, { recursive: true, force: true })
 const failed = checks.filter((c) => !c.ok)
 console.log('---\n' + (checks.length - failed.length) + '/' + checks.length + ' 通过')

@@ -7,6 +7,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import { pickDailyImage } from '../tools/lib/pick-image.mjs'
 import { DSH_HOME as WHALE_HOME } from '../tools/lib/paths.mjs'
+import { enqueue } from './ack.mjs'
 
 const argv = process.argv.slice(2)
 const arg = (k, d) => { const i = argv.indexOf('--' + k); return i >= 0 ? argv[i + 1] : d }
@@ -66,6 +67,7 @@ if (process.argv[1] && process.argv[1].endsWith('draft-dynamic.mjs')) {
   if (!img.ok) { console.log(JSON.stringify({ ok: false, error: img.error }, null, 2)); process.exit(1) }
   const text = buildText(diaryText)
   const draft = makeDraft({ date, image: img.file, text })
+  try { draft.ackId = enqueue(WHALE_HOME, { draftId: draft.id, date }).id } catch {}
   fs.writeFileSync(outJson, JSON.stringify(draft, null, 2) + '\n', 'utf8')
   fs.writeFileSync(path.join(DRAFTS, date + '.md'), `# 小鱼动态草稿 ${date}\n\n- id: ${draft.id}\n- 图片: ${draft.image}\n- 状态: pending\n\n---\n\n${draft.text}\n`, 'utf8')
   console.log(JSON.stringify({ ok: true, ...draft }, null, 2))
