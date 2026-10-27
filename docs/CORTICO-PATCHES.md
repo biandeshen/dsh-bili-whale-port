@@ -32,7 +32,7 @@
 8. **门禁后门（P1）**：删除 `canDraft` 的「2 小时自动放行」；feed/debrief 轮次落盘到 `control/round.json`（进程重启仍算同一轮，12h 过期）。
 9. **阻塞式 spawn（P1）**：`bili_draft_dynamic` 改用异步 `runNodeAsync`，不再 `spawnSync` 卡事件循环。
 10. **typecheck**：`npx tsc --noEmit` 0 错误（修掉 `createInitialState('xiaoyu')` 多余参数、未用导入）。
-11. **状态驱动作息（P1，"像人"）**：新增 `persona-core/src/rhythm.ts`（纯函数）。没有固定时间表：`decideWake` 按 无聊(explore)/想他(connect)/睡不着(restless) 的驱动分 × 体力 × 随机抖动 决定醒不醒，单日 ≤3 次、两次间隔 ≥2.5h；评估间隔 3–7 分钟随机。睡着时体力按 0.004/h 恢复（低于典型开销）。连续 `connect` 醒来却没人回 → `connectMisses` 递增、越等越少；每新的一天等不到人自动吃一次 `masterSilentDay`；冷战期不主动找他。`masterReplied` 会把 `connectMisses` 清零。30 天离线模拟（`scripts/simulate-rhythm.mjs`）里 30 次醒来分布在 19 个不同小时、22/30 天有醒、8 天整天没醒。
+11. **状态驱动作息（P1，"像人"）**：新增 `persona-core/src/rhythm.ts`（纯函数）。没有固定时间表：`decideWake` 按 无聊(explore)/想他(connect)/睡够了(restless 睡眠压力，距上次醒来 12h 起、30h 满) × 体力 × 随机抖动 决定醒不醒，单日 ≤3 次、两次间隔 ≥2.5h；评估间隔 3–7 分钟随机。睡着时体力按 0.003/h 恢复，醒一轮 0.05。连续 `connect` 醒来却没人回 → `connectMisses` 递增、越等越少（几天不等会回落）；每新的一天等不到人自动吃一次 `masterSilentDay`；冷战期不主动找他。`masterReplied` 会把 `connectMisses` 清零。当天已出过草稿时，唤醒文本会明确说"这轮不用再出稿"。30 天离线模拟（`scripts/simulate-rhythm.mjs`，seed 42）：40 次醒来、28/30 天有醒、时段覆盖 17 个不同小时。
 12. **健康检查**：`cortico-health.mjs` 改读 `cortico-wake.json` 的 `mode=state-driven`（显示今天醒了几次/上次类型），待审令牌用 `listPending`（会清理过期项）。
 13. **日记闭环（产品 P0）**：新增 `bili_diary_append`（`src/worlds/bili-account/diary.ts` 纯函数，按 `## YYYY-MM-DD` 块 + 小节"有则替换、无则追加"；公开用 h2、私人用 h3；≤6000 字；只写两本固定文件）。`bili_draft_dynamic` 增加两条闸：公开日记 24h 内没更新 → 拒绝出稿（`draft-with-stale-diary`）；`draft-dynamic.mjs` 只解析**当天**日期块（`buildText(diary,{date})`），并拒掉与其它日期草稿一字不差的文案（`findDuplicateText`）。ORIENTATION 增加"写今天两本日记"步骤。
 14. **审批回流（自我修正）**：唤醒文本会读最近一条 `sent`/`rejected` 草稿；若她还没用 `mood_apply` 消化（链里没有更晚的 `draftApproved/draftRejected`），就提醒她记下来。
