@@ -8,17 +8,19 @@ let pass = true
 try {
   const s = JSON.parse(fs.readFileSync(path.join(H, '.dsh', 'our-free-model', 'settings.json'), 'utf8'))
   const key = s.aggregate.providers.opencode_go.apiKey
-  const r = await fetch('http://127.0.0.1:18910/v1/responses', { method: 'POST', headers: { authorization: 'Bearer ' + key, 'content-type': 'application/json' }, body: JSON.stringify({ model: 'deepseek-flash', input: 'ping', max_output_tokens: 8 }) })
+  const r = await fetch('http://127.0.0.1:18910/v1/responses', { method: 'POST', headers: { authorization: 'Bearer ' + key, 'content-type': 'application/json' }, body: JSON.stringify({ model: 'deepseek-v4.1-flash', input: 'ping', max_output_tokens: 8 }) })
   pass = ok(r.ok, 'OFM Responses', 'HTTP ' + r.status) && pass
 } catch (e) { pass = ok(false, 'OFM Responses', e.message) && pass }
 try { const r = await fetch('http://127.0.0.1:7799/'); pass = ok(r.ok, 'Cortico WebUI', 'HTTP ' + r.status) && pass } catch (e) { pass = ok(false, 'Cortico WebUI', e.message) && pass }
 try {
-  const st = JSON.parse(fs.readFileSync(path.join(H, '.dsh', 'bili-whale', 'control', 'cortico-wake.json'), 'utf8'))
-  const label = st.mode === 'state-driven' ? '下次节奏评估' : '下次唤醒'
-  const detail = new Date(st.nextWakeAt).toLocaleString()
-    + (st.mode === 'state-driven' ? `（状态驱动；今天已醒 ${st.wakesToday ?? 0} 次${st.lastKind ? '，上次 ' + st.lastKind : ''}）` : '')
-  pass = ok(st.nextWakeAt > Date.now(), label, detail) && pass
-} catch (e) { pass = ok(false, '下次节奏评估', 'cortico-wake.json 缺失') && pass }
+  const read = (f) => JSON.parse(fs.readFileSync(path.join(H, '.dsh', 'bili-whale', 'control', f), 'utf8'))
+  let st = null
+  try { st = read('life-status.json') } catch { st = read('cortico-wake.json') }
+  const next = st.nextCheckAt || st.nextWakeAt
+  const detail = new Date(next).toLocaleString()
+    + (st.mode === 'state-driven' ? `（状态驱动；今天已行动 ${st.actionsToday ?? st.wakesToday ?? 0} 次${st.lastKind ? '，上次 ' + st.lastKind : ''}）` : '')
+  pass = ok(next > Date.now(), '下次状态评估', detail) && pass
+} catch (e) { pass = ok(false, '下次状态评估', 'life-status.json 缺失') && pass }
 try { const k = fs.existsSync(path.join(H, '.dsh', 'bili-whale', 'control', 'kill')); pass = ok(!k, 'kill switch', k ? '已触发（应关闭）' : '未触发') && pass } catch {}
 try {
   const { listPending } = await import('./ack.mjs')

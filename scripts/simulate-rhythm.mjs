@@ -5,7 +5,7 @@
  */
 const CORTICO = process.env.CORTICO_ROOT || 'E:/WorkSpace_Qoder/Cortico'
 const base = 'file:///' + CORTICO.replace(/\\/g, '/')
-const { decideWake, restRecoveryDelta, dayKey, WAKE_COST_ENERGY } = await import(base + '/persona-core/src/rhythm.ts')
+const { decideAction, restRecoveryDelta, dayKey, ACTION_COST_ENERGY } = await import(base + '/persona-core/src/rhythm.ts')
 const { simulateOfflineTime } = await import(base + '/persona-core/src/decay.ts')
 const { DEFAULT_ATOMIC_FIELDS } = await import(base + '/persona-core/src/types.ts')
 const { createInitialState, deriveNPCState } = await import(base + '/persona-core/src/npc-state-machine.ts')
@@ -22,7 +22,7 @@ const start = Date.parse('2026-10-28T00:00:00+08:00')
 let fields = { ...DEFAULT_ATOMIC_FIELDS }
 let npc = createInitialState()
 let t = start
-let mem = { day: dayKey(t), wakesToday: 0, lastWakeAt: 0, lastCheckAt: t, lastKind: null, connectMisses: 0, lastSilentDay: null }
+let mem = { day: dayKey(t), actionsToday: 0, lastActionAt: 0, lastCheckAt: t, lastKind: null, connectMisses: 0, lastSilentDay: null }
 const byDay = new Map()
 
 while (t < start + DAYS * 86400_000) {
@@ -30,13 +30,13 @@ while (t < start + DAYS * 86400_000) {
   fields = simulateOfflineTime(fields, STEP)
   fields = { ...fields, energy: Math.min(1, fields.energy + restRecoveryDelta(fields, STEP / 3600_000)) }
   npc = deriveNPCState(fields, npc, t, false).newState
-  if (mem.day !== dayKey(t)) mem = { ...mem, day: dayKey(t), wakesToday: 0 }
-  const d = decideWake({ fields, relation: npc.current, now: t, mem, rng })
-  if (!d.wake) continue
+  if (mem.day !== dayKey(t)) mem = { ...mem, day: dayKey(t), actionsToday: 0 }
+  const d = decideAction({ fields, relation: npc.current, now: t, mem, rng })
+  if (!d.act) continue
   if (!byDay.has(dayKey(t))) byDay.set(dayKey(t), [])
   byDay.get(dayKey(t)).push({ at: fmt(t), kind: d.kind, energy: fields.energy.toFixed(2), relation: npc.current })
-  fields = { ...fields, energy: fields.energy - WAKE_COST_ENERGY, stimulation: Math.min(1, fields.stimulation + 0.12) }
-  mem = { ...mem, wakesToday: mem.wakesToday + 1, lastWakeAt: t, lastKind: d.kind }
+  fields = { ...fields, energy: fields.energy - ACTION_COST_ENERGY, stimulation: Math.min(1, fields.stimulation + 0.12) }
+  mem = { ...mem, actionsToday: mem.actionsToday + 1, lastActionAt: t, lastKind: d.kind }
   if (d.kind === 'connect') {
     mem.connectMisses = (mem.connectMisses ?? 0) + 1
     mem.lastMissAt = t
@@ -57,9 +57,9 @@ for (let i = 0; i < DAYS; i++) {
   const list = byDay.get(day) || []
   total += list.length
   for (const w of list) { hours.push(Number(w.at.slice(0, 2))); kinds[w.kind] = (kinds[w.kind] ?? 0) + 1 }
-  console.log(day + '  ' + (list.length ? list.map((w) => `${w.at}(${w.kind},体力${w.energy})`).join('  ') : '—— 没醒（发呆/在睡）'))
+  console.log(day + '  ' + (list.length ? list.map((w) => `${w.at}(${w.kind},体力${w.energy})`).join('  ') : '—— 没动（发呆/在歇）'))
 }
 const daysWithWake = [...byDay.keys()].length
-console.log(`\nseed=${seed} · ${DAYS} 天共醒 ${total} 次（${Object.entries(kinds).map(([k, n]) => k + ' ' + n).join('，')}）· 有醒来的天数 ${daysWithWake}/${DAYS}`)
-console.log(`醒来时段分布：${[...new Set(hours)].sort((a, b) => a - b).map((h) => pad(h) + '点').join('、')}`)
+console.log(`\nseed=${seed} · ${DAYS} 天共行动 ${total} 次（${Object.entries(kinds).map(([k, n]) => k + ' ' + n).join('，')}）· 有行动的天数 ${daysWithWake}/${DAYS}`)
+console.log(`行动时段分布：${[...new Set(hours)].sort((a, b) => a - b).map((h) => pad(h) + '点').join('、')}`)
 console.log(`最终：connection=${fields.connection.toFixed(2)} mood=${fields.mood.toFixed(2)} 关系=${npc.current}`)

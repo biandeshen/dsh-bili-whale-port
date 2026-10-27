@@ -3,7 +3,7 @@
 根：`E:\WorkSpace_Qoder\Cortico`
 
 ## 新增
-- `src/worlds/bili-account/definition.ts`：World（7 工具 + 每日 21:40 + catch-up + kill 守卫 + 违规 causal + 轮次落盘）
+- `src/worlds/bili-account/definition.ts`：World（8 工具 + 状态驱动的生活循环 + kill 守卫 + 违规 causal + 轮次落盘 + 记忆写入 + 审批回流）
 - `src/worlds/bili-account/personaAdapter.ts`：World ↔ persona-core 适配（唯一状态源；离线衰减、因果、记忆、关系机、情绪标签）
 - `src/worlds/bili-account/gates.ts`：canDraft / canApplyWatched / violationNotice
 - `src/worlds/bili-account/runner.ts`：可注入 kill 守卫的 spawn 包装
@@ -28,7 +28,7 @@
 4. **令牌不可用（P0-4，dsh 仓）**：`dynamic-approve list` 打印完整 token；ack 队列原子写、`wx` claim 防并发双放行、`timingSecureEqual`、过期清理、草稿精确匹配（去掉 `startsWith`）。
 5. **崩溃清空记忆（P0-5）**：`fields.json` 原子写 + `schemaVersion` + `.bak`；坏文件改名留档并从备份恢复；链截断清掉悬空 `triggerId`。
 6. **mood_apply 忽略入参（P0-6）**：支持 `custom`（白名单校验：7 场、|Δ|≤0.5、≤8 条）；`note` 的 `remember()` 返回值不再丢弃。
-7. **调度器三套并存（P1）**：删掉 HKCU `WhaleDraft`（21:30 nightly-scheduler）；DSH 插件新增 `clock.enabled` 开关并在本机置 false（`night.windows=[]` 即时生效，等下次 DSH 重启后连时钟都不启动）；只留 Cortico 21:40。唤醒状态先记 `lastFiredAt` 再触发，重启不会补醒第二次。
+7. **调度器三套并存（P1）**：删掉 HKCU `WhaleDraft`（21:30 nightly-scheduler）；DSH 插件新增 `clock.enabled` 开关并在本机置 false（`night.windows=[]` 即时生效，等下次 DSH 重启后连时钟都不启动）；出稿入口只留 Cortico 一条（且已改为状态驱动，不是 21:40 定点）。`scripts/nightly-scheduler.mjs` 头部已标"已停用，不要再注册自启"——它是绕过 canDraft/日记新鲜度闸的第二条写入口，2026-10-27 已把遗留进程杀掉。
 8. **门禁后门（P1）**：删除 `canDraft` 的「2 小时自动放行」；feed/debrief 轮次落盘到 `control/round.json`（进程重启仍算同一轮，12h 过期）。
 9. **阻塞式 spawn（P1）**：`bili_draft_dynamic` 改用异步 `runNodeAsync`，不再 `spawnSync` 卡事件循环。
 10. **typecheck**：`npx tsc --noEmit` 0 错误（修掉 `createInitialState('xiaoyu')` 多余参数、未用导入）。
@@ -37,6 +37,9 @@
 13. **日记闭环（产品 P0）**：新增 `bili_diary_append`（`src/worlds/bili-account/diary.ts` 纯函数，按 `## YYYY-MM-DD` 块 + 小节"有则替换、无则追加"；公开用 h2、私人用 h3；≤6000 字；只写两本固定文件）。`bili_draft_dynamic` 增加两条闸：公开日记 24h 内没更新 → 拒绝出稿（`draft-with-stale-diary`）；`draft-dynamic.mjs` 只解析**当天**日期块（`buildText(diary,{date})`），并拒掉与其它日期草稿一字不差的文案（`findDuplicateText`）。ORIENTATION 增加"写今天两本日记"步骤。
 14. **审批回流（自我修正）**：唤醒文本会读最近一条 `sent`/`rejected` 草稿；若她还没用 `mood_apply` 消化（链里没有更晚的 `draftApproved/draftRejected`），就提醒她记下来。
 15. **第三方复审后的追加修复（2026-10-27）**：
+   - **"唤醒"概念清除（2026-10-28）**：`rhythm.ts` → `decideAction/actionCost/LifeMemory`，World 改为 `lifeTick`；不再有"到点唤醒"，只有"每 3–7 分钟看她想不想做点什么"。状态文件 `control/life.json`（`actionsToday/lastActionAt`）与 `control/life-status.json`；事件类型 `bili.action_due`；日志 `action:`；文案 `【你想做点什么】/起因`。旧 `rhythm.json/cortico-wake.json` 自动迁移。
+   - **手动验证开关**：`BILI_ACCOUNT_FORCE_ACTION=1`（启动 5 秒后投递一轮，会计入 `actionsToday` 并重置间隔），用于不等自然触发就能验收。
+   - **模型升级**：OpenCode Go 已弃用 `deepseek-flash`（HTTP 410 `ModelDeprecated`），全部切到 `deepseek-v4.1-flash`。
    - **节奏停摆（最关键）**：`rhythmTick` 原先把"睡着恢复"攒到 0.005 才写盘，却每 tick 重置计时 → 恢复永不发生；决策读的是上次落盘的旧场值（刺激量不衰减）→ 默认状态下**再也不会醒**。现在每 tick 都走一次 `applyEffects`（结算离线衰减 + 按真实 elapsed 恢复），并 `try/finally` 保证写盘失败也不会停摆。另外"下次评估时间"与 `setTimeout` 现在共用同一个随机延迟（之前抽两次，文件写 15:19 实际可能 15:22 才跑，看起来像停摆）。
    - **跨天计数**：先清 `wakesToday` 再 +1（原实现先改 day 再加，第二天从 4 开始，之后每天只能醒 1 次）。`connectMisses` 加 `lastMissAt`，几天不等会回落到 0（不会永远不再找他）。
    - **一次性令牌**：默认 TTL 2h → 12h（隔夜草稿早上还能批）；冷却/风控这类"写之前就拒了"的失败会 `ack.release` 退回令牌，同一个 token 可重试（有测试）。
@@ -50,7 +53,8 @@
 ## 已知未修 / 下一步
 - 跨进程锁：旧进程与新进程短暂重叠时，`fields.json` 仍可能后写覆盖（单实例启动器把窗口压到秒级，但没做文件锁）。
 - 日记的物理格式沿用她历史写法（公开本用 `## 日期` + `## 小节`，同日两个 h2 层级）；解析器已按天取块，但格式本身仍不"干净"。
-- `scripts/simulate-rhythm.mjs` 是演示/回归用的离线镜像，不是 World 的真实回路；drill 的 draft CLI 是假的（只验门禁，不验 B 站写链路）。
+- `scripts/simulate-rhythm.mjs` 是演示/回归用的离线镜像，不是 World 的真实回路；drill 的 draft CLI 是假的（只验门禁，不验 B 站写链路）。真实链路只由 `scripts/smoke-tools.mjs`（只读 traffic+feed）覆盖。
+- `causal.jsonl` 里 1 条旧实现的场值记录（trust/boredom/fulfillment）尚未打标记：`node scripts/migrate-causal.mjs --dry` 预览，确认后再去掉 `--dry`（会改写真实状态文件并留 `.bak`）。
 
 ## 验证命令
 ```
