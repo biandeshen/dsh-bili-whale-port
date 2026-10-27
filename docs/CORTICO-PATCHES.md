@@ -36,6 +36,21 @@
 12. **健康检查**：`cortico-health.mjs` 改读 `cortico-wake.json` 的 `mode=state-driven`（显示今天醒了几次/上次类型），待审令牌用 `listPending`（会清理过期项）。
 13. **日记闭环（产品 P0）**：新增 `bili_diary_append`（`src/worlds/bili-account/diary.ts` 纯函数，按 `## YYYY-MM-DD` 块 + 小节"有则替换、无则追加"；公开用 h2、私人用 h3；≤6000 字；只写两本固定文件）。`bili_draft_dynamic` 增加两条闸：公开日记 24h 内没更新 → 拒绝出稿（`draft-with-stale-diary`）；`draft-dynamic.mjs` 只解析**当天**日期块（`buildText(diary,{date})`），并拒掉与其它日期草稿一字不差的文案（`findDuplicateText`）。ORIENTATION 增加"写今天两本日记"步骤。
 14. **审批回流（自我修正）**：唤醒文本会读最近一条 `sent`/`rejected` 草稿；若她还没用 `mood_apply` 消化（链里没有更晚的 `draftApproved/draftRejected`），就提醒她记下来。
+15. **第三方复审后的追加修复（2026-10-27）**：
+   - **节奏停摆（最关键）**：`rhythmTick` 原先把"睡着恢复"攒到 0.005 才写盘，却每 tick 重置计时 → 恢复永不发生；决策读的是上次落盘的旧场值（刺激量不衰减）→ 默认状态下**再也不会醒**。现在每 tick 都走一次 `applyEffects`（结算离线衰减 + 按真实 elapsed 恢复），并 `try/finally` 保证写盘失败也不会停摆。
+   - **跨天计数**：先清 `wakesToday` 再 +1（原实现先改 day 再加，第二天从 4 开始，之后每天只能醒 1 次）。`connectMisses` 加 `lastMissAt`，几天不等会回落到 0（不会永远不再找他）。
+   - **一次性令牌**：默认 TTL 2h → 12h（隔夜草稿早上还能批）；冷却/风控这类"写之前就拒了"的失败会 `ack.release` 退回令牌，同一个 token 可重试（有测试）。
+   - **日记注入**：heading 去 `#`/换行；正文里禁止出现日期标题（会打乱按天解析）；小节匹配由 `startsWith` 改为精确相等；日期匹配用 `^##\s+DATE(\D|$)`（不会误命中 `2026-10-270`）。
+   - **custom 效果**：`source` 固定为 `custom`，模型不能伪造成 `masterReplied` 骗过情绪成因/审批回流判断。
+   - **因果读取**：逐行容错 + 只读末 2000 行（一行坏不再让整份归零）。
+   - **EffectBus**：彻底删掉 `FrequencyGate`（连同把旧 bug 当特性的那条单测），避免以后有人再打开。
+   - **状态**：`normalizeState` 校验 `fields/npcState`，`{}` 这类"合法 JSON 但没数据"按坏文件走 `.bak` 恢复；所有控制文件 tmp 名加 pid+随机。
+   - 体力：`WAKE_COST_ENERGY` 0.05、恢复 0.003/h（一天一轮≈收支平衡，连醒三天会累）。
+
+## 已知未修 / 下一步
+- 跨进程锁：旧进程与新进程短暂重叠时，`fields.json` 仍可能后写覆盖（单实例启动器把窗口压到秒级，但没做文件锁）。
+- 日记的物理格式沿用她历史写法（公开本用 `## 日期` + `## 小节`，同日两个 h2 层级）；解析器已按天取块，但格式本身仍不"干净"。
+- `scripts/simulate-rhythm.mjs` 是演示/回归用的离线镜像，不是 World 的真实回路；drill 的 draft CLI 是假的（只验门禁，不验 B 站写链路）。
 
 ## 验证命令
 ```

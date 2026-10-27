@@ -14,8 +14,8 @@ const arg = (k, d) => { const i = argv.indexOf('--' + k); return i >= 0 ? argv[i
 const FORCE = argv.includes('--force')
 const date = arg('date', new Date().toLocaleDateString('sv-SE'))
 const DIARY = path.join(WHALE_HOME, 'whale-diary.md')
-const DRAFTS = arg('drafts', 'D:/AI/养鱼/drafts')
-const IMAGES = arg('images', 'D:/AI/养鱼/assets/daily')
+const DRAFTS = arg('drafts', process.env.WHALE_DRAFTS || 'D:/AI/养鱼/drafts')
+const IMAGES = arg('images', process.env.WHALE_IMAGES || 'D:/AI/养鱼/assets/daily')
 
 function clip(s, max) {
   if (s.length <= max) return s

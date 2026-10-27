@@ -5,7 +5,7 @@
  */
 const CORTICO = process.env.CORTICO_ROOT || 'E:/WorkSpace_Qoder/Cortico'
 const base = 'file:///' + CORTICO.replace(/\\/g, '/')
-const { decideWake, restRecoveryDelta, dayKey } = await import(base + '/persona-core/src/rhythm.ts')
+const { decideWake, restRecoveryDelta, dayKey, WAKE_COST_ENERGY } = await import(base + '/persona-core/src/rhythm.ts')
 const { simulateOfflineTime } = await import(base + '/persona-core/src/decay.ts')
 const { DEFAULT_ATOMIC_FIELDS } = await import(base + '/persona-core/src/types.ts')
 const { createInitialState, deriveNPCState } = await import(base + '/persona-core/src/npc-state-machine.ts')
@@ -35,10 +35,11 @@ while (t < start + DAYS * 86400_000) {
   if (!d.wake) continue
   if (!byDay.has(dayKey(t))) byDay.set(dayKey(t), [])
   byDay.get(dayKey(t)).push({ at: fmt(t), kind: d.kind, energy: fields.energy.toFixed(2), relation: npc.current })
-  fields = { ...fields, energy: fields.energy - 0.03, stimulation: Math.min(1, fields.stimulation + 0.12) }
+  fields = { ...fields, energy: fields.energy - WAKE_COST_ENERGY, stimulation: Math.min(1, fields.stimulation + 0.12) }
   mem = { ...mem, wakesToday: mem.wakesToday + 1, lastWakeAt: t, lastKind: d.kind }
   if (d.kind === 'connect') {
     mem.connectMisses = (mem.connectMisses ?? 0) + 1
+    mem.lastMissAt = t
     // 从没人回过她 → 每新的一天，等不到就掉一次心情
     if (mem.lastSilentDay !== dayKey(t)) {
       fields = { ...fields, connection: Math.max(0, fields.connection - 0.05), mood: Math.max(-1, fields.mood - 0.03) }

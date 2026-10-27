@@ -103,7 +103,19 @@ test('reject 后不能再 approve', () => {
   assert.ok(list().some((x) => x.id === d.id && x.status === 'rejected'))
 })
 
-test('只有 go 成功才标记图片已用；dry 不标记', async () => {
+test('冷却失败退回一次性令牌：同一个 token 可以重试', () => {
+  const d = makeDraft({ date: '2026-10-30', diaryText: diary, image: 'D:/y.png', text: '冷却重试' })
+  const token = attachAck(d)
+  fs.writeFileSync(path.join(DRAFTS, '2026-10-30.json'), JSON.stringify(d))
+  const cool = approve({ id: d.id, go: true, token, runner: () => ({ status: 1, stdout: '写操作冷却中，请稍后' }) })
+  assert.equal(cool.ok, false); assert.equal(cool.status, 'cooldown')
+  const retry = approve({ id: d.id, go: true, token, runner: () => ({ status: 0, stdout: 'dyn_id=9 ok' }) })
+  assert.equal(retry.ok, true); assert.equal(retry.status, 'sent')
+  const again = approve({ id: d.id, go: true, token, runner: () => ({ status: 0, stdout: 'dyn_id=10' }) })
+  assert.equal(again.ok, false)
+})
+
+test('only go 成功才标记图片已用；dry 不标记', async () => {
   const imgDir = fs.mkdtempSync(path.join(os.tmpdir(), 'used-'))
   const img = path.join(imgDir, 'daily-99.png'); fs.writeFileSync(img, 'x')
   fs.writeFileSync(path.join(imgDir, 'used-images.json'), JSON.stringify({ used: [] }))

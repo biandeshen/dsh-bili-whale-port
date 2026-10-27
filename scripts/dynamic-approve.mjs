@@ -60,13 +60,18 @@ export function approve({ id, token, go = false, runner } = {}) {
   audit({ id: d.id, action: 'approve', mode: go ? 'go' : 'dry', image: d.image, textHash: crypto.createHash('sha1').update(d.text).digest('hex') })
   const args = ['dynamic-image', '--image', d.image, '--text', d.text, go ? '--go' : '--dry']
   const run = runner || ((a) => spawnSync(process.execPath, [BILI, ...a], { encoding: 'utf8', timeout: 300000, env: { ...process.env, BILI_SEND: go ? '1' : '0' } }))
-  const r = run(args)
+  let r
+  try { r = run(args) } catch (e) { r = { status: -1, stdout: '', stderr: String(e?.message ?? e) } }
   const out = String(r.stdout ?? '') + String(r.stderr ?? '')
   const ok = (r.status === 0) && (go ? /dyn_id|dynamic|成功|code=0/i.test(out) : true)
   const transient = !ok && /冷却|TRAFFIC_PAUSED|请稍后/.test(out)
   d.status = ok ? (go ? 'sent' : 'dry-run') : (transient ? 'cooldown' : 'failed')
   d.result = { ok, at: new Date().toISOString(), mode: go ? 'go' : 'dry', out: out.slice(-800) }
   save(hit.file, d)
+  // 冷却/风控是写之前的拒绝：把一次性令牌退回去，主人可以用同一个 token 重试
+  if (go && transient && d.ackId) {
+    try { ack.release(WHALE_HOME, d.ackId) } catch {}
+  }
   if (go && ok) markUsed(d.image)
   audit({ id: d.id, action: go ? 'send' : 'dry-run', result: ok ? d.status : 'failed', exit: r.status ?? null, outHash: crypto.createHash('sha1').update(out).digest('hex') })
   return { ok, status: d.status, out: out.slice(-800) }

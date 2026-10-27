@@ -7,7 +7,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 
-export const DEFAULT_TTL_MS = 2 * 3600_000
+/** 默认 12 小时：晚上出的草稿，第二天早上主人起来再放行也来得及 */
+export const DEFAULT_TTL_MS = 12 * 3600_000
 
 export function queueDir(whaleHome) {
   return path.join(whaleHome, 'bili-whale', 'control', 'pending')
@@ -101,4 +102,16 @@ export function approve(whaleHome, id, token, now = Date.now()) {
   it.usedAt = new Date(now).toISOString()
   atomicWrite(hit.file, JSON.stringify(it, null, 2))
   return { ok: true, code: 'ok', payload: it.payload }
+}
+
+/** 传输层失败（冷却/风控在写之前就拒了）→ 把认领退回去，主人可以用同一个 token 重试。 */
+export function release(whaleHome, id) {
+  const hit = load(whaleHome, id)
+  if (!hit) return { ok: false, code: 'not-found' }
+  const it = hit.item
+  it.used = false
+  it.usedAt = null
+  atomicWrite(hit.file, JSON.stringify(it, null, 2))
+  try { fs.unlinkSync(claimPath(whaleHome, id)) } catch {}
+  return { ok: true, code: 'released' }
 }
