@@ -119,12 +119,28 @@ function autoCounterfactual(now) {
   log(`counterfactual ${prev} ok=${payload.ok} diff=${payload.diffChars ?? '-'}`)
 }
 
+/** 04:05 后每天跑一次 G3b 就绪审计，结果落 control/g3b-status.json。 */
+function autoG3bStatus(now) {
+  const d = new Date(now)
+  if (d.getHours() < 4 || (d.getHours() === 4 && d.getMinutes() < 5)) return
+  const file = path.join(CONTROL, 'g3b-status.json')
+  const day = logicalDay(now)
+  const cur = readJson(file)
+  if (cur?.day === day) return
+  const r = spawnSync(process.execPath, [path.join(HERE, 'g3b-check.mjs'), '--json'], { encoding: 'utf8', timeout: 60000 })
+  let parsed = null
+  try { parsed = JSON.parse(String(r.stdout ?? '')) } catch {}
+  writeAtomic(file, { day, at: new Date(now).toISOString(), ...(parsed ?? { ok: false, ready: false, error: 'g3b-check-failed', stderr: String(r.stderr ?? '').slice(-300) }) })
+  log(`g3b ${day} ready=${parsed?.ready === true}`)
+}
+
 function once() {
   const now = Date.now()
   const day = logicalDay(now)
   seed(now, day)
   const r = tick(now, day)
   autoCounterfactual(now)
+  autoG3bStatus(now)
   const hhmm = new Date(now).toLocaleTimeString('sv-SE').slice(0, 5)
   // 04:30 后仍无 state.start → missed（正常情况 seed 已建，这里防 seed 失败）
   if (hhmm >= '04:30' && !fs.existsSync(path.join(daysDir(day), 'state.start.json'))) {
