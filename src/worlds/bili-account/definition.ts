@@ -5,7 +5,7 @@ import path from 'node:path'
 import { describeTools, type WorldDefinition } from '../../world.ts'
 import { canDraft, draftRefusal, canApplyWatched, watchedRefusal, violationNotice, diaryFresh, diaryRefusal } from './gates.ts'
 import { upsertDiarySection, DIARY_DEFAULT_HEADER } from './diary.ts'
-import { loadState, saveState, applyEffects, remember, describeState, PRESETS } from './personaAdapter.ts'
+import { loadState, saveState, applyEffects, remember, describeState, recentWatch, annotateFeed, PRESETS } from './personaAdapter.ts'
 import type { PresetEffect } from './personaAdapter.ts'
 import { buildVoiceBrief } from '../../../persona-core/src/voice-brief.ts'
 import { pickActivities, ACTIVITY_LABELS } from '../../../persona-core/src/life-activities.ts'
@@ -127,6 +127,11 @@ function rememberWatch(state: any, receipt: string, bvid: string): any {
 
 const DRAFTS_DIR = process.env.WHALE_DRAFTS
   || (fs.existsSync('D:/AI/养鱼/drafts') ? 'D:/AI/养鱼/drafts' : path.join(WHALE, 'bili-whale', 'drafts'))
+
+/** 公开日记的尾部：给"记得"当情境词，让召回跟今天写的事有关，而不是永远最鲜活三条。 */
+function diaryTail(n = 2000): string {
+  try { return fs.readFileSync(PUBLIC_DIARY, 'utf8').slice(-n) } catch { return '' }
+}
 
 /** 今天是否已经出过草稿（多醒几轮时不重复出稿）。 */
 function todayDraftLine(): string {
@@ -346,12 +351,20 @@ class BiliAccountWorld {
           const feedback = latestDraftFeedback(after)
           const todayDraft = todayDraftLine()
           const activities = pickActivities(after.fields, { now, rng: Math.random, k: 3 })
+          // M4 决策钩子：这一轮要是想去看片，先告诉她最近看过什么，别又挑同一路
+          const recent = decision.kind === 'explore' ? recentWatch(after) : { bvs: [], ups: [] }
+          const recentLine = recent.bvs.length
+            ? '最近 7 天看过 ' + recent.bvs.length + ' 条'
+              + (recent.ups.length ? '（' + recent.ups.slice(0, 3).join('、') + '）' : '')
+              + '——挑片时避开同题材和同 UP。'
+            : ''
           this.enqueue('action-due', [
             '【你想做点什么】',
-            describeState(after),
+            describeState(after, 5, { seed: today }),
             '',
             '起因：' + decision.reason + '。',
             ...(decision.kind === 'connect' ? ['他可能留了话——先 bili_dm_read 看一眼。'] : []),
+            recentLine,
             '这轮可以先挑一件小事（也可以不做）：\n' + activities.map((x) => `- [${x.type}] ${x.label}：${x.description}`).join('\n'),
             '挑好了，在 bili_mood_apply 里带上 activity=<id>，让我记下来。',
             todayDraft,
@@ -422,7 +435,9 @@ class BiliAccountWorld {
         writeRound(round)
         if (r.status !== 0) return `[bili_feed failed] ${r.out}`
         const bv = (r.out.match(/BV[0-9A-Za-z]{10}/) || [])[0]
-        return r.out + (bv ? `\n\n[NEXT] 立刻调用 bili_debrief，参数 {"bvid":"${bv}"}；成功后才能调用 bili_draft_dynamic。` : '')
+        // 日记里的"看过"表未必全（她换过日记/导入过回忆）；再按近 7 天记忆补一层避重
+        const annotated = annotateFeed(r.out, recentWatch(loadState(FIELDS_FILE)))
+        return annotated + (bv ? `\n\n[NEXT] 立刻调用 bili_debrief，参数 {"bvid":"${bv}"}；成功后才能调用 bili_draft_dynamic。` : '')
       }),
       mk(DECLS[2], async (a) => {
         const bv = String(a?.bvid || '').trim()
@@ -443,7 +458,7 @@ class BiliAccountWorld {
           try { return `## ${f}\n` + fs.readFileSync(path.join(WHALE, f), 'utf8') } catch { return `## ${f}\n(missing)` }
         }).join('\n\n').slice(0, 12000)
       }),
-      mk(DECLS[4], async () => describeState(loadState(FIELDS_FILE))),
+      mk(DECLS[4], async () => describeState(loadState(FIELDS_FILE), 5, { queryText: diaryTail(), seed: dayKey(Date.now()) })),
       mk(DECLS[5], async (a) => {
         if (a?.preset === 'watchedVideo' && !canApplyWatched(round.debriefed === true)) {
           causal({ kind: 'discipline-violation', reason: 'watched-without-debrief', atMs: Date.now() })
@@ -467,7 +482,8 @@ class BiliAccountWorld {
             this.life.lastKind = activityId
             writeLifeFile(this.life)
             causal({ kind: 'activity', activity: activityId, atMs: Date.now() })
-            return describeState(loadState(FIELDS_FILE)) + '\n（已记下这轮活动：' + activityId + '）'
+            return describeState(loadState(FIELDS_FILE), 5, { queryText: diaryTail(), seed: dayKey(Date.now()) })
+              + '\n（已记下这轮活动：' + activityId + '）'
           }
           return '[mood_apply] 需要 preset 或 custom'
         }
@@ -512,7 +528,7 @@ class BiliAccountWorld {
           chainDelta: after.chain.length - before.chain.length,
           relation: after.npcState.current,
         })
-        return describeState(after)
+        return describeState(after, 5, { queryText: diaryTail(), seed: dayKey(Date.now()) })
       }),
       mk(DECLS[6], async (a) => {
         if (!canDraft(round.feedAt ?? 0, round.debriefed === true)) {
@@ -526,7 +542,13 @@ class BiliAccountWorld {
         }
         // 把人她此刻的状态交给草稿管线：缺 voice 会被 draft-dynamic 直接拒稿
         const st = loadState(FIELDS_FILE)
-        const voice = buildVoiceBrief(st, { now: Date.now() })
+        let diaryText = ''
+        try { diaryText = fs.readFileSync(PUBLIC_DIARY, 'utf8') } catch {}
+        // 召回按"今天写了什么"取上下文，不按最鲜活的三条
+        const voice = buildVoiceBrief(st, {
+          now: Date.now(),
+          query: { text: diaryText.slice(-2000), seed: dayKey(Date.now()) },
+        })
         if (!voice.stance.share) {
           return `[skipped] 这一轮不想发：${voice.stance.because}（心情 ${voice.mood.label}）`
         }

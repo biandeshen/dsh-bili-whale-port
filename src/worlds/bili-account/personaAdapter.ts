@@ -11,7 +11,8 @@ import { EffectBus } from '../../../persona-core/src/effect-bus.ts'
 import type { AtomicFields, CausalEvent, Memory } from '../../../persona-core/src/types.ts'
 import { DEFAULT_ATOMIC_FIELDS } from '../../../persona-core/src/types.ts'
 import { recordFieldChangeL0 } from '../../../persona-core/src/causal-chain.ts'
-import { decayMemory, calculateEncodingStrength, memorySalience } from '../../../persona-core/src/memory.ts'
+import { decayMemory, calculateEncodingStrength } from '../../../persona-core/src/memory.ts'
+import { recallMemories, watchedFromMemories } from '../../../persona-core/src/retrieval.ts'
 import { simulateOfflineTime } from '../../../persona-core/src/decay.ts'
 import { createInitialState, deriveNPCState } from '../../../persona-core/src/npc-state-machine.ts'
 import { readMood } from '../../../persona-core/src/emotion.ts'
@@ -283,20 +284,41 @@ const RELATION_LABEL: Record<string, string> = {
   reunion: '重逢',
 }
 
-/** 给模型看的状态描述：情绪（含成因）+ 场值 + 关系态 + 最近因果 + 最关键记忆。 */
-export function describeState(s: PersonaState, limit = 5): string {
+/** 给模型看的状态描述：情绪（含成因）+ 场值 + 关系态 + 最近因果 + 召回的记忆。 */
+export function describeState(
+  s: PersonaState,
+  limit = 5,
+  opts: { queryText?: string; seed?: string } = {},
+): string {
   const f = s.fields
   const pct = (n: number) => Math.round(n * 100)
   const rel = RELATION_LABEL[s.npcState?.current ?? ''] ?? s.npcState?.current ?? 'normal'
   const m = readMood(s)
   const secondary = m.secondary.length ? '，还有点' + m.secondary.join('、') : ''
-  const recent = [...s.chain].reverse().slice(0, limit)
+  const recentChain = [...s.chain].reverse().slice(0, limit)
+  const recent = recentChain
     .map((e) => `- ${e.description}（${e.fieldChanges.map((c) => `${c.field} ${c.from.toFixed(2)}→${c.to.toFixed(2)}`).join('，')}）`)
+  // M4：按"眼下的事"召回，而不是永远拿最鲜活的三条
   const nowMs = Date.now()
-  const mems = [...s.memories]
-    .sort((a, b) => memorySalience(b, nowMs) - memorySalience(a, nowMs) || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, 3)
-    .map((m) => `- ${m.sender === 'player' ? '主人' : '我'}：${m.content.slice(0, 40)}${m.flashbulb ? '（刻在心里）' : ''}`)
+  const context = [opts.queryText ?? '', ...recentChain.filter((e) => e.source !== 'decay').map((e) => e.description)]
+    .filter(Boolean).join(' ')
+  const mems = recallMemories(s.memories, {
+    now: nowMs,
+    k: 3,
+    surprises: 1,
+    text: context,
+    mood: f.mood,
+    seed: opts.seed,
+  }).map((r) => {
+    const who = r.sender === 'player' ? '主人' : '我'
+    const head = r.slot === 'surprise' ? '忽然想起' : '记得'
+    // 看过的只留片名：B 站标题一长串 Ⅰ 标签，整段塞进提示词只会淹掉别的信息
+    const title = r.content.startsWith('看过《') ? (r.content.match(/看过《([^》]+)》/) || [])[1] : ''
+    const shown = title
+      ? '看过《' + title.split(/[Ⅰ|｜]/)[0].trim().slice(0, 24) + '》'
+      : r.content.slice(0, 40)
+    return `- ${head}｜${who}：${shown}${r.flashbulb ? '（刻在心里）' : ''}`
+  })
   return [
     `【她现在的情绪】${m.primary}${secondary}（成因：${m.reason}）`,
     m.inner,
@@ -305,4 +327,22 @@ export function describeState(s: PersonaState, limit = 5): string {
     recent.length ? '最近发生：\n' + recent.join('\n') : '最近没什么特别的。',
     mems.length ? '记得：\n' + mems.join('\n') : '',
   ].filter(Boolean).join('\n')
+}
+
+/** 选片避重：近 7 天看过的 BV / UP，供 feed 标注与提示。 */
+export function recentWatch(s: PersonaState, days = 7): { bvs: string[]; ups: string[] } {
+  return watchedFromMemories(s.memories, Date.now(), days)
+}
+
+/** 从 feed 输出里找出它推荐的 BV，给近 7 天看过的打标。 */
+export function annotateFeed(out: string, recent: { bvs: string[]; ups: string[] }): string {
+  const seen = new Set(recent.bvs)
+  const lines = String(out ?? '').split(/\r?\n/).map((line) => {
+    const bv = (line.match(/\bBV[0-9A-Za-z]{8,}\b/) || [])[0]
+    return bv && seen.has(bv) ? line + '  [近 7 天看过]' : line
+  })
+  const parts: string[] = []
+  if (recent.bvs.length) parts.push(`近 7 天看过 ${recent.bvs.length} 条`)
+  if (recent.ups.length) parts.push(`最近的 UP：${recent.ups.slice(0, 3).join('、')}（挑片时避开同题材/同 UP）`)
+  return lines.join('\n') + (parts.length ? '\n' + parts.join('；') : '')
 }

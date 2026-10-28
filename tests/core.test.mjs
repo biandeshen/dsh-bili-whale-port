@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { canDraft, canApplyWatched, draftRefusal } from '../src/worlds/bili-account/gates.ts'
 import { makeRunner } from '../src/worlds/bili-account/runner.ts'
-import { emptyState, applyEvent, readMood, describeState, remember } from '../src/worlds/bili-account/personaAdapter.ts'
+import { emptyState, applyEvent, readMood, describeState, remember, recentWatch, annotateFeed } from '../src/worlds/bili-account/personaAdapter.ts'
 import { sanitizeEffects } from '../src/worlds/bili-account/definition.ts'
 import { upsertDiarySection } from '../src/worlds/bili-account/diary.ts'
 import { diaryFresh, diaryRefusal } from '../src/worlds/bili-account/gates.ts'
@@ -134,4 +134,34 @@ test('时钟回拨：applyEvent 不把 lastAppliedAt 倒退', () => {
   s.lastAppliedAt = future
   const after = applyEvent(s, 'watchedVideo')
   assert.ok(Date.parse(after.lastAppliedAt) >= Date.parse(future))
+})
+
+test('M4：今天日记写雨，「记得」里雨声那条排在最前（不是最鲜活那条）', () => {
+  let s = emptyState()
+  s = remember(s, '看过《雨声》（雨声实验室） —— BV1aaBBccDD1', { sender: 'npc', intensity: 0.4, source: 'npc_self' })
+  s.memories[s.memories.length - 1].createdAt = new Date(Date.now() - 5 * DAY)
+  s = remember(s, '看过《猫咪日常》（猫猫台） —— BV1xxYYzz001', { sender: 'npc', intensity: 0.95, source: 'npc_self' })
+  s.memories[s.memories.length - 1].createdAt = new Date(Date.now() - DAY)
+  const text = describeState(s, 5, { queryText: '今天又下雨了，雨声一直没停', seed: '2026-10-29' })
+  const iRain = text.indexOf('看过《雨声》')
+  const iCat = text.indexOf('猫咪日常')
+  assert.ok(iRain >= 0 && iCat >= 0, text)
+  assert.ok(iRain < iCat, '相关的旧记忆应该排在新记忆前面')
+})
+
+test('M4：feed 标注近 7 天看过的 BV，并提示避开同 UP', () => {
+  let s = emptyState()
+  s = remember(s, '看过《雨声》（雨声实验室） —— BV1aaBBccDD1', { sender: 'npc', intensity: 0.5, source: 'npc_self' })
+  s.memories[s.memories.length - 1].createdAt = new Date(Date.now() - 2 * DAY)
+  const recent = recentWatch(s)
+  assert.deepEqual(recent.bvs, ['BV1aaBBccDD1'])
+  const out = annotateFeed([
+    '今天可以看这几条：',
+    '  1. BV1aaBBccDD1   120s  雨声  @雨声实验室',
+    '  2. BV1newCandidate  90s  海浪  @另一家',
+  ].join('\n'), recent)
+  assert.match(out, /BV1aaBBccDD1.*\[近 7 天看过\]/)
+  assert.doesNotMatch(out, /BV1newCandidate.*\[近 7 天看过\]/)
+  assert.match(out, /避开同题材/)
+  assert.match(out, /雨声实验室/)
 })

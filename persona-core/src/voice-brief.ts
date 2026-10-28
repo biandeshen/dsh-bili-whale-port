@@ -4,9 +4,27 @@
  */
 import type { AtomicFields, CausalEvent, Memory } from './types.js'
 import { readMood, latestCauseSource } from './emotion.js'
-import { memorySalience } from './memory.js'
+import { recallMemories } from './retrieval.js'
 
-export interface VoiceMemory { id: string; text: string; why: string; score: number }
+export interface VoiceMemory {
+  id: string
+  text: string
+  why: string
+  score: number
+  /** 这条记忆是谁留下的：主人说过的，还是她自己记下的 */
+  from: 'player' | 'npc'
+  /** 多少天前（向下取整） */
+  days: number
+  /** core = 和眼下的事有关；surprise = 意外想起的旧事 */
+  slot: 'core' | 'surprise'
+}
+
+export interface VoiceQuery {
+  /** 当前情境文本（今天的日记、这轮的动作） */
+  text?: string
+  terms?: string[]
+  seed?: string
+}
 
 export interface VoiceBrief {
   v: 1
@@ -27,31 +45,36 @@ export interface VoiceInput {
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n))
 
-/** 记忆打分：鲜活度 0.7 + 新鲜度 0.3（完整检索式留 M4）。 */
-function scoreMemory(m: Memory, now: number): { score: number; days: number } {
-  const created = m.createdAt instanceof Date ? m.createdAt.getTime() : Date.parse(String(m.createdAt))
-  const days = Number.isFinite(created) ? Math.max(0, (now - created) / 86400_000) : 999
-  return { score: memorySalience(m, now), days: Math.floor(days) }
-}
-
-export function buildVoiceBrief(s: VoiceInput, opts: { now?: number; k?: number } = {}): VoiceBrief {
+export function buildVoiceBrief(
+  s: VoiceInput,
+  opts: { now?: number; k?: number; surprises?: number; query?: VoiceQuery } = {},
+): VoiceBrief {
   const now = opts.now ?? Date.now()
   const k = Math.max(0, Math.min(5, opts.k ?? 3))
   const mood = readMood(s, now)
   const relation = s.npcState?.current ?? 'normal'
 
-  const memories: VoiceMemory[] = (s.memories ?? [])
-    .map((m) => {
-      const { score, days } = scoreMemory(m, now)
-      return {
-        id: m.id,
-        text: String(m.content ?? '').slice(0, 80),
-        why: `${Number(m.vividness ?? 0).toFixed(2)} 鲜活 · ${days} 天前`,
-        score: Math.round(score * 1000) / 1000,
-      }
-    })
-    .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))
-    .slice(0, k)
+  // M4：确定性召回（关键词/鲜活/情绪/新鲜 + 意外槽），在 voice 里保留可解释的 why 和出处
+  const recalled = k > 0 || (opts.surprises ?? 0) > 0
+    ? recallMemories(s.memories ?? [], {
+        now,
+        k,
+        surprises: opts.surprises ?? 1,
+        text: opts.query?.text,
+        terms: opts.query?.terms,
+        seed: opts.query?.seed,
+        mood: s.fields.mood,
+      })
+    : []
+  const memories: VoiceMemory[] = recalled.map((r) => ({
+    id: r.id,
+    text: r.content.slice(0, 80),
+    why: r.why.join(' · '),
+    score: r.score,
+    from: r.sender,
+    days: Math.max(0, Math.floor((now - r.createdAt.getTime()) / 86400_000)),
+    slot: r.slot,
+  }))
 
   return {
     v: 1,

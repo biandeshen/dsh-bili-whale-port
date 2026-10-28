@@ -90,7 +90,7 @@ test('describeState：「记得」同鲜活度时先给最近的事（不再永�
   let s = base()
   for (let i = 0; i < 4; i++) {
     s = remember(s, '记忆 #' + i, { intensity: 0.5 })
-    s.memories[s.memories.length - 1].createdAt = new Date(at(0) - (4 - i) * 86400_000)
+    s.memories[s.memories.length - 1].createdAt = new Date(Date.now() - (4 - i) * 86400_000)
   }
   const text = describeState(s)
   assert.match(text, /记忆 #3/)

@@ -39,14 +39,25 @@ test('voiceBrief：冷战时禁称并拒绝分享', () => {
 test('voiceBrief：记忆按 0.7 鲜活 + 0.3 新鲜排序并带 why', () => {
   const s = state()
   s.memories = [
-    { id: 'm-old', content: '很久以前', vividness: 0.9, createdAt: new Date(now - 60 * 86400_000) },
-    { id: 'm-new', content: '刚刚看的', vividness: 0.5, createdAt: new Date(now - 1 * 86400_000) },
+    { id: 'm-old', content: '很久以前', vividness: 0.9, createdAt: new Date(now - 60 * 86400_000), sender: 'npc', emotion: { valence: 0.2, intensity: 0.5, tags: [] } },
+    { id: 'm-new', content: '刚刚看的', vividness: 0.5, createdAt: new Date(now - 1 * 86400_000), sender: 'npc', emotion: { valence: 0.2, intensity: 0.5, tags: [] } },
   ]
   const v = buildVoiceBrief(s, { now, k: 2 })
   assert.equal(v.memories[0].id, 'm-new')
-  assert.match(v.memories[0].why, /鲜活/)
   assert.match(v.memories[0].why, /天前/)
+  assert.ok(v.memories.some((m) => /鲜活/.test(m.why)), '鲜活度高的记忆要说明为什么被想起')
   assert.equal(v.memories.length, 2)
+  assert.ok(v.memories.every((m) => m.from === 'npc' && m.slot === 'core' && Number.isInteger(m.days)))
+})
+
+test('voiceBrief：按当前情境召回（今天写雨，就想起雨声那条）', () => {
+  const s = state()
+  s.memories = [
+    { id: 'rain', content: '看过《雨声》（雨声实验室） —— BV1aa', vividness: 0.4, createdAt: new Date(now - 5 * 86400_000), sender: 'npc', emotion: { valence: 0.2, intensity: 0.5, tags: [] } },
+    { id: 'cat', content: '看过《猫咪日常》 —— BV1bb', vividness: 0.95, createdAt: new Date(now - 1 * 86400_000), sender: 'npc', emotion: { valence: 0.2, intensity: 0.5, tags: [] } },
+  ]
+  const v = buildVoiceBrief(s, { now, k: 2, query: { text: '今天又下雨了，雨声很好听', seed: '2026-10-29' } })
+  assert.equal(v.memories[0].id, 'rain')
 })
 
 test('voiceBrief：没有记忆时返回空数组，不编造', () => {

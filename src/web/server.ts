@@ -36,7 +36,7 @@ import { AUTH_KEY_FILE, WebUiAuth, SESSION_COOKIE, SESSION_COOKIE_MAX_AGE_SEC, c
 import { buildDiagnostics, DIAGNOSTICS_TAIL, type DiagnosticsEndpoint } from './diagnostics.ts';
 import { WebUiAssets, WebUiPageRegistry, type WebUiPageSource } from './webui-pages.ts';
 import { THEME_FILE, readDeploymentTheme, writeDeploymentTheme } from './theme-store.ts';
-import { checkFrameworkRelease } from './framework-release.ts';
+import { checkFrameworkRelease, readCurrentVersion } from './framework-release.ts';
 import { THEME_SCRIPT_ID, type InjectedTheme, type StoredTheme } from './shared/theme.ts';
 import { EXTENSION_ASSET_PREFIX, extensionAssetSegment, type ExtensionWebUiAsset } from '../extensions/manifest.ts';
 import { PREVIOUS_CONTRACT_PANEL_ROUTE, previousContractPagesOnly } from '../extensions/previous-contract.ts';
@@ -1645,8 +1645,14 @@ export class WebApp {
       res.json({ ...this.safeStatus(), uptimeSec: Math.round(process.uptime()) });
     }));
 
+    // 查更新是可选网络请求：GitHub 不通时只返回本地版本，别把离线变成 500 + ERROR 日志。
     app.get('/api/framework/release', wrap(async (_req, res) => {
-      res.json(await checkFrameworkRelease());
+      try {
+        res.json(await checkFrameworkRelease());
+      } catch (err) {
+        this.deps.log.warn('查框架 Release 失败,跳过更新提示', { error: String(err) });
+        res.json({ currentVersion: await readCurrentVersion() });
+      }
     }));
 
     app.get('/api/avatar', wrap((_req, res) => {

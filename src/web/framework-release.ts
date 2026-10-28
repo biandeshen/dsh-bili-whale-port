@@ -18,6 +18,12 @@ function versionParts(version: string): bigint[] | null {
   return match ? match.slice(1).map((part) => BigInt(part)) : null;
 }
 
+/** 本地版本：查更新失败时也要能返回，界面字标不依赖网络。 */
+export async function readCurrentVersion(root = repoRoot()): Promise<string> {
+  const { version } = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')) as { version: string };
+  return version;
+}
+
 function isNewer(latest: string, current: string): boolean {
   const left = versionParts(latest);
   const right = versionParts(current);
@@ -31,7 +37,7 @@ function isNewer(latest: string, current: string): boolean {
 export async function checkFrameworkRelease(
   root = repoRoot(), releaseUrl = RELEASE_URL, signal: AbortSignal = AbortSignal.timeout(RELEASE_TIMEOUT_MS),
 ): Promise<FrameworkReleaseStatus> {
-  const { version } = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')) as { version: string };
+  const version = await readCurrentVersion(root);
   const response = await fetch(releaseUrl, {
     headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Cortico' },
     signal,
