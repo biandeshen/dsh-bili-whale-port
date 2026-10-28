@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
 import { DEFAULT_ATOMIC_FIELDS } from '../src/types.ts'
 import { buildVoiceBrief } from '../src/voice-brief.ts'
 import { readMood } from '../src/emotion.ts'
@@ -51,4 +52,15 @@ test('voiceBrief：记忆按 0.7 鲜活 + 0.3 新鲜排序并带 why', () => {
 test('voiceBrief：没有记忆时返回空数组，不编造', () => {
   const v = buildVoiceBrief(state(), { now })
   assert.deepEqual(v.memories, [])
+})
+
+test('A3：真实 fields 快照产生的 voice 与中性状态不同', () => {
+  const real = JSON.parse(fs.readFileSync(new URL('../../tests/fixtures/fields-real-20261029.json', import.meta.url), 'utf8'))
+  const vReal = buildVoiceBrief(real, { now })
+  const vNeutral = buildVoiceBrief({
+    fields: { ...DEFAULT_ATOMIC_FIELDS }, chain: [], memories: [], npcState: { current: 'normal' },
+  }, { now })
+  assert.notDeepEqual(vReal, vNeutral)
+  assert.ok(vReal.memories.length >= 1 || vReal.mood.label !== vNeutral.mood.label,
+    '真实快照既没有记忆也没有不同情绪，说明状态没进入 voice')
 })

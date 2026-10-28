@@ -18,7 +18,9 @@ const MOOD_WINDOW_MS = 6 * 3600_000
 function latestCause(s: MoodState, now: number): string | null {
   for (let i = s.chain.length - 1; i >= 0; i--) {
     const e = s.chain[i]
-    if (e.source && e.source !== 'decay' && now - e.timestamp.getTime() < MOOD_WINDOW_MS) return e.source
+    // 反序列化的状态里 timestamp 可能是 ISO 字符串，不能假定是 Date
+    const ts = e.timestamp instanceof Date ? e.timestamp.getTime() : Date.parse(String(e.timestamp))
+    if (e.source && e.source !== 'decay' && Number.isFinite(ts) && now - ts < MOOD_WINDOW_MS) return e.source
   }
   return null
 }
