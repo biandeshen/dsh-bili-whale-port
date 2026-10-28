@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { emptyState, applyEvent, applyEffects, saveState, loadState } from '../../src/worlds/bili-account/personaAdapter.ts'
+import { emptyState, applyEvent, applyEffects, saveState, loadState, remember, describeState } from '../../src/worlds/bili-account/personaAdapter.ts'
 
 const DAY = 86400_000
 const T0 = Date.parse('2026-10-01T21:40:00+08:00')
@@ -73,6 +73,28 @@ test('来源预算：custom 一天最多推动 0.15', () => {
   assert.ok(Math.abs(first - 0.35) < 1e-9, 'mood ' + first)
   s = applyEffects(s, custom, '自定义事件', { now: t })
   assert.ok(Math.abs(s.fields.mood - first) < 1e-9, '第二下被预算挡住，mood ' + s.fields.mood)
+})
+
+test('记忆：按真实时间折成小数天衰减（不再等满 1 天）', () => {
+  let s = base()
+  s = remember(s, '刚刚发生的事', { intensity: 0.5 })
+  const v0 = s.memories[0].vividness
+  // 生活循环式的小步结算：每 5 分钟一次，共一天
+  for (let i = 1; i <= 288; i++) s = applyEffects(s, [], '时间流逝', { now: at(0) + i * 5 * 60_000 })
+  const v1 = s.memories[0].vividness
+  assert.ok(v1 < v0, `vividness 没有下降: ${v0} → ${v1}`)
+  assert.ok(v1 > v0 - 0.03, `一天最多掉 0.02 左右，实际 ${v0} → ${v1}`)
+})
+
+test('describeState：「记得」同鲜活度时先给最近的事（不再永远最早三条）', () => {
+  let s = base()
+  for (let i = 0; i < 4; i++) {
+    s = remember(s, '记忆 #' + i, { intensity: 0.5 })
+    s.memories[s.memories.length - 1].createdAt = new Date(at(0) - (4 - i) * 86400_000)
+  }
+  const text = describeState(s)
+  assert.match(text, /记忆 #3/)
+  assert.doesNotMatch(text, /记忆 #0/)
 })
 
 test('状态文件：原子写带 schemaVersion，坏文件从备份恢复且留档', () => {

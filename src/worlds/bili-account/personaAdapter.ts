@@ -11,7 +11,7 @@ import { EffectBus } from '../../../persona-core/src/effect-bus.ts'
 import type { AtomicFields, CausalEvent, Memory } from '../../../persona-core/src/types.ts'
 import { DEFAULT_ATOMIC_FIELDS } from '../../../persona-core/src/types.ts'
 import { recordFieldChangeL0 } from '../../../persona-core/src/causal-chain.ts'
-import { decayMemory, calculateEncodingStrength } from '../../../persona-core/src/memory.ts'
+import { decayMemory, calculateEncodingStrength, memorySalience } from '../../../persona-core/src/memory.ts'
 import { simulateOfflineTime } from '../../../persona-core/src/decay.ts'
 import { createInitialState, deriveNPCState } from '../../../persona-core/src/npc-state-machine.ts'
 import { readMood } from '../../../persona-core/src/emotion.ts'
@@ -206,11 +206,10 @@ export function applyEffects(
   const source = opts.source ?? 'custom'
   const elapsedMs = Math.max(0, now - Date.parse(s.lastAppliedAt))
 
-  // 距上次超过 1 天 → 记忆按天衰减
+  // 记忆按真实毫秒折成小数天衰减：生活循环每 3–7 分钟结算一次，
+  // 旧实现要求"距上次 ≥1 天"才衰减，而 lastAppliedAt 每 tick 重置 → 记忆永远不淡（D-02）
   const days = elapsedMs / 86400_000
-  const memories = days >= 1
-    ? s.memories.map((m) => decayMemory(m, Math.floor(days)))
-    : s.memories
+  const memories = days > 0 ? s.memories.map((m) => decayMemory(m, days)) : s.memories
 
   const chain = [...s.chain]
   const before = { ...s.fields }
@@ -293,7 +292,10 @@ export function describeState(s: PersonaState, limit = 5): string {
   const secondary = m.secondary.length ? '，还有点' + m.secondary.join('、') : ''
   const recent = [...s.chain].reverse().slice(0, limit)
     .map((e) => `- ${e.description}（${e.fieldChanges.map((c) => `${c.field} ${c.from.toFixed(2)}→${c.to.toFixed(2)}`).join('，')}）`)
-  const mems = [...s.memories].sort((a, b) => b.vividness - a.vividness).slice(0, 3)
+  const nowMs = Date.now()
+  const mems = [...s.memories]
+    .sort((a, b) => memorySalience(b, nowMs) - memorySalience(a, nowMs) || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 3)
     .map((m) => `- ${m.sender === 'player' ? '主人' : '我'}：${m.content.slice(0, 40)}${m.flashbulb ? '（刻在心里）' : ''}`)
   return [
     `【她现在的情绪】${m.primary}${secondary}（成因：${m.reason}）`,

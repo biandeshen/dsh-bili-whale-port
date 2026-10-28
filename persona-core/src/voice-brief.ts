@@ -4,6 +4,7 @@
  */
 import type { AtomicFields, CausalEvent, Memory } from './types.js'
 import { readMood, latestCauseSource } from './emotion.js'
+import { memorySalience } from './memory.js'
 
 export interface VoiceMemory { id: string; text: string; why: string; score: number }
 
@@ -30,8 +31,7 @@ const clamp01 = (n: number) => Math.max(0, Math.min(1, n))
 function scoreMemory(m: Memory, now: number): { score: number; days: number } {
   const created = m.createdAt instanceof Date ? m.createdAt.getTime() : Date.parse(String(m.createdAt))
   const days = Number.isFinite(created) ? Math.max(0, (now - created) / 86400_000) : 999
-  const recency = Math.max(0, 1 - days / 30)
-  return { score: 0.7 * Number(m.vividness ?? 0) + 0.3 * recency, days: Math.floor(days) }
+  return { score: memorySalience(m, now), days: Math.floor(days) }
 }
 
 export function buildVoiceBrief(s: VoiceInput, opts: { now?: number; k?: number } = {}): VoiceBrief {

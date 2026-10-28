@@ -39,6 +39,17 @@ export function decayMemory(memory: Memory, days: number): Memory {
 }
 
 /**
+ * 记忆显著性：鲜活度 0.7 + 新鲜度 0.3（30 天线性归零）。
+ * 用于"记得"的排序——只按 vividness 排会让同分记忆永远返回最早三条（D-03）。
+ */
+export function memorySalience(memory: Memory, now = Date.now()): number {
+  const t = memory.createdAt instanceof Date ? memory.createdAt.getTime() : Date.parse(String(memory.createdAt))
+  const days = Number.isFinite(t) ? Math.max(0, (now - t) / 86400_000) : 999
+  const recency = Math.max(0, 1 - days / 30)
+  return 0.7 * Number(memory.vividness ?? 0) + 0.3 * recency
+}
+
+/**
  * F20: Calculate encoding strength using Yerkes-Dodson curve.
  * arousal = stimulation field value (0-1).
  * Peak encoding at arousal=0.6, decreases toward extremes.
