@@ -454,6 +454,11 @@ tick:
 - **与我们的 `rhythm.ts` 的关系**：`decideWake` 决定"醒不醒"，`life-activities` 决定"醒了做什么"。现在只有前者，后者缺失，所以醒来只会"看片/歇着"。
 - **接线方式**：唤醒文本里给 2–3 个候选活动（带文案），由模型选一个；**选择结果写回 `life.json.lastKind`**，用于后续统计与漂移。
 
+**落地（2026-10-29）**：
+- `persona-core/src/life-activities.ts`：7 类活动 × 5 条文案，按时钟轮换；候选 = 场值倾向分 + 抖动取前 3；不附带 field effects（Q-06）。
+- `definition.ts` 的唤醒文本列出 3 个候选（`[type] 中文名：文案`），并提示 `bili_mood_apply(activity=<id>)`；工具只接受 7 个 id，写入 `life.json.lastActivity/lastKind`，同时允许"只记活动、不加效果"。
+- 验收口径「30 天 `lastKind` 单类 ≤70%」需要真实运行数据，观测期前不作为通过项。
+
 ### 12.4 验收（可证伪）
 
 | 断言 | 方法 | 通过线 |
