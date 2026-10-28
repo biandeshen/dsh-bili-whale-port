@@ -47,7 +47,7 @@
 | D-23 | **成功判定是装饰**：`/dyn_id|dynamic|成功/` 里 `dynamic` 任何运行都出现 | 红队4 S1；`dynamic-approve.mjs:111` | 失败可能被记为成功 | M0 | OPEN |
 | D-24 | **`ack.release` 在"已发出但进程被杀"时会把令牌退回** → 重试产生第二条 | 红队4 S1 | 重复发布 | M1 | OPEN |
 | D-25 | **记忆只在测试里衰减/归档**——上游 AMpath 也一样（`batchDecayVividness` 生产零调用） | AMRESEARCH/02 | 不能靠"上游有"来证明我们该有 | 认知 | FIXED（认知已更正） |
-| D-26 | **flashbulb 分支不可触发**：`note` 路径 intensity 硬编码 0.5；watch 路径饱和后几乎必然 | 红队3 M2 | "重要的事记得牢"不成立 | M1 | OPEN |
+| D-26 | **flashbulb 分支不可触发**：`note` 路径 intensity 硬编码 0.5；watch 路径饱和后几乎必然 | 红队3 M2 | "重要的事记得牢"不成立 | M1 | **FIXED**：`mood_apply(note)` 的 intensity 改用当时的 stimulation（>0.8 才 flashbulb，符合高唤醒语义），sender 改为 `npc`（是她自己留的话，不是主人说的）。watch 路径原本就用 stimulation 强度 |
 | D-27 | **凭据缺 `dedeuserid`**：`tools/lib/cred.mjs:33-37` 只返回 sessdata/bili_jct/buvid3；而 bili-cli `dm.py:172` 靠 `dedeuserid` 判 `from` | 研讨组4 实测 | 缺了它会把"她发的"全判成"主人发的" → `connection` 假上涨、M3 假通过 | **M3 前置** | OPEN |
 | D-28 | **`bili dm read --mark-read` 是写操作**（`POST update_ack`，`dm.py:182-186`），不是只读 | 研讨组4 实测 | 误用会改变远端状态（主人端未读消失） | M3 | OPEN |
 
