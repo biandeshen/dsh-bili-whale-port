@@ -94,7 +94,12 @@ function updateDay(dir, snap, kind) {
     drafts: [], flags: { missed: false, late: false, tainted: false, taintReasons: [] },
   }
   cur.tickCount += kind === 'tick' ? 1 : 0
-  if (snap.rhythm) {
+  // life.json 是现行的活动账本；rhythm.json 是更名前的遗留文件，只作回退
+  if (snap.life) {
+    cur.lastWakeAt = snap.life.lastActionAt ?? cur.lastWakeAt
+    cur.lastKind = snap.life.lastKind ?? cur.lastKind
+    cur.wakes = Number(snap.life.actionsToday ?? cur.wakes) || cur.wakes
+  } else if (snap.rhythm) {
     cur.lastWakeAt = snap.rhythm.lastWakeAt ?? cur.lastWakeAt
     cur.lastKind = snap.rhythm.lastKind ?? cur.lastKind
     cur.wakes = Number(snap.rhythm.wakesToday ?? cur.wakes) || cur.wakes
