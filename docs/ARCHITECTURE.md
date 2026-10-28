@@ -192,6 +192,8 @@ World 取 L3 上下文                     draft-dynamic 组装               �
 - **正向输入的规则**：入站消息 → `connection +0.05..0.10`（有界、按日上限），且来源写 `inbound`；**模型自称 `masterReplied` 不能加 connection**（`sanitizeEffects` 已强制 `source=custom`，这里再加一道：`masterReplied` 只允许由传感器事件触发）。
 - **拆分 `trust` 与 `connection`**：现在 `trust = connection` 是别名，导致"信任恢复"与"连接感"绑死、`reunion` 不可达。
 - **验收**：注入一条入站消息 → `connection` 上升、`cold_war` 可在 24h 内退出；不注入时仍会自然下滑（不破坏"被冷落会难过"）。
+- **待澄清（Q-06）**：上游 `temporal-rates.ts:90-104` 在长时间无互动时给 `connection **+**0.001×lonelyUnits`，与状态机的 `connection<0.3 → cold_war` 语义可能冲突（若 connection 是"连接感"，孤独不该让它上升）。M3 动手前必须先定语义，否则会做出"越孤独越不冷战"的怪行为。
+- **可选（Q-07）**：上游另有按小时窗口的昼夜节律项（23–5/6–9/13–15）。若采纳，只能作缓慢背景漂移，**不得参与醒/睡决策**，否则违反"作息由状态决定、不设时间表"。
 
 ## 5. 与 AMpath 的同步策略
 
