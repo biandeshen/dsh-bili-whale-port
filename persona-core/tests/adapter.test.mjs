@@ -20,15 +20,22 @@ test('一次事件内同源效果全部生效（回归：频率门吞掉同一�
   assert.ok(Math.abs(s.fields.mood - 0.28) < 1e-6, 'mood ' + s.fields.mood)
 })
 
-test('连续 20 天没人说话：连接跌破 0.3 并进入冷战', () => {
+test('连续 20 天没人说话：没有接触证据，不判冷战', () => {
   let s = base()
+  for (let d = 1; d <= 20; d++) s = applyEvent(s, 'masterSilentDay', at(d))
+  assert.ok(s.fields.connection < 0.3, 'connection ' + s.fields.connection)
+  assert.equal(s.npcState.current, 'unjudged')
+})
+
+test('有过接触再连续沉默：连接跌破 0.3 并进入冷战', () => {
+  let s = applyEvent(base(), 'masterReplied', at(0) + 1000)
   for (let d = 1; d <= 20; d++) s = applyEvent(s, 'masterSilentDay', at(d))
   assert.ok(s.fields.connection < 0.3, 'connection ' + s.fields.connection)
   assert.equal(s.npcState.current, 'cold_war')
 })
 
 test('冷战期主人回复：先回 missing，不被瞬时好感抹平', () => {
-  let s = base()
+  let s = applyEvent(base(), 'masterReplied', at(0) + 1000)
   for (let d = 1; d <= 20; d++) s = applyEvent(s, 'masterSilentDay', at(d))
   assert.equal(s.npcState.current, 'cold_war')
   const afterReply = applyEvent(s, 'masterReplied', at(21))
@@ -58,7 +65,7 @@ test('状态文件：原子写带 schemaVersion，坏文件从备份恢复且留
   saveState(file, s2)
   assert.ok(fs.existsSync(file + '.bak'))
   const raw = JSON.parse(fs.readFileSync(file, 'utf8'))
-  assert.equal(raw.schemaVersion, 2)
+  assert.equal(raw.schemaVersion, 3)
   assert.ok(Math.abs(raw.fields.connection - s2.fields.connection) < 1e-9)
 
   fs.writeFileSync(file, '{broken')

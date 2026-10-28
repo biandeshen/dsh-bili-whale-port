@@ -109,7 +109,7 @@ export function loadState(file: string): PersonaState {
   }
 }
 
-const STATE_SCHEMA_VERSION = 2
+const STATE_SCHEMA_VERSION = 3
 const HISTORY_LIMIT = 200
 
 function normalizeState(raw: any): PersonaState {
@@ -123,11 +123,19 @@ function normalizeState(raw: any): PersonaState {
   if (!Number.isInteger(version) || version < 1 || version > STATE_SCHEMA_VERSION) {
     throw new Error('state schema unsupported: ' + String(raw.schemaVersion))
   }
+  // 只保留当前 schema 认得的字段：老文件的 trustAtColdWarStart 等别名不往新对象里带
+  const ns = raw.npcState ?? {}
   return {
     fields: { ...DEFAULT_ATOMIC_FIELDS, ...raw.fields },
     chain: (raw.chain ?? []).map((e: any) => ({ ...e, timestamp: new Date(e.timestamp) })),
     memories: (raw.memories ?? []).map((m: any) => ({ ...m, createdAt: new Date(m.createdAt) })),
-    npcState: { ...createInitialState(), ...raw.npcState },
+    npcState: {
+      current: ns.current ?? 'unjudged',
+      connectionBelowThresholdSince: ns.connectionBelowThresholdSince ?? null,
+      lastUserMessageAt: ns.lastUserMessageAt ?? null,
+      bond: { level: Number.isFinite(ns.bond?.level) ? ns.bond.level : 0.2 },
+      bondAtColdWarStart: ns.bondAtColdWarStart ?? null,
+    },
     lastAppliedAt: raw.lastAppliedAt ?? new Date().toISOString(),
   }
 }
@@ -229,11 +237,20 @@ export function remember(s: PersonaState, content: string, opts: { sender?: 'pla
   return { ...s, memories: [...s.memories, m] }
 }
 
+const RELATION_LABEL: Record<string, string> = {
+  unjudged: '未判定（还没有过回信）',
+  normal: '平常',
+  cold_war: '冷战',
+  missing: '想念',
+  repairing: '修补中',
+  reunion: '重逢',
+}
+
 /** 给模型看的状态描述：情绪（含成因）+ 场值 + 关系态 + 最近因果 + 最关键记忆。 */
 export function describeState(s: PersonaState, limit = 5): string {
   const f = s.fields
   const pct = (n: number) => Math.round(n * 100)
-  const rel = s.npcState?.current ?? 'normal'
+  const rel = RELATION_LABEL[s.npcState?.current ?? ''] ?? s.npcState?.current ?? 'normal'
   const m = readMood(s)
   const secondary = m.secondary.length ? '，还有点' + m.secondary.join('、') : ''
   const recent = [...s.chain].reverse().slice(0, limit)

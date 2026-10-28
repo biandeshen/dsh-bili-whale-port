@@ -1,27 +1,38 @@
 /**
- * NPC 状态机 — 5 种关系状态
- * 权威源：docs/完整架构设计.md 执行手册 7.3
+ * NPC 关系状态机 —— 五态 + 「未判定」
+ * 权威源：docs/完整架构设计.md 执行手册 7.3；Q-06 修订（PLAN-REVIEW 2026-10-28 §2 裁决 6）。
  *
  * 状态转移：
- *   normal → cold_war:   connection < 0.3 持续 24h
- *   cold_war → missing:   冷战中 user 发来消息
- *   missing → repairing:  用户真诚道歉（trust 回升）
- *   repairing → reunion:  trust 回升 > 0.1（相比 cold_war 起点）
- *   any → normal:         connection >= 0.3
+ *   unjudged → normal:   第一次有接触证据（收到用户消息）
+ *   normal → cold_war:   connection < 0.3 持续 24h（且有过接触）
+ *   cold_war → missing:  冷战中用户发来消息
+ *   missing → repairing: bond 回升（相比 cold_war 起点）
+ *   repairing → reunion: bond 回升 ≥ 0.1（相比 cold_war 起点）
+ *   any → normal:        connection >= 0.3（有接触时）
+ *
+ * bond 是关系存量，只在有接触证据时变化（每条用户消息 +0.1）；
+ * connection 仍是场值存量，两者不再互为别名。没有接触证据就不判冷战——显示"未判定"。
  */
 
 import type { AtomicFields } from './types.js';
 
-export type NPCStateName = 'normal' | 'cold_war' | 'missing' | 'repairing' | 'reunion';
+export type NPCStateName = 'unjudged' | 'normal' | 'cold_war' | 'missing' | 'repairing' | 'reunion';
+
+export interface BondState {
+  /** 关系存量 0-1：只在收到用户消息时增长，不随场值漂移 */
+  level: number;
+}
 
 export interface NPCStateMachineState {
   current: NPCStateName;
-  /** connection 首次跌破 0.3 的时间戳（null = 未跌破） */
+  /** connection 首次跌破 0.3 的时间戳（null = 未跌破/无接触） */
   connectionBelowThresholdSince: number | null;
   /** 最后一次收到用户消息的时间戳 */
   lastUserMessageAt: number | null;
-  /** 进入 cold_war 时的 trust 值 */
-  trustAtColdWarStart: number | null;
+  /** 关系存量（冷战/修补/重逢都读它） */
+  bond: BondState;
+  /** 进入 cold_war 时的 bond 基线 */
+  bondAtColdWarStart: number | null;
 }
 
 /** 冷战触发阈值（小时） */
@@ -31,18 +42,21 @@ const COLD_WAR_THRESHOLD_MS = COLD_WAR_THRESHOLD_HOURS * 3600 * 1000;
 /** connection 跌破线 */
 const CONNECTION_THRESHOLD = 0.3;
 
-/** reunion 需要 trust 回升幅度 */
-const TRUST_RECOVERY_DELTA = 0.1;
+/** reunion 需要 bond 回升幅度 */
+const BOND_RECOVERY_DELTA = 0.1;
+/** 每条用户消息带来的关系存量 */
+const BOND_PER_MESSAGE = 0.1;
 
 /**
  * 创建初始状态机状态
  */
 export function createInitialState(): NPCStateMachineState {
   return {
-    current: 'normal',
+    current: 'unjudged',
     connectionBelowThresholdSince: null,
     lastUserMessageAt: null,
-    trustAtColdWarStart: null,
+    bond: { level: 0.2 },
+    bondAtColdWarStart: null,
   };
 }
 
@@ -52,7 +66,7 @@ export function createInitialState(): NPCStateMachineState {
  * @param fields      当前 7 场值
  * @param state       上一次状态机快照
  * @param nowMs       当前时间戳（毫秒）
- * @param userJustMessaged 用户是否刚刚发了消息
+ * @param userJustMessaged 用户是否刚刚发了消息（接触证据）
  */
 export function deriveNPCState(
   fields: AtomicFields,
@@ -61,48 +75,57 @@ export function deriveNPCState(
   userJustMessaged: boolean,
 ): { newState: NPCStateMachineState; stateName: NPCStateName } {
   const connection = fields.connection;
-  const trust = fields.connection; // trust 由 connection 派生
 
-  // 拷贝一份可变状态
-  const next: NPCStateMachineState = { ...state };
+  // 拷贝一份可变状态（老状态文件没有 bond 时补默认值）
+  const next: NPCStateMachineState = { ...state, bond: { ...(state.bond ?? { level: 0.2 }) } };
 
-  // 记录用户消息时间
+  // ---- 接触证据：只有用户消息能建立/增长关系存量 ----
   if (userJustMessaged) {
     next.lastUserMessageAt = nowMs;
+    next.bond.level = Math.min(1, next.bond.level + BOND_PER_MESSAGE);
   }
+  const hasContact = next.lastUserMessageAt != null;
 
-  // ---- connection 跌破阈值追踪 ----
-  if (connection < CONNECTION_THRESHOLD) {
-    if (next.connectionBelowThresholdSince === null) {
-      // 刚跌破，记录时间
+  // ---- connection 跌破阈值追踪（没有接触证据不累计，避免"素未谋面就冷战"） ----
+  if (hasContact && connection < CONNECTION_THRESHOLD) {
+    if (next.connectionBelowThresholdSince == null) {
       next.connectionBelowThresholdSince = nowMs;
-      // 同时记录此刻的 trust 作为基线
-      next.trustAtColdWarStart = trust;
     }
   } else {
-    // connection 恢复，重置追踪
     next.connectionBelowThresholdSince = null;
-    next.trustAtColdWarStart = null;
   }
 
   // ---- 状态转移逻辑 ----
 
-  // 1) connection >= 0.3 → 任何状态都回到 normal
+  // 1) connection >= 0.3 → 有接触回 normal，没接触仍是未判定
   if (connection >= CONNECTION_THRESHOLD) {
-    next.current = 'normal';
-    return { newState: next, stateName: 'normal' };
+    next.current = hasContact ? 'normal' : 'unjudged';
+    next.bondAtColdWarStart = null;
+    return { newState: next, stateName: next.current };
   }
 
-  // 以下逻辑：connection < 0.3
+  // 2) 没有接触证据：不判冷战
+  if (!hasContact) {
+    next.current = 'unjudged';
+    next.bondAtColdWarStart = null;
+    return { newState: next, stateName: 'unjudged' };
+  }
+
   const belowDurationMs = next.connectionBelowThresholdSince != null
     ? nowMs - next.connectionBelowThresholdSince
     : 0;
 
   switch (next.current) {
+    case 'unjudged':
+      // 刚拿到接触证据（connection 仍低）：先按 normal 处理，冷战计时从这一刻开始
+      next.current = 'normal';
+      break;
+
     case 'normal':
       // normal + connection < 0.3 超过 24h → cold_war
       if (belowDurationMs >= COLD_WAR_THRESHOLD_MS) {
         next.current = 'cold_war';
+        next.bondAtColdWarStart = next.bond.level;
       }
       break;
 
@@ -114,16 +137,15 @@ export function deriveNPCState(
       break;
 
     case 'missing':
-      // 用户发消息后 trust 开始回升 → repairing
-      // 判断标准：trust 比 cold_war 起点有增长
-      if (next.trustAtColdWarStart != null && trust > next.trustAtColdWarStart) {
+      // 用户发消息后 bond 开始回升 → repairing
+      if (next.bondAtColdWarStart != null && next.bond.level > next.bondAtColdWarStart) {
         next.current = 'repairing';
       }
       break;
 
     case 'repairing':
-      // trust 回升超过 0.1（相比 cold_war 起点）→ reunion
-      if (next.trustAtColdWarStart != null && trust - next.trustAtColdWarStart >= TRUST_RECOVERY_DELTA) {
+      // bond 回升超过 0.1（相比 cold_war 起点）→ reunion
+      if (next.bondAtColdWarStart != null && next.bond.level - next.bondAtColdWarStart >= BOND_RECOVERY_DELTA) {
         next.current = 'reunion';
       }
       break;
@@ -132,6 +154,7 @@ export function deriveNPCState(
       // reunion 后如果 connection 再次长期低于阈值，重新进入 cold_war
       if (belowDurationMs >= COLD_WAR_THRESHOLD_MS) {
         next.current = 'cold_war';
+        next.bondAtColdWarStart = next.bond.level;
       }
       break;
   }

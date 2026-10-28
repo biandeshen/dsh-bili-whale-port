@@ -51,7 +51,7 @@ test('describeState：给模型的状态块带情绪标签、成因和关系', (
   assert.match(text, /【她现在的情绪】想念/)
   assert.match(text, /成因：主人沉默 \+ 连接感低/)
   assert.match(text, /【状态】体力/)
-  assert.match(text, /关系：normal/)
+  assert.match(text, /关系：未判定/)
 })
 
 test('gate：feed 后未 debrief 一律拒绝出稿（没有 2 小时自动放行）', () => {

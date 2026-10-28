@@ -84,21 +84,47 @@ test('记忆：回忆提升生动度', () => {
 })
 
 test('关系状态机：连接跌破阈值 24h 进冷战', () => {
-  const s = createInitialState()
+  const s = { ...createInitialState(), current: 'normal', lastUserMessageAt: 1000 }
   const r1 = deriveNPCState({ ...DEFAULT_ATOMIC_FIELDS, connection: 0.2 }, s, 1000, false)
   assert.equal(r1.stateName, 'normal')
   const r2 = deriveNPCState({ ...DEFAULT_ATOMIC_FIELDS, connection: 0.2 }, r1.newState, 1000 + 25 * 3600_000, false)
   assert.equal(r2.stateName, 'cold_war')
 })
 
+test('关系状态机：没有接触证据不判冷战（未判定）', () => {
+  const s = createInitialState()
+  const r = deriveNPCState({ ...DEFAULT_ATOMIC_FIELDS, connection: 0 }, s, 1000 + 365 * 86400_000, false)
+  assert.equal(r.stateName, 'unjudged')
+  // 第一条消息之后才建立关系存量并进入 normal
+  const r2 = deriveNPCState({ ...DEFAULT_ATOMIC_FIELDS, connection: 0 }, r.newState, 1000 + 365 * 86400_000 + 1000, true)
+  assert.equal(r2.stateName, 'normal')
+  assert.ok(Math.abs(r2.newState.bond.level - 0.3) < 1e-9)
+})
+
 test('关系状态机：冷战期主人发消息进入 missing', () => {
-  const s = { ...createInitialState(), current: 'cold_war', connectionBelowThresholdSince: 0, trustAtColdWarStart: 0.2 }
+  const s = {
+    ...createInitialState(), current: 'cold_war', connectionBelowThresholdSince: 0,
+    lastUserMessageAt: 0, bond: { level: 0.2 }, bondAtColdWarStart: 0.2,
+  }
   const r = deriveNPCState({ ...DEFAULT_ATOMIC_FIELDS, connection: 0.2 }, s, 1000, true)
   assert.equal(r.stateName, 'missing')
 })
 
+test('关系状态机：道歉后 missing → repairing → reunion 可达', () => {
+  let s = {
+    ...createInitialState(), current: 'cold_war', connectionBelowThresholdSince: 0,
+    lastUserMessageAt: 0, bond: { level: 0.2 }, bondAtColdWarStart: 0.2,
+  }
+  s = deriveNPCState({ ...DEFAULT_ATOMIC_FIELDS, connection: 0.2 }, s, 1000, true).newState // 消息 → bond 0.3
+  assert.equal(s.current, 'missing')
+  s = deriveNPCState({ ...DEFAULT_ATOMIC_FIELDS, connection: 0.2 }, s, 2000, false).newState
+  assert.equal(s.current, 'repairing')
+  s = deriveNPCState({ ...DEFAULT_ATOMIC_FIELDS, connection: 0.2 }, s, 3000, false).newState
+  assert.equal(s.current, 'reunion')
+})
+
 test('关系状态机：连接恢复回 normal', () => {
-  const s = { ...createInitialState(), current: 'cold_war' }
+  const s = { ...createInitialState(), current: 'cold_war', lastUserMessageAt: 1000 }
   const r = deriveNPCState({ ...DEFAULT_ATOMIC_FIELDS, connection: 0.8 }, s, 1000, false)
   assert.equal(r.stateName, 'normal')
 })
@@ -124,13 +150,16 @@ test('场值衰减：dt<=0 不动，clamp 不越界', () => {
   assert.equal(decayed.energy, 1)
 })
 
-test('离线结算：最多按 24 小时计（MAX_SETTLE_MS），更久不叠加', () => {
+test('离线结算：衰减跑满时长，硬耦合最多按 24h 计息', () => {
   const f = { ...DEFAULT_ATOMIC_FIELDS, energy: 0.1, mood: 0.5, stimulation: 0, connection: 0.05 }
-  const day = simulateOfflineTime(f, 24 * 3600_000)
   const week = simulateOfflineTime(f, 7 * 86400_000)
+  // 衰减不封顶：一周后刺激/连接都回基线，体力朝 1 恢复（约 0.268）
+  assert.equal(week.stimulation, 0)
+  assert.equal(week.connection, 0)
+  assert.ok(week.energy > 0.26 && week.energy < 0.28, 'energy ' + week.energy)
+  // 一年不叠加 6 天份的抑郁：耦合只算 24h，mood 不会穿到 -1
   const year = simulateOfflineTime(f, 365 * 86400_000)
-  assert.deepEqual(week, day)
-  assert.deepEqual(year, day)
+  assert.ok(year.mood >= -0.245, 'mood 被耦合压穿，实际 ' + year.mood)
 })
 
 test('硬耦合：不再按 12 小时封顶，离线/在线同一套积分', () => {
