@@ -52,6 +52,7 @@
 | D-27 | **凭据缺 `dedeuserid`**：`tools/lib/cred.mjs:33-37` 只返回 sessdata/bili_jct/buvid3；而 bili-cli `dm.py:172` 靠 `dedeuserid` 判 `from` | 研讨组4 实测 | 缺了它会把"她发的"全判成"主人发的" → `connection` 假上涨、M3 假通过 | **M3 前置** | OPEN |
 | D-28 | **`bili dm read --mark-read` 是写操作**（`POST update_ack`，`dm.py:182-186`），不是只读 | 研讨组4 实测 | 误用会改变远端状态（主人端未读消失） | M3 | OPEN |
 | D-32 | **行动账本会被覆盖**：10-28 22:21 日志有 `action: restless`，但 `control/life.json` 的 `actionsToday=0`；同一晚 01:35–02:04 出现 5 次「已接管实例锁」，多实例并发写同一文件是首要嫌疑 | `cortico.log:549` 与 `control/life.json`；E-09 并发会话 | `day-report`/C2 的「单日行动 ≤3」会少算；观测期可能漏记唤醒 | 观测前 | **MITIGATED（部分）**：每次行动已补写 append-only `causal.jsonl {kind:'action'}`（Cortico `definition.ts` lifeTick），复盘以 causal 为准；多实例写锁（D-18）未做，根因未复现 |
+| D-33 | **暂停只停总线，不停生活循环**：`bin/cortico.mjs` 启动默认注入 `CORTICO_START_PAUSED=1`；事件不投递，但 World 的 `lifeTick` 照跑——会花体力、占当日额度、把 `action_due` 堆进队列；resume 时提示「积压事件一次性投递」 | 2026-10-29 02:04 启动日志 `⏸ 已暂停` → 02:09 resume「积压事件」；02:47 再次复现；`cortico-health.mjs` 原先只看 200，会误判健康 | 看起来"她不动"或一恢复就被塞多条；观测期会把暂停时段算成她的行动 | 观测前 | **MITIGATED（部分）**：健康检查新增「运行状态/事件积压」两项（暂停即 ✗）；重启改走 `scripts/start-cortico.mjs`（自带 resume）。`lifeTick` 读不到 pause 状态的根因未修 |
 
 ## 3. 待拍板（NEED-USER）
 

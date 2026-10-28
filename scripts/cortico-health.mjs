@@ -12,6 +12,16 @@ try {
   pass = ok(r.ok, 'OFM Responses', 'HTTP ' + r.status) && pass
 } catch (e) { pass = ok(false, 'OFM Responses', e.message) && pass }
 try { const r = await fetch('http://127.0.0.1:7799/'); pass = ok(r.ok, 'Cortico WebUI', 'HTTP ' + r.status) && pass } catch (e) { pass = ok(false, 'Cortico WebUI', e.message) && pass }
+// 启动默认是暂停的（bin/cortico.mjs 注入 CORTICO_START_PAUSED=1）：
+// 只看到 WebUI 200 不代表她在跑，暂停时事件只落库不投递，看起来"她不动"。
+try {
+  const r = await fetch('http://127.0.0.1:7799/api/status')
+  const s = await r.json()
+  const paused = s?.loop?.paused === true
+  pass = ok(!paused, '运行状态', paused ? '已暂停（POST /api/run/resume）' : '运行中') && pass
+  const behind = Number(s?.loop?.behind ?? 0)
+  pass = ok(behind === 0, '事件积压', behind === 0 ? '无' : `behind=${behind}`) && pass
+} catch (e) { pass = ok(false, '运行状态', e.message) && pass }
 try {
   const read = (f) => JSON.parse(fs.readFileSync(path.join(H, '.dsh', 'bili-whale', 'control', f), 'utf8'))
   let st = null

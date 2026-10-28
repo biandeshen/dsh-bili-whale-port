@@ -37,6 +37,7 @@
 - 草稿工具幂等：当天已有草稿会拒绝重复
 
 ## 排障
+- **重启只用** `node scripts/start-cortico.mjs`（或 `start-cortico.cmd`）：单实例、探活、并自动 resume。直接 `node bin/cortico.mjs` 启动会停在 `⏸ 已暂停`，她的生活循环却照跑（D-33）。
 - WebUI 打不开：看 `start-cortico.cmd` 窗口；确认 7799 未被旧实例占用
 - Provider 不可用：确认 18910 在跑、`.env` 有 key、`thinking:false`
 - 启动即暂停：`curl -X POST http://127.0.0.1:7799/api/run/resume`
