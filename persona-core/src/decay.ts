@@ -66,7 +66,10 @@ export function decayAtomicFields(fields: AtomicFields, dtMs: number): AtomicFie
  */
 const COUPLING_STEP_MS = 3600_000;
 
-/** 一次离线/累计结算最多按 24h 计（再久也只当一天），避免跨周直接把场值钉到端点。 */
+/**
+ * 硬耦合一次结算最多按 24h 计息（再久也不多压），避免跨周把场值钉到端点。
+ * 衰减不封顶：它只会走到基线，长时间离线该回落的（刺激/连接/心情）照常回落。
+ */
 export const MAX_SETTLE_MS = 24 * 3600_000;
 
 function applyCouplingsStep(fields: AtomicFields, dtSec: number): AtomicFields {
@@ -103,9 +106,8 @@ export function applyHardCouplings(fields: AtomicFields, dtMs: number): AtomicFi
   return result;
 }
 
-/** 离线补算：从上次交互到现在，一次性结算场值漂移（最多 24h）。 */
+/** 离线补算：衰减跑满真实时长，硬耦合最多按 24h 计息。 */
 export function simulateOfflineTime(fields: AtomicFields, dtMs: number): AtomicFields {
   if (!(dtMs > 0)) return { ...fields };
-  const capped = Math.min(dtMs, MAX_SETTLE_MS);
-  return applyHardCouplings(decayAtomicFields(fields, capped), capped);
+  return applyHardCouplings(decayAtomicFields(fields, dtMs), Math.min(dtMs, MAX_SETTLE_MS));
 }
