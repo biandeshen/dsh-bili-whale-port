@@ -9,6 +9,7 @@ import { loadState, saveState, applyEffects, remember, describeState, PRESETS } 
 import type { PresetEffect } from './personaAdapter.ts'
 import { buildVoiceBrief } from '../../../persona-core/src/voice-brief.ts'
 import { pickActivities, ACTIVITY_LABELS } from '../../../persona-core/src/life-activities.ts'
+import { readQueue, writeQueue, newTask, dueTasks, markDelivered, markAttempt, prune, expireStale, type QueueTask } from './task-queue.ts'
 import { decideAction, restRecoveryDelta, actionCost, nextCheckDelay, dayKey, MIN_GAP_MS } from '../../../persona-core/src/rhythm.ts'
 
 const ROOT = process.env.BILI_WHALE_ROOT || 'E:/WorkSpace_Qoder/dsh-bili-whale'
@@ -19,6 +20,7 @@ const ROUND_FILE = path.join(WHALE, 'bili-whale', 'control', 'round.json')
 const LIFE_FILE = path.join(WHALE, 'bili-whale', 'control', 'life.json')
 const LEGACY_RHYTHM_FILE = path.join(WHALE, 'bili-whale', 'control', 'rhythm.json')
 const LIFE_STATUS_FILE = path.join(WHALE, 'bili-whale', 'control', 'life-status.json')
+const QUEUE_FILE = path.join(WHALE, 'bili-whale', 'control', 'queue.json')
 const PUBLIC_DIARY = path.join(WHALE, 'whale-diary.md')
 const PRIVATE_DIARY = path.join(WHALE, 'whale-diary-private.md')
 const killPath = path.join(WHALE, 'bili-whale', 'control', 'kill')
@@ -215,9 +217,40 @@ class BiliAccountWorld {
   private host: any = null
   private dailyTimer: any = null
   private life: any = null
+  private queue: QueueTask[] = []
+
+  /** 把到期任务推给宿主；成功后标记 delivered，失败按次重试（5 次 dead）。 */
+  private async deliverDue(now: number): Promise<void> {
+    if (this.host == null) return
+    const due = dueTasks(this.queue, now)
+    if (!due.length) return
+    let changed = false
+    for (const t of due) {
+      try {
+        await this.host.pushEvent({ type: 'bili.action_due', ts: new Date(now).toISOString(), source: 'bili-account', text: t.text }, { trigger: 'flush' })
+        this.queue = markDelivered(this.queue, t.id, now)
+        changed = true
+      } catch (e: any) {
+        this.queue = markAttempt(this.queue, t.id)
+        changed = true
+        try { this.host.log.warn('task deliver failed: ' + String(e?.message ?? e)) } catch {}
+      }
+    }
+    if (changed) {
+      this.queue = prune(this.queue, now)
+      try { writeQueue(QUEUE_FILE, this.queue) } catch {}
+    }
+  }
+
+  private enqueue(kind: string, text: string, now: number): void {
+    this.queue = prune([...this.queue, newTask(kind, text, now)], now)
+    try { writeQueue(QUEUE_FILE, this.queue) } catch {}
+  }
 
   async start(host: any): Promise<void> {
     this.host = host
+    this.queue = expireStale(readQueue(QUEUE_FILE), Date.now())
+    if (this.queue.some((t) => t.status === 'dead')) { try { writeQueue(QUEUE_FILE, this.queue) } catch {} }
     host.log.info('bili-account ready')
 
     const writeJsonFile = (f: string, o: any) => {
@@ -295,7 +328,7 @@ class BiliAccountWorld {
           const feedback = latestDraftFeedback(after)
           const todayDraft = todayDraftLine()
           const activities = pickActivities(after.fields, { now, rng: Math.random, k: 3 })
-          this.host?.pushEvent({ type: 'bili.action_due', ts: new Date(now).toISOString(), source: 'bili-account', text: [
+          this.enqueue('action-due', [
             '【你想做点什么】',
             describeState(after),
             '',
@@ -306,7 +339,8 @@ class BiliAccountWorld {
             feedback,
             fresh,
             '按 ORIENTATION 走一轮；做多少、做不做，由你定。',
-          ].filter((x) => x !== '').join('\n') }, { trigger: 'flush' }).catch(() => {})
+          ].filter((x) => x !== '').join('\n'), now)
+          await this.deliverDue(now)
           host.log.info('action: ' + decision.kind + ' · ' + decision.reason)
         }
 
@@ -323,6 +357,8 @@ class BiliAccountWorld {
           lastActionAt: mem.lastActionAt ?? null,
           lastKind: mem.lastKind ?? null,
           asleep,
+          queuePending: this.queue.filter((t) => t.status === 'pending').length,
+          queueDead: this.queue.filter((t) => t.status === 'dead').length,
           updatedAt: new Date(now).toISOString(),
         })
       } catch (e: any) {
@@ -338,15 +374,18 @@ class BiliAccountWorld {
     ;(this.dailyTimer as any)?.unref?.()
     host.log.info('life loop armed（每 3–7 分钟看一眼她想不想做点什么；没有作息表、没有定时唤醒）')
 
+    // 崩溃/重启后补投 pending 任务（at-least-once；重复一条提示好过丢掉她的意愿）
+    const pending = this.queue.filter((t) => t.status === 'pending').length
+    if (pending) host.log.info('task queue: pending=' + pending + '，启动补投')
+    this.deliverDue(Date.now()).catch((e: any) => { try { host.log.warn('queue boot deliver failed: ' + String(e?.message ?? e)) } catch {} })
+
     if (process.env.BILI_ACCOUNT_FORCE_ACTION === '1') setTimeout(() => {
       if (this.host == null) return
-      // 手动验证也算一次行动：记账后 2.5h 内不会再来一轮
-      this.life.day = dayKey(Date.now())
-      this.life.actionsToday = Number(this.life.actionsToday ?? 0) + 1
-      this.life.lastActionAt = Date.now()
-      this.life.lastKind = 'forced'
+      // 手动验证轮：只留 manual 标记，不写 lastKind、不占当日额度（E-10）
+      this.life.manualForcedAt = Date.now()
       writeLifeFile(this.life)
-      this.host.pushEvent({ type: 'bili.action_due', ts: new Date().toISOString(), source: 'bili-account', text: '【现在想去看点东西】按 ORIENTATION 走一轮：先 bili_mood_read，再 traffic → feed（n=1）→ debrief（选中的 BV）→ 写今天的两本日记 → draft_dynamic → mood_apply；完成后用中文汇报。' }, { trigger: 'flush' }).catch((e: any) => this.host?.log.warn('forced action failed', { err: String(e) }))
+      this.enqueue('manual', '【手动验证轮】按 ORIENTATION 走一轮：先 bili_mood_read，再 traffic → feed（n=1）→ debrief（选中的 BV）→ 写今天的两本日记 → draft_dynamic → mood_apply；完成后用中文汇报。', Date.now())
+      this.deliverDue(Date.now()).catch((e: any) => this.host?.log.warn('forced action failed', { err: String(e) }))
     }, 5000)
   }
 
