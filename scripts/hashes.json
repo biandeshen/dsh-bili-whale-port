@@ -1,7 +1,7 @@
 {
-  "frozenAt": "2026-10-28T16:45:36.252Z",
+  "frozenAt": "2026-10-28T16:48:55.382Z",
   "files": {
-    "scripts/day-report.mjs": "65dc8ddfbf8c0a9dbf6a2e418a660d4cc39e0d3d342d9efa5284b66b3f08ba1b",
+    "scripts/day-report.mjs": "d6a30b1a6695ffb2701d6ece5393fb63dd1df653575cb5fc904d391540756a83",
     "scripts/day-snapshot.mjs": "d49e213cc8666a49aa05d95aaa14b17268194d78752a1cdabb3af91bb9e38ed3",
     "scripts/day-watchdog.mjs": "7d6a6893e080eaa398aad8d049f8a334b10afa391e195fdd37876b542f4fab4d",
     "scripts/counterfactual.mjs": "1ee360535ffe4851f944028214d26d9b6a992e7773b638628fe0d1f6701604a3",

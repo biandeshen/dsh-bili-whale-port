@@ -48,6 +48,10 @@ function buildReport(day, opts = {}) {
   const diary = (() => { try { return fs.readFileSync(DIARY, 'utf8') } catch { return null } })()
 
   const items = []
+  // 预登记的预期 flag（如 C2 离线日的 missed/late/tick-gap）不算失败；未登记的才算
+  const expected = readJson(path.join(dir, 'expected.json')) || {}
+  const allow = new Set(Array.isArray(expected.allowFlags) ? expected.allowFlags : [])
+  if (opts.expectOffline) { allow.add('missed'); allow.add('late'); allow.add('tick-gap') }
   const add = (name, ok, detail = '') => items.push({ name, ok, detail })
 
   add('day-dir', exists, dir)
@@ -79,14 +83,12 @@ function buildReport(day, opts = {}) {
       maxGapMin = maxGapMin === null ? m : Math.max(maxGapMin, m)
     }
   }
-  add('tick 最大间隔', maxGapMin === null || maxGapMin <= 90, maxGapMin === null ? `仅 ${ticks.length} 条 tick（无间隔可比）` : `${maxGapMin} 分钟`)
+  const allowTickGap = opts.expectOffline || allow.has('tick-gap')
+  add('tick 最大间隔', maxGapMin === null || maxGapMin <= 90 || allowTickGap,
+    maxGapMin === null ? `仅 ${ticks.length} 条 tick（无间隔可比）` : `${maxGapMin} 分钟${allowTickGap && maxGapMin > 90 ? '（expected: offline）' : ''}`)
 
   const flags = summary?.flags ?? {}
-  // 预登记的预期flag（如 C2 离线日的 missed/late）不算失败；未登记的才算
-  const expected = readJson(path.join(dir, 'expected.json')) || {}
-  const allow = new Set(Array.isArray(expected.allowFlags) ? expected.allowFlags : [])
-  // C2 离线复核专用：命令行显式声明"预期 missed/late"，不是默认放行
-  if (opts.expectOffline) { allow.add('missed'); allow.add('late') }
+  // 预登记见函数开头的 expected/allow
   const raised = Object.entries(flags).filter(([k, v]) => v === true && k !== 'taintReasons').map(([k]) => k)
   const unexpected = raised.filter((k) => !allow.has(k))
   add('flags', unexpected.length === 0,
