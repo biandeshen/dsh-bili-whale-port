@@ -21,7 +21,22 @@ try {
   pass = ok(!paused, '运行状态', paused ? '已暂停（POST /api/run/resume）' : '运行中') && pass
   const behind = Number(s?.loop?.behind ?? 0)
   pass = ok(behind === 0, '事件积压', behind === 0 ? '无' : `behind=${behind}`) && pass
+  const name = s?.displayName
+  pass = ok(name === '小鱼', '显示名', name || '缺失') && pass
 } catch (e) { pass = ok(false, '运行状态', e.message) && pass }
+// D-19：人设分两段（ORIENTATION=这一轮做什么 / CONSTITUTION=她是谁）。以模型实际拿到的
+// 前缀为准做漂移门：CONSTITUTION 若还是英文种子，一个会话里就同时存在两个人格。
+try {
+  const r = await fetch('http://127.0.0.1:7799/api/prompts/prefix')
+  const { segments = [] } = await r.json()
+  const seg = (t) => String(segments.find((x) => x.title === t)?.text ?? '')
+  const orient = seg('ORIENTATION')
+  const consti = seg('CONSTITUTION')
+  const seed = consti.includes('I am a small, curious presence')
+  pass = ok(orient.includes('小鱼'), '人设 ORIENTATION', orient ? '小鱼' : '缺失') && pass
+  pass = ok(consti.includes('我是小鱼') && !seed, '人设 CONSTITUTION',
+    seed ? '仍是英文种子（D-19）' : consti.includes('我是小鱼') ? '小鱼' : '缺失身份') && pass
+} catch (e) { pass = ok(false, '人设前缀', e.message) && pass }
 try {
   const read = (f) => JSON.parse(fs.readFileSync(path.join(H, '.dsh', 'bili-whale', 'control', f), 'utf8'))
   let st = null

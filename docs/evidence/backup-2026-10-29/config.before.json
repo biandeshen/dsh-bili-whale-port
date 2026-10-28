@@ -1,0 +1,11 @@
+{
+  "activeProvider": "opencode-go",
+  "worlds": {
+    "bili-account": {
+      "enabled": true
+    }
+  },
+  "tick": {
+    "intervalMinutes": null
+  }
+}

@@ -7,6 +7,12 @@
 - 部署：`E:\WorkSpace_Qoder\Cortico\deployments\mybot`
 - **单一调度器**：只由 Cortico World 的生活循环决定她做不做事。DSH 插件时钟已停用（`clock.enabled=false`，`night.windows=[]`），HKCU `WhaleDraft`（21:30 nightly-scheduler）已删除；不要再把它们加回来，否则会抢着出稿。
 
+## 人设（单一来源）
+- 她是谁：`deployments/mybot/workspace/CONSTITUTION.md`（唯一身份事实，改这里）
+- 这一轮做什么：`deployments/mybot/prompts/ORIENTATION.md`（流程与铁律）
+- `~/.bili-ai/persona.md` 是 **DSH 遗留镜像**（时钟已停用），在面板里改它不影响小鱼
+- 机器门：`cortico-health.mjs` 会查显示名与两段前缀；见 `evidence/D-19-PERSONA-2026-10-29.md`
+
 ## Provider
 - 端点：`opencode-go` → `http://127.0.0.1:18910/v1`
 - 模型：`deepseek-v4.1-flash`（`deepseek-flash` 已被上游 410 弃用）

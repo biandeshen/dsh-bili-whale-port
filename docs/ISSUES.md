@@ -41,7 +41,8 @@
 | D-16 | **`Cortico/` 无版本控制**，约 2300 行自研代码不可回滚；上游已 0.2.8（本地 0.2.7） | 红队2 F4、红队5 §4；`cortico.log` 每次启动告警 | 升级=手工重做；改坏只能重写 | M0 | OPEN |
 | D-17 | **多会话并发写同一批文件**（10-27 06:50–17:34 两会话同时活跃 11 小时，正是 P0 修复窗口） | 红队5 §5；`c2a52024.txt:7615` 自认"我改到一半撞车" | 修复互相覆盖 | 流程 | OPEN |
 | D-18 | **状态 4 根目录、5 写者、0 锁**：`~/.dsh`、`~/.bili-ai`、`D:\AI\养鱼`、`Cortico/deployments/*/data` | 红队2 S4；全仓 grep `flock|lockfile` 零命中 | 备份/迁移易漏；后写覆盖 | M0 | OPEN |
-| D-19 | **两套人设并存无主从**：`~/.bili-ai/persona.md` vs `deployments/mybot/prompts/ORIENTATION.md` | 红队2 S4 | 改一处不生效，排查困难 | M1 | OPEN |
+| D-19 | **两套人设并存无主从**：`~/.bili-ai/persona.md` vs `deployments/mybot/prompts/ORIENTATION.md` | 红队2 S4 | 改一处不生效，排查困难 | M1 | **FIXED 2026-10-29**：分关注点单一来源 —— `workspace/CONSTITUTION.md`=她是谁（唯一身份事实，重写为小鱼），`ORIENTATION.md`=这一轮做什么（只留称呼锚点）；`persona.md` 降为 DSH 遗留镜像并在文件头警告"改这里不影响小鱼"；`displayName=小鱼`。机器门：`cortico-health.mjs` 校验显示名 + 实际前缀两段都含小鱼、CONSTITUTION 不含英文种子。证据 `evidence/D-19-PERSONA-2026-10-29.md`（含前后哈希、六席裁决、活取件）。残留：DSH 面板编辑框仍写 persona.md（面板已停用），另立 D-19b |
+| D-19b | **DSH 面板的人设编辑框仍写 `~/.bili-ai/persona.md`**（D-19 的残留）：面板里改人设不影响现行 Cortico 路径 | D-19 验收 §5；`core/api/routes.js:38`；面板未运行 | 会让人误以为改了不生效 | M3 | OPEN |
 | D-20 | **`--force` 可擦除 `sent` 状态 → 同日重复发布**（按日期命名整文件覆盖，审批闸读的就是该字段） | 红队4 致命2；`definition.ts:207`、`draft-dynamic.mjs:80-101` | 绕过审批的唯一屏障 | **主人 2026-10-28 决定不做**（与 AI 标识一并撤） | DECIDED-NO |
 | D-21 | **一次性令牌明文落盘**（token 与 tokenHash 同文件） | 红队4 致命3；`ack.mjs:37` | 安全性依赖"工具面恰好没有文件读" | 同上 | DECIDED-NO |
 | D-22 | **kill switch 不覆盖 tools 层**，直接 `bili.mjs --go` 可绕过 | 红队4 S2 | 急停不可靠 | 同上 | DECIDED-NO |
