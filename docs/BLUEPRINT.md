@@ -167,7 +167,7 @@
 | **Coopanion / Cortico 生态** | 呈现 | L5 | **待评估**（v1 误标"弃用"）。主人 10-25 09:06 原话：「Coopanion 这个软件说实话就完全能满足我们的需求吧，甚至我感觉它比当前的这个项目更先进呢」——是正面评价，无弃用指令 |
 
 ### 已记录的技术取舍（助手判断，需知会）
-- `decay.ts` `COUPLING_CAP_MS = 12h`：硬耦合只算 12 小时，刻意偏离 AMpath 的线性无界（否则离线 7 天 mood→−1、social→1 且不可逆）。此前只写在代码注释里，现升格为显式条目。
+- ~~`decay.ts` `COUPLING_CAP_MS = 12h`~~（2026-10-29 已撤）：该封顶让在线 168h 比离线 12h 罚得重 14×，反而固化 D-07。现删封顶，只保留 `MAX_SETTLE_MS=24h`，并补正向耦合与醒/睡门控（见 `ARCHITECTURE.md` §12.2）。
 - 弃 Fastify + Drizzle + SQLite 运行时、Electron 渲染层：与 Cortico Core 职责重叠 / 与小鱼无关。审计认定判断正确。
 
 ## 5. 唯一判据与结论

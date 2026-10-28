@@ -25,17 +25,35 @@ let t = start
 let mem = { day: dayKey(t), actionsToday: 0, lastActionAt: 0, lastCheckAt: t, lastKind: null, connectMisses: 0, lastSilentDay: null }
 const byDay = new Map()
 
+const daily = new Map()
 while (t < start + DAYS * 86400_000) {
   t += STEP
   fields = simulateOfflineTime(fields, STEP)
-  fields = { ...fields, energy: Math.min(1, fields.energy + restRecoveryDelta(fields, STEP / 3600_000)) }
+  // 与 definition.ts 对齐：一轮行动后至少 6h 无动作才算睡着，睡着才回体力
+  const sinceActionH = mem.lastActionAt ? (t - mem.lastActionAt) / 3600_000 : Infinity
+  const asleep = sinceActionH >= 6
+  if (asleep) fields = { ...fields, energy: Math.min(1, fields.energy + restRecoveryDelta(fields, STEP / 3600_000)) }
   npc = deriveNPCState(fields, npc, t, false).newState
   if (mem.day !== dayKey(t)) mem = { ...mem, day: dayKey(t), actionsToday: 0 }
+  const cur = daily.get(dayKey(t)) ?? { moodSum: 0, n: 0, moodMin: 1, moodMax: -1, energySum: 0, asleep: 0 }
+  cur.moodSum += fields.mood; cur.n++; cur.moodMin = Math.min(cur.moodMin, fields.mood); cur.moodMax = Math.max(cur.moodMax, fields.mood); cur.energySum += fields.energy
+  if (asleep) cur.asleep++
+  daily.set(dayKey(t), cur)
   const d = decideAction({ fields, relation: npc.current, now: t, mem, rng })
   if (!d.act) continue
   if (!byDay.has(dayKey(t))) byDay.set(dayKey(t), [])
   byDay.get(dayKey(t)).push({ at: fmt(t), kind: d.kind, energy: fields.energy.toFixed(2), relation: npc.current })
-  fields = { ...fields, energy: fields.energy - ACTION_COST_ENERGY, stimulation: Math.min(1, fields.stimulation + 0.12) }
+  fields = { ...fields, energy: fields.energy - ACTION_COST_ENERGY, stimulation: Math.min(1, fields.stimulation + 0.02) }
+  // 看完一轮视频（bili_mood_apply preset=watchedVideo）的真实增量
+  if (d.kind === 'explore') {
+    fields = {
+      ...fields,
+      energy: Math.max(0, fields.energy - 0.02),
+      curiosity: Math.min(1, fields.curiosity + 0.03),
+      stimulation: Math.min(1, fields.stimulation + 0.12),
+      mood: Math.min(1, fields.mood + 0.05),
+    }
+  }
   mem = { ...mem, actionsToday: mem.actionsToday + 1, lastActionAt: t, lastKind: d.kind }
   if (d.kind === 'connect') {
     mem.connectMisses = (mem.connectMisses ?? 0) + 1
@@ -57,7 +75,9 @@ for (let i = 0; i < DAYS; i++) {
   const list = byDay.get(day) || []
   total += list.length
   for (const w of list) { hours.push(Number(w.at.slice(0, 2))); kinds[w.kind] = (kinds[w.kind] ?? 0) + 1 }
-  console.log(day + '  ' + (list.length ? list.map((w) => `${w.at}(${w.kind},体力${w.energy})`).join('  ') : '—— 没动（发呆/在歇）'))
+  const st = daily.get(day)
+  const m = st ? `心情 均${(st.moodSum / st.n).toFixed(2)} [${st.moodMin.toFixed(2)},${st.moodMax.toFixed(2)}] 体力 均${(st.energySum / st.n).toFixed(2)} 睡${Math.round(st.asleep * STEP / 3600_000)}h` : '无样本'
+  console.log(day + '  ' + m + '  ' + (list.length ? list.map((w) => `${w.at}(${w.kind},体力${w.energy})`).join('  ') : '—— 没动（发呆/在歇）'))
 }
 const daysWithWake = [...byDay.keys()].length
 console.log(`\nseed=${seed} · ${DAYS} 天共行动 ${total} 次（${Object.entries(kinds).map(([k, n]) => k + ' ' + n).join('，')}）· 有行动的天数 ${daysWithWake}/${DAYS}`)
