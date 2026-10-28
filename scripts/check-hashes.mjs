@@ -20,6 +20,7 @@ const FILES = [
   'scripts/check-consumers.mjs',
   'scripts/g3b-check.mjs',
   'scripts/observation-start.mjs',
+  'scripts/goal-audit.mjs',
   'tests/contract/voice.test.mjs',
 ]
 
