@@ -242,7 +242,8 @@ function latestCause(s: PersonaState, now: number): string | null {
  */
 export function readMood(s: PersonaState, now = Date.now()): MoodLabel {
   const f = s.fields
-  const pleasant = f.mood >= 0.25
+  // 0.25 会把今天这种 0.2327 直接判成"不愉快"并落兜底；与真实分布对齐到 0.2
+  const pleasant = f.mood >= 0.2
   const lowEnergy = f.energy < 0.35
   const lonely = f.connection < 0.35
   const close = f.connection > 0.7
@@ -300,6 +301,43 @@ export function readMood(s: PersonaState, now = Date.now()): MoodLabel {
       primary: '平静', secondary: ['略无聊'],
       inner: '看是看了，但没太看进去。',
       reason: '看了视频，心情一般',
+    }
+  }
+  // 「刚起身/走了两步」是最常见的成因；以前没有分支，于是每次 mood_read 都落「平静」。
+  // 这里按场值给出可区分的低强度情绪，避免"同一标签覆盖一整天"。
+  if (cause === 'action') {
+    if (lowEnergy) {
+      return {
+        primary: '困倦', secondary: [],
+        inner: '刚动了一下就有点累，今天不想撑。',
+        reason: '刚起身 + 体力低',
+      }
+    }
+    if (f.curiosity > 0.6 && f.stimulation < 0.4) {
+      return {
+        primary: '好奇', secondary: [],
+        inner: '屋里太静了，想找点没见过的看看。',
+        reason: '刚起身 + 好奇高、刺激低',
+      }
+    }
+    if (f.creativity > 0.6) {
+      return {
+        primary: '手痒', secondary: [],
+        inner: '想写点什么，哪怕只有两句。',
+        reason: '刚起身 + 创造欲高',
+      }
+    }
+    if (pleasant) {
+      return {
+        primary: '轻快', secondary: [],
+        inner: '没什么事，但今天起来的感觉还行。',
+        reason: '刚起身 + 心情为正',
+      }
+    }
+    return {
+      primary: '安静', secondary: [],
+      inner: '刚醒，还没遇到什么值得说的事。',
+      reason: '刚起身，场值中性',
     }
   }
   if (lowEnergy && f.mood < 0) {

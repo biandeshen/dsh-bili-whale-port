@@ -27,6 +27,23 @@ test('mood：成因超过 6 小时窗口后不再主导标签', () => {
   assert.notEqual(readMood(s, later).primary, '警觉')
 })
 
+test('mood：刚起身的 action 成因不再恒为「平静」', () => {
+  const withAction = (fields = {}) => {
+    const s = emptyState()
+    s.fields = { ...s.fields, ...fields }
+    s.chain.push({
+      id: 'c-action', timestamp: new Date(), npcId: 'xiaoyu', layer: 'L0',
+      type: 'field_change', description: '刚起身', fieldChanges: [], source: 'action',
+    })
+    return s
+  }
+  assert.equal(readMood(withAction({ energy: 0.2, mood: -0.1 })).primary, '困倦')
+  assert.equal(readMood(withAction({ energy: 0.7, mood: 0.1, curiosity: 0.8, stimulation: 0.2 })).primary, '好奇')
+  assert.equal(readMood(withAction({ energy: 0.7, mood: 0.1, curiosity: 0.4, creativity: 0.7 })).primary, '手痒')
+  const calm = readMood(withAction({ energy: 0.7, mood: 0.1, curiosity: 0.4, creativity: 0.4 }))
+  assert.notEqual(calm.primary, '平静')
+})
+
 test('describeState：给模型的状态块带情绪标签、成因和关系', () => {
   let s = emptyState()
   for (let i = 0; i < 5; i++) s = applyEvent(s, 'masterSilentDay')
