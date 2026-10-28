@@ -27,6 +27,8 @@ export interface PersonaState {
   memories: Memory[]
   npcState: ReturnType<typeof createInitialState>
   budget: BudgetLedger
+  /** 近 N 次结算后的场值快照，供情绪强度做滑动参照 */
+  emotionHistory: AtomicFields[]
   lastAppliedAt: string
 }
 
@@ -89,6 +91,7 @@ export function emptyState(): PersonaState {
     memories: [],
     npcState: createInitialState(),
     budget: emptyBudget(),
+    emotionHistory: [],
     lastAppliedAt: new Date().toISOString(),
   }
 }
@@ -112,8 +115,9 @@ export function loadState(file: string): PersonaState {
   }
 }
 
-const STATE_SCHEMA_VERSION = 4
+const STATE_SCHEMA_VERSION = 5
 const HISTORY_LIMIT = 200
+const EMOTION_HISTORY_LIMIT = 24
 
 function normalizeState(raw: any): PersonaState {
   // 结构不对（空对象/被别的程序覆盖）按坏文件处理，走备份恢复，而不是当真清空
@@ -135,6 +139,15 @@ function normalizeState(raw: any): PersonaState {
       if (Number.isFinite(n) && n > 0) spent[String(k)] = n
     }
   }
+  const isVector = (v: any) => v && typeof v === 'object'
+    && (Object.keys(DEFAULT_ATOMIC_FIELDS) as Array<keyof AtomicFields>).every((k) => Number.isFinite(Number(v[k])))
+  const emotionHistory: AtomicFields[] = Array.isArray(raw.emotionHistory)
+    ? raw.emotionHistory.filter(isVector).map((v: any) => {
+        const out = { ...DEFAULT_ATOMIC_FIELDS }
+        for (const k of Object.keys(DEFAULT_ATOMIC_FIELDS) as Array<keyof AtomicFields>) out[k] = Number(v[k])
+        return out
+      }).slice(-EMOTION_HISTORY_LIMIT)
+    : []
   return {
     fields: { ...DEFAULT_ATOMIC_FIELDS, ...raw.fields },
     chain: (raw.chain ?? []).map((e: any) => ({ ...e, timestamp: new Date(e.timestamp) })),
@@ -147,6 +160,7 @@ function normalizeState(raw: any): PersonaState {
       bondAtColdWarStart: ns.bondAtColdWarStart ?? null,
     },
     budget: { day: typeof raw.budget?.day === 'string' ? raw.budget.day : '', spent },
+    emotionHistory,
     lastAppliedAt: raw.lastAppliedAt ?? new Date().toISOString(),
   }
 }
@@ -164,6 +178,7 @@ export function saveState(file: string, s: PersonaState): void {
     memories: s.memories.slice(-HISTORY_LIMIT),
     npcState: s.npcState,
     budget: s.budget,
+    emotionHistory: (s.emotionHistory ?? []).slice(-EMOTION_HISTORY_LIMIT),
     lastAppliedAt: s.lastAppliedAt,
   }
   const tmp = file + '.' + process.pid + '.' + Math.random().toString(36).slice(2, 8) + '.tmp'
@@ -215,7 +230,8 @@ export function applyEffects(
   // 时钟回拨：lastAppliedAt 不能被写到过去，否则下一次会重复结算同一段时间
   const prevApplied = Date.parse(s.lastAppliedAt)
   const stamp = Number.isFinite(prevApplied) ? Math.max(now, prevApplied) : now
-  return { fields: after, chain, memories, npcState, budget: budgeted.ledger, lastAppliedAt: new Date(stamp).toISOString() }
+  const emotionHistory = [...(s.emotionHistory ?? []), { ...after }].slice(-EMOTION_HISTORY_LIMIT)
+  return { fields: after, chain, memories, npcState, budget: budgeted.ledger, emotionHistory, lastAppliedAt: new Date(stamp).toISOString() }
 }
 
 /** 应用一个预设事件。 */

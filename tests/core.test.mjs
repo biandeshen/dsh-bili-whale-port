@@ -15,13 +15,13 @@ test('mood：同场值不同成因得到不同情绪', () => {
   const make = (preset) => applyEvent(emptyState(), preset)
   // 一天一次、跨天调用：同一天里连刷 5 次会被来源预算按天封顶（不是 5 天的效果）
   const silent = (days) => { let s = emptyState(); for (let i = 1; i <= days; i++) s = applyEvent(s, 'masterSilentDay', T0 + i * DAY); return s }
-  assert.equal(readMood(make('masterReplied')).primary, '开心')
-  assert.equal(readMood(make('watchedVideo')).primary, '满足')
-  assert.equal(readMood(applyEvent(make('watchedVideo'), 'draftApproved')).primary, '雀跃')
-  assert.equal(readMood(make('draftRejected')).primary, '失落')
-  assert.equal(readMood(make('masterSilentDay')).primary, '平静') // 一天没说话还不至于想念
-  assert.equal(readMood(silent(5)).primary, '想念')               // 连接跌破 0.35 才开始想念
-  assert.equal(readMood(make('trafficPaused')).primary, '警觉')
+  assert.equal(readMood(make('masterReplied')).primary, '温暖')
+  assert.equal(readMood(make('watchedVideo')).primary, '灵感')
+  assert.equal(readMood(applyEvent(make('watchedVideo'), 'draftApproved')).primary, '快乐')
+  assert.equal(readMood(make('draftRejected')).primary, '挫败')
+  assert.equal(readMood(make('masterSilentDay')).primary, '宁静') // 一天没说话还不至于孤独
+  assert.equal(readMood(silent(5)).primary, '孤独')               // 连接跌破 0.35 才转孤独
+  assert.equal(readMood(make('trafficPaused')).primary, '焦虑')
 })
 
 test('mood：成因超过 6 小时窗口后不再主导标签', () => {
@@ -40,18 +40,20 @@ test('mood：刚起身的 action 成因不再恒为「平静」', () => {
     })
     return s
   }
-  assert.equal(readMood(withAction({ energy: 0.2, mood: -0.1 })).primary, '困倦')
-  assert.equal(readMood(withAction({ energy: 0.7, mood: 0.1, curiosity: 0.8, stimulation: 0.2 })).primary, '好奇')
-  assert.equal(readMood(withAction({ energy: 0.7, mood: 0.1, curiosity: 0.4, creativity: 0.7 })).primary, '手痒')
+  assert.equal(readMood(withAction({ energy: 0.2, mood: -0.1 })).primary, '忧郁')
+  assert.equal(readMood(withAction({ energy: 0.7, mood: 0.1, curiosity: 0.8, stimulation: 0.2 })).primary, '渴望')
+  assert.equal(readMood(withAction({ energy: 0.7, mood: 0.1, curiosity: 0.4, creativity: 0.7 })).primary, '灵感')
+  // 场值中性时标签可以就是宁静，但成因必须仍然认得出是「刚起身」
   const calm = readMood(withAction({ energy: 0.7, mood: 0.1, curiosity: 0.4, creativity: 0.4 }))
-  assert.notEqual(calm.primary, '平静')
+  assert.match(calm.reason, /刚起身/)
 })
 
 test('describeState：给模型的状态块带情绪标签、成因和关系', () => {
+  const now = Date.now()
   let s = emptyState()
-  for (let i = 1; i <= 5; i++) s = applyEvent(s, 'masterSilentDay', T0 + i * DAY)
+  for (let i = 1; i <= 5; i++) s = applyEvent(s, 'masterSilentDay', now - (5 - i) * DAY) // 最后一次就在刚才
   const text = describeState(s)
-  assert.match(text, /【她现在的情绪】想念/)
+  assert.match(text, /【她现在的情绪】孤独/)
   assert.match(text, /成因：主人沉默 \+ 连接感低/)
   assert.match(text, /【状态】体力/)
   assert.match(text, /关系：未判定/)

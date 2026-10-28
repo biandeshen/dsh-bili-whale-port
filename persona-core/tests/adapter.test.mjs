@@ -76,7 +76,7 @@ test('状态文件：原子写带 schemaVersion，坏文件从备份恢复且留
   saveState(file, s2)
   assert.ok(fs.existsSync(file + '.bak'))
   const raw = JSON.parse(fs.readFileSync(file, 'utf8'))
-  assert.equal(raw.schemaVersion, 4)
+  assert.equal(raw.schemaVersion, 5)
   assert.ok(Math.abs(raw.fields.connection - s2.fields.connection) < 1e-9)
 
   fs.writeFileSync(file, '{broken')

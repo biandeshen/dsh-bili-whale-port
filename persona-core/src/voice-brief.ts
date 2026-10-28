@@ -21,6 +21,7 @@ export interface VoiceInput {
   chain: CausalEvent[]
   memories: Memory[]
   npcState: { current: string }
+  history?: AtomicFields[]
 }
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n))
@@ -56,7 +57,7 @@ export function buildVoiceBrief(s: VoiceInput, opts: { now?: number; k?: number 
     v: 1,
     mood: {
       label: mood.primary,
-      intensity: Math.round(clamp01(Math.abs(s.fields.mood)) * 100) / 100,
+      intensity: Math.round(clamp01(mood.intensity) * 100) / 100,
       reason: mood.reason,
       cause: latestCauseSource(s, now),
     },
