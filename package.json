@@ -20,6 +20,7 @@
     "day:tick": "node scripts/day-snapshot.mjs --tick",
     "day:report": "node scripts/day-report.mjs",
     "g3b": "node scripts/g3b-check.mjs",
+    "observe": "node scripts/observation-status.mjs",
     "watchdog": "node scripts/day-watchdog.mjs --audit"
   },
   "main": "core/index.js",
