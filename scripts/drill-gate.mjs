@@ -59,7 +59,7 @@ const roundAfter = JSON.parse(fs.readFileSync(path.join(home, 'bili-whale', 'con
 check('debrief 状态落盘（进程重启后仍算这一轮）', roundAfter.debriefed === true && roundAfter.bvid === 'BV1TESTTEST1', JSON.stringify(roundAfter))
 const staleDraft = await tools.bili_draft_dynamic.handler({})
 check('没写当天日记时 draft 被拒', staleDraft.startsWith('[refused]') && !staleDraft.includes('DRAFT_WRITTEN'))
-const today = new Date().toLocaleDateString('sv-SE')
+const today = new Date(Date.now() - 4 * 3600_000).toLocaleDateString('sv-SE')
 const diaryOut = await tools.bili_diary_append.handler({
   book: 'public', heading: '看过',
   text: ['| 时间 | BV | 标题 | 简介 | 想法 |', '| --- | --- | --- | --- | --- |', `| ${today} | BV1TESTTEST1 | demo 雨声 | x | 想再看 |`].join('\n'),
