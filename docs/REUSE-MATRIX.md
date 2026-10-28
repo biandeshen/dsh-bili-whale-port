@@ -38,11 +38,19 @@
 **A. 插件方案（默认，约 0.5 天）**
 - 命令（已核实存在于 bili-cli `main`）：
   - `bili dm list [--unread] [--limit N]` → `{"items":[{talker_id, unread_count, last_msg, auto_reply}]}`
-  - `bili dm read <uid|owner> [--limit N] [--mark-read]` → 按时间顺序的消息 JSON（`from: me|them`、`text`、`type`）
-- 凭据：bili-cli 读 `%APPDATA%\bili-cli\credential.json`，**支持 `BILI_CLI_HOME` 覆盖**。我们建一个受管目录（不进 git），从 `~/.bili-ai/credentials.json` 同步 `sessdata / bili_jct / dedeuserid` 三个字段即可，不改它的代码。
-- 运行时：Python ≥3.10；`pip install -e` 或 `pipx`。
-- 我们这边：新增 `tools/commands/dm-read.mjs` **约 80–120 行**——spawn + 超时 + JSON 归一化成工具回执 + 错误码映射；**不 ack、不发**。
+  - `bili dm read <uid|owner> [--limit N]` → 按时间顺序的消息 JSON（`from: me|them`、`text`、`type`）
+  - **永不带 `--mark-read`**：它是 `POST update_ack`（`dm.py:182-186`），会改变远端状态。
+- 凭据：bili-cli 读 `%APPDATA%\bili-cli\credential.json`，**支持 `BILI_CLI_HOME` 覆盖**；我们建受管目录（不进 git），**单向**同步（我们→插件）。
+  ⚠ **必须先补 `dedeuserid`**：我们的 `tools/lib/cred.mjs:33-37` 只返回三个字段，而 bili-cli `dm.py:172` 靠 `dedeuserid` 判断 `from`；缺了它会把"她发的"全判成"主人发的"→ `connection` 假上涨、M3 验收假通过。取法：调 nav 接口拿 mid 并缓存。
+  ⚠ 调用前后对 `credential.json` 做 sha256 比对，变化即 `CRED_ROTATED`（防插件偷偷刷新 cookie）。
+- 运行时：Python ≥3.10；`pipx install` 或 `pip install -e`。
+- 环境：`PYTHONUTF8=1`、`PYTHONIOENCODING=utf-8`、`NO_COLOR=1`（Windows 管道默认 cp936，不设会乱码）。
+- 失败语义：`ENOENT→PLUGIN_MISSING`、退出 2→`BAD_ARGS`、超时→`TIMEOUT`、非 JSON→`BAD_OUTPUT`、`-101→AUTH_EXPIRED`、`-352/412→RISK_PAUSED`（并写回 `traffic-state.until`）。
+  **读取失败一律 `{ok:false}`，空数组只在 canary（`bili me`）通过时才算 `OK_EMPTY`**；失败时 L3 不得应用 delta、不得重置 `lastContactAt`。
+- 断言：解析前检测 U+FFFD（乱码）；对 `from` 分布断言 `me` 与 `them` 都出现过。
+- 我们这边：新增 `tools/commands/dm-read.mjs` **约 80–120 行**——spawn + 超时 + JSON 归一 + 错误映射；**不 ack、不发**。
 - 风险：依赖 `bilibili-api-python==17.4.2` 已归档（pin 死），协议若变则失效 → 记入 `PORT-LEDGER.md` 的依赖指纹，失效时切换 B。
+- **轮询必须原生**：M3 的 60s 轮询不进插件（`ARCHITECTURE.md` §2.3 判定树），插件只用于低频读取/人工触发。
 
 **B. 重写方案（备选，约 1 天）**
 - 接口已核到字段级（`get_sessions` / `fetch_session_msgs` / `new_sessions`），Node 重写 150–250 行 + 测试；无 Python 依赖、错误语义统一、可与 `traffic` 读预算直接打通。
@@ -124,10 +132,10 @@
 
 | 插件 | 来源 / 版本 | 许可 | 与 DSH 的耦合 | 我们怎么用 | 阶段 |
 |---|---|---|---|---|---|
-| **dsh-video-studio** | npm `0.4.3`（仓库 `litao36253/dsh-video-studio` 为空，包本身完整） | **MIT** | **核心零耦合**：`render.js / media.js / cover.js / ffmpeg.js` 不引用 `ctx`，纯 Node + ffmpeg，零运行时依赖（Node ≥22，仅 Windows） | **库级引入**：把 `render(spec, config)` 包成我们的 `video_build` 工具（或 spawn） | P2 |
+| **dsh-video-studio** | npm `0.4.3`（仓库 `litao36253/dsh-video-studio` 为空，包本身完整） | **MIT** | **核心零耦合**：`render.js / media.js / cover.js / ffmpeg.js` 不引用 `ctx`，纯 Node + ffmpeg，零运行时依赖（Node ≥22，仅 Windows） | **vendor 6 个核心文件 + LICENSE** 到 `tools/vendor/dsh-video-studio@0.4.3/`（包 `exports` 只暴露 `"."`，不能 `npm i` 后 import 内部路径），再包成我们的 `video-build` 子命令 | P2 |
 | **dsh-bili-workbench** | `xiaweihuaniubi/dsh-bili-workbench`（2★，10-27） | **MIT** | 拆成两半：`client.js` 是 DSH web UI；**`bili-op/` 是独立引擎**（`gen.mjs/tts.mjs/build.mjs`，脚本→配音→渲染→封面，**不自动发布**，仅依赖 sharp） | **子进程插件**：直接跑 `bili-op` 流水线；它自己也用 spawn 调 `bili` CLI | P2 |
 | **dsh-autocut** | `lolistlisa/dsh-autocut` v0.3.0（1★） | **MIT** | 入口 `index.js` 绑 `@deepseek-ai/dsh-tools`；`lib/`（timeline/export/render/sound）可能可剥 | 二期：先评估剥 `lib/timeline` + 剪映草稿导出；否则只借设计 | P2 后 |
-| **dsh-voice** | npm `0.4.3`（`STARDUSTLC666/dsh-voice`） | **MIT** | 绑 DSH 运行时（`engines.dsh>=0.2.1-rc.3`，依赖 `@stardustlc/dsh-updates`、ws、undici） | 不直接当插件；若需要 TTS，优先直接走 Edge-TTS（免费、无宿主依赖），把它当协议参考 | P3 |
+| **dsh-voice** | npm `0.4.3`（`STARDUSTLC666/dsh-voice`） | **MIT** | 入口绑 DSH 运行时（`engines.dsh>=0.2.1-rc.3`，依赖 `@stardustlc/dsh-updates`、ws、undici）；**但核心里 `edge-tts.js` / `stt.js` 的 ctx 引用数为 0，可剥** | 优先直接走 Edge-TTS；若要 STT 再 vendor `edge-tts.js`/`stt.js`（需实测依赖） | P3 |
 | **dsh-whale-maid**（多实现） | `lov0vo` / `yefeng7531`(9★) / `Sun-L1` | 各异 | 精灵图 + 状态机，DSH web UI 内嵌 | L5 备选；我们已有 Cyrene（MIT）渲染层 | P3 |
 
 **同域其它候选**（供 P2 比较）：`q253595422/dsh-imagegen-video`（64★，图+视频无限画布）、`fengyungithub/dsh-short-video-studio`（34★，ComfyUI）、`hackerFish/dsh-video-studio`（鲸影，六段导演流水线）。

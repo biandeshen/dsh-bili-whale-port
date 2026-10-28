@@ -46,6 +46,8 @@
 | D-24 | **`ack.release` 在"已发出但进程被杀"时会把令牌退回** → 重试产生第二条 | 红队4 S1 | 重复发布 | M1 | OPEN |
 | D-25 | **记忆只在测试里衰减/归档**——上游 AMpath 也一样（`batchDecayVividness` 生产零调用） | AMRESEARCH/02 | 不能靠"上游有"来证明我们该有 | 认知 | FIXED（认知已更正） |
 | D-26 | **flashbulb 分支不可触发**：`note` 路径 intensity 硬编码 0.5；watch 路径饱和后几乎必然 | 红队3 M2 | "重要的事记得牢"不成立 | M1 | OPEN |
+| D-27 | **凭据缺 `dedeuserid`**：`tools/lib/cred.mjs:33-37` 只返回 sessdata/bili_jct/buvid3；而 bili-cli `dm.py:172` 靠 `dedeuserid` 判 `from` | 研讨组4 实测 | 缺了它会把"她发的"全判成"主人发的" → `connection` 假上涨、M3 假通过 | **M3 前置** | OPEN |
+| D-28 | **`bili dm read --mark-read` 是写操作**（`POST update_ack`，`dm.py:182-186`），不是只读 | 研讨组4 实测 | 误用会改变远端状态（主人端未读消失） | M3 | OPEN |
 
 ## 3. 待拍板（NEED-USER）
 
@@ -53,12 +55,12 @@
 |---|---|---|---|---|
 | Q-01 | **EmergentDimension（涌现维度）做不做** | AMpath 自列核心壁垒；但 **2026-10-28 三路盘点确认：`AMPath-WorldModel` 是离线训练管线、`AMPath-MEE` 明确不含涌现维度——上游没有任何可用实现** | A 从零做（成本最高）/ B 不做（接受"人格不生长"）/ C 暂缓到 M4 后（推荐：先跑通 M0–M4 再评估） | NEED-USER |
 | Q-02 | **Coopanion 是否进 L5** | 你 10-25 原话"完全能满足需求，甚至比当前项目更先进"；无弃用指令。盘点结论：`Cyrene-Agent`（MIT）的渲染层是许可干净的首选，`desktop-pet` 受 Live2D 重分发条款限制不可发布 | A 接 Cyrene 式渲染层 / B 保持 WebUI / C 先不决定 | NEED-USER |
-| Q-03 | **A/C（MemoryWeaver 精华）范围与时机** | 10-27 05:52 已出职责切分；前提"先看 AMpath 的 memory/retrieval 多完整"**现已查明**。另有新选项：`ai-trpg-engine` 的确定性召回（210 行、无向量库、可复现）比 MemoryWeaver 更贴合 200–2000 条规模。**主人 2026-10-28 已同意"能做插件就做插件"** | A M4 先落 ai-trpg 式确定性召回，图谱/演化后置（推荐）/ B MemoryWeaver 以**子进程插件**形态接入（JSON-lines，不做代码级适配）/ C 只抄检索不抄图谱 | NEED-USER |
-| Q-04 | **视频/直播的启动时机** | 是能力不是非目标（10-27 04:58 原话）。**新供给**：`dsh-video-studio`（MIT，核心零耦合）可库级引入；`dsh-bili-workbench` 的 `bili-op/` 可子进程跑（默认不自动发布） | A M4 之后先做视频（有现成插件）/ B 与 M4 并行 / C 等 7 天自运行达成 | NEED-USER |
+| Q-03 | **A/C（MemoryWeaver 精华）范围与时机** | 10-27 05:52 已出职责切分；前提"先看 AMpath 的 memory/retrieval 多完整"**现已查明**。另有新选项：`ai-trpg-engine` 的确定性召回（210 行、无向量库、可复现）比 MemoryWeaver 更贴合 200–2000 条规模。**主人 2026-10-28 已同意"能做插件就做插件"** | A M4 先落 ai-trpg 式确定性召回，图谱/演化后置（推荐）/ B MemoryWeaver 以**子进程插件**形态接入（JSON-lines，不做代码级适配）/ C 只抄检索不抄图谱 | NEED-USER（团队建议 A：算法须进程内可单测；插件只治协议） |
+| Q-04 | **视频/直播的启动时机** | 是能力不是非目标（10-27 04:58 原话）。**新供给**：`dsh-video-studio`（MIT，核心零耦合）可库级引入；`dsh-bili-workbench` 的 `bili-op/` 可子进程跑（默认不自动发布） | A M4 之后先做视频（有现成插件）/ B 与 M4 并行 / C 等 7 天自运行达成 | NEED-USER（团队建议 A + 只 vendor video-studio 核心，不采 bili-op 整链；直播独立立项） |
 | Q-05 | **AI 内容标识** | 红队4 认定为法律风险；你 2026-10-28 明确"不要这个第 0 项" | 已按你的决定不做 | DECIDED-NO |
-| Q-06 | **`connection` 的语义与符号** | 上游 `embodiment/temporal-rates.ts:90-104` 在"长时间无互动"时给 `connection **+**0.001×lonelyUnits`（孤独→连接上升）；但 `npc-state-machine.ts:75-91` 又把 `connection<0.3` 当作冷战条件。两者可能语义冲突：若 connection 是"连接感"，孤独不该让它上升；若是"渴望连接"，则冷战条件反了 | A 按"连接感"（孤独下降，需外部输入回补）/ B 按"渴望"（孤独上升，冷战另立阈值）/ C 先只做状态机、不加孤独项 | NEED-USER |
-| Q-07 | **是否采用上游的昼夜节律项** | 上游按小时窗口结算（23–5 睡、6–9 晨、13–15 午后低谷，`temporal-rates.ts:84-92`），与我们"作息由状态决定、不设时间表"的决定可能冲突 | A 只作缓慢背景漂移，不参与醒/睡决策 / B 完全不用 / C 用但要可配置 | NEED-USER |
-| Q-08 | **是否允许 DSH 作为"视频/语音侧车"** | 部分 DSH 插件（`dsh-voice`、`dsh-autocut` 入口）绑 DSH 运行时，剥不干净。跑第二个宿主能直接用，但代价是双宿主/双模型/双状态 | A 不引入第二宿主，只用能剥出的库（推荐）/ B 允许 DSH sidecar 专做视频语音 / C 等 P2 再定 | NEED-USER |
+| Q-06 | **`connection` 的语义与符号** | 上游 `embodiment/temporal-rates.ts:90-104` 在"长时间无互动"时给 `connection **+**0.001×lonelyUnits`（孤独→连接上升）；但 `npc-state-machine.ts:75-91` 又把 `connection<0.3` 当作冷战条件。两者可能语义冲突：若 connection 是"连接感"，孤独不该让它上升；若是"渴望连接"，则冷战条件反了 | A 按"连接感"（孤独下降，需外部输入回补）/ B 按"渴望"（孤独上升，冷战另立阈值）/ C 先只做状态机、不加孤独项 | NEED-USER（团队建议：connection 保持存量 + 新增 `npcState.bond` 承载关系；无接触证据不判冷战） |
+| Q-07 | **是否采用上游的昼夜节律项** | 上游按小时窗口结算（23–5 睡、6–9 晨、13–15 午后低谷，`temporal-rates.ts:84-92`），与我们"作息由状态决定、不设时间表"的决定可能冲突 | A 只作缓慢背景漂移，不参与醒/睡决策 / B 完全不用 / C 用但要可配置 | NEED-USER（团队建议：只进 night_mood/morning_curiosity/loneliness_mood 三项；挡三项 energy 与 loneliness_connection） |
+| Q-08 | **是否允许 DSH 作为"视频/语音侧车"** | 部分 DSH 插件（`dsh-voice`、`dsh-autocut` 入口）绑 DSH 运行时，剥不干净。跑第二个宿主能直接用，但代价是双宿主/双模型/双状态 | A 不引入第二宿主，只用能剥出的库（推荐）/ B 允许 DSH sidecar 专做视频语音 / C 等 P2 再定 | NEED-USER（团队建议 A） |
 
 ## 4. 环境与流程约束（BLOCKED / 需处理）
 
@@ -76,6 +78,7 @@
 | E-10 | `life.json` 出现 `lastKind: forced` 与 `FORCE_ACTION` | 强制轮与自然轮混在一起，统计口径失真 | 会污染"自主性"证据 | OPEN |
 | E-11 | **B 站动态拿不到阅读数**（接口只给赞/评/转 `module_stat`） | 已核实；`ARCHITECTURE.md` §4.6 已改口径 | #21 内容效果复盘只能用互动率，不能用曝光 | FIXED（口径已更正） |
 | E-12 | **P2 投稿的上传协议不在 bili-cli 仓库里**：它只是封装 `bilibili-api-python==17.4.2`，而该依赖上游已归档 | 已核实（`src/bili_cli/commands/dm.py` 同仓库结构，投稿走库内部） | P2 视频要么重写 upos 上传，要么换实现；是 P2 的头号风险 | NEED-USER |
+| E-13 | **`dsh-video-studio` 的 `exports` 只有 `"."` 与 `"./package.json"`**，子路径 import 会抛 `ERR_PACKAGE_PATH_NOT_EXPORTED` | 研讨组4 实测包内 `package.json` | 不能 `npm i` 后 import 内部路径；必须 vendor 6 个核心文件 + LICENSE + SHA256SUMS | FIXED（方案已定：vendor） |
 
 ## 5. 已修复（留档，防止回退）
 
