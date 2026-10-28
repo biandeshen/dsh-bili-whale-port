@@ -484,7 +484,12 @@ class BiliAccountWorld {
           source: hasCustom ? 'custom' : presetName,
           userJustMessaged: presetName === 'masterReplied',
         })
-        if (a?.note) after = remember(after, String(a.note), { sender: 'player', intensity: 0.5, tags: [] })
+        // 这句是她自己留的；强度取当时的刺激量，避免 flashbulb 永远触发不到（D-26）
+        if (a?.note) after = remember(after, String(a.note), {
+          sender: 'npc',
+          intensity: Math.max(0.1, Math.min(1, after.fields.stimulation)),
+          tags: [],
+        })
         saveState(FIELDS_FILE, after)
         if (presetName === 'masterReplied' && this.life) {
           // 他回来了：之前"等不到人"的次数清零，她又愿意等了
