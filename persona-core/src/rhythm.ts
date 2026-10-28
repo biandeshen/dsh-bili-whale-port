@@ -70,7 +70,9 @@ export function decideAction(opts: {
   rng: () => number
 }): ActionDecision {
   const { fields: f, relation, now, mem, rng } = opts
-  if (mem.lastActionAt && now - mem.lastActionAt < MIN_GAP_MS) return { act: false, reason: 'gap', urge: 0 }
+  // 时钟回拨时 lastActionAt 可能在未来：负间隔不能被当成"还没到"而永久卡死
+  const sinceLast = mem.lastActionAt ? now - mem.lastActionAt : Infinity
+  if (sinceLast >= 0 && sinceLast < MIN_GAP_MS) return { act: false, reason: 'gap', urge: 0 }
   if (mem.day === dayKey(now) && mem.actionsToday >= MAX_ACTIONS_PER_DAY) return { act: false, reason: 'cap', urge: 0 }
 
   const tired = clamp01((0.45 - f.energy) / 0.45)

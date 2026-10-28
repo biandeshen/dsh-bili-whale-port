@@ -122,3 +122,11 @@ test('kill runner：开关打开时拒绝 spawn', () => {
   assert.deepEqual(r(['traffic']), { status: -2, out: '[blocked] kill switch is on' })
   assert.equal(spawned, 0)
 })
+
+test('时钟回拨：applyEvent 不把 lastAppliedAt 倒退', () => {
+  const s = emptyState()
+  const future = new Date(Date.now() + 86400_000).toISOString()
+  s.lastAppliedAt = future
+  const after = applyEvent(s, 'watchedVideo')
+  assert.ok(Date.parse(after.lastAppliedAt) >= Date.parse(future))
+})

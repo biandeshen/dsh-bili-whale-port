@@ -190,7 +190,10 @@ export function applyEffects(
 
   const npcState = deriveNPCState(after, s.npcState, now, opts.userJustMessaged === true).newState
 
-  return { fields: after, chain, memories, npcState, lastAppliedAt: new Date(now).toISOString() }
+  // 时钟回拨：lastAppliedAt 不能被写到过去，否则下一次会重复结算同一段时间
+  const prevApplied = Date.parse(s.lastAppliedAt)
+  const stamp = Number.isFinite(prevApplied) ? Math.max(now, prevApplied) : now
+  return { fields: after, chain, memories, npcState, lastAppliedAt: new Date(stamp).toISOString() }
 }
 
 /** 应用一个预设事件。 */

@@ -6,7 +6,7 @@ import { recordFieldChangeL0, buildCausalTree, explainMoodDrop } from '../src/ca
 import { decayMemory, calculateEncodingStrength, isFlashbulbMemory, recallMemory } from '../src/memory.ts'
 import { createInitialState, deriveNPCState } from '../src/npc-state-machine.ts'
 import { decayAtomicFields, applyHardCouplings, simulateOfflineTime } from '../src/decay.ts'
-import { dayKey } from '../src/rhythm.ts'
+import { dayKey, decideAction } from '../src/rhythm.ts'
 
 const mem = (over = {}) => ({
   id: 'm1', npcId: 'xiaoyu', sender: 'player', content: '主人说晚安',
@@ -150,4 +150,16 @@ test('硬耦合：体力过低会拖累心情', () => {
 test('dayKey：04:00 为日界，凌晨算前一天', () => {
   assert.equal(dayKey(Date.parse('2026-10-29T03:59:00+08:00')), '2026-10-28')
   assert.equal(dayKey(Date.parse('2026-10-29T04:00:00+08:00')), '2026-10-29')
+})
+
+test('时钟回拨：lastActionAt 在未来时不被间隔门卡死', () => {
+  const now = Date.parse('2026-10-29T12:00:00+08:00')
+  const d = decideAction({
+    fields: { ...DEFAULT_ATOMIC_FIELDS, stimulation: 0.1, energy: 0.9 },
+    relation: 'normal',
+    now,
+    mem: { day: dayKey(now), actionsToday: 0, lastActionAt: now + 3600_000, lastCheckAt: now },
+    rng: () => 0,
+  })
+  assert.notEqual(d.reason, 'gap')
 })
