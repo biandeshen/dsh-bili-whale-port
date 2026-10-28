@@ -21,6 +21,7 @@
     "day:report": "node scripts/day-report.mjs",
     "g3b": "node scripts/g3b-check.mjs",
     "observe": "node scripts/observation-status.mjs",
+    "observe:start": "node scripts/observation-start.mjs",
     "watchdog": "node scripts/day-watchdog.mjs --audit"
   },
   "main": "core/index.js",
