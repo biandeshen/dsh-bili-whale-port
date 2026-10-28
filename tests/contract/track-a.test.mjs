@@ -53,8 +53,44 @@ test('buildText 只取当天那一段：旧日记不会拿来重复出稿', () =
   assert.match(old, /昨天的视频/)
 })
 
-test('makeDraft id 稳定，重复输入同 id', () => {
-  const a = makeDraft({ date: '2026-10-25', diaryText: diary, image: 'x.png', text: buildText(diary) })
+test('buildText：真实日记首列是 BV 也能取到标题', () => {
+  const diaryBvFirst = [
+    '## 2026-10-28',
+    '',
+    '## 看过',
+    '',
+    '| BV | 标题 | 时长 |',
+    '|---|---|---|',
+    '| BV1ji4y1Y77p | 世界公认最佳放松雨声（432HZ） | 44:30 |',
+    '',
+    '## 想说',
+    '',
+    '- 今天这条雨声不错。',
+    '',
+  ].join('\n')
+  const t = buildText(diaryBvFirst, { date: '2026-10-28' })
+  assert.match(t, /今晚看的是《世界公认最佳放松雨声/)
+  assert.match(t, /今天这条雨声不错/)
+})
+
+test('buildText：想说 的多条 bullet 都保留（不再只取第一条）', () => {
+  const diaryMulti = [
+    '## 2026-10-28',
+    '',
+    '## 想说',
+    '',
+    '- 第一条：今天只听了雨。',
+    '- 第二条：但那条标题夸大了。',
+    '- 第三条：下次不选它。',
+    '',
+  ].join('\n')
+  const t = buildText(diaryMulti, { date: '2026-10-28' })
+  assert.match(t, /第一条/)
+  assert.match(t, /第二条/)
+  assert.match(t, /第三条/)
+})
+
+test('makeDraft id 稳定，重复输入同 id', () => {  const a = makeDraft({ date: '2026-10-25', diaryText: diary, image: 'x.png', text: buildText(diary) })
   const b = makeDraft({ date: '2026-10-25', diaryText: diary, image: 'x.png', text: buildText(diary) })
   assert.equal(a.id, b.id); assert.equal(a.status, 'pending')
 })

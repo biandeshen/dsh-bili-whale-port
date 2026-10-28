@@ -52,16 +52,31 @@ export function buildText(diaryText, { max = 100, date } = {}) {
   const sections = (today ? today.lines.join('\n') : '').split(/^## /m)
   const find = (name) => sections.find((s) => s.startsWith(name)) || ''
   const rows = find('看过').split('\n').map((l) => l.trim()).filter(Boolean)
-  const watched = rows.find((l) => /^\|\s*\d{4}-\d{2}-\d{2}/.test(l)) || ''
-  const title = watched ? (watched.split('|')[3] || '').trim() : ''
-  const lines = find('想说').split('\n')
-  const buf = []
-  let started = false
-  for (const l of lines) {
-    if (/^-\s+/.test(l)) { if (started) break; started = true; buf.push(l.replace(/^-\s+/, '')); continue }
-    if (started) buf.push(l.trim())
+  // 真实日记首列是 BV（不是日期），旧格式首列是日期；一律按单元格找 BV 列，下一格就是标题。
+  // 不按长度卡：测试与旧数据里可能存在 BVnew 这类短 ID。
+  let title = ''
+  for (const row of rows) {
+    if (!row.startsWith('|')) continue
+    const cells = row.split('|').map((c) => c.trim())
+    const i = cells.findIndex((c) => /^BV[0-9A-Za-z]+$/.test(c))
+    if (i >= 0) { title = cells[i + 1] || ''; break }
   }
-  const said = buf.join(' ').replace(/\s+/g, ' ').trim()
+  if (title.length > 24) title = title.slice(0, 24).trimEnd() + '…'
+
+  // 「想说」可能有多个 bullet，后几条往往是真正的判断；全部保留，不再在第二条截断
+  const lines = find('想说').split('\n')
+  const bullets = []
+  let cur = null
+  for (const raw of lines) {
+    const l = raw.trim()
+    if (!l) continue
+    if (l === '想说') continue
+    if (/^-\s+/.test(l)) { if (cur) bullets.push(cur); cur = l.replace(/^-\s+/, ''); continue }
+    if (cur) cur += ' ' + l
+    else if (!l.startsWith('#')) cur = l
+  }
+  if (cur) bullets.push(cur)
+  const said = bullets.join(' ').replace(/\s+/g, ' ').trim()
   const line = [title ? `今晚看的是《${title}》。` : '', said].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim()
   const body = clip(line || '今晚只听了会儿雨声，没看到特别想说的。', max)
   return body
