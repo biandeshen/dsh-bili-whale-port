@@ -51,6 +51,11 @@ function buildReport(day, opts = {}) {
   // 预登记的预期 flag（如 C2 离线日的 missed/late/tick-gap）不算失败；未登记的才算
   const expected = readJson(path.join(dir, 'expected.json')) || {}
   const allow = new Set(Array.isArray(expected.allowFlags) ? expected.allowFlags : [])
+  // 只 arm 不关机时不能靠 expected.json 放宽：必须已有 C2 验证结果
+  if (expected.requiresC2Result) {
+    const c2 = readJson(path.join(WHALE_HOME, 'bili-whale', 'control', 'c2-result.json'))
+    if (c2?.ok !== true) allow.clear()
+  }
   if (opts.expectOffline) { allow.add('missed'); allow.add('late'); allow.add('tick-gap') }
   const add = (name, ok, detail = '') => items.push({ name, ok, detail })
 
