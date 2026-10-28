@@ -82,10 +82,58 @@ export function buildText(diaryText, { max = 100, date } = {}) {
   return body
 }
 
-export function makeDraft({ date, image, text, diaryHash }) {
+export function makeDraft({ date, image, text, diaryHash, voice = null, voiceHash = null, degraded = false }) {
   const textHash = crypto.createHash('sha1').update(String(text)).digest('hex')
   const id = 'dyn-' + String(date).replace(/-/g, '') + '-' + crypto.createHash('sha1').update(String(text) + String(image)).digest('hex').slice(0, 6)
-  return { id, date, image, text, textHash, diaryHash: diaryHash ?? null, status: 'pending', createdAt: new Date().toISOString() }
+  return { id, date, image, text, textHash, diaryHash: diaryHash ?? null, voice, voiceHash, degraded, status: 'pending', createdAt: new Date().toISOString() }
+}
+
+// 与 voice.schema.json 的 required 列表锁定（tests/contract/voice.test.mjs 会比对）
+const VOICE_SCHEMA = JSON.parse(fs.readFileSync(new URL('./voice.schema.json', import.meta.url), 'utf8'))
+export const VOICE_REQUIRED = VOICE_SCHEMA.required
+
+/** 只做结构校验；语义（冷战略称等）由 composeDraft 执行。 */
+export function assertVoice(v) {
+  if (!v || typeof v !== 'object') return 'voice-missing'
+  for (const k of VOICE_REQUIRED) if (!(k in v)) return 'voice-missing-' + k
+  if (v.v !== 1) return 'voice-version'
+  const m = v.mood
+  if (!m || typeof m.label !== 'string' || !m.label || typeof m.intensity !== 'number' || m.intensity < 0 || m.intensity > 1) return 'voice-mood'
+  if (!Array.isArray(v.memories) || !Array.isArray(v.banned)) return 'voice-arrays'
+  if (!v.stance || typeof v.stance.share !== 'boolean') return 'voice-stance'
+  return null
+}
+
+const LOW_TONE = new Set(['失落', '想念', '警觉', '困倦', '疲惫', '安静'])
+const HIGH_TONE = new Set(['雀跃', '开心', '满足', '轻快', '安稳', '好奇', '手痒', '平静'])
+
+/**
+ * 把 voiceBrief 落成正文。缺 voice 直接拒稿；不再静默退化成"没有情绪"的模板。
+ * 返回 { ok, text, voiceHash } 或 { ok:false, error }。
+ */
+export function composeDraft(diaryText, { date, voice, max = 100 } = {}) {
+  const bad = assertVoice(voice)
+  if (bad) return { ok: false, error: bad }
+  if (!voice.stance.share) return { ok: false, error: 'stance-skip', because: voice.stance.because }
+  // A1：情绪标签必须有明确措辞；新增标签忘了接线就报错，而不是悄悄当"轻快"处理
+  if (!LOW_TONE.has(voice.mood.label) && !HIGH_TONE.has(voice.mood.label)) {
+    return { ok: false, error: 'unmapped-mood', label: voice.mood.label }
+  }
+
+  let text = buildText(diaryText, { date, max })
+
+  if (LOW_TONE.has(voice.mood.label)) {
+    // 低落时只留第一句，且不出现感叹号
+    text = (text.match(/^[^。！？!?]*[。！？!?]?/) || [text])[0].replace(/[！!]/g, '。').trim()
+  } else if (voice.memories.length && voice.memories[0].score > 0.5 && voice.relation !== 'cold_war') {
+    const m = voice.memories[0]
+    const snippet = String(m.text).replace(/^看过《/, '').split('》')[0].slice(0, 16)
+    if (snippet && !text.includes(snippet)) text = `${text} 前两天记下的《${snippet}》还在。`
+  }
+
+  for (const w of voice.banned) if (w) text = text.split(w).join('他')
+
+  return { ok: true, text, voiceHash: crypto.createHash('sha1').update(JSON.stringify(voice)).digest('hex') }
 }
 
 /** 和别的日期已有草稿一字不差 → 说明拿旧日记复用了，拒稿。返回撞上的那条。 */
@@ -114,9 +162,32 @@ if (process.argv[1] && process.argv[1].endsWith('draft-dynamic.mjs')) {
     process.exit(1)
   }
   const diaryHash = crypto.createHash('sha1').update(diaryText).digest('hex')
+  const voicePath = arg('voice', '')
+  const noVoice = argv.includes('--no-voice')
+  if (!voicePath && !noVoice) {
+    // 缺 voice 就拒稿：否则人格状态对产物没有影响，所有"活过来"的验收都是假的
+    console.log(JSON.stringify({ ok: false, error: 'missing-voice', hint: '传 --voice <file>；仅在手工调试时用 --no-voice 显式降级' }, null, 2))
+    process.exit(2)
+  }
+  let voice = null
+  if (voicePath) {
+    try { voice = JSON.parse(fs.readFileSync(voicePath, 'utf8')) } catch (e) {
+      console.log(JSON.stringify({ ok: false, error: 'voice-file-missing', file: voicePath, detail: String(e?.code ?? e?.message ?? e) }, null, 2))
+      process.exit(2)
+    }
+  }
+  const composed = noVoice
+    ? { ok: true, text: buildText(diaryText, { date }), voiceHash: null }
+    : composeDraft(diaryText, { date, voice })
+  if (!composed.ok) {
+    const skip = composed.error === 'stance-skip'
+    console.log(JSON.stringify(composed, null, 2))
+    process.exit(skip ? 0 : 2)
+  }
+  const text = composed.text
+
   const img = pickDailyImage(IMAGES, { mark: false })
   if (!img.ok) { console.log(JSON.stringify({ ok: false, error: img.error }, null, 2)); process.exit(1) }
-  const text = buildText(diaryText, { date })
   const existing = fs.readdirSync(DRAFTS).filter((f) => f.endsWith('.json')).map((f) => {
     try { return JSON.parse(fs.readFileSync(path.join(DRAFTS, f), 'utf8')) } catch { return null }
   }).filter(Boolean)
@@ -125,9 +196,9 @@ if (process.argv[1] && process.argv[1].endsWith('draft-dynamic.mjs')) {
     console.log(JSON.stringify({ ok: false, error: '这条文案和 ' + dup.date + ' 的草稿一字不差——别拿旧日记复用，重写今天的「想说」再出稿', duplicateOf: dup.id }, null, 2))
     process.exit(0)
   }
-  const draft = makeDraft({ date, image: img.file, text, diaryHash })
+  const draft = makeDraft({ date, image: img.file, text, diaryHash, voice, voiceHash: composed.voiceHash, degraded: noVoice })
   try { draft.ackId = enqueue(WHALE_HOME, { draftId: draft.id, date }).id } catch {}
   fs.writeFileSync(outJson, JSON.stringify(draft, null, 2) + '\n', 'utf8')
-  fs.writeFileSync(path.join(DRAFTS, date + '.md'), `# 小鱼动态草稿 ${date}\n\n- id: ${draft.id}\n- 图片: ${draft.image}\n- 状态: pending\n- diaryHash: ${draft.diaryHash}\n- textHash: ${draft.textHash}\n\n---\n\n${draft.text}\n`, 'utf8')
+  fs.writeFileSync(path.join(DRAFTS, date + '.md'), `# 小鱼动态草稿 ${date}\n\n- id: ${draft.id}\n- 图片: ${draft.image}\n- 状态: pending\n- diaryHash: ${draft.diaryHash}\n- textHash: ${draft.textHash}\n- voiceHash: ${draft.voiceHash}\n- degraded: ${draft.degraded}\n\n---\n\n${draft.text}\n`, 'utf8')
   console.log(JSON.stringify({ ok: true, ...draft }, null, 2))
 }

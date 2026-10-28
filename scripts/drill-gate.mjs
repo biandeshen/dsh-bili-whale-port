@@ -23,7 +23,7 @@ fs.writeFileSync(path.join(repo, 'tools', 'bili.mjs'),
   'if (a[0] === "feed") console.log("candidate BV1TESTTEST1 title=demo")\n' +
   'else if (a[0] === "debrief") console.log("标题: demo 雨声无人声\\nUP: 测试UP   时长: 44:00")\n' +
   'else console.log("ok")\n')
-fs.writeFileSync(path.join(repo, 'scripts', 'draft-dynamic.mjs'), 'console.log("DRAFT_WRITTEN")\n')
+fs.writeFileSync(path.join(repo, 'scripts', 'draft-dynamic.mjs'), 'console.log("DRAFT_WRITTEN " + process.argv.slice(2).join(" "))\n')
 
 process.env.BILI_WHALE_ROOT = repo
 process.env.WHALE_HOME = home
@@ -70,6 +70,7 @@ const diaryText = fs.readFileSync(path.join(home, 'whale-diary.md'), 'utf8')
 check('日记按天/按节写入且不重复', (diaryText.match(new RegExp('## ' + today, 'g')) || []).length === 1 && (diaryText.match(/## 看过/g) || []).length === 1)
 const okDraft = await tools.bili_draft_dynamic.handler({})
 check('debrief + 当天日记后 draft 放行', okDraft.includes('DRAFT_WRITTEN'))
+check('draft 调用必须带 --voice（人格状态进产物）', okDraft.includes('--voice'), okDraft.slice(-80))
 
 // —— 场景 3b：debrief 成功要把这条片子写进记忆（否则"有连续记忆"没有运行证据）
 const stateAfterDebrief = JSON.parse(fs.readFileSync(path.join(home, 'bili-whale', 'fields.json'), 'utf8'))

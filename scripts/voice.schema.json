@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "voice.schema.json",
+  "title": "VoiceBrief",
+  "description": "persona-core buildVoiceBrief 的输出；draft-dynamic 的 assertVoice 与此文件的 required 列表必须一致（有测试锁定）。",
+  "type": "object",
+  "required": ["v", "mood", "relation", "memories", "banned", "stance"],
+  "additionalProperties": false,
+  "properties": {
+    "v": { "const": 1 },
+    "mood": {
+      "type": "object",
+      "required": ["label", "intensity", "reason", "cause"],
+      "additionalProperties": false,
+      "properties": {
+        "label": { "type": "string", "minLength": 1 },
+        "intensity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "reason": { "type": "string" },
+        "cause": { "type": ["string", "null"] }
+      }
+    },
+    "relation": { "type": "string" },
+    "memories": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "required": ["id", "text", "why", "score"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "text": { "type": "string" },
+          "why": { "type": "string" },
+          "score": { "type": "number" }
+        }
+      }
+    },
+    "banned": { "type": "array", "items": { "type": "string" } },
+    "stance": {
+      "type": "object",
+      "required": ["share", "because"],
+      "additionalProperties": false,
+      "properties": {
+        "share": { "type": "boolean" },
+        "because": { "type": "string" }
+      }
+    }
+  }
+}
