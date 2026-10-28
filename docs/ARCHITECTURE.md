@@ -260,3 +260,92 @@ E:\WorkSpace_Qoder\
 - AMpath 调研：`~/.qoder/tmp/AMRESEARCH/01-field-emotion.md` … `04-runtime-proactive.md`
 - 上游快照：`~/.qoder/tmp/ampath-latest`（pin `8465cbb`）
 - 能力坐标：`BLUEPRINT.md` §3；更正记录：`BLUEPRINT.md` §9
+- 问题台账：`ISSUES.md`
+
+## 11. M0 实施规格（代码级）
+
+> M0 的目标只有一句：**让人格状态真正影响产物，并让测试真的跑起来**。以下每条都对应 `ISSUES.md` 的条目。
+
+### 11.1 输出链路（D-01）
+
+**`scripts/draft-dynamic.mjs` 变更**
+
+```js
+// 旧：buildText(diaryText, { max, date })
+// 新：buildText(diaryText, { max, date, voice })
+// voice 结构（由 World 组装后通过 --voice <file> 传入，或 handler 直接调纯函数）
+{
+  mood:    { label: '失落', intensity: 0.42, reason: '草稿被拒' },
+  relation:'normal' | 'cold_war' | ...,
+  memories:[ { text: '看过《…》—— BV1xx', why: '最近看过，分数 0.62' } ],   // 0–2 条
+  avoid:   [ { topic: '纯雨声', until: '2026-10-31' } ],                    // 被拒选题
+  last:    { status: 'rejected', reason: '选题重复' } | null
+}
+```
+
+组装规则（确定性，可单测）：
+
+| 条件 | 行为 |
+|---|---|
+| `voice` 缺失 | **拒绝出稿**，返回 `{ok:false, error:'missing-voice'}`，不退化 |
+| 当天日记标题命中 `avoid` 且未过期 | 拒绝出稿，`error:'rejected-topic'` |
+| `relation === 'cold_war'` | 正文不得出现"鱼片/主人"；违者拒绝 |
+| `mood.label ∈ {失落,想念,警觉,疲惫}` | 只出 1 句，不加回味句，不出现感叹号 |
+| `mood.label ∈ {雀跃,开心,满足,安稳}` | 允许 2 句，末句可回扣 `memories[0]` |
+| `memories.length > 0` 且 `why` 分数 > 0.5 | 允许加半句"前两天记下的…"，且必须能追溯到记忆 id |
+
+草稿记录新增字段：`voice`（快照）、`topic`（从日记标题提取）、`textHash`、`voiceHash`。`topic` 供 `avoid` 与 M4 的相似度判断。
+
+**验收（consumer assertion，新增 `tests/contract/voice.test.mjs`）**
+1. 同一日记 + `mood=雀跃` vs `mood=失落` → 文本必须不同，且失落版不得含"！"、句数 ≤1；
+2. `relation=cold_war` → 产出不含"鱼片"；
+3. 无 `voice` → `ok:false`；
+4. `avoid` 命中 → `ok:false`；
+5. 有记忆回扣时，正文必须能匹配到该记忆的 id/标题子串。
+
+### 11.2 记忆衰减与"记得"（D-02 / D-03）
+
+- `Memory` 增字段 `lastDecayedAt: string`；`applyEffects` 里改为按**每条记忆自己的** `lastDecayedAt` 计算天数并回写，不再用 `lastAppliedAt`。
+- `describeState` 的"记得"改为按 `score = 0.7*vividness + 0.3*recency` 取 top3，平局按 `createdAt desc`；带 `why`（分数与原因）。完整检索式（关键词/情绪/意外槽）留 M4。
+- `flashbulb`：`note` 路径的 `intensity` 由硬编码 0.5 改为按当时 `stimulation` 计算（`calculateEncodingStrength` 已有，但别把 arousal 当 intensity 用，需 clamp 到 [0.1,1]）。
+- **验收**：模拟 3 天后 `vividness` 必降且不同记忆降幅不同；50 条记忆里 top3 不再固定为最早三条。
+
+### 11.3 测试进闸（D-10 / D-11 / D-12）
+
+- 新增 `scripts/run-mjs-tests.mjs`：递归发现 `tests/**/*.test.mjs`、`persona-core/tests/*.test.mjs`，一次性交给 `node --test`，并**打印「发现 N / 执行 N / 通过 N」**；发现≠执行 直接非零退出。
+- `package.json` 的 `test` 改为 `vitest run && node scripts/run-mjs-tests.mjs`。
+- `tsconfig.json` 的 `include` 加入 `persona-core/**`；`npm run typecheck` 覆盖两处。
+- **门禁新增 consumer 检查**：`scripts/check-consumers.mjs`——断言 `buildText`、`describeState`、`decideWake` 在非测试代码里至少各有一个调用点。
+- **验收**：`npm test` 输出里 `发现 = 执行`；当前磁盘上是 **26 个 `.mjs` 测试文件**（dsh 22 + Cortico 4，约 45 个用例），全部必须被执行；故意删掉一个 `.mjs` 文件后计数同步变化；把 `buildText` 的调用点注释掉后 `check-consumers` 失败。
+
+### 11.4 包化与版本控制（D-15 / D-16 / E-07）
+
+- `Cortico/persona-core/package.json`：`{"name":"@xiaoyu/persona-core","private":true,"type":"module","exports":{"./":"./src/"}}`；`tsconfig.json` 用 project references 引用。
+- `Cortico` `git init`：首次提交前处理 `.gitignore` 的两个坑——
+  - `/deployments/` 被整体忽略，而 `deployments/mybot/prompts/ORIENTATION.md` 是人设正文 → 用 `git add -f` 单独纳入，并在 `ARCHITECTURE` 记为"已知例外"；
+  - `.env` 与 `credentials` 永远不入库（先跑 `git status` 人工确认）。
+- 上游 0.2.7 → 0.2.8 的升级**不在 M0**，只记录基线 commit。
+
+### 11.5 状态写者收敛（D-18）
+
+- 同进程内给 `persona.json` / `rhythm.json` 加**串行写队列**（Promise 链 + 原子写），消除 `rhythmTick` 与工具 handler 的写竞争。
+- 跨进程只有草稿/audit/待审队列，各自单写者，维持现状（`wx` + rename）。
+- **验收**：并发 20 次 `mood_apply` + 10 次 rhythmTick 模拟，最终 `persona.json` 可解析、`chain` 长度单调、无 JSON 截断。
+
+### 11.6 M0 完成定义（DoD）
+
+```
+cd E:/WorkSpace_Qoder/dsh-bili-whale && npm test          # 发现=执行，全绿
+cd E:/WorkSpace_Qoder/Cortico && npm run typecheck        # 含 persona-core
+node scripts/check-consumers.mjs                          # 三个导出都有生产调用
+node --test tests/contract/voice.test.mjs                 # 5 条 consumer 断言全过
+# 手工：同一日记 + 两种 mood 出稿，diff 必须非空
+cd E:/WorkSpace_Qoder/Cortico && git log --oneline -1      # 首次提交存在
+```
+**任何一项没输出，M0 就不算完成。** 完成后回写 `ISSUES.md` 对应条目的状态与证据。
+
+### 11.7 风险与回滚
+
+- `buildText` 签名变更会影响 `tests/contract/track-a.test.mjs` 的旧断言 → 先改测试再改实现，或同时改。
+- `voice` 必填会让**没有 World 上下文的调用方**（手工 CLI）失败 → CLI 增加 `--voice-file` 参数；确实手工调试时用 `--no-voice` 显式降级，并在输出里标注 `degraded:true`（不静默）。
+- `git init` 后若误提交 `.env`，用 `git rm --cached` 并从历史清理；提交前必须 `git status` 人工过一遍。
