@@ -7,6 +7,7 @@ import { canDraft, draftRefusal, canApplyWatched, watchedRefusal, violationNotic
 import { upsertDiarySection, DIARY_DEFAULT_HEADER } from './diary.ts'
 import { loadState, saveState, applyEffects, remember, describeState, PRESETS } from './personaAdapter.ts'
 import type { PresetEffect } from './personaAdapter.ts'
+import { buildVoiceBrief } from '../../../persona-core/src/voice-brief.ts'
 import { decideAction, restRecoveryDelta, actionCost, nextCheckDelay, dayKey, MIN_GAP_MS } from '../../../persona-core/src/rhythm.ts'
 
 const ROOT = process.env.BILI_WHALE_ROOT || 'E:/WorkSpace_Qoder/dsh-bili-whale'
@@ -427,7 +428,23 @@ class BiliAccountWorld {
           causal({ kind: 'discipline-violation', reason: 'draft-with-stale-diary', diaryMtime, atMs: Date.now() })
           return diaryRefusal()
         }
-        const args = a?.force ? ['--force'] : []
+        // 把人她此刻的状态交给草稿管线：缺 voice 会被 draft-dynamic 直接拒稿
+        const st = loadState(FIELDS_FILE)
+        const voice = buildVoiceBrief(st, { now: Date.now() })
+        if (!voice.stance.share) {
+          return `[skipped] 这一轮不想发：${voice.stance.because}（心情 ${voice.mood.label}）`
+        }
+        const day = new Date(Date.now() - 4 * 3600_000).toLocaleDateString('sv-SE')
+        const voiceFile = path.join(WHALE, 'bili-whale', 'control', `voice-${day}.json`)
+        try {
+          fs.mkdirSync(path.dirname(voiceFile), { recursive: true })
+          const tmp = voiceFile + '.' + process.pid + '.tmp'
+          fs.writeFileSync(tmp, JSON.stringify(voice, null, 2))
+          fs.renameSync(tmp, voiceFile)
+        } catch (e: any) {
+          return '[bili_draft_dynamic failed] 无法写入 voiceBrief：' + String(e?.message ?? e)
+        }
+        const args = [...(a?.force ? ['--force'] : []), '--voice', voiceFile]
         const r = await runNodeAsync(path.join(ROOT, 'scripts', 'draft-dynamic.mjs'), args, 90000)
         return r.out
       }),
