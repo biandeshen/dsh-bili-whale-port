@@ -9,7 +9,7 @@
 
 | 仓库 | 实际是什么 | 代码在哪 / 最近 | 许可 | 对我们的用途 | 形态 | 成本 |
 |---|---|---|---|---|---|---|
-| **bili-cli** | Python B站 Agent CLI（已 fork） | `main`（1.2.1，10-26），非骨架 | MIT | **M3 私信协议**；P2 元数据契约；M4 字段映射 | 抄协议 | M3 150–250 行 / 1 天 |
+| **bili-cli** | Python B站 Agent CLI（已 fork） | `main`（1.2.1，10-26），非骨架 | MIT | **M3 私信：子进程插件优先**；P2 元数据契约；M4 字段映射 | 插件 / 备选重写 | 0.5 天 / 1 天 |
 | **ai-trpg-engine** | 全栈 AI TRPG 单体，内含"确定性内核 + LLM 叙述" | `main`（08-30，上游已停维护） | **AGPL-3.0** | 事实包/禁止字段/后验校验；确定性记忆召回 | 抄设计 + 重写 | 召回 1–2 天；叙述层 2–4 天 |
 | **creator-ops-agent** | TS 内容运营骨架（Fastify+SQLite），**无调度器** | `codex/operation-feedback-loop`（10-27） | 无 | 能力三态、审批≠执行、CAS 语义、账号隔离 | 抄设计 | 0.5–1 天（只落文档/字段） |
 | **Cyrene-Agent** | Electron+TS Live2D 伴侣 | `master`（07-16） | MIT | **L5 首选**：渲染层可剥 | 抄实现 | 1–2 天（换模型+接事件桥） |
@@ -31,23 +31,25 @@
 
 ## 1. 三条"立刻能用"（本周）
 
-### 1.1 M3 私信读取（最高价值，接口已核到字段级）
-来源：`bili-cli/src/bili_cli/commands/dm.py`（MIT，已本机核实存在）。
+### 1.1 M3 私信读取（最高价值；**插件优先**，2026-10-28 修订）
 
-```
-GET https://api.vc.bilibili.com/session_svr/v1/session_svr/get_sessions
-    ?session_type=1&group_fold=1&unfollow_fold=0&sort_rule=2&build=0&mobi_app=web[&end_ts=<末条 session_ts>]
-GET https://api.vc.bilibili.com/svr_sync/v1/svr_sync/fetch_session_msgs
-    ?talker_id=<OWNER_MID>&session_type=1&size=30&build=0&mobi_app=web[&end_seqno=<最小 msg_seqno>]
-GET https://api.vc.bilibili.com/session_svr/v1/session_svr/new_sessions   （增量，begin_ts 微秒）
-```
+> 原先写的是"抄协议、Node 重写 150–250 行"。主人指出：**CLI 可以当插件用，不必抄代码**。按 `ARCHITECTURE.md` §2.3 的判定树，只读/低频走插件，因此 M3 默认方案改为 **A. 子进程插件**，重写降为备选。
 
-- Cookie：读只需 `SESSDATA + DedeUserID`；写（发信/ack）才要 `bili_jct`。`Referer: https://message.bilibili.com`。
-- 字段：`session_list[].talker_id / unread_count / session_ts(微秒=lastContactAt) / last_msg`；`messages[].sender_uid / msg_type / content(JSON 字符串) / msg_seqno / timestamp(秒)`。
-- **`msg_source=8` 是 B 站自动回复，不算主人已回**——这条直接决定 M3 的正向输入是否误判。
-- 只读、不发、不 ack（ack 会让主人端"未读"消失，属对外可见副作用，M3 不要）。
-- 我们已有：`tools/lib/traffic.mjs` 的读预算、`tools/lib/config.mjs` 的凭据加载、`tools/commands/dm.mjs`（**只有发送**）。
-  → 新增 `tools/commands/dm-read.mjs` 约 150–250 行，**不必从 Python 翻译整个库**。
+**A. 插件方案（默认，约 0.5 天）**
+- 命令（已核实存在于 bili-cli `main`）：
+  - `bili dm list [--unread] [--limit N]` → `{"items":[{talker_id, unread_count, last_msg, auto_reply}]}`
+  - `bili dm read <uid|owner> [--limit N] [--mark-read]` → 按时间顺序的消息 JSON（`from: me|them`、`text`、`type`）
+- 凭据：bili-cli 读 `%APPDATA%\bili-cli\credential.json`，**支持 `BILI_CLI_HOME` 覆盖**。我们建一个受管目录（不进 git），从 `~/.bili-ai/credentials.json` 同步 `sessdata / bili_jct / dedeuserid` 三个字段即可，不改它的代码。
+- 运行时：Python ≥3.10；`pip install -e` 或 `pipx`。
+- 我们这边：新增 `tools/commands/dm-read.mjs` **约 80–120 行**——spawn + 超时 + JSON 归一化成工具回执 + 错误码映射；**不 ack、不发**。
+- 风险：依赖 `bilibili-api-python==17.4.2` 已归档（pin 死），协议若变则失效 → 记入 `PORT-LEDGER.md` 的依赖指纹，失效时切换 B。
+
+**B. 重写方案（备选，约 1 天）**
+- 接口已核到字段级（`get_sessions` / `fetch_session_msgs` / `new_sessions`），Node 重写 150–250 行 + 测试；无 Python 依赖、错误语义统一、可与 `traffic` 读预算直接打通。
+- 触发条件：A 失效、或我们要求所有读取都走同一个预算账本（bili-cli 自带 `guard.py` 只限写，读不受我们的预算管）。
+
+**共同约束**：只读；`msg_source=8` 是 B 站自动回复，**不能算主人已回**；`session_ts` 是微秒 → `lastContactAt = session_ts/1e6`。
+
 
 ### 1.2 测试真的跑起来（治 D-10）
 - `zhijing` 的 `package.json` 用的就是 `node --test tests/*.test.mjs` —— 与 `ARCHITECTURE.md` §11.3 一致，可直接照搬并加"发现=执行"断言。
