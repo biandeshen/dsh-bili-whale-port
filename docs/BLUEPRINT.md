@@ -157,7 +157,11 @@
 | **decisionctl** | 治理 | 46 + 治目标漂移 | 未借。时间权威模型（创建/激活/废弃分离）——本文件存在的意义正是它要解的问题 |
 | **project-atlas** | 治理 | 文档地图 | 未借 |
 | **multi-agent-hub** | 治理 | 41 / 49 | 未借 |
-| **bili-cli**（MIT，已 fork） | 渠道 | 11 / 3 + ASR | 排序靠后 |
+| **bili-cli**（MIT，已 fork） | 渠道 | 11 / 3 + ASR + **17 私信** | 排序靠后；M3 走**子进程插件**（`bili dm list/read`），重写为备选 |
+| **dsh-video-studio**（MIT，npm 0.4.3） | 渠道 | 11 / 3 视频渲染 | 核心 `render/media/cover` 不依赖 DSH 宿主，可库级引入；P2 |
+| **dsh-bili-workbench**（MIT） | 渠道 | 11 / 3 出片流水线 | `bili-op/` 是独立引擎（脚本→配音→渲染→封面，不自动发布），可子进程跑；P2 |
+| **dsh-autocut**（MIT） | 渠道 | 视频剪辑 / 剪映草稿 | 入口绑 DSH，需剥 `lib/`；P2 后 |
+| **dsh-voice**（MIT，npm 0.4.3） | 渠道 | 10 语音 | 绑 DSH 运行时；优先直接用 Edge-TTS；P3 |
 | **video-summarizer** | 渠道 | 3 / 21 | 排序靠后 |
 | **minicpm-o-voice-manager** | 渠道 | 10 | 排序靠后 |
 | **Coopanion / Cortico 生态** | 呈现 | L5 | **待评估**（v1 误标"弃用"）。主人 10-25 09:06 原话：「Coopanion 这个软件说实话就完全能满足我们的需求吧，甚至我感觉它比当前的这个项目更先进呢」——是正面评价，无弃用指令 |

@@ -117,3 +117,24 @@
 | §4.5 持久任务 | creator-ops-agent 的 CAS/事件形状（§2.2），**调度器仍需自建** |
 | §7 门禁与治理 | project-atlas、decisionctl、AI-Engineering-Orchestrator、strategy-council、zhijing（§1.2–1.3） |
 | §9 L5 / Q-02 | Cyrene-Agent（§3） |
+
+## 8. DSH 插件生态（2026-10-28 新增，来源：主人给的 DeepSeek 分享）
+
+> 分享原文描述的是一套"大鲸鱼"自主运营的 DSH 插件栈。**它们是 DSH 插件，不是 Cortico World**——不能直接加载，但多数核心可剥成库或子进程。已逐个核实存在性、许可与耦合度。
+
+| 插件 | 来源 / 版本 | 许可 | 与 DSH 的耦合 | 我们怎么用 | 阶段 |
+|---|---|---|---|---|---|
+| **dsh-video-studio** | npm `0.4.3`（仓库 `litao36253/dsh-video-studio` 为空，包本身完整） | **MIT** | **核心零耦合**：`render.js / media.js / cover.js / ffmpeg.js` 不引用 `ctx`，纯 Node + ffmpeg，零运行时依赖（Node ≥22，仅 Windows） | **库级引入**：把 `render(spec, config)` 包成我们的 `video_build` 工具（或 spawn） | P2 |
+| **dsh-bili-workbench** | `xiaweihuaniubi/dsh-bili-workbench`（2★，10-27） | **MIT** | 拆成两半：`client.js` 是 DSH web UI；**`bili-op/` 是独立引擎**（`gen.mjs/tts.mjs/build.mjs`，脚本→配音→渲染→封面，**不自动发布**，仅依赖 sharp） | **子进程插件**：直接跑 `bili-op` 流水线；它自己也用 spawn 调 `bili` CLI | P2 |
+| **dsh-autocut** | `lolistlisa/dsh-autocut` v0.3.0（1★） | **MIT** | 入口 `index.js` 绑 `@deepseek-ai/dsh-tools`；`lib/`（timeline/export/render/sound）可能可剥 | 二期：先评估剥 `lib/timeline` + 剪映草稿导出；否则只借设计 | P2 后 |
+| **dsh-voice** | npm `0.4.3`（`STARDUSTLC666/dsh-voice`） | **MIT** | 绑 DSH 运行时（`engines.dsh>=0.2.1-rc.3`，依赖 `@stardustlc/dsh-updates`、ws、undici） | 不直接当插件；若需要 TTS，优先直接走 Edge-TTS（免费、无宿主依赖），把它当协议参考 | P3 |
+| **dsh-whale-maid**（多实现） | `lov0vo` / `yefeng7531`(9★) / `Sun-L1` | 各异 | 精灵图 + 状态机，DSH web UI 内嵌 | L5 备选；我们已有 Cyrene（MIT）渲染层 | P3 |
+
+**同域其它候选**（供 P2 比较）：`q253595422/dsh-imagegen-video`（64★，图+视频无限画布）、`fengyungithub/dsh-short-video-studio`（34★，ComfyUI）、`hackerFish/dsh-video-studio`（鲸影，六段导演流水线）。
+
+**接入原则（与 ARCHITECTURE §2.3 一致）**
+- 只取**能脱离 DSH 宿主运行**的部分：库（`dsh-video-studio` 核心）或子进程（`bili-op`）；**不引入 DSH 插件生命周期**。
+- 写操作（投稿）仍必须过我们的 `traffic + ack` 闸；`bili-op` 默认"不自动发布"正好符合。
+- **一处不照抄**：分享里说"默认勾选含 AI 生成内容声明"——主人 2026-10-28 已明确不做 AI 标识，我们不采用该默认。
+- **署名**：分享确认鲸鱼娘是基于 UP 主「上善无形」的原创角色「溟月」的二创，与我们 `CREDITS.md` 的 CC BY-NC-SA 记录一致，发布时必须保留署名。
+

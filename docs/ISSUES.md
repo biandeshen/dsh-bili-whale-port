@@ -53,11 +53,12 @@
 |---|---|---|---|---|
 | Q-01 | **EmergentDimension（涌现维度）做不做** | AMpath 自列核心壁垒；但 **2026-10-28 三路盘点确认：`AMPath-WorldModel` 是离线训练管线、`AMPath-MEE` 明确不含涌现维度——上游没有任何可用实现** | A 从零做（成本最高）/ B 不做（接受"人格不生长"）/ C 暂缓到 M4 后（推荐：先跑通 M0–M4 再评估） | NEED-USER |
 | Q-02 | **Coopanion 是否进 L5** | 你 10-25 原话"完全能满足需求，甚至比当前项目更先进"；无弃用指令。盘点结论：`Cyrene-Agent`（MIT）的渲染层是许可干净的首选，`desktop-pet` 受 Live2D 重分发条款限制不可发布 | A 接 Cyrene 式渲染层 / B 保持 WebUI / C 先不决定 | NEED-USER |
-| Q-03 | **A/C（MemoryWeaver 精华）范围与时机** | 10-27 05:52 已出职责切分；前提"先看 AMpath 的 memory/retrieval 多完整"**现已查明**。另有新选项：`ai-trpg-engine` 的确定性召回（210 行、无向量库、可复现）比 MemoryWeaver 更贴合 200–2000 条规模 | A M4 先落 ai-trpg 式确定性召回，图谱/演化后置（推荐）/ B M1 就并入 / C 只抄检索不抄图谱 | NEED-USER |
-| Q-04 | **视频/直播的启动时机** | 是能力不是非目标（10-27 04:58 原话） | A M4 之后 / B 与 M4 并行 / C 等 7 天自运行达成 | NEED-USER |
+| Q-03 | **A/C（MemoryWeaver 精华）范围与时机** | 10-27 05:52 已出职责切分；前提"先看 AMpath 的 memory/retrieval 多完整"**现已查明**。另有新选项：`ai-trpg-engine` 的确定性召回（210 行、无向量库、可复现）比 MemoryWeaver 更贴合 200–2000 条规模。**主人 2026-10-28 已同意"能做插件就做插件"** | A M4 先落 ai-trpg 式确定性召回，图谱/演化后置（推荐）/ B MemoryWeaver 以**子进程插件**形态接入（JSON-lines，不做代码级适配）/ C 只抄检索不抄图谱 | NEED-USER |
+| Q-04 | **视频/直播的启动时机** | 是能力不是非目标（10-27 04:58 原话）。**新供给**：`dsh-video-studio`（MIT，核心零耦合）可库级引入；`dsh-bili-workbench` 的 `bili-op/` 可子进程跑（默认不自动发布） | A M4 之后先做视频（有现成插件）/ B 与 M4 并行 / C 等 7 天自运行达成 | NEED-USER |
 | Q-05 | **AI 内容标识** | 红队4 认定为法律风险；你 2026-10-28 明确"不要这个第 0 项" | 已按你的决定不做 | DECIDED-NO |
 | Q-06 | **`connection` 的语义与符号** | 上游 `embodiment/temporal-rates.ts:90-104` 在"长时间无互动"时给 `connection **+**0.001×lonelyUnits`（孤独→连接上升）；但 `npc-state-machine.ts:75-91` 又把 `connection<0.3` 当作冷战条件。两者可能语义冲突：若 connection 是"连接感"，孤独不该让它上升；若是"渴望连接"，则冷战条件反了 | A 按"连接感"（孤独下降，需外部输入回补）/ B 按"渴望"（孤独上升，冷战另立阈值）/ C 先只做状态机、不加孤独项 | NEED-USER |
 | Q-07 | **是否采用上游的昼夜节律项** | 上游按小时窗口结算（23–5 睡、6–9 晨、13–15 午后低谷，`temporal-rates.ts:84-92`），与我们"作息由状态决定、不设时间表"的决定可能冲突 | A 只作缓慢背景漂移，不参与醒/睡决策 / B 完全不用 / C 用但要可配置 | NEED-USER |
+| Q-08 | **是否允许 DSH 作为"视频/语音侧车"** | 部分 DSH 插件（`dsh-voice`、`dsh-autocut` 入口）绑 DSH 运行时，剥不干净。跑第二个宿主能直接用，但代价是双宿主/双模型/双状态 | A 不引入第二宿主，只用能剥出的库（推荐）/ B 允许 DSH sidecar 专做视频语音 / C 等 P2 再定 | NEED-USER |
 
 ## 4. 环境与流程约束（BLOCKED / 需处理）
 
