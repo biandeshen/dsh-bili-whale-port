@@ -7,7 +7,7 @@
 
 | 文件 | 改动 |
 |---|---|
-| `Cortico/persona-core/src/decay.ts` | 删 `COUPLING_CAP_MS=12h`；`MAX_SETTLE_MS=24h`；正向耦合 `social>0.6 → mood +0.01/天`、`connection>0.6 → 恢复 ×1.5`；1h 步长积分 |
+| `Cortico/persona-core/src/decay.ts` | 删 `COUPLING_CAP_MS=12h`；`MAX_SETTLE_MS=24h` 只封**硬耦合**（衰减按真实时长跑满，靠基线截断）；正向耦合 `social>0.6 → mood +0.01/天`、`connection>0.6 → 恢复 ×1.5`；1h 步长积分 |
 | `Cortico/persona-core/src/rhythm.ts` | `REST_RECOVERY_PER_HOUR` 0.003 → 0.005（理由见 §3） |
 | `Cortico/src/worlds/bili-account/definition.ts` | `asleep = now - lastActionAt >= 6h`；恢复只在睡着时生效；`life-status.json` 增加 `asleep` |
 | `Cortico/persona-core/tests/core.test.mjs` | 12h 封顶测试改为“不再封顶 / 24h settle 上限 / 正向耦合” |

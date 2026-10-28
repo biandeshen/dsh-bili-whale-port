@@ -234,9 +234,10 @@ World 取 L3 上下文                     draft-dynamic 组装               �
   - `sensors/stats.ts`：自己动态的互动数（`bili_stats`），供 #21。
     **口径修正**：B 站动态接口只给赞/评/转（`module_stat`），**拿不到阅读数**；M4 的验收只能用互动率，不能用曝光。
 - **正向输入的规则**：入站消息 → `connection +0.05..0.10`（有界、按日上限），且来源写 `inbound`；**模型自称 `masterReplied` 不能加 connection**（`sanitizeEffects` 已强制 `source=custom`，这里再加一道：`masterReplied` 只允许由传感器事件触发）。
-- **拆分 `trust` 与 `connection`**：现在 `trust = connection` 是别名，导致"信任恢复"与"连接感"绑死、`reunion` 不可达。
-- **验收**：注入一条入站消息 → `connection` 上升、`cold_war` 可在 24h 内退出；不注入时仍会自然下滑（不破坏"被冷落会难过"）。
-- **待澄清（Q-06）**：上游 `temporal-rates.ts:90-104` 在长时间无互动时给 `connection **+**0.001×lonelyUnits`，与状态机的 `connection<0.3 → cold_war` 语义可能冲突（若 connection 是"连接感"，孤独不该让它上升）。M3 动手前必须先定语义，否则会做出"越孤独越不冷战"的怪行为。
+- **`bond` 与 `connection` 拆分（Q-06 已按团队裁决实现，2026-10-29）**：`connection` 保持场值存量语义不动；`npcState.bond.level` 承载关系存量，只在收到用户消息时 +0.1。`trust = connection` 别名已删；`reunion` 由 `bond` 相对冷战起点回升 ≥0.1 触发，五态可达。
+- **无接触证据不判冷战**：从未收到过用户消息时关系显示「未判定」，`connection` 再低也不进 `cold_war`（修掉"素未谋面就冷战"）。
+- **验收**：注入一条入站消息 → `connection` 上升、`bond` 上升；有过接触且 `connection<0.3` 持续 24h → `cold_war`；冷战期消息 → `missing` → `repairing` → `reunion`。不注入时仍会自然下滑（不破坏"被冷落会难过"）。
+- **仍待 M3**：`masterReplied` 目前仍可由模型通过 `bili_mood_apply` 自填（D-04）；入站传感器接入后，接触证据只认私信事件。
 - **可选（Q-07）**：上游另有按小时窗口的昼夜节律项（23–5/6–9/13–15）。若采纳，只能作缓慢背景漂移，**不得参与醒/睡决策**，否则违反"作息由状态决定、不设时间表"。
 
 ## 5. 与 AMpath 的同步策略
@@ -435,7 +436,7 @@ tick:
 - **来源预算**：仿上游 `embodiment/temporal-rates.ts` 的 `sourceBudgets` 结构——每类来源一个 id、一个每日上限；超出后该来源当次 delta 归零，但**仍写进预算账本**（便于解释"为什么今天不再变"）。
   建议初值：`rest` 0.25/天、`watch` 0.30/天、`reply` 0.20/天、`decay` 无上限。
 - **正向耦合（新增，上游没有）**：`social>0.6` → mood +0.01/天；`connection>0.6` → energy 恢复 ×1.5。目的是让"被陪着"真的能把她托起来，打破"三条耦合全下压"。
-- **场值解冻（2026-10-29 已落地）**：`COUPLING_CAP_MS` 已删除，改为 `MAX_SETTLE_MS=24h`（一次结算最多按一天计）；正向耦合按本节规格实现（`social>0.6 → mood +0.01/天`、`connection>0.6 → 恢复 ×1.5`）。
+- **场值解冻（2026-10-29 已落地）**：`COUPLING_CAP_MS` 已删除，改为 `MAX_SETTLE_MS=24h` 只封**硬耦合**（衰减跑满真实时长，靠 `decayAtomicFields` 基线截断）；正向耦合按本节规格实现（`social>0.6 → mood +0.01/天`、`connection>0.6 → 恢复 ×1.5`）。
 - **醒/睡（2026-10-29 已落地）**：`asleep = now - lastActionAt >= 6h`，`rest` 恢复只在睡着时生效，写入 `life-status.json`。恢复速率由 0.003 调到 0.005/h：0.003 在 30 天模拟里体力卡在 0.15–0.2，触发 `energy<0.2` 耦合把 mood 钉到 -1；0.005 稳定在 0.55–0.65（seed 42/7，`scripts/simulate-rhythm.mjs`）。这是对修订案"不改速率"的**有证据偏离**，待团队复核。
 
 ### 12.3 生活活动（治"97% 歇够了"）
@@ -443,7 +444,7 @@ tick:
 上游 `packages/server/src/engine/business/life-generator.ts`：
 
 - **7 类活动**：`rest / explore / create / social / reflect / exercise / consume`，各有 field effects 与时长区间（15–90 分钟）。
-- **描述轮换**：每类有 4–5 条文案，按时钟取模轮换——这是"同一类活动但说法不同"的关键；我们只借文案表与轮换，不借它的字段效果表（它的 `social` 给 connection +0.1，与 Q-06 的语义冲突未定）。
+- **描述轮换**：每类有 4–5 条文案，按时钟取模轮换——这是"同一类活动但说法不同"的关键；我们只借文案表与轮换，不借它的字段效果表（Q-06 已定：`connection` 只由与主人接触提升，活动里的 `social → connection +0.1` 不照搬）。
 - **与我们的 `rhythm.ts` 的关系**：`decideWake` 决定"醒不醒"，`life-activities` 决定"醒了做什么"。现在只有前者，后者缺失，所以醒来只会"看片/歇着"。
 - **接线方式**：唤醒文本里给 2–3 个候选活动（带文案），由模型选一个；**选择结果写回 `life.json.lastKind`**，用于后续统计与漂移。
 
@@ -458,6 +459,6 @@ tick:
 
 ### 12.5 风险
 
-- **Q-06 未定前不要动 `connection` 的符号**，只做"正向耦合"的新增项，不回改上游语义。
+- **Q-06 已定（2026-10-29）**：`connection` 符号不动；关系存量走 `bond`；生活活动不照搬上游"social → connection +0.1"的效果表。
 - **Q-07 未定前不要引入小时窗口**，否则会重新引入"按钟点作息"。
 - 情绪投影会让旧 drill 的断言失效（现在断言"平静"文案），需要同步改测试——**先改断言再改实现**。
