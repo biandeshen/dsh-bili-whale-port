@@ -216,10 +216,11 @@ World 取 L3 上下文                     draft-dynamic 组装               �
 - **保留自研 `rhythm.ts`**（随机门、日上限、connectMisses、冷战收敛），补两个缺口：
   - `restPressure` 独占 → 增加 `life-activities`（7 类有内容的活动 + 描述轮换），解决"97% 行动共用一句歇够了"。
   - 系统没有"醒/睡"状态变量 → 增加 `state`（awake/asleep）并据此决定是否应用 rest 恢复（当前每 tick 无条件恢复，导致体力恒满）。
-- **持久任务（搬 `world-task.ts`，65 行纯函数）**：
-  - `taskId = kind:npc:due` 做幂等键；`claim` 置 running+attempt；`complete` 从完成时刻重排；`fail` 指数退避；`recover` 把 running 改成立即重试。
-  - 宿主侧（150–250 行）：状态落盘 + 启动恢复 + 30–60s 扫描；`setTimeout` 降级为提示。
-  - 验收：唤醒进行中 `kill -9`，重启后同一 taskId 重放一次且不重复推送。
+- **持久任务（2026-10-29 已落地，简化版）**：
+  - `control/queue.json` + `src/worlds/bili-account/task-queue.ts`：任务 `{id, kind, dueAt, text, status, attempts}`；先落盘再推送，投递失败重试 5 次进 `dead`；pending 超过 24h 作废（提示里是旧状态快照）；启动时补投 pending。
+  - 语义是 **at-least-once**：投递成功后才标记 `delivered`，崩溃窗口内可能重放一条提示——对"提示"可接受，对写操作不适用（写仍走审批/幂等）。
+  - 宿主侧的 `setTimeout` 仍是节拍器；队列保证"意愿不丢"，不追求 recurring 调度。
+  - 验收：构造 pending 任务 → 重启后按状态补投/作废；`tests/task-queue.test.mjs` 覆盖到期、成功、失败、作废、清理。
 - **离线结算**：持久化 `lastSettledAt`；启动时按 10s 网格（上限 24h）结算衰减 + 一次 drive 快照 + 事件摘要。维度衰减不搬（无 EmergentDimension）。
 - **验收**：进程重启后排程不丢；`life.json` 里 `lastKind` 不再恒为 forced/restless。
 
