@@ -59,19 +59,19 @@ export function decayAtomicFields(fields: AtomicFields, dtMs: number): AtomicFie
 }
 
 /**
- * 硬耦合只在"最近一次结算窗口"内计息，最多算 COUPLING_CAP_MS。
+ * 硬耦合：负向（缺刺激/体力低/孤独）与正向（被陪着）都有，按 1h 步长积分。
  *
- * 为什么不能按真实离线时长线性算：AMpath 是每秒 tick，两次交互之间通常只有几十分钟，
- * 耦合永远累积不到极端值。我们按"离线一次补算"传大 dt，一周不上线就会把 mood 压到 -1、
- * social 顶到 1，而且没有任何机制拉回来——人物画像直接失真。
- * 这里的取舍：离线很久只说明"她最近没人陪、也没什么可看"，掉了 12 小时的分量就够了，
- * 不该按天数无限叠加。步长 1h 保证与连续 tick 的结果量级一致。
+ * 历史包袱：曾有 COUPLING_CAP_MS=12h 的封顶，导致"在线 168h 比离线 12h 罚得重 14 倍"，
+ * 反而把场值冻结固化了。现在不在耦合层封顶——由调用方把一次结算限制在 24h（MAX_SETTLE_MS）。
  */
-export const COUPLING_CAP_MS = 12 * 3600_000;
 const COUPLING_STEP_MS = 3600_000;
+
+/** 一次离线/累计结算最多按 24h 计（再久也只当一天），避免跨周直接把场值钉到端点。 */
+export const MAX_SETTLE_MS = 24 * 3600_000;
 
 function applyCouplingsStep(fields: AtomicFields, dtSec: number): AtomicFields {
   const result = { ...fields };
+  // 负向：长期低体力 / 低刺激会拖心情；孤独会把"社交需求"顶高
   if (result.energy < 0.2) {
     result.mood = clamp(result.mood - 0.000005556 * dtSec, -1, 1);
   }
@@ -81,14 +81,20 @@ function applyCouplingsStep(fields: AtomicFields, dtSec: number): AtomicFields {
   if (result.stimulation < 0.1) {
     result.mood = clamp(result.mood - 0.000002778 * dtSec, -1, 1);
   }
+  // 正向（M1，ARCHITECTURE §12.2）：被陪着能把她托起来，否则三条耦合全是下压
+  if (result.social > 0.6) {
+    result.mood = clamp(result.mood + (0.01 / 86400) * dtSec, -1, 1);       // +0.01/天
+  }
+  if (result.connection > 0.6) {
+    result.energy = clamp(result.energy + (0.0005 / 3600) * dtSec, 0, 1);   // 恢复 ×1.5
+  }
   return result;
 }
 
 export function applyHardCouplings(fields: AtomicFields, dtMs: number): AtomicFields {
   if (!(dtMs > 0)) return { ...fields };
-  const capped = Math.min(dtMs, COUPLING_CAP_MS);
   let result = { ...fields };
-  let left = capped;
+  let left = dtMs;
   while (left > 0) {
     const step = Math.min(left, COUPLING_STEP_MS);
     result = applyCouplingsStep(result, step / 1000);
@@ -97,8 +103,9 @@ export function applyHardCouplings(fields: AtomicFields, dtMs: number): AtomicFi
   return result;
 }
 
-/** 离线补算：从上次交互到现在，一次性结算场值漂移。 */
+/** 离线补算：从上次交互到现在，一次性结算场值漂移（最多 24h）。 */
 export function simulateOfflineTime(fields: AtomicFields, dtMs: number): AtomicFields {
   if (!(dtMs > 0)) return { ...fields };
-  return applyHardCouplings(decayAtomicFields(fields, dtMs), dtMs);
+  const capped = Math.min(dtMs, MAX_SETTLE_MS);
+  return applyHardCouplings(decayAtomicFields(fields, capped), capped);
 }

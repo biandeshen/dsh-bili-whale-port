@@ -252,7 +252,11 @@ class BiliAccountWorld {
           causal({ kind: 'draft-result-consumed', applied: settled.applied, at: new Date().toISOString() })
         }
         const hours = Math.max(0, (now - Date.parse(state0.lastAppliedAt || '')) / 3600_000)
-        const recovery = restRecoveryDelta(settled.state.fields, hours)
+        // 醒着不回体力：一轮行动后至少 6h 没有动作才算睡下，恢复只在睡着时生效。
+        // 这不是给她排作息表，而是"刚忙完不会立刻又满血"——醒睡由她自己的动作推导。
+        const sinceActionH = mem.lastActionAt ? (now - Number(mem.lastActionAt)) / 3600_000 : Infinity
+        const asleep = sinceActionH >= 6
+        const recovery = asleep ? restRecoveryDelta(settled.state.fields, hours) : 0
         const restEffects = recovery > 0 ? [{ field: 'energy' as const, delta: recovery, source: 'rest', priority: 2 }] : []
         let state = applyEffects(settled.state, restEffects, '睡着的时候，体力慢慢回来', { source: 'rest', now })
         saveState(FIELDS_FILE, state)
@@ -314,6 +318,7 @@ class BiliAccountWorld {
           actionsToday: mem.actionsToday,
           lastActionAt: mem.lastActionAt ?? null,
           lastKind: mem.lastKind ?? null,
+          asleep,
           updatedAt: new Date(now).toISOString(),
         })
       } catch (e: any) {

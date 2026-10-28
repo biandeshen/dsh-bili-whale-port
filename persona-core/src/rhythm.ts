@@ -38,8 +38,13 @@ export const MIN_GAP_MS = 2.5 * 3600_000
 export const MAX_ACTIONS_PER_DAY = 3
 /** 每次 5 分钟评估的基准概率（还要乘驱动强度） */
 const CHECK_PROB = 0.05
-/** 休息时体力恢复速度（每小时）——一天回 ~0.072，只够一到两轮活动 */
-export const REST_RECOVERY_PER_HOUR = 0.003
+/**
+ * 休息时体力恢复速度（每小时）——只在睡着（距上次行动 ≥6h）生效。
+ * 0.003/h 是"24h 都在歇"的旧口径；睡着按每天 ~16h 算只回 0.048，
+ * 追不上 1–2 轮活动的 0.07–0.14，实测 30 天会卡在 0.15–0.2 的疲劳门附近。
+ * 0.005/h × 16h ≈ 0.08/天，够一到两轮活动，又不会"满血恒久"。
+ */
+export const REST_RECOVERY_PER_HOUR = 0.005
 /** 行动一轮的基础体力开销（含看片/写日记），一天一轮 ≈ 恢复量，连做三天就会累 */
 export const ACTION_COST_ENERGY = 0.05
 /** 歇够多久开始"想活动一下"（小时），到 REST_FULL_HOURS 达到满值 */

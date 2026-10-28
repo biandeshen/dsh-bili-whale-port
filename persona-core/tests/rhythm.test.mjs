@@ -60,7 +60,7 @@ test('rhy：冷战时不主动找他，但自己待烦了照样会醒', () => {
 })
 
 test('rhy：睡着时体力按小时恢复，满了不溢出', () => {
-  assert.ok(Math.abs(restRecoveryDelta(F({ energy: 0.5 }), 5) - 0.015) < 1e-9)
+  assert.ok(Math.abs(restRecoveryDelta(F({ energy: 0.5 }), 5) - 0.025) < 1e-9)
   assert.equal(restRecoveryDelta(F({ energy: 1 }), 24), 0)
   assert.equal(restRecoveryDelta(F({ energy: 0.5 }), 0), 0)
 })
@@ -96,7 +96,8 @@ test('10 天模拟：醒几次、几点醒由状态+抖动决定，不跟随固�
   while (t < end) {
     t += 5 * 60_000
     fields = decayAtomicFields(fields, 5 * 60_000)
-    fields = { ...fields, energy: Math.min(1, fields.energy + restRecoveryDelta(fields, 5 / 60)) }
+    const sinceActionH = m.lastActionAt ? (t - m.lastActionAt) / 3600_000 : Infinity
+    if (sinceActionH >= 6) fields = { ...fields, energy: Math.min(1, fields.energy + restRecoveryDelta(fields, 5 / 60)) }
     if (m.day !== dayKey(t)) m = { ...m, day: dayKey(t), actionsToday: 0 }
     const d = decideAction({ fields, relation: 'normal', now: t, mem: m, rng })
     if (!d.act) continue

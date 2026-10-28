@@ -122,23 +122,33 @@ test('场值衰减：dt<=0 不动，clamp 不越界', () => {
   assert.equal(decayed.connection, 0)
   assert.equal(decayed.mood, 0) // 不越过基线
   assert.equal(decayed.energy, 1)
-  // 长期零刺激：硬耦合继续压心情（AMpath 原模型语义）
-  const long = simulateOfflineTime(f, 365 * 86400_000)
-  assert.equal(long.stimulation, 0)
-  assert.ok(long.mood <= 0)
 })
 
-test('硬耦合：离线再久也只按 12 小时计息，不会把心情压到 -1', () => {
-  const f = { ...DEFAULT_ATOMIC_FIELDS, energy: 0.1, mood: 0.0, connection: 0.05, stimulation: 0.0 }
-  // 只看耦合本身：衰减会先把 connection/social 拉到基线，混在一起比会掩盖问题
-  const week = applyHardCouplings(f, 7 * 86400_000)
-  const year = applyHardCouplings(f, 365 * 86400_000)
-  assert.ok(Math.abs(week.mood - year.mood) < 1e-9)
-  assert.ok(Math.abs(week.social - year.social) < 1e-9)
-  // 但确实掉了一层，不是不生效
-  assert.ok(week.mood < f.mood)
-  // 12h × 0.02/h（体力低） + 12h × 0.01/h（零刺激） ≈ -0.36，不会触底
-  assert.ok(week.mood > -0.4, 'mood 不应被压到极端值，实际 ' + week.mood)
+test('离线结算：最多按 24 小时计（MAX_SETTLE_MS），更久不叠加', () => {
+  const f = { ...DEFAULT_ATOMIC_FIELDS, energy: 0.1, mood: 0.5, stimulation: 0, connection: 0.05 }
+  const day = simulateOfflineTime(f, 24 * 3600_000)
+  const week = simulateOfflineTime(f, 7 * 86400_000)
+  const year = simulateOfflineTime(f, 365 * 86400_000)
+  assert.deepEqual(week, day)
+  assert.deepEqual(year, day)
+})
+
+test('硬耦合：不再按 12 小时封顶，离线/在线同一套积分', () => {
+  const f = { ...DEFAULT_ATOMIC_FIELDS, energy: 0.1, mood: 0.5, stimulation: 0.0 }
+  const h12 = applyHardCouplings(f, 12 * 3600_000)
+  const h13 = applyHardCouplings(f, 13 * 3600_000)
+  const h24 = applyHardCouplings(f, 24 * 3600_000)
+  // 旧实现 12h 之后不再计息，13h 与 12h 完全相同
+  assert.ok(h13.mood < h12.mood)
+  // 12h ×（体力低 0.02 + 零刺激 0.01）= -0.36
+  assert.ok(Math.abs((h12.mood - h24.mood) - 0.36) < 0.001)
+})
+
+test('硬耦合：被陪着会把心情/体力托起来（正向耦合）', () => {
+  const f = { ...DEFAULT_ATOMIC_FIELDS, energy: 0.5, mood: 0.0, stimulation: 0.5, social: 0.9, connection: 0.9 }
+  const after = applyHardCouplings(f, 24 * 3600_000)
+  assert.ok(Math.abs(after.mood - 0.01) < 1e-6)    // social>0.6 → +0.01/天
+  assert.ok(Math.abs(after.energy - 0.512) < 1e-6)  // connection>0.6 → 恢复 ×1.5
 })
 
 test('硬耦合：体力过低会拖累心情', () => {
