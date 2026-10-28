@@ -1,5 +1,5 @@
 {
-  "frozenAt": "2026-10-28T16:54:32.639Z",
+  "frozenAt": "2026-10-28T16:55:51.079Z",
   "files": {
     "scripts/day-report.mjs": "d6a30b1a6695ffb2701d6ece5393fb63dd1df653575cb5fc904d391540756a83",
     "scripts/day-snapshot.mjs": "d49e213cc8666a49aa05d95aaa14b17268194d78752a1cdabb3af91bb9e38ed3",
@@ -7,7 +7,7 @@
     "scripts/counterfactual.mjs": "1ee360535ffe4851f944028214d26d9b6a992e7773b638628fe0d1f6701604a3",
     "scripts/run-mjs-tests.mjs": "1f7371dd93c01ed337e1f01ff833b05d2315309a45c85a7d08cf5a16b5bcb27e",
     "scripts/check-consumers.mjs": "a45fb0056e31b98e13481355f39a439d6b9ad806c6818312fdb74f8f75c60106",
-    "scripts/g3b-check.mjs": "ba261094560ccfeab53638fadddaa1dbafb15532dc0bd167ad8b923a08149c2f",
+    "scripts/g3b-check.mjs": "275c69344c4cd6831b3a18e569a20d443d415d80f9fe57f04d64f3839079fc2a",
     "scripts/observation-start.mjs": "c1e18d0a7c4bb39222f1558243723743b9111acdc63c73bdb534b892a85f931f",
     "tests/contract/voice.test.mjs": "0f4a27c826b6bcc47741172263708e309cc7cdcbcf193fe5d8d4c3ffb2165b11"
   },

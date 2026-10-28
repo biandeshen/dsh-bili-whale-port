@@ -63,11 +63,15 @@ for (const d of days) {
   const cf = readJson(path.join(dir, 'counterfactual.json'))
   const draft = readJson(draftPath(d))
   const summary = readJson(path.join(dir, 'day.json'))
+  const snap = readJson(path.join(dir, 'state.end.json')) || readJson(path.join(dir, 'state.start.json'))
+  const snapDiaryHash = snap?.diary?.hash ?? null
   const flags = summary?.flags ?? {}
   const badFlags = Object.entries(flags).filter(([k, v]) => v === true && !['missed', 'late'].includes(k)).map(([k]) => k)
-  const ok = !!cf?.ok && Number(cf?.diffChars) >= 4 && !!draft?.diaryHash && badFlags.length === 0
+  const draftBound = !!draft?.diaryHash && !!snapDiaryHash && draft.diaryHash === snapDiaryHash
+  const cfBound = cf?.day === d
+  const ok = !!cf?.ok && Number(cf?.diffChars) >= 4 && cfBound && draftBound && badFlags.length === 0
   if (!ok) streak = false
-  dayDetail.push(`${d}: cf=${cf ? (cf.ok ? 'ok' : 'fail') + '/' + cf.diffChars : 'missing'} draftHash=${draft?.diaryHash ? 'y' : 'n'} flags=${badFlags.join(',') || 'ok'}`)
+  dayDetail.push(`${d}: cf=${cf ? (cf.ok ? 'ok' : 'fail') + '/' + cf.diffChars : 'missing'}${cfBound ? '' : '(day-mismatch)'} draftHash=${draftBound ? 'match' : (draft?.diaryHash ? 'mismatch' : 'n')} flags=${badFlags.join(',') || 'ok'}`)
 }
 add('连续 3 天反事实', streak, dayDetail.join(' | '))
 
