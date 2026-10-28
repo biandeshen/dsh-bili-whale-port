@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 
-function setup({ moods = ['轻快', '平静', '好奇'], texts = ['a', 'b', 'c'], taintedDay = null } = {}) {
+function setup({ moods = ['快乐', '宁静', '兴奋'], texts = ['a', 'b', 'c'], taintedDay = null } = {}) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'obs-'))
   const drafts = path.join(home, 'drafts')
   const control = path.join(home, 'bili-whale', 'control')
@@ -38,7 +38,7 @@ function run(home, drafts) {
 }
 
 test('observation-status：K1/K2/K3 计数与 tainted 标记', () => {
-  const { home, drafts } = setup({ moods: ['轻快', '平静', '好奇'], texts: ['甲', '乙', '丙'] })
+  const { home, drafts } = setup({ moods: ['快乐', '宁静', '兴奋'], texts: ['甲', '乙', '丙'] })
   const r = run(home, drafts)
   assert.equal(r.k1_drafts.value, 3)
   assert.equal(r.k2_textDiff.value, 2)

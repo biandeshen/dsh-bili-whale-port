@@ -68,7 +68,7 @@ if (!chain.length || !memories.length) {
 const realVoice = buildVoiceBrief({ fields: snapshot.fields, chain, memories, npcState }, { now: at })
 const neutralVoice = {
   v: 1,
-  mood: { label: '平静', intensity: 0, reason: '对照：中性状态', cause: null },
+  mood: { label: '宁静', intensity: 0, reason: '对照：中性状态', cause: null },
   relation: 'normal',
   memories: [],
   banned: [],

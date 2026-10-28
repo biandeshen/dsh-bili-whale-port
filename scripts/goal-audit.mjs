@@ -44,7 +44,7 @@ if (cfg?.startDay) {
   add('观测窗口已结束', endedAll, `已结束 ${obs?.endedDays ?? 0}/${obs?.days ?? 14} 天`, 'scripts/observation-status.mjs')
   add('K1 有稿 ≥11', (obs?.k1_drafts?.value ?? 0) >= 11, `${obs?.k1_drafts?.value ?? 0}/11`, 'days/*/draft + diaryHash')
   add('K2 文本不同 ≥9', (obs?.k2_textDiff?.value ?? 0) >= 9, `${obs?.k2_textDiff?.value ?? 0}/9`, '相邻日草稿归一化比较')
-  add('K3 情绪非平静 ≥3', (obs?.k3_moodNotCalm?.value ?? 0) >= 3, `${obs?.k3_moodNotCalm?.value ?? 0}/3`, 'days/*/counterfactual.json')
+  add('K3 情绪非宁静 ≥3', (obs?.k3_moodNotCalm?.value ?? 0) >= 3, `${obs?.k3_moodNotCalm?.value ?? 0}/3`, 'days/*/counterfactual.json')
   add('tainted+missing ≤3', (obs?.tainted ?? 0) + (obs?.missing ?? 0) <= 3, `${(obs?.tainted ?? 0) + (obs?.missing ?? 0)}`, 'days/*/day.json')
 } else {
   add('观测窗口已结束', false, '未开始', '—')

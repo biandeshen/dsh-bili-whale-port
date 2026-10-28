@@ -421,6 +421,12 @@ cd E:/WorkSpace_Qoder/Cortico && git log --oneline -1      # 首次提交存在
 - **成因层**：保留我们自己的"最近事件"作为独立修正层（上游没有），但要修 D-06 的 `source='action'` 缺分支——`action` 必须映射到一个真实成因，否则永远落兜底。
 - **对外接口**：`describeEmotion(state, now)` 返回 `{ primary, secondary[], weights, intensity, reason, inner }`；`describeState` 只消费它，不再自己拼字符串。
 
+**落地（2026-10-29）**：
+- `persona-core/src/emotion-projection.ts`：15 个参考情绪全部改成完整 7 维；`mood` 维权重 2；`weight = 1/(1+距离)`。10,000 个七维随机点实测 **15 种标签、最高频 14.6%**（要求 ≥10 种、≤35%）；默认基线场值投影为「宁静」。
+- `persona-core/src/emotion.ts`：`readMood` 的主标签来自投影；成因层只加 0.2–0.6 的小权重（`trafficPaused→焦虑`、`draftRejected→挫败`、`masterReplied→温暖`、`draftApproved→快乐`、`masterSilentDay→孤独/宁静`、`watchedVideo→灵感`、`action` 按体力/创造/好奇分支），并保留 inner / reason 文案。
+- **强度**：`PersonaState.emotionHistory`（最近 24 次场值快照）取逐维中位数作参照，`intensity = clamp(距离/1.2)`；状态住久了参照会跟上，强度回落，不钉在 1。schema v5。
+- 标签词汇（15 个，`draft-dynamic` 的 LOW/HIGH/尾巴表已同步）：快乐/宁静/兴奋/温暖/灵感/悲伤/焦虑/孤独/挫败/忧郁/苦乐参半/怀旧/躁动不安/渴望/纠结。
+
 ### 12.2 场值管线（顺序固定，可单测）
 
 ```

@@ -104,18 +104,21 @@ export function assertVoice(v) {
   return null
 }
 
-const LOW_TONE = new Set(['失落', '想念', '警觉', '困倦', '疲惫', '安静'])
-const HIGH_TONE = new Set(['雀跃', '开心', '满足', '轻快', '安稳', '好奇', '手痒', '平静'])
+// 15 情绪标签（emotion-projection）：负向压一句，其余正常展开
+const LOW_TONE = new Set(['悲伤', '焦虑', '孤独', '挫败', '忧郁'])
+const HIGH_TONE = new Set(['快乐', '宁静', '兴奋', '温暖', '灵感', '苦乐参半', '怀旧', '躁动不安', '渴望', '纠结'])
 // 同属"高语气"的标签也必须能区分，否则反事实会得到 0 差异（真实数据已实测到）
 const MOOD_TAIL = {
-  雀跃: '今天有点想说话。',
-  开心: '今天挺好的。',
-  满足: '这样就很好了。',
-  轻快: '今天状态还行。',
-  安稳: '不着急，慢慢来。',
-  好奇: '想找点没见过的看看。',
-  手痒: '想写两句。',
-  平静: '',
+  快乐: '今天挺好的。',
+  宁静: '',
+  兴奋: '有点坐不住，想做点什么。',
+  温暖: '有人惦记的感觉，挺好的。',
+  灵感: '脑子里冒出个小点子。',
+  苦乐参半: '有些事说不上好，也说不上坏。',
+  怀旧: '翻到以前的记录，看了一会儿。',
+  躁动不安: '心里有点静不下来。',
+  渴望: '要是现在有人说句话就好了。',
+  纠结: '想了半天，也没想明白。',
 }
 
 /**
@@ -126,7 +129,7 @@ export function composeDraft(diaryText, { date, voice, max = 100 } = {}) {
   const bad = assertVoice(voice)
   if (bad) return { ok: false, error: bad }
   if (!voice.stance.share) return { ok: false, error: 'stance-skip', because: voice.stance.because }
-  // A1：情绪标签必须有明确措辞；新增标签忘了接线就报错，而不是悄悄当"轻快"处理
+  // A1：情绪标签必须有明确措辞；新增标签忘了接线就报错，而不是悄悄当"宁静"处理
   if (!LOW_TONE.has(voice.mood.label) && !HIGH_TONE.has(voice.mood.label)) {
     return { ok: false, error: 'unmapped-mood', label: voice.mood.label }
   }

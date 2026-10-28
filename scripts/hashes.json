@@ -1,18 +1,18 @@
 {
-  "frozenAt": "2026-10-28T17:04:10.388Z",
+  "frozenAt": "2026-10-28T17:30:42.512Z",
   "files": {
     "scripts/day-report.mjs": "0a31044e7df40c5d875131e56625745db1bf04b376048950bb84284aa2b927c1",
     "scripts/day-snapshot.mjs": "d49e213cc8666a49aa05d95aaa14b17268194d78752a1cdabb3af91bb9e38ed3",
     "scripts/day-watchdog.mjs": "60b7aad1dc782009c024f8b094882576568179a94efc29d4220d1b0dcbd49abd",
-    "scripts/counterfactual.mjs": "1ee360535ffe4851f944028214d26d9b6a992e7773b638628fe0d1f6701604a3",
+    "scripts/counterfactual.mjs": "6ed37732a7057fc98abb907c72b7ef60fe648932742a65a61426957855d65bc2",
     "scripts/run-mjs-tests.mjs": "1f7371dd93c01ed337e1f01ff833b05d2315309a45c85a7d08cf5a16b5bcb27e",
     "scripts/check-consumers.mjs": "a45fb0056e31b98e13481355f39a439d6b9ad806c6818312fdb74f8f75c60106",
     "scripts/g3b-check.mjs": "13efc0081d4333987e98421b54b2b60cd02fec817297983d5c99cc940c947acb",
     "scripts/observation-start.mjs": "c1e18d0a7c4bb39222f1558243723743b9111acdc63c73bdb534b892a85f931f",
-    "scripts/goal-audit.mjs": "9e75a81b9593cf0af758a27d441b06d0363f8db95192c8aa24e7a981ea5cf39a",
+    "scripts/goal-audit.mjs": "d4b6eb2a17fc82d14bfff4ff6316af948d122da24fdb8b5a1d4de4ba44145a8c",
     "scripts/c2-offline.mjs": "44942c03b3a31a3922e0b8670244c233653249d035ab72af78985044802ec56a",
-    "scripts/observation-status.mjs": "f55cd1b55b42e448c7e1bb185c70450ffca34d3556157f07d51bdd56d05199ef",
-    "tests/contract/voice.test.mjs": "0f4a27c826b6bcc47741172263708e309cc7cdcbcf193fe5d8d4c3ffb2165b11"
+    "scripts/observation-status.mjs": "4550403310ba9014975299fb689535a83f2a6ed1c4ddd867f16d166bec1b2bcf",
+    "tests/contract/voice.test.mjs": "a30a84a2a27071b98b366a94566fa2af80882140c0f6d62fcd24301b57b6339d"
   },
   "missing": []
 }

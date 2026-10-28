@@ -67,7 +67,8 @@ for (const d of days) {
 }
 const inWindow = rows.filter((r) => r.ended)
 const k1 = inWindow.filter((r) => r.draft).length
-const k3 = inWindow.filter((r) => r.cfOk && r.mood && r.mood !== '平静').length
+// 中性标签：新词汇是「宁静」，旧数据里是「平静」——两者都不算“有情绪”
+const k3 = inWindow.filter((r) => r.cfOk && r.mood && r.mood !== '宁静' && r.mood !== '平静').length
 let k2 = 0
 for (let i = 1; i < inWindow.length; i += 1) {
   if (normalize(inWindow[i - 1].text) && normalize(inWindow[i].text) && normalize(inWindow[i - 1].text) !== normalize(inWindow[i].text)) k2 += 1
@@ -90,7 +91,7 @@ const result = {
 if (asJson) console.log(JSON.stringify(result, null, 2))
 else {
   console.log(`# 观测 ${cfg.startDay} + ${days.length} 天｜已结束 ${inWindow.length} 天`)
-  console.log(`K1 有稿 ${k1}/11｜K2 文本不同 ${k2}/9｜K3 情绪非平静 ${k3}/3`)
+  console.log(`K1 有稿 ${k1}/11｜K2 文本不同 ${k2}/9｜K3 情绪非宁静 ${k3}/3`)
   console.log(`tainted=${tainted}  missing=${missing}`)
   for (const r of rows.slice(-7)) console.log(`${r.day} ${r.ended ? '' : '(进行中)'} snap=${r.snapshot ? 'y' : 'n'} draft=${r.draft ? 'y' : 'n'} cf=${r.cfOk ? 'ok' : '-'} mood=${r.mood ?? '-'}${r.tainted ? ' TAINTED' : ''}${r.missed ? ' MISSED' : ''}`)
   console.log(result.ok ? '\n三条 kill criterion 已满足' : '\n未满足（继续观测，不许补数据）')

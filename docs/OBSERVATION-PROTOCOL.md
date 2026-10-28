@@ -61,7 +61,7 @@ node scripts/observation-status.mjs # 确认 startDay / 天数
 node scripts/observation-status.mjs --json
 node scripts/g3b-check.mjs
 ```
-对照 K1（≥11/14 有稿）、K2（≥9/14 文本不同）、K3（≥3 天 mood≠平静）。
+对照 K1（≥11/14 有稿）、K2（≥9/14 文本不同）、K3（≥3 天 mood≠宁静；2026-10-29 前的数据里中性标签叫「平静」）。
 **不满足就继续观测，不许改判据。**
 
 ## 7. 停止条件（任一）

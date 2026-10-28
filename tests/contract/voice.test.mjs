@@ -26,7 +26,7 @@ const diary = [
 function voice(over = {}) {
   return {
     v: 1,
-    mood: { label: '轻快', intensity: 0.3, reason: '刚起身', cause: 'action' },
+    mood: { label: '快乐', intensity: 0.3, reason: '刚起身', cause: 'action' },
     relation: 'normal',
     memories: [],
     banned: [],
@@ -59,18 +59,18 @@ test('A5：stance.share=false 不生成草稿', () => {
 })
 
 test('A1：readMood 的每个标签都有措辞，未接线的标签直接报错', () => {
-  const LABELS = ['警觉', '失落', '想念', '平静', '雀跃', '开心', '满足', '困倦', '好奇', '手痒', '轻快', '安静', '疲惫', '安稳']
+  const LABELS = ['快乐', '宁静', '兴奋', '温暖', '灵感', '悲伤', '焦虑', '孤独', '挫败', '忧郁', '苦乐参半', '怀旧', '躁动不安', '渴望', '纠结']
   for (const label of LABELS) {
     const r = composeDraft(diary, { date: '2026-10-29', voice: voice({ mood: { label, intensity: 0.3, reason: 'x', cause: 'action' } }) })
     assert.equal(r.ok, true, `${label} 没有接线`)
   }
-  const bad = composeDraft(diary, { date: '2026-10-29', voice: voice({ mood: { label: '忧郁', intensity: 0.3, reason: 'x', cause: 'action' } }) })
+  const bad = composeDraft(diary, { date: '2026-10-29', voice: voice({ mood: { label: '迷糊', intensity: 0.3, reason: 'x', cause: 'action' } }) })
   assert.equal(bad.ok, false)
   assert.equal(bad.error, 'unmapped-mood')
 })
 
-test('A2：同一日记，低落与轻快的产出必须不同（低落只留一句、无感叹号）', () => {
-  const low = composeDraft(diary, { date: '2026-10-29', voice: voice({ mood: { label: '失落', intensity: 0.5, reason: '被拒', cause: 'draftRejected' } }) })
+test('A2：同一日记，低落与快乐的产出必须不同（低落只留一句、无感叹号）', () => {
+  const low = composeDraft(diary, { date: '2026-10-29', voice: voice({ mood: { label: '悲伤', intensity: 0.5, reason: '被拒', cause: 'draftRejected' } }) })
   const high = composeDraft(diary, { date: '2026-10-29', voice: voice() })
   assert.equal(low.ok, true); assert.equal(high.ok, true)
   assert.notEqual(low.text, high.text)
@@ -79,11 +79,11 @@ test('A2：同一日记，低落与轻快的产出必须不同（低落只留一
   assert.ok(high.text.length >= low.text.length)
 })
 
-test('A2b：轻快 vs 中性平静 的差异必须 ≥4 字（反事实不可为 0）', () => {
+test('A2b：快乐 vs 中性宁静 的差异必须 ≥4 字（反事实不可为 0）', () => {
   const high = composeDraft(diary, { date: '2026-10-29', voice: voice() })
   const neutral = composeDraft(diary, {
     date: '2026-10-29',
-    voice: voice({ mood: { label: '平静', intensity: 0, reason: '对照', cause: null } }),
+    voice: voice({ mood: { label: '宁静', intensity: 0, reason: '对照', cause: null } }),
   })
   assert.ok(high.ok && neutral.ok)
   const norm = (s) => [...String(s).replace(/[\s，。！？、；：,.!?;:'"“”‘’（）()【】\[\]《》<>—…·-]/g, '')]
