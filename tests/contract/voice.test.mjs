@@ -39,6 +39,13 @@ test('voice.schema.json 的 required 与 assertVoice 使用的列表一致', () 
   assert.deepEqual([...VOICE_REQUIRED].sort(), [...SCHEMA.required].sort())
 })
 
+test('voice.schema.json：记忆必须带出处（from/days/slot），否则草稿无法追问来源', () => {
+  const item = SCHEMA.properties.memories.items
+  assert.deepEqual([...item.required].sort(), ['days', 'from', 'id', 'score', 'slot', 'text', 'why'])
+  assert.deepEqual(item.properties.from.enum, ['player', 'npc'])
+  assert.deepEqual(item.properties.slot.enum, ['core', 'surprise'])
+})
+
 test('A0：缺 voice 直接拒稿', () => {
   const r = composeDraft(diary, { date: '2026-10-29' })
   assert.equal(r.ok, false)
@@ -58,8 +65,7 @@ test('A5：stance.share=false 不生成草稿', () => {
   assert.equal(r.error, 'stance-skip')
 })
 
-test('A1：readMood 的每个标签都有措辞，未接线的标签直接报错', () => {
-  const LABELS = ['快乐', '宁静', '兴奋', '温暖', '灵感', '悲伤', '焦虑', '孤独', '挫败', '忧郁', '苦乐参半', '怀旧', '躁动不安', '渴望', '纠结']
+test('A1：readMood 的每个标签都有措辞，未接线的标签直接报错', () => {  const LABELS = ['快乐', '宁静', '兴奋', '温暖', '灵感', '悲伤', '焦虑', '孤独', '挫败', '忧郁', '苦乐参半', '怀旧', '躁动不安', '渴望', '纠结']
   for (const label of LABELS) {
     const r = composeDraft(diary, { date: '2026-10-29', voice: voice({ mood: { label, intensity: 0.3, reason: 'x', cause: 'action' } }) })
     assert.equal(r.ok, true, `${label} 没有接线`)
@@ -107,10 +113,41 @@ test('A5b：冷战禁称生效', () => {
 })
 
 test('A4：高分记忆会被回扣，且可追溯到来源', () => {
-  const mem = { id: 'm1', text: '看过《竹林雨声》—— BV1test', why: '0.90 鲜活 · 1 天前', score: 0.8 }
+  const mem = { id: 'm1', text: '看过《竹林雨声》—— BV1test', why: '刻在心里 · 2 天前', score: 0.8, from: 'npc', days: 2, slot: 'core' }
   const r = composeDraft(diary, { date: '2026-10-29', voice: voice({ memories: [mem] }) })
   assert.ok(r.ok)
   assert.match(r.text, /竹林雨声/)
+  assert.match(r.text, /我2 天前记下的《竹林雨声》还在/)
+})
+
+test('A4c：主人说过的记忆，回扣时用「你说的」并带天数', () => {
+  const mem = { id: 'm2', text: '今天加班到很晚，别等我', why: '2 天前', score: 0.7, from: 'player', days: 3, slot: 'core' }
+  const r = composeDraft(diary, { date: '2026-10-29', voice: voice({ memories: [mem] }) })
+  assert.ok(r.ok)
+  assert.match(r.text, /你3 天前说的「今天加班到很晚，别等我」我还记着/)
+})
+
+test('A4d：意外槽只进入检索，不拿来当文案回扣', () => {
+  const mem = { id: 'm3', text: '很久以前的一件小事', why: '一直没被想起', score: 0.99, from: 'npc', days: 40, slot: 'surprise' }
+  const r = composeDraft(diary, { date: '2026-10-29', voice: voice({ memories: [mem] }) })
+  assert.ok(r.ok)
+  assert.doesNotMatch(r.text, /很久以前的一件小事/)
+})
+
+test('A4e：超长 B 站标题只取第一个 Ⅰ 之前的部分，不截半截', () => {
+  const mem = {
+    id: 'm4',
+    text: '看过《【雨声白噪音助眠】在竹林小院里听雨Ⅰ深度睡眠必备Ⅰ竹林雨声》—— BV1x',
+    why: '和眼下的事有关',
+    score: 0.9,
+    from: 'npc',
+    days: 1,
+    slot: 'core',
+  }
+  const r = composeDraft(diary, { date: '2026-10-29', voice: voice({ memories: [mem] }) })
+  assert.ok(r.ok)
+  assert.match(r.text, /我昨天记下的《【雨声白噪音助眠】在竹林小院里听雨》还在/)
+  assert.doesNotMatch(r.text, /深度睡眠/)
 })
 
 test('A4b：低分记忆不回扣，不编造', () => {

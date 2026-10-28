@@ -75,12 +75,17 @@ if (!cfg?.armedAt) {
 const armedAt = Date.parse(cfg.armedAt)
 const now = Date.now()
 const hours = (now - armedAt) / 3600_000
+// 精确判断区间 [armedAt, now] 是否含 04:00 日界：按小时取整采样会漏掉
+// 「04:00 之后开机但不足一小时」的情况（采样点跨过边界却落在次日）。
 const crossed = (() => {
-  for (let t = armedAt; t < now; t += 3600_000) {
-    const d = new Date(t)
-    if (d.getHours() === 4) return true
+  const b = new Date(armedAt)
+  b.setHours(4, 0, 0, 0)
+  let t = b.getTime()
+  if (t <= armedAt) {
+    b.setDate(b.getDate() + 1)
+    t = b.getTime()
   }
-  return false
+  return t <= now
 })()
 const checks = []
 const add = (name, ok, detail) => checks.push({ name, ok, detail })

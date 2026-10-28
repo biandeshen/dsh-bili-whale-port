@@ -25,13 +25,16 @@
       "maxItems": 5,
       "items": {
         "type": "object",
-        "required": ["id", "text", "why", "score"],
+        "required": ["id", "text", "why", "score", "from", "days", "slot"],
         "additionalProperties": false,
         "properties": {
           "id": { "type": "string" },
           "text": { "type": "string" },
           "why": { "type": "string" },
-          "score": { "type": "number" }
+          "score": { "type": "number" },
+          "from": { "enum": ["player", "npc"] },
+          "days": { "type": "integer", "minimum": 0 },
+          "slot": { "enum": ["core", "surprise"] }
         }
       }
     },

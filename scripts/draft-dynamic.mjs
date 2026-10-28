@@ -121,6 +121,16 @@ const MOOD_TAIL = {
   纠结: '想了半天，也没想明白。',
 }
 
+/** 记忆里的可引用片段：看过的取片名（去掉 Ⅰ 之后的长标签），主人说过的取原话开头。 */
+export function snippetOf(text, from = 'npc') {
+  const s = String(text ?? '').replace(/\s+/g, ' ').trim()
+  if (from === 'npc') {
+    const t = s.match(/看过《([^》]+)》/)
+    if (t) return t[1].split(/[Ⅰ|｜]/)[0].trim().slice(0, 20)
+  }
+  return s.slice(0, 16)
+}
+
 /**
  * 把 voiceBrief 落成正文。缺 voice 直接拒稿；不再静默退化成"没有情绪"的模板。
  * 返回 { ok, text, voiceHash } 或 { ok:false, error }。
@@ -139,10 +149,17 @@ export function composeDraft(diaryText, { date, voice, max = 100 } = {}) {
   if (LOW_TONE.has(voice.mood.label)) {
     // 低落时只留第一句，且不出现感叹号
     text = (text.match(/^[^。！？!?]*[。！？!?]?/) || [text])[0].replace(/[！!]/g, '。').trim()
-  } else if (voice.memories.length && voice.memories[0].score > 0.5 && voice.relation !== 'cold_war') {
-    const m = voice.memories[0]
-    const snippet = String(m.text).replace(/^看过《/, '').split('》')[0].slice(0, 16)
-    if (snippet && !text.includes(snippet)) text = `${text} 前两天记下的《${snippet}》还在。`
+  } else {
+    // M4 决策钩子：草稿回扣一条真正相关的记忆，并说清出处（谁说的、多少天前）
+    const m = (voice.memories || []).find((x) => x.slot !== 'surprise' && x.score > 0.5)
+    const snippet = m ? snippetOf(m.text, m.from) : ''
+    if (m && snippet && voice.relation !== 'cold_war' && !text.includes(snippet)) {
+      const when = m.days === 0 ? '今天' : m.days === 1 ? '昨天' : `${m.days} 天前`
+      const line = m.from === 'player'
+        ? `你${when}说的「${snippet}」我还记着。`
+        : `我${when}记下的《${snippet}》还在。`
+      text = `${text} ${line}`
+    }
   }
 
   for (const w of voice.banned) if (w) text = text.split(w).join('他')

@@ -200,17 +200,24 @@ World 取 L3 上下文                     draft-dynamic 组装               �
 4. **验收**：90 天闭环模拟，各场不得贴边（|mood|<0.95、其余 field 不在 0/1 常驻），`creativity` 必须有非基线波动。
 
 ### 4.4 记忆（红队实测：生产里永不衰减；"记得"永远是最早 3 条）
-1. **衰减计时与"最近应用时间"解耦**：每条记忆自带 `lastDecayedAt`，衰减按它算；`applyEffects` 的 `lastAppliedAt` 每 3–7 分钟被重置，不能再用它算天数。
-2. **检索（纯函数，无 SQLite）**：
-   `score = 0.40*keyword + 0.30*vividness + 0.20*emotion + 0.10*recency`
-   - `keyword`：中文 2-6 字 token + bigram，`|q∩tokens| / sqrt(|q||tokens|)`
-   - `emotion`：mood<−0.3 时正向记忆稳定 +0.3（去掉上游的 20% 随机，保证可复现），上限 0.4
-   - 槽位：`k-2` 主槽 + 2 条意外槽（落选池里情绪强度最高）
-   - 平局按 `createdAt desc, id`——否则又是"永远最早三条"
-3. **注入点**：唤醒文本、`describeState` 的"记得"、§3 的草稿组装。每条带 `reason`（为什么想起它）。
-4. **决策钩子（AMpath 也没有，我们要加）**：检索命中 `promise/conflict/milestone` 且 `score>0.5` → 本轮行动概率 +0.1 或强制 reflect，并写 L0。这是"记忆真正改行为"的唯一入口。
-5. **flashbulb**：`note` 路径的 `intensity` 从硬编码 0.5 改为按当时 `stimulation` 计算，否则永远触发不了。
-6. **验收**：模拟 30 天后，`vividness` 有梯度；50 条记忆检索不再固定返回第 1–3 条；草稿里出现至少一次带来源的记忆回扣。
+> 2026-10-29 状态：衰减、排序、检索、决策钩子均已落地；下面按**实现**写，早期草稿里没落地的项单列。
+
+1. **衰减按真实时间片算（小数天）**：`applyEffects` 用 `now - lastAppliedAt` 折成小数天，逐条 `decayMemory`。
+   - 不需要 per-memory `lastDecayedAt`：每次结算都会推进 `lastAppliedAt`，而它已被时钟回拨保护（只增不减）。
+   - 旧实现要求"距上次 ≥1 天"才衰减，而 `lastAppliedAt` 每 3–7 分钟重置一次 → 记忆永远不淡（D-02）。
+2. **确定性检索（`persona-core/src/retrieval.ts`，纯函数，无向量库）**：
+   `score = 0.40*keyword + 0.30*vividness + 0.15*emotion + 0.15*recency`
+   - `keyword`：CJK 双字 + 拉丁词；按记忆集合内 df 算 idf，`hit / max(idf of query tokens)`（长句里只命中一个具体意象也算强相关）；时间/功能词剔除。
+   - `emotion`：`1 - |memory.valence - mood| / 2`；`recency`：30 天线性归零（与 `memorySalience` 一致）。
+   - 槽位：`k` 条主槽 + 最多 2 条意外槽。意外槽只从 **≥7 天、`accessCount=0`、非 flashbulb** 的旧事里按 `hash(id + seed)` 取；`seed` 传逻辑日，同一天内稳定。
+   - 平局按 `id` 升序；相同入参（含 `now`）必得相同顺序 —— 测试锁定。
+3. **注入点**：`describeState` 的"记得"（情境 = 最近因果 + 公开日记尾部）、`voiceBrief.memories`（情境 = 今天日记）。每条带 `why`（为什么想起它）、`from`（谁说的）、`days`、`slot`。
+4. **决策钩子（已落地的两条）**：
+   - 选片避重：近 7 天看过的 BV 由 `feed` 输出逐行标注 `[近 7 天看过]`，并附"最近的 UP，避开同题材/同 UP"（`feed.mjs` 本身按日记/审计表排除已看）。
+   - 文案回扣：草稿对 `score>0.5` 的主槽记忆追加一句，带出处与天数（"你 3 天前说的「…」我还记着" / "我昨天记下的《…》还在"）；意外槽只进检索，不进文案。
+   - **未落地**：早期设想的"检索命中 promise/conflict → 行动概率 +0.1 / 强制 reflect"没有做；当前没有可靠的 promise/conflict 标注来源，硬加会变成随机扰动。
+5. **flashbulb**：`note` 路径的 `intensity` 从硬编码 0.5 改为按当时 `stimulation` 计算，否则永远触发不了（D-26）。
+6. **验收**：`persona-core/tests/retrieval.test.mjs` 7 例（确定性、关键词、情绪、意外槽、排除、空输入、近 7 天 BV/UP）；`tests/core.test.mjs` 2 例（情境召回排序、feed 标注）；`tests/contract/voice.test.mjs` A4/A4c/A4e（出处与天数、超长标题、意外槽不回扣）。
 
 ### 4.5 作息与运行时
 - **保留自研 `rhythm.ts`**（随机门、日上限、connectMisses、冷战收敛），补两个缺口：
