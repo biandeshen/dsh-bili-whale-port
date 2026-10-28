@@ -124,6 +124,8 @@ if (!acquireLock()) {
 }
 
 log(`start pid=${process.pid} interval=${INTERVAL_MS}ms`)
+// 启动即打一次：否则开机后 5 分钟内关机就会整天没有 tick
+try { once() } catch (e) { log('initial tick failed: ' + String(e?.message ?? e)) }
 const timer = setInterval(() => {
   try { once() } catch (e) { log('tick failed: ' + String(e?.message ?? e)) }
 }, INTERVAL_MS)
