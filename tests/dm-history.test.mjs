@@ -36,6 +36,9 @@ test('partial history failure and non-progressing pagination do not advance stat
  b.put({pages:{0:page([row(3),row(2)],1),2:{code:-500}}});assert.equal(b.run('--peek').status,3);assert.equal(fs.readFileSync(b.state,'utf8'),before)
  b.put({pages:{0:page([row(3),row(2)],1),2:page([row(3),row(2)],1)}});assert.equal(b.run('--peek').status,3);assert.equal(fs.readFileSync(b.state,'utf8'),before)
 })
+test('空私信箱返回 messages:null 时按正常空处理，不是读取失败',t=>{
+ const b=box(t);b.put(page(null,0));const r=b.run('--peek');assert.equal(r.status,1,r.stderr);assert.equal(JSON.parse(r.stdout).hit,false)
+})
 test('empty is exit 1; baseline skips both directions; corrupt state is preserved; legacy pending remains ackable',t=>{
  const b=box(t);b.put(page([]));const r=b.run('--peek');assert.equal(r.status,1);assert.equal(JSON.parse(r.stdout).hit,false)
  b.put(page([row(2,1000,111),row(1,999)]));assert.equal(b.run('--baseline').status,0);assert.equal(b.run('--peek').status,1)

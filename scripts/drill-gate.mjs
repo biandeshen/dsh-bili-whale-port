@@ -86,7 +86,8 @@ const againOut = await tools.bili_draft_dynamic.handler({})
 check('新一轮 feed 后门禁重新生效', againOut.startsWith('[refused]'))
 
 // —— 场景 5：情绪可追溯（before/after/effects 齐全）
-const applyOut = await tools.bili_mood_apply.handler({ preset: 'masterReplied' })
+// masterReplied 现在只能由私信传感器触发；这里用合法的草稿放行预设验证 before/after
+const applyOut = await tools.bili_mood_apply.handler({ preset: 'draftApproved' })
 const all = fs.readFileSync(causalFile, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l))
 const traced = all.filter((o) => o.before && o.after && Array.isArray(o.effects))
 check('情绪变化有 before/after/effects', traced.length >= 1)

@@ -59,6 +59,7 @@
 - AMpath 是桌面伴侣：用户随时说话，`connection`/`social`/`stimulation` 被持续喂养。
 - 小鱼是后台循环：唯一输入是「我看了个视频」。
 - 实测闭环（2026-10-28 核）：World 8 个工具里**没有任何读私信/互动的工具**（`definition.ts` 工具清单）；`masterReplied` 是 `bili_mood_apply` 的 preset 字符串，**唯一"触发器"是模型自己填参数**；6 个 preset 中只有它给 `connection +0.10`；`decay.ts` 里 connection 速率为负、基线 0；`npc-state-machine` 要求 connection<0.3 持续 24h → `cold_war`，而出冷战需"user 发来消息"，同样无传感器。
+  > 2026-10-29 更新：已接入 `bili_dm_read`（只读私信，实测空信箱 `messages:null` 按正常空处理）；`masterReplied`/`inbound` 只允许传感器触发，模型不能再自己填；`connection` 可由真实入站上升。
 - **结论**：`connection` 单向衰减 → 必然进 `cold_war` 且不可恢复，这是**数学必然，不是 bug**。30 天离线模拟 `connection=0.00 关系=cold_war` 即为此。
 
 **输入层（Sensors）属于 L4，必须补**，否则 L3 人格内核只会单调衰减。

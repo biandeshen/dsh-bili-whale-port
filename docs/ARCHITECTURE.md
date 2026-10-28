@@ -238,7 +238,7 @@ World 取 L3 上下文                     draft-dynamic 组装               �
 - **`bond` 与 `connection` 拆分（Q-06 已按团队裁决实现，2026-10-29）**：`connection` 保持场值存量语义不动；`npcState.bond.level` 承载关系存量，只在收到用户消息时 +0.1。`trust = connection` 别名已删；`reunion` 由 `bond` 相对冷战起点回升 ≥0.1 触发，五态可达。
 - **无接触证据不判冷战**：从未收到过用户消息时关系显示「未判定」，`connection` 再低也不进 `cold_war`（修掉"素未谋面就冷战"）。
 - **验收**：注入一条入站消息 → `connection` 上升、`bond` 上升；有过接触且 `connection<0.3` 持续 24h → `cold_war`；冷战期消息 → `missing` → `repairing` → `reunion`。不注入时仍会自然下滑（不破坏"被冷落会难过"）。
-- **仍待 M3**：`masterReplied` 目前仍可由模型通过 `bili_mood_apply` 自填（D-04）；入站传感器接入后，接触证据只认私信事件。
+- **已落地（2026-10-29）**：`bili_dm_read` 复用 `tools/commands/dm-await.mjs --json --peek`（只读、本地游标、回执 ack）；空信箱 `messages:null` 已按正常空处理；读取失败返回错误、不推进游标、不加 delta。入站 → `PRESETS.inbound`（source=inbound，预算 0.20/天）+ 记忆；`masterReplied`/`inbound` 预设只能由传感器触发，模型自填会被工具拒绝。按 `msg.key` 去重（`control/dm-applied.json`），ack 失败时下次只补确认不重复加效果。
 - **可选（Q-07）**：上游另有按小时窗口的昼夜节律项（23–5/6–9/13–15）。若采纳，只能作缓慢背景漂移，**不得参与醒/睡决策**，否则违反"作息由状态决定、不设时间表"。
 
 ## 5. 与 AMpath 的同步策略

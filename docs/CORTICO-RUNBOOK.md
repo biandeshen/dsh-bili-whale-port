@@ -14,7 +14,7 @@
 - 必须字段：`spec.thinking` 为布尔值
 
 ## World：bili-account
-工具：`bili_traffic / bili_feed / bili_debrief / bili_diary_read / bili_diary_append / bili_mood_read / bili_mood_apply / bili_draft_dynamic`
+工具：`bili_traffic / bili_feed / bili_debrief / bili_diary_read / bili_diary_append / bili_mood_read / bili_mood_apply / bili_draft_dynamic / bili_dm_read`
 - 节奏：**生活循环，不是定时唤醒**。`persona-core/src/rhythm.ts` 每 3–7 分钟评估一次：无聊(刺激<0.45)/想他(连接<0.45 且不在冷战)/歇够了(距上次行动 12h 起、30h 满) × 体力 × 随机；单日 ≤3 次、两次 ≥2.5h；睡着（距上次行动 ≥6h）时体力按 0.005/h 恢复，醒着不恢复。
 - 状态记录：`control/life.json`（今天行动次数/上次时间）；`control/life-status.json`（`mode=state-driven`，给健康检查看）。
 - 事件：`bili.action_due`（trigger flush），文本自带她的情绪+成因+最近因果+今天是否已出稿+上一条草稿审批结果。

@@ -22,8 +22,9 @@ export async function readHistory(owner,headers,state,{baseline=false}={}) {
     const query=signWbi({talker_id:owner,session_type:1,size:30,begin_seqno:cursor},nav.data.wbi_img)
     const response=await fetch('https://api.vc.bilibili.com/svr_sync/v1/svr_sync/fetch_session_msgs?'+query,{headers})
     const body=await response.json()
-    if(!response.ok||body.code!==0||!Array.isArray(body.data?.messages))throw Error('私信历史读取失败，保留游标（code='+body.code+'）')
-    const rows=body.data.messages.map(normalizeMessage)
+    // 空私信箱返回 messages:null（实测 2026-10-29），不能当读取失败
+    if(!response.ok||body.code!==0||(body.data?.messages!=null&&!Array.isArray(body.data.messages)))throw Error('私信历史读取失败，保留游标（code='+body.code+'）')
+    const rows=(body.data?.messages??[]).map(normalizeMessage)
     for(const row of rows)if(!seen.has(row.key)){seen.add(row.key);all.push(row)}
     // First run deliberately considers only the newest page; no unbounded historical replay.
     const more=body.data.has_more
