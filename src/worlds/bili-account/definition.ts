@@ -344,6 +344,9 @@ class BiliAccountWorld {
           mem.actionsToday = Number(mem.actionsToday ?? 0) + 1
           mem.lastActionAt = now
           mem.lastKind = decision.kind
+          // 账本会被并发实例覆盖（实测 22:21 动作后 life.json actionsToday 变回 0），
+          // causal.jsonl 是 append-only：每次行动都留一条，复盘/门禁以它为准。
+          causal({ kind: 'action', actionKind: decision.kind, reason: decision.reason, atMs: now })
 
           writeLifeFile(mem)   // 先记账再触发：触发后重启不会再补一次
           saveState(FIELDS_FILE, after)
