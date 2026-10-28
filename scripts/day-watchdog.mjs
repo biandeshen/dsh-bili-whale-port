@@ -130,7 +130,8 @@ function autoG3bStatus(now) {
   const r = spawnSync(process.execPath, [path.join(HERE, 'g3b-check.mjs'), '--json'], { encoding: 'utf8', timeout: 60000 })
   let parsed = null
   try { parsed = JSON.parse(String(r.stdout ?? '')) } catch {}
-  writeAtomic(file, { day, at: new Date(now).toISOString(), ...(parsed ?? { ok: false, ready: false, error: 'g3b-check-failed', stderr: String(r.stderr ?? '').slice(-300) }) })
+  // 顺序很重要：parsed 里也有 day（它按真实 now 算），必须让本次触发时点的 day 覆盖它
+  writeAtomic(file, { ...(parsed ?? { ok: false, ready: false, error: 'g3b-check-failed', stderr: String(r.stderr ?? '').slice(-300) }), day, at: new Date(now).toISOString() })
   log(`g3b ${day} ready=${parsed?.ready === true}`)
 }
 
@@ -154,6 +155,17 @@ function once() {
 }
 
 if (AUDIT) audit(14)
+
+// 演练/补跑：用指定时间触发每日作业（反事实 + G3b 审计），不启动循环
+if (process.argv.includes('--daily-jobs')) {
+  const i = process.argv.indexOf('--at')
+  const at = i >= 0 ? Date.parse(process.argv[i + 1]) : Date.now()
+  if (!Number.isFinite(at)) { console.error('invalid --at'); process.exit(2) }
+  autoCounterfactual(at)
+  autoG3bStatus(at)
+  console.log(JSON.stringify({ ok: true, at: new Date(at).toISOString() }))
+  process.exit(0)
+}
 
 if (ONCE) {
   const r = once()
