@@ -79,6 +79,22 @@ test('A2：同一日记，低落与轻快的产出必须不同（低落只留一
   assert.ok(high.text.length >= low.text.length)
 })
 
+test('A2b：轻快 vs 中性平静 的差异必须 ≥4 字（反事实不可为 0）', () => {
+  const high = composeDraft(diary, { date: '2026-10-29', voice: voice() })
+  const neutral = composeDraft(diary, {
+    date: '2026-10-29',
+    voice: voice({ mood: { label: '平静', intensity: 0, reason: '对照', cause: null } }),
+  })
+  assert.ok(high.ok && neutral.ok)
+  const norm = (s) => [...String(s).replace(/[\s，。！？、；：,.!?;:'"“”‘’（）()【】\[\]《》<>—…·-]/g, '')]
+  const count = (arr) => { const m = new Map(); for (const c of arr) m.set(c, (m.get(c) ?? 0) + 1); return m }
+  const a = count(norm(high.text)); const b = count(norm(neutral.text))
+  let diff = 0
+  for (const [c, n] of a) diff += Math.max(0, n - (b.get(c) ?? 0))
+  for (const [c, n] of b) diff += Math.max(0, n - (a.get(c) ?? 0))
+  assert.ok(diff >= 4, `差异只有 ${diff} 字`)
+})
+
 test('A5b：冷战禁称生效', () => {
   const text = '今天鱼片没来。我自己听雨。'
   const r = composeDraft(`## 2026-10-29\n\n## 想说\n\n- ${text}\n`, {

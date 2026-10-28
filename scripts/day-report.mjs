@@ -33,7 +33,7 @@ function draftDir() {
 }
 function draftPath(day) { return path.join(draftDir(), day + '.json') }
 
-function buildReport(day) {
+function buildReport(day, opts = {}) {
   const dir = path.join(DAYS_ROOT, day)
   const exists = fs.existsSync(dir)
   const files = exists ? fs.readdirSync(dir) : []
@@ -82,7 +82,16 @@ function buildReport(day) {
   add('tick 最大间隔', maxGapMin === null || maxGapMin <= 90, maxGapMin === null ? `仅 ${ticks.length} 条 tick（无间隔可比）` : `${maxGapMin} 分钟`)
 
   const flags = summary?.flags ?? {}
-  add('flags', !(flags.missed || flags.tainted), JSON.stringify(flags))
+  // 预登记的预期flag（如 C2 离线日的 missed/late）不算失败；未登记的才算
+  const expected = readJson(path.join(dir, 'expected.json')) || {}
+  const allow = new Set(Array.isArray(expected.allowFlags) ? expected.allowFlags : [])
+  // C2 离线复核专用：命令行显式声明"预期 missed/late"，不是默认放行
+  if (opts.expectOffline) { allow.add('missed'); allow.add('late') }
+  const raised = Object.entries(flags).filter(([k, v]) => v === true && k !== 'taintReasons').map(([k]) => k)
+  const unexpected = raised.filter((k) => !allow.has(k))
+  add('flags', unexpected.length === 0,
+    raised.length === 0 ? '无'
+      : (unexpected.length ? `unexpected: ${unexpected.join(',')}` : `expected: ${raised.join(',')}${expected.reason ? '（' + expected.reason + '）' : ''}`))
 
   const failed = items.filter((i) => !i.ok)
   return { day, dir, exists, files, items, failed: failed.length, summary, generatedAt: new Date().toISOString() }
@@ -90,7 +99,7 @@ function buildReport(day) {
 
 if (process.argv[1] && process.argv[1].endsWith('day-report.mjs')) {
   const day = arg('date', logicalDay())
-  const report = buildReport(day)
+  const report = buildReport(day, { expectOffline: argv.includes('--expect-offline') })
   if (asJson) {
     console.log(JSON.stringify(report, null, 2))
   } else {

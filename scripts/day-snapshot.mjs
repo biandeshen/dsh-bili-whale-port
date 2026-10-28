@@ -63,8 +63,12 @@ function collect(day, now) {
     day,
     fields: fields?.fields ?? null,
     npc: fields?.npcState ?? null,
+    npcState: fields?.npcState ?? null,
+    // 反事实检查要能重建当天的 voice：保留链与记忆本体，不只是条数
+    chain: Array.isArray(fields?.chain) ? fields.chain.slice(-50) : [],
     chainTail: Array.isArray(fields?.chain) ? fields.chain.slice(-3) : [],
-    memories: Array.isArray(fields?.memories) ? fields.memories.length : 0,
+    memories: Array.isArray(fields?.memories) ? fields.memories.slice(-50) : [],
+    memoryCount: Array.isArray(fields?.memories) ? fields.memories.length : 0,
     rhythm: rhythm ?? null,
     life: life ?? null,
     round: round ?? null,

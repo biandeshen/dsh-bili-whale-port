@@ -21,7 +21,7 @@
 | D-04 | **`connection` 只减不增 → 必然 `cold_war` 且不可恢复**：8 个工具无任何读私信/互动的；`masterReplied` 唯一来源是模型自己填参数；6 个 preset 中只有它加 connection | 红队3 F5/S2；`definition.ts:199-208`、`personaAdapter.ts:40-48`、`decay.ts:27,37` | 关系机五态实为三态；30 天模拟 `connection=0.00` 是数学必然 | M3 | OPEN |
 | D-05 | **五态里 `reunion` 不可达、`missing/repairing` 窗口 8.3e-5**：`trust` 是 `connection` 别名，进 reunion 需 `c0<0.2`，单步最多给到 0.25 | 红队3 F5；`npc-state-machine.ts`；5.7 万模拟年 `reunion NEVER REACHED` | "关系五态"名不副实 | M1 | OPEN |
 | D-06 | **情绪塌缩**：`readMood` 只读 4/7 场，97.2 万网格只出 13 标签，"平静" 56.7%；`source='action'` 无分支 → 180 天 229/229 次 mood_read 全是"平静" | 红队3 F1–F3；`personaAdapter.ts:243-324`、`definition.ts:260` | "有情绪成因"这条北极星特征不成立 | M1 | OPEN |
-| D-07 | **场值钉死**：mood 单调到 ±1、creativity 恒回 0.300；三条硬耦合全为单向下压，无"托起来"的手 | 红队3 F4/S1；`decay.ts:61-75` | 情绪永久冻结，`COUPLING_CAP_MS=12h` 反而只保护离线路径（在线比离线惩罚重 14 倍） | M1 | OPEN |
+| D-07 | **场值钉死**：mood 单调到 ±1、creativity 恒回 0.300；三条硬耦合全为单向下压，无"托起来"的手 | 红队3 F4/S1；`decay.ts:61-75`；`COUPLING_CAP_MS=12h` 仍在（`decay.ts:70`） | 情绪永久冻结；且在线比离线惩罚重 14 倍（离线 12h 封顶，在线 168h 不封顶） | M1 | OPEN |
 | D-08 | **持久任务缺失**：唤醒排程只活在内存 `setTimeout`，进程重启即丢 | 红队4 §2；`definition.ts` rhythmTick | 一次崩溃=当天不再醒 | M2 | OPEN |
 | D-09 | **无醒/睡状态变量**：`rest` 恢复每 tick 无条件应用 → 体力恒满，作息没有代价 | 红队3 S5；`definition.ts` rhythmTick | "作息"缺少最基本的睡/醒语义 | M2 | OPEN |
 

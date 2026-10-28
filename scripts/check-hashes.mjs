@@ -15,8 +15,9 @@ const FILES = [
   'scripts/day-report.mjs',
   'scripts/day-snapshot.mjs',
   'scripts/day-watchdog.mjs',
+  'scripts/counterfactual.mjs',
   'scripts/run-mjs-tests.mjs',
-  'scripts/check-hashes.mjs',
+  'scripts/check-consumers.mjs',
   'tests/contract/voice.test.mjs',
 ]
 

@@ -1,12 +1,13 @@
 {
-  "frozenAt": "2026-10-28T16:32:48.320Z",
+  "frozenAt": "2026-10-28T16:43:30.926Z",
   "files": {
-    "scripts/day-report.mjs": "4668ba8d2b687edcbbf368777c006cc3e9bfc98ae7ed9584fbf188fb38bcdc1a",
-    "scripts/day-snapshot.mjs": "7726d6e4bd3ae38668d2d3c64ea72638ecaf135b4521069d2614a1accddb0df7",
-    "scripts/day-watchdog.mjs": "32958237bb1163847fc6c25adfc9f463db1f669fea567a97bd465e83eb937f29",
+    "scripts/day-report.mjs": "65dc8ddfbf8c0a9dbf6a2e418a660d4cc39e0d3d342d9efa5284b66b3f08ba1b",
+    "scripts/day-snapshot.mjs": "d49e213cc8666a49aa05d95aaa14b17268194d78752a1cdabb3af91bb9e38ed3",
+    "scripts/day-watchdog.mjs": "cb0cb1650218d98d55957ce22616b52ddf766ef903ab787050de6c981f5a3434",
+    "scripts/counterfactual.mjs": "1ee360535ffe4851f944028214d26d9b6a992e7773b638628fe0d1f6701604a3",
     "scripts/run-mjs-tests.mjs": "1f7371dd93c01ed337e1f01ff833b05d2315309a45c85a7d08cf5a16b5bcb27e",
-    "scripts/check-hashes.mjs": "443217012f4a59ee11b84c5b9bb919411d2a42c4b1b43dc16c51f55cc190260e",
-    "tests/contract/voice.test.mjs": "37b4c2a6a3f032ecd6785eb029153e270cee679c7e102e6cbd00f7aba33eab4e"
+    "scripts/check-consumers.mjs": "a45fb0056e31b98e13481355f39a439d6b9ad806c6818312fdb74f8f75c60106",
+    "tests/contract/voice.test.mjs": "0f4a27c826b6bcc47741172263708e309cc7cdcbcf193fe5d8d4c3ffb2165b11"
   },
   "missing": []
 }

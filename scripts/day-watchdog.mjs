@@ -9,8 +9,12 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
+import { spawnSync } from 'node:child_process'
 import { DSH_HOME as WHALE_HOME } from '../tools/lib/paths.mjs'
 import { tick, seed, logicalDay, daysDir } from './day-snapshot.mjs'
+
+const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'))
+const CORTICO = process.env.CORTICO_ROOT || 'E:/WorkSpace_Qoder/Cortico'
 
 const CONTROL = path.join(WHALE_HOME, 'bili-whale', 'control')
 const LOCK = path.join(CONTROL, 'day-watchdog.pid')
@@ -93,11 +97,34 @@ function audit(days = 14) {
   }
 }
 
+/** 04:05 之后，为"前一天"生成一次反事实报告（G3b 要连续 3 天）。 */
+function autoCounterfactual(now) {
+  const d = new Date(now)
+  if (d.getHours() < 4 || (d.getHours() === 4 && d.getMinutes() < 5)) return
+  const prev = logicalDay(now - 86400_000)
+  const dir = daysDir(prev)
+  const outFile = path.join(dir, 'counterfactual.json')
+  if (!fs.existsSync(path.join(dir, 'state.start.json')) || fs.existsSync(outFile)) return
+  const script = path.join(HERE, 'counterfactual.mjs')
+  const r = spawnSync(process.execPath, ['--import', 'tsx', script, '--date', prev, '--json'], {
+    cwd: CORTICO, encoding: 'utf8', timeout: 120000,
+  })
+  let parsed = null
+  try { parsed = JSON.parse(String(r.stdout ?? '')) } catch {}
+  const payload = parsed ?? {
+    ok: false, error: 'counterfactual-failed', exit: r.status ?? null,
+    stderr: String(r.stderr ?? '').slice(-400),
+  }
+  writeAtomic(outFile, { ...payload, generatedAt: new Date(now).toISOString() })
+  log(`counterfactual ${prev} ok=${payload.ok} diff=${payload.diffChars ?? '-'}`)
+}
+
 function once() {
   const now = Date.now()
   const day = logicalDay(now)
   seed(now, day)
   const r = tick(now, day)
+  autoCounterfactual(now)
   const hhmm = new Date(now).toLocaleTimeString('sv-SE').slice(0, 5)
   // 04:30 后仍无 state.start → missed（正常情况 seed 已建，这里防 seed 失败）
   if (hhmm >= '04:30' && !fs.existsSync(path.join(daysDir(day), 'state.start.json'))) {
