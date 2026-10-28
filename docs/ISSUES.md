@@ -73,6 +73,8 @@
 | E-08 | 本机 AMpath 快照停在 10-07 | 已浅克隆最新 `8465cbb` 到 `~/.qoder/tmp/ampath-latest` | 旧快照会误导判断 | FIXED |
 | E-09 | 两个会话同时改同一批文件 | 10-28 又出现并发提交（`9613fc6`） | 改动互相覆盖 | OPEN（需定单 Writer） |
 | E-10 | `life.json` 出现 `lastKind: forced` 与 `FORCE_ACTION` | 强制轮与自然轮混在一起，统计口径失真 | 会污染"自主性"证据 | OPEN |
+| E-11 | **B 站动态拿不到阅读数**（接口只给赞/评/转 `module_stat`） | 已核实；`ARCHITECTURE.md` §4.6 已改口径 | #21 内容效果复盘只能用互动率，不能用曝光 | FIXED（口径已更正） |
+| E-12 | **P2 投稿的上传协议不在 bili-cli 仓库里**：它只是封装 `bilibili-api-python==17.4.2`，而该依赖上游已归档 | 已核实（`src/bili_cli/commands/dm.py` 同仓库结构，投稿走库内部） | P2 视频要么重写 upos 上传，要么换实现；是 P2 的头号风险 | NEED-USER |
 
 ## 5. 已修复（留档，防止回退）
 

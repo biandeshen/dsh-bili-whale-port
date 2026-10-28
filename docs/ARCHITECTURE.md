@@ -188,7 +188,13 @@ World 取 L3 上下文                     draft-dynamic 组装               �
 ### 4.6 传感器（输入层，红队认定的"数学必然 cold_war"解药）
 - **M3 才做**，但接口先定：
   - `sensors/dm.ts`：只读鱼片一个人的私信（新工具 `bili_dm_read`），产出 `{lastContactAt, unread, text}`。
-  - `sensors/stats.ts`：自己动态的阅读/互动数（`bili_stats`），供 #21。
+    **接口已核实**（bili-cli `src/bili_cli/commands/dm.py`，MIT）：
+    - 会话列表 `GET https://api.vc.bilibili.com/session_svr/v1/session_svr/get_sessions`，参数 `session_type=1&group_fold=1&unfollow_fold=0&sort_rule=2&build=0&mobi_app=web`；取 `data.session_list[].talker_id / unread_count / session_ts`（微秒，即 `lastContactAt`）/ `last_msg`
+    - 消息 `GET https://api.vc.bilibili.com/svr_sync/v1/svr_sync/fetch_session_msgs`，参数 `talker_id=<owner>&session_type=1&size=30&build=0&mobi_app=web`，翻页用 `end_seqno=<最小 msg_seqno>`；取 `sender_uid / msg_type / content`（**JSON 字符串**，文本在 `.content`）/ `msg_seqno / timestamp`（秒）
+    - `msg_source=8` 是 B 站自动回复（被关注/关键词/收到消息），**不算主人已回**
+    - 只读、不发、不 ack，风控风险低
+  - `sensors/stats.ts`：自己动态的互动数（`bili_stats`），供 #21。
+    **口径修正**：B 站动态接口只给赞/评/转（`module_stat`），**拿不到阅读数**；M4 的验收只能用互动率，不能用曝光。
 - **正向输入的规则**：入站消息 → `connection +0.05..0.10`（有界、按日上限），且来源写 `inbound`；**模型自称 `masterReplied` 不能加 connection**（`sanitizeEffects` 已强制 `source=custom`，这里再加一道：`masterReplied` 只允许由传感器事件触发）。
 - **拆分 `trust` 与 `connection`**：现在 `trust = connection` 是别名，导致"信任恢复"与"连接感"绑死、`reunion` 不可达。
 - **验收**：注入一条入站消息 → `connection` 上升、`cold_war` 可在 24h 内退出；不注入时仍会自然下滑（不破坏"被冷落会难过"）。
