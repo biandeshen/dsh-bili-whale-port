@@ -19,6 +19,7 @@
     "day:seed": "node scripts/day-snapshot.mjs --seed",
     "day:tick": "node scripts/day-snapshot.mjs --tick",
     "day:report": "node scripts/day-report.mjs",
+    "g3b": "node scripts/g3b-check.mjs",
     "watchdog": "node scripts/day-watchdog.mjs --audit"
   },
   "main": "core/index.js",

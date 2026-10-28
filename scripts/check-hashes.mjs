@@ -18,6 +18,7 @@ const FILES = [
   'scripts/counterfactual.mjs',
   'scripts/run-mjs-tests.mjs',
   'scripts/check-consumers.mjs',
+  'scripts/g3b-check.mjs',
   'tests/contract/voice.test.mjs',
 ]
 
