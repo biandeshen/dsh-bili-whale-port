@@ -59,6 +59,29 @@ function writeLifeFile(o: any) {
     fs.renameSync(tmp, LIFE_FILE)
   } catch {}
 }
+/**
+ * 从 append-only 因果链数某个逻辑日的行动。
+ * 并发实例会把 life.json 的 actionsToday 覆盖回旧值（D-32）：启动时以因果链对账，只增不减。
+ * 读失败按 0 处理——不能因为没有账本就阻止她启动。
+ */
+export function countCausalActions(file: string, day: string): { count: number; lastAt: number } {
+  let count = 0
+  let lastAt = 0
+  let raw = ''
+  try { raw = fs.readFileSync(file, 'utf8') } catch { return { count, lastAt } }
+  for (const line of raw.split('\n')) {
+    if (!line.trim()) continue
+    try {
+      const e = JSON.parse(line)
+      if (e?.kind !== 'action') continue
+      const at = Number(e.atMs)
+      if (!Number.isFinite(at) || dayKey(at) !== day) continue
+      count += 1
+      if (at > lastAt) lastAt = at
+    } catch {}
+  }
+  return { count, lastAt }
+}
 let round: { feedAt?: number; debriefed?: boolean; bvid?: string; debriefedAt?: number } = readRound()
 if (round.feedAt && Date.now() - round.feedAt > ROUND_STALE_MS) round = {}
 
@@ -287,8 +310,14 @@ class BiliAccountWorld {
 
     // 生活循环：不是定时唤醒，每 3–7 分钟看她想不想做点什么（无聊/想他/歇够了 + 抖动）
     this.life = readLifeFile()
-    if (this.life.day !== dayKey(Date.now())) this.life = { ...this.life, day: dayKey(Date.now()), actionsToday: 0 }
+    const today = dayKey(Date.now())
+    if (this.life.day !== today) this.life = { ...this.life, day: today, actionsToday: 0 }
+    // 并发实例可能把 actionsToday 覆盖回 0（D-32）：用 append-only 因果链对账，只增不减。
+    const ledger = countCausalActions(CAUSAL_FILE, today)
+    this.life.actionsToday = Math.max(Number(this.life.actionsToday ?? 0), ledger.count)
+    this.life.lastActionAt = Math.max(Number(this.life.lastActionAt ?? 0), ledger.lastAt)
     this.life.lastCheckAt = this.life.lastCheckAt || Date.now()
+    writeLifeFile(this.life)
 
     const lifeTick = async () => {
       if (this.host == null) return
