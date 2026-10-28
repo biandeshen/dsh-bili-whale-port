@@ -9,6 +9,7 @@ const { decideAction, restRecoveryDelta, dayKey, ACTION_COST_ENERGY } = await im
 const { simulateOfflineTime } = await import(base + '/persona-core/src/decay.ts')
 const { DEFAULT_ATOMIC_FIELDS } = await import(base + '/persona-core/src/types.ts')
 const { createInitialState, deriveNPCState } = await import(base + '/persona-core/src/npc-state-machine.ts')
+const { applyBudgets, emptyBudget } = await import(base + '/persona-core/src/budget.ts')
 
 const seed = Number(process.argv[2] || 42)
 let s = seed >>> 0
@@ -23,6 +24,13 @@ let fields = { ...DEFAULT_ATOMIC_FIELDS }
 let npc = createInitialState()
 let t = start
 let mem = { day: dayKey(t), actionsToday: 0, lastActionAt: 0, lastCheckAt: t, lastKind: null, connectMisses: 0, lastSilentDay: null }
+let budget = emptyBudget()
+const clampF = (v, lo, hi) => Math.max(lo, Math.min(hi, v))
+const applyEvents = (events) => {
+  const b = applyBudgets(events, budget, t)
+  budget = b.ledger
+  for (const e of b.effects) fields = { ...fields, [e.field]: clampF(fields[e.field] + e.delta, e.field === 'mood' ? -1 : 0, 1) }
+}
 const byDay = new Map()
 
 const daily = new Map()
@@ -32,7 +40,7 @@ while (t < start + DAYS * 86400_000) {
   // 与 definition.ts 对齐：一轮行动后至少 6h 无动作才算睡着，睡着才回体力
   const sinceActionH = mem.lastActionAt ? (t - mem.lastActionAt) / 3600_000 : Infinity
   const asleep = sinceActionH >= 6
-  if (asleep) fields = { ...fields, energy: Math.min(1, fields.energy + restRecoveryDelta(fields, STEP / 3600_000)) }
+  if (asleep) applyEvents([{ field: 'energy', delta: restRecoveryDelta(fields, STEP / 3600_000), source: 'rest', priority: 2 }])
   npc = deriveNPCState(fields, npc, t, false).newState
   if (mem.day !== dayKey(t)) mem = { ...mem, day: dayKey(t), actionsToday: 0 }
   const cur = daily.get(dayKey(t)) ?? { moodSum: 0, n: 0, moodMin: 1, moodMax: -1, energySum: 0, asleep: 0 }
@@ -43,26 +51,32 @@ while (t < start + DAYS * 86400_000) {
   if (!d.act) continue
   if (!byDay.has(dayKey(t))) byDay.set(dayKey(t), [])
   byDay.get(dayKey(t)).push({ at: fmt(t), kind: d.kind, energy: fields.energy.toFixed(2), relation: npc.current })
-  fields = { ...fields, energy: fields.energy - ACTION_COST_ENERGY, stimulation: Math.min(1, fields.stimulation + 0.02) }
+  const events = [
+    { field: 'energy', delta: -ACTION_COST_ENERGY, source: 'action', priority: 5 },
+    { field: 'stimulation', delta: 0.02, source: 'action', priority: 5 },
+  ]
   // 看完一轮视频（bili_mood_apply preset=watchedVideo）的真实增量
   if (d.kind === 'explore') {
-    fields = {
-      ...fields,
-      energy: Math.max(0, fields.energy - 0.02),
-      curiosity: Math.min(1, fields.curiosity + 0.03),
-      stimulation: Math.min(1, fields.stimulation + 0.12),
-      mood: Math.min(1, fields.mood + 0.05),
-    }
+    events.push(
+      { field: 'curiosity', delta: 0.03, source: 'watched', priority: 5 },
+      { field: 'stimulation', delta: 0.12, source: 'watched', priority: 5 },
+      { field: 'mood', delta: 0.05, source: 'watched', priority: 4 },
+      { field: 'energy', delta: -0.02, source: 'watched', priority: 3 },
+    )
   }
+  // 从没人回过她 → 每新的一天，等不到就掉一次心情
+  if (d.kind === 'connect' && mem.lastSilentDay !== dayKey(t)) {
+    events.push(
+      { field: 'connection', delta: -0.05, source: 'silence', priority: 8 },
+      { field: 'mood', delta: -0.03, source: 'silence', priority: 8 },
+    )
+    mem.lastSilentDay = dayKey(t)
+  }
+  applyEvents(events)
   mem = { ...mem, actionsToday: mem.actionsToday + 1, lastActionAt: t, lastKind: d.kind }
   if (d.kind === 'connect') {
     mem.connectMisses = (mem.connectMisses ?? 0) + 1
     mem.lastMissAt = t
-    // 从没人回过她 → 每新的一天，等不到就掉一次心情
-    if (mem.lastSilentDay !== dayKey(t)) {
-      fields = { ...fields, connection: Math.max(0, fields.connection - 0.05), mood: Math.max(-1, fields.mood - 0.03) }
-      mem.lastSilentDay = dayKey(t)
-    }
     npc = deriveNPCState(fields, npc, t, false).newState
   }
 }

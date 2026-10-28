@@ -12,7 +12,7 @@
 | `Cortico/src/worlds/bili-account/definition.ts` | `asleep = now - lastActionAt >= 6h`；恢复只在睡着时生效；`life-status.json` 增加 `asleep` |
 | `Cortico/persona-core/tests/core.test.mjs` | 12h 封顶测试改为“不再封顶 / 24h settle 上限 / 正向耦合” |
 | `Cortico/persona-core/tests/rhythm.test.mjs` | 恢复速率断言 + 10 天模拟改为睡着才恢复 |
-| `dsh-bili-whale/scripts/simulate-rhythm.mjs` | 与定义对齐（睡着才恢复；一轮 = actionCost + watchedVideo 增量；打印每日 mood/体力/睡眠） |
+| `dsh-bili-whale/scripts/simulate-rhythm.mjs` | 与定义对齐（睡着才恢复；一轮 = actionCost + watchedVideo 增量；事件过 `applyBudgets`；打印每日 mood/体力/睡眠） |
 
 ## 2. 门禁
 
@@ -37,10 +37,10 @@ cd Cortico && node --import tsx ../dsh-bili-whale/scripts/drill-gate.mjs
 | 参数 | seed 42 | seed 7 |
 |---|---|---|
 | 0.003/h 恢复 | 第 19 天起 mood=-1.00，体力 0.15–0.20，`energy<0.2` 耦合把 mood 钉死 | 同左（趋势一致） |
-| 0.005/h 恢复（当前） | mood 日均 [-0.10, 0.17]，30 天末 0.04；体力 0.61–0.70 | mood 日均 [-0.01, 0.17]，末 0.03；体力 0.55 |
+| 0.005/h 恢复（当前，含来源预算） | mood 日均 [-0.01, 0.17]，30 天末 0.06；体力 0.35–0.80 | mood 日均 [0.00, 0.17]，末 0.06；体力 0.31–0.68 |
 
 - `0.003/h` 的失败不是“恢复太快”，而是睡着只算 ~14–18h/天，实际恢复 0.042–0.054/天，追不上 1–2 轮活动（0.07–0.14/天）→ 体力长期停在疲劳门 0.18 附近 → 触发 `energy<0.2` 的 -0.02/h 心情下压 → mood 必然贴底。
-- `0.005/h` 下体力稳定在 0.55–0.7，mood 不再贴边；这是对修订案“不改速率”的有证据偏离，**待团队复核**。
+- `0.005/h` 下体力在 0.31–0.80 之间随行动/睡眠起伏，mood 不再贴边；这是对修订案“不改速率”的有证据偏离，**待团队复核**。
 - 模拟不含回信（M3 才有入站）、不含 7 类生活活动（M1 后续）；因此 mood 波动区间偏窄（多数在 -0.2..0.2），属于“平静附近的小起伏”，不是最终形态。
 
 ## 4. 运行时验证（2026-10-29 01:13）

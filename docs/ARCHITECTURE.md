@@ -433,8 +433,8 @@ tick:
   6. 记录 L0（带 triggerId）
 ```
 
-- **来源预算**：仿上游 `embodiment/temporal-rates.ts` 的 `sourceBudgets` 结构——每类来源一个 id、一个每日上限；超出后该来源当次 delta 归零，但**仍写进预算账本**（便于解释"为什么今天不再变"）。
-  建议初值：`rest` 0.25/天、`watch` 0.30/天、`reply` 0.20/天、`decay` 无上限。
+- **来源预算（2026-10-29 已落地）**：`persona-core/src/budget.ts`，键 `${source}|${field}`，按 04:00 日界清零，账本存 `fields.json.budget`；余额不足时**部分生效**（按剩余额度截断，不整条丢弃），正负都计费，`decay` 无上限。
+  初值：`rest` 0.25/天、`watched` 0.30、`master-reply` 0.20、`silence` 0.15、`action` 0.20、`custom` 0.15、`draft-ok`/`draft-no`/`risk` 0.10；其余来源默认 0.10。
 - **正向耦合（新增，上游没有）**：`social>0.6` → mood +0.01/天；`connection>0.6` → energy 恢复 ×1.5。目的是让"被陪着"真的能把她托起来，打破"三条耦合全下压"。
 - **场值解冻（2026-10-29 已落地）**：`COUPLING_CAP_MS` 已删除，改为 `MAX_SETTLE_MS=24h` 只封**硬耦合**（衰减跑满真实时长，靠 `decayAtomicFields` 基线截断）；正向耦合按本节规格实现（`social>0.6 → mood +0.01/天`、`connection>0.6 → 恢复 ×1.5`）。
 - **醒/睡（2026-10-29 已落地）**：`asleep = now - lastActionAt >= 6h`，`rest` 恢复只在睡着时生效，写入 `life-status.json`。恢复速率由 0.003 调到 0.005/h：0.003 在 30 天模拟里体力卡在 0.15–0.2，触发 `energy<0.2` 耦合把 mood 钉到 -1；0.005 稳定在 0.55–0.65（seed 42/7，`scripts/simulate-rhythm.mjs`）。这是对修订案"不改速率"的**有证据偏离**，待团队复核。
