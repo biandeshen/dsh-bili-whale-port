@@ -61,6 +61,7 @@
 | Q-06 | **`connection` 的语义与符号** | 上游 `embodiment/temporal-rates.ts:90-104` 在"长时间无互动"时给 `connection **+**0.001×lonelyUnits`（孤独→连接上升）；但 `npc-state-machine.ts:75-91` 又把 `connection<0.3` 当作冷战条件。两者可能语义冲突：若 connection 是"连接感"，孤独不该让它上升；若是"渴望连接"，则冷战条件反了 | A 按"连接感"（孤独下降，需外部输入回补）/ B 按"渴望"（孤独上升，冷战另立阈值）/ C 先只做状态机、不加孤独项 | NEED-USER（团队建议：connection 保持存量 + 新增 `npcState.bond` 承载关系；无接触证据不判冷战） |
 | Q-07 | **是否采用上游的昼夜节律项** | 上游按小时窗口结算（23–5 睡、6–9 晨、13–15 午后低谷，`temporal-rates.ts:84-92`），与我们"作息由状态决定、不设时间表"的决定可能冲突 | A 只作缓慢背景漂移，不参与醒/睡决策 / B 完全不用 / C 用但要可配置 | NEED-USER（团队建议：只进 night_mood/morning_curiosity/loneliness_mood 三项；挡三项 energy 与 loneliness_connection） |
 | Q-08 | **是否允许 DSH 作为"视频/语音侧车"** | 部分 DSH 插件（`dsh-voice`、`dsh-autocut` 入口）绑 DSH 运行时，剥不干净。跑第二个宿主能直接用，但代价是双宿主/双模型/双状态 | A 不引入第二宿主，只用能剥出的库（推荐）/ B 允许 DSH sidecar 专做视频语音 / C 等 P2 再定 | NEED-USER（团队建议 A） |
+| Q-09 | **批准排期修订**：拆 `G3a`（D3 进度门）/ `G3b`（D11 转段门）；kill 阈值 12/14→**11/14**、10/14→**9/14**；观测改绝对日期 11/10–11/23；日界 04:00；D8–D10 加 canary（重启/关机/410） | 排期组实测 D0–D3 最多 8 会话、现实需 18.75；D3 转段门必然失败并空转 11 天；12/14 从建设期起算数学上不可达 | A 按 `ROADMAP-2026-10-29.md` 批准（推荐）/ B 保留 D3 单门并整体顺延 / C 只改阈值不改门 | NEED-USER |
 
 ## 4. 环境与流程约束（BLOCKED / 需处理）
 
