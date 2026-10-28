@@ -1,4 +1,5 @@
 import { guardedFetch as fetch } from '../lib/traffic.mjs'
+import { keepCandidate, snapshotRow } from '../lib/feed-quality.mjs'
 // 选题器：照"她自己的偏好"挑今天该看什么。**只读**，不产生任何对外动作。
 //
 // 用法: node feed.mjs [--n 6] [--per 2] [--pool 30]
@@ -253,13 +254,20 @@ const selfName = String(config().self?.name ?? "")
 // 2026-10-22 加（主人问「feed 是不是筛得太严」）：不是严 ✗ 是【没有质量下限】✗
 //   实测：候选池 66 条 → 只出 3 条，其中 2 条是 0/1 播放的碎屑 ✓
 //   注意：这不是给播放量加权 ✗（那条是主人 10-20 明确否掉的）
-//   只是丢掉「几乎无人看过」的：播放<300 且 弹幕<3，且不是多偏好命中 ✓
-const looksLikeJunk = (x) => x.play < 300 && x.dm < 3
+//   只是丢掉「几乎无人看过」的：播放<300 且 弹幕<3 ✓
+// 2026-10-29（D-31 团队裁决）：收回「多偏好命中 ≥2 免检」的口子 ✗
+//   实测被绕过：播放 1 / 弹幕 0 的当日新片命中「白噪音+助眠」照样进来 ✓
+//   300/3 是 10-22 已有的规则，这次不新增数值；关注流例外（她订阅的人不算平台碎屑）
+//   判定与快照在 tools/lib/feed-quality.mjs（纯函数，可单测）
+const dropped = []
 const uniq = [...new Map(pool.map((x) => [x.bv, x])).values()]
   .filter((x) => !seen.has(x.bv) && !likedBVs.has(x.bv) && !favBVs.has(x.bv))
   .filter((x) => !(selfName && String(x.up ?? "").includes(selfName)))
-  // 2026-10-22：碎屑丢掉落（多偏好命中 ≥2 的留着 ✓ 那可能真是小众宝藏）
-  .filter((x) => !looksLikeJunk(x) || hitsOf(x.t).length >= 2)
+  .filter((x) => {
+    const d = keepCandidate(x)
+    if (!d.keep) dropped.push(x)
+    return d.keep
+  })
 const scoreOf = (x) => densityOf(x) * 3 + hitsOf(x.t).length * 4 + boostOf(x.t)
 uniq.sort((a, b) => scoreOf(b) - scoreOf(a))
 for (const x of uniq) { x._hits = hitsOf(x.t); x._score = scoreOf(x) }
@@ -281,7 +289,7 @@ for (const x of uniq) {
 console.log(`偏好（来自日记）: ${prefs.join(' · ')}`)
 console.log(`反馈回流: 被赞 ${likedEvents.length} 条 · 她收藏 ${favItems.length} 条 → 学会 ${learnedTokens.length} 个主题词`)
 console.log(`已看过/已评论过（已排除）: ${seen.size} 个 BV`)
-console.log(`候选池: ${pool.length} 条 → 去重去已看后 ${uniq.length} 条\n`)
+console.log(`候选池: ${pool.length} 条 → 去重去已看后 ${uniq.length} 条（质量下限丢掉 ${dropped.length} 条）\n`)
 console.log(`今天可以看这几条（每词最多 ${PER} 条，共 ${N} 条）：`)
 const perKw = {}
 let shown = 0
@@ -293,3 +301,22 @@ for (const x of diversified) {
   console.log(`  ${String(shown).padStart(2)}. ${x.bv}  ${String(x.d).padStart(4)}s  弹幕${String(x.dm).padStart(7)}  播放${String(x.play).padStart(9)}  ${x.t.slice(0, 40)}  @${x.up} ${x._hits.length ? "[" + x._hits.join("+") + "]" : ""}`)
 }
 console.log('\n看完跑：node bili.mjs debrief <BV>   → 然后把"想法"写进日记的「想说」区（不发）')
+
+// ── 候选快照（2026-10-29 加，D-31 证据缺口）────────────────────────────
+//   D-31 吵不清的原因之一：只有"她最后看了什么"，没有"平台给了她什么"。
+//   快照只写本地、只读字段（无 cookie/凭据），供 day-report / 复盘查"是不是碎屑"。
+try {
+  const whaleHome = process.env.WHALE_HOME || path.join(HOME, '.dsh')
+  const day = new Date(Date.now() - 4 * 3600_000).toLocaleDateString('sv-SE')
+  const dir = path.join(whaleHome, 'bili-whale', 'feed')
+  fs.mkdirSync(dir, { recursive: true })
+  const rows = [
+    ...uniq.map((x, i) => snapshotRow(x, { keep: true, why: keepCandidate(x).why }, i + 1)),
+    ...dropped.map((x) => snapshotRow(x, { keep: false, why: keepCandidate(x).why })),
+  ]
+  const file = path.join(dir, day + '.json')
+  fs.writeFileSync(file + '.' + process.pid + '.tmp', JSON.stringify({
+    at: new Date().toISOString(), day, prefs, pool: pool.length, kept: uniq.length, dropped: dropped.length, rows,
+  }, null, 1))
+  fs.renameSync(file + '.' + process.pid + '.tmp', file)
+} catch (e) { console.error(`（候选快照没写成：${String(e.message).slice(0, 80)}）`) }
