@@ -106,6 +106,17 @@ export function assertVoice(v) {
 
 const LOW_TONE = new Set(['失落', '想念', '警觉', '困倦', '疲惫', '安静'])
 const HIGH_TONE = new Set(['雀跃', '开心', '满足', '轻快', '安稳', '好奇', '手痒', '平静'])
+// 同属"高语气"的标签也必须能区分，否则反事实会得到 0 差异（真实数据已实测到）
+const MOOD_TAIL = {
+  雀跃: '今天有点想说话。',
+  开心: '今天挺好的。',
+  满足: '这样就很好了。',
+  轻快: '今天状态还行。',
+  安稳: '不着急，慢慢来。',
+  好奇: '想找点没见过的看看。',
+  手痒: '想写两句。',
+  平静: '',
+}
 
 /**
  * 把 voiceBrief 落成正文。缺 voice 直接拒稿；不再静默退化成"没有情绪"的模板。
@@ -132,6 +143,9 @@ export function composeDraft(diaryText, { date, voice, max = 100 } = {}) {
   }
 
   for (const w of voice.banned) if (w) text = text.split(w).join('他')
+
+  const tail = MOOD_TAIL[voice.mood.label] ?? ''
+  if (tail && !text.includes(tail)) text = `${text} ${tail}`
 
   return { ok: true, text, voiceHash: crypto.createHash('sha1').update(JSON.stringify(voice)).digest('hex') }
 }
