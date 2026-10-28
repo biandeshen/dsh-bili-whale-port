@@ -357,3 +357,60 @@ cd E:/WorkSpace_Qoder/Cortico && git log --oneline -1      # 首次提交存在
 - `buildText` 签名变更会影响 `tests/contract/track-a.test.mjs` 的旧断言 → 先改测试再改实现，或同时改。
 - `voice` 必填会让**没有 World 上下文的调用方**（手工 CLI）失败 → CLI 增加 `--voice-file` 参数；确实手工调试时用 `--no-voice` 显式降级，并在输出里标注 `degraded:true`（不静默）。
 - `git init` 后若误提交 `.env`，用 `git rm --cached` 并从历史清理；提交前必须 `git status` 人工过一遍。
+
+## 12. M1 实施规格（代码级，情绪与场值）
+
+> M1 的目标：**情绪不再塌缩、场值不再贴边**。上行依赖 M0 的输出链路（没有 M0，M1 的效果无法被观测）。
+
+### 12.1 情绪投影（替换自写 `readMood`）
+
+上游 `packages/shared/src/field-engine/emotion-projection.ts`（175 行，纯函数，单参数）：
+
+- **输入**：7 个原子场（我们的 `AtomicFields` 完全对齐）。
+- **输出**：`EmotionProfile`——主情绪、次情绪、各情绪权重（连续），不是单标签。
+- **移植时的两个坑（调研实测）**：
+  1. 参考点字段数不一致（有的 3 字段、有的 4 字段），会让 **15 个情绪里 9 个系统性偏移** → 移植时统一成 7 维参考点。
+  2. 场值贴边时 `intensity` 恒为 1 → 改为**滑动均值参照**（近 N 次投影的距离中位数）。
+- **成因层**：保留我们自己的"最近事件"作为独立修正层（上游没有），但要修 D-06 的 `source='action'` 缺分支——`action` 必须映射到一个真实成因，否则永远落兜底。
+- **对外接口**：`describeEmotion(state, now)` 返回 `{ primary, secondary[], weights, intensity, reason, inner }`；`describeState` 只消费它，不再自己拼字符串。
+
+### 12.2 场值管线（顺序固定，可单测）
+
+```
+tick:
+  1. 结算时间（按 lastSettledAt，上限 24h，10s 网格）
+  2. 衰减到基线（decayAtomicFields，不越基线）
+  3. 硬耦合（现有三条，但要加"托起来"的正向耦合）
+  4. 来源预算（把 2/3 的累计效果按来源封顶）
+  5. 事件批次（EffectBus，一次 apply 一次 clamp）
+  6. 记录 L0（带 triggerId）
+```
+
+- **来源预算**：仿上游 `embodiment/temporal-rates.ts` 的 `sourceBudgets` 结构——每类来源一个 id、一个每日上限；超出后该来源当次 delta 归零，但**仍写进预算账本**（便于解释"为什么今天不再变"）。
+  建议初值：`rest` 0.25/天、`watch` 0.30/天、`reply` 0.20/天、`decay` 无上限。
+- **正向耦合（新增，上游没有）**：`social>0.6` → mood +0.01/天；`connection>0.6` → energy 恢复 ×1.5。目的是让"被陪着"真的能把她托起来，打破"三条耦合全下压"。
+- **`COUPLING_CAP_MS=12h`**：保留，但必须在文档与代码注释里写明这是**偏离上游的刻意选择**（ISSUES D-07 已记录它只保护离线路径的问题）。
+
+### 12.3 生活活动（治"97% 歇够了"）
+
+上游 `packages/server/src/engine/business/life-generator.ts`：
+
+- **7 类活动**：`rest / explore / create / social / reflect / exercise / consume`，各有 field effects 与时长区间（15–90 分钟）。
+- **描述轮换**：每类有 4–5 条文案，按时钟取模轮换——这是"同一类活动但说法不同"的关键；我们只借文案表与轮换，不借它的字段效果表（它的 `social` 给 connection +0.1，与 Q-06 的语义冲突未定）。
+- **与我们的 `rhythm.ts` 的关系**：`decideWake` 决定"醒不醒"，`life-activities` 决定"醒了做什么"。现在只有前者，后者缺失，所以醒来只会"看片/歇着"。
+- **接线方式**：唤醒文本里给 2–3 个候选活动（带文案），由模型选一个；**选择结果写回 `life.json.lastKind`**，用于后续统计与漂移。
+
+### 12.4 验收（可证伪）
+
+| 断言 | 方法 | 通过线 |
+|---|---|---|
+| 情绪不再塌缩 | 7 维网格随机采样 10,000 点，统计 `describeEmotion().primary` | 不同标签 ≥10 种；最高频标签 ≤35% |
+| 场值不再贴边 | 90 天闭环（含 watch/reply/rest 事件）模拟 | `|mood|<0.95`；其他场不在 0/1 常驻；`creativity` 有非基线波动 |
+| 成因可追溯 | 随机 100 条 causal | 每条都能指到 `source` 且 `triggerId` 非空 |
+| 行动不单一 | 30 天 `life.json.lastKind` 分布 | 单类 ≤70% |
+
+### 12.5 风险
+
+- **Q-06 未定前不要动 `connection` 的符号**，只做"正向耦合"的新增项，不回改上游语义。
+- **Q-07 未定前不要引入小时窗口**，否则会重新引入"按钟点作息"。
+- 情绪投影会让旧 drill 的断言失效（现在断言"平静"文案），需要同步改测试——**先改断言再改实现**。
