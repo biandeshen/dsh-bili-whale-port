@@ -6,6 +6,7 @@ import { recordFieldChangeL0, buildCausalTree, explainMoodDrop } from '../src/ca
 import { decayMemory, calculateEncodingStrength, isFlashbulbMemory, recallMemory } from '../src/memory.ts'
 import { createInitialState, deriveNPCState } from '../src/npc-state-machine.ts'
 import { decayAtomicFields, applyHardCouplings, simulateOfflineTime } from '../src/decay.ts'
+import { dayKey } from '../src/rhythm.ts'
 
 const mem = (over = {}) => ({
   id: 'm1', npcId: 'xiaoyu', sender: 'player', content: '主人说晚安',
@@ -144,4 +145,9 @@ test('硬耦合：体力过低会拖累心情', () => {
   const f = { ...DEFAULT_ATOMIC_FIELDS, energy: 0.1, mood: 0.5, stimulation: 0.5 }
   const after = applyHardCouplings(f, 3600_000)
   assert.ok(Math.abs(after.mood - 0.48) < 0.001)
+})
+
+test('dayKey：04:00 为日界，凌晨算前一天', () => {
+  assert.equal(dayKey(Date.parse('2026-10-29T03:59:00+08:00')), '2026-10-28')
+  assert.equal(dayKey(Date.parse('2026-10-29T04:00:00+08:00')), '2026-10-29')
 })

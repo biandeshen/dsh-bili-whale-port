@@ -111,7 +111,7 @@ const DRAFTS_DIR = process.env.WHALE_DRAFTS
 /** 今天是否已经出过草稿（多醒几轮时不重复出稿）。 */
 function todayDraftLine(): string {
   try {
-    const date = new Date().toLocaleDateString('sv-SE')
+    const date = dayKey(Date.now())
     const d = JSON.parse(fs.readFileSync(path.join(DRAFTS_DIR, date + '.json'), 'utf8'))
     const zh: Record<string, string> = { pending: '等你审批', 'dry-run': '试发过', sent: '已发出', rejected: '被拒', cooldown: '冷却中', failed: '失败' }
     return `今天已经出过草稿（${d.id} · ${zh[d.status] ?? d.status}）——这一轮不用再出稿，写日记、看看就好。`
@@ -434,7 +434,7 @@ class BiliAccountWorld {
         if (!voice.stance.share) {
           return `[skipped] 这一轮不想发：${voice.stance.because}（心情 ${voice.mood.label}）`
         }
-        const day = new Date(Date.now() - 4 * 3600_000).toLocaleDateString('sv-SE')
+        const day = dayKey(Date.now())
         const voiceFile = path.join(WHALE, 'bili-whale', 'control', `voice-${day}.json`)
         try {
           fs.mkdirSync(path.dirname(voiceFile), { recursive: true })
@@ -462,7 +462,7 @@ class BiliAccountWorld {
         let cur = ''
         try { cur = fs.readFileSync(file, 'utf8') } catch {}
         if (!cur) cur = DIARY_DEFAULT_HEADER[book as 'public' | 'private']
-        const date = new Date().toLocaleDateString('sv-SE')
+        const date = dayKey(Date.now())
         const next = upsertDiarySection(cur, { book: book as 'public' | 'private', heading, body, date })
         fs.mkdirSync(path.dirname(file), { recursive: true })
         const tmp = file + '.' + process.pid + '.' + Math.random().toString(36).slice(2, 8) + '.tmp'
