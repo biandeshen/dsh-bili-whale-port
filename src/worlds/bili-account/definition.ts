@@ -8,6 +8,7 @@ import { upsertDiarySection, DIARY_DEFAULT_HEADER } from './diary.ts'
 import { loadState, saveState, applyEffects, remember, describeState, PRESETS } from './personaAdapter.ts'
 import type { PresetEffect } from './personaAdapter.ts'
 import { buildVoiceBrief } from '../../../persona-core/src/voice-brief.ts'
+import { pickActivities, ACTIVITY_LABELS } from '../../../persona-core/src/life-activities.ts'
 import { decideAction, restRecoveryDelta, actionCost, nextCheckDelay, dayKey, MIN_GAP_MS } from '../../../persona-core/src/rhythm.ts'
 
 const ROOT = process.env.BILI_WHALE_ROOT || 'E:/WorkSpace_Qoder/dsh-bili-whale'
@@ -204,7 +205,7 @@ const DECLS = [
   { name: 'bili_debrief', description: 'Understand one video via subtitles, danmaku, comments (read-only).', tags: ['read'], parameters: { type: 'object', properties: { bvid: { type: 'string' } }, required: ['bvid'], additionalProperties: false } },
   { name: 'bili_diary_read', description: 'Read the two diary files (read-only).', tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'bili_mood_read', description: "Read Xiaoyu's current emotion (fields + cause + label).", tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
-  { name: 'bili_mood_apply', description: 'Apply emotional effects after an event.', tags: ['write'], parameters: { type: 'object', properties: { preset: { type: 'string', description: 'watchedVideo | masterReplied | masterSilentDay | draftApproved | draftRejected | trafficPaused' }, custom: { type: 'array', items: { type: 'object', properties: { field: { type: 'string' }, delta: { type: 'number' }, source: { type: 'string' } }, required: ['field', 'delta', 'source'] } } }, additionalProperties: false } },
+  { name: 'bili_mood_apply', description: 'Apply emotional effects after an event. Optionally record which life activity you picked and a short note.', tags: ['write'], parameters: { type: 'object', properties: { preset: { type: 'string', description: 'watchedVideo | masterReplied | masterSilentDay | draftApproved | draftRejected | trafficPaused' }, custom: { type: 'array', items: { type: 'object', properties: { field: { type: 'string' }, delta: { type: 'number' }, source: { type: 'string' } }, required: ['field', 'delta', 'source'] } }, note: { type: 'string', description: '一句留给自己的话（会写进记忆）' }, activity: { type: 'string', enum: ['rest', 'explore', 'create', 'social', 'reflect', 'exercise', 'consume'], description: '这轮挑的生活活动 id' } }, additionalProperties: false } },
   { name: 'bili_draft_dynamic', description: "Create a dynamic draft from today's diary and an unused image. Never posts.", tags: ['write'], parameters: { type: 'object', properties: { force: { type: 'boolean' } }, additionalProperties: false } },
   { name: 'bili_diary_append', description: 'Write a section into one of her diaries (public/private). Same day+heading is replaced, not duplicated.', tags: ['write'], parameters: { type: 'object', properties: { book: { type: 'string', enum: ['public', 'private'], description: 'public = 给人看的；private = 只给自己看的偏好校准' }, heading: { type: 'string', description: '小节标题，如 看过 / 想说 / 今日指标 / 本轮留下的判断' }, text: { type: 'string', description: '这一节的正文（markdown）' } }, required: ['book', 'heading', 'text'], additionalProperties: false } },
 ] as const
@@ -293,11 +294,14 @@ class BiliAccountWorld {
           const fresh = violationNotice(readCausal())
           const feedback = latestDraftFeedback(after)
           const todayDraft = todayDraftLine()
+          const activities = pickActivities(after.fields, { now, rng: Math.random, k: 3 })
           this.host?.pushEvent({ type: 'bili.action_due', ts: new Date(now).toISOString(), source: 'bili-account', text: [
             '【你想做点什么】',
             describeState(after),
             '',
             '起因：' + decision.reason + '。',
+            '这轮可以先挑一件小事（也可以不做）：\n' + activities.map((x) => `- [${x.type}] ${x.label}：${x.description}`).join('\n'),
+            '挑好了，在 bili_mood_apply 里带上 activity=<id>，让我记下来。',
             todayDraft,
             feedback,
             fresh,
@@ -390,7 +394,21 @@ class BiliAccountWorld {
         const presetName = String(a?.preset ?? '')
         const custom = sanitizeEffects(a?.custom)
         const hasCustom = custom.length > 0
-        if (!hasCustom && !presetName) return '[mood_apply] 需要 preset 或 custom'
+        const activityId = String(a?.activity ?? '')
+        if (activityId && !(activityId in ACTIVITY_LABELS)) {
+          return '[mood_apply] activity 无效：只能是 ' + Object.keys(ACTIVITY_LABELS).join(' / ')
+        }
+        if (!hasCustom && !presetName) {
+          // 只记活动、不加效果也允许（这轮她只是过了个小日子）
+          if (activityId && this.life) {
+            this.life.lastActivity = activityId
+            this.life.lastKind = activityId
+            writeLifeFile(this.life)
+            causal({ kind: 'activity', activity: activityId, atMs: Date.now() })
+            return describeState(loadState(FIELDS_FILE)) + '\n（已记下这轮活动：' + activityId + '）'
+          }
+          return '[mood_apply] 需要 preset 或 custom'
+        }
         if (!hasCustom && !PRESETS[presetName]) {
           if (Array.isArray(a?.custom) && a.custom.length > 0) {
             return '[mood_apply] custom 无效：field 只能是 energy/stimulation/connection/social/mood/curiosity/creativity，|delta|≤0.5'
@@ -411,9 +429,15 @@ class BiliAccountWorld {
           this.life.connectMisses = 0
           writeLifeFile(this.life)
         }
+        if (activityId && this.life) {
+          this.life.lastActivity = activityId
+          this.life.lastKind = activityId
+          writeLifeFile(this.life)
+        }
         causal({
           kind: hasCustom ? 'custom' : presetName,
           note: a?.note ?? null,
+          activity: activityId || null,
           description,
           effects,
           before: before.fields,
