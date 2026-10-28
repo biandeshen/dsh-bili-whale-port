@@ -18,7 +18,7 @@
 
 - **2026-10-27：宿主已统一到 Cortico。** DSH 插件的时钟在本机停用（`clock.enabled=false` + `night.windows=[]`，面板与 `/deps` 仍在）；HKCU `WhaleDraft`（21:30 nightly-scheduler）已删除。Cortico World 改为**状态驱动的醒/睡**（无固定 21:40；无聊/想他/累 + 抖动决定，单日 ≤3 次，冷战/连续失约会自动收敛），见 `Cortico/persona-core/src/rhythm.ts` 与 `docs/CORTICO-PATCHES.md` 第 11 条。
 - 分支 `port/core-opencode-panel`，4 个检查点提交（阶段0-2 / 阶段2 / 阶段3 / 阶段4）。
-- `npm test` **160/160**（25 文件）；drill **34/34**；persona-core core 19 + adapter 9 + voice-brief 5；World 12；`tsc --noEmit` 0 错。（数字每次改动都要重跑，别抄这里）
+- `npm test` **161/161**（26 文件）；drill **34/34**；persona-core core 19 + adapter 9 + voice-brief 5；World 12；`tsc --noEmit` 0 错。（数字每次改动都要重跑，别抄这里）
 - 已完成：core 化、AgentSessionPort、WHALE_HOME/WHALE_NODE、notify ntfy/bark、tick-catchup、路由抽取、OpenCode adapter（daemon+MCP）、whale-panel（含鱼缸视图）。
 - 未完成（按计划顺序）：
   1. client.js 的 schema/render 拆分（当前面板用 JSON 编辑器替代；DSH 设置页未动、回归全绿）
