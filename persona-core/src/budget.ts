@@ -33,6 +33,7 @@ export const SOURCE_DAILY_CAP: Record<string, number> = {
   rest: 0.25,
   watched: 0.30,
   'master-reply': 0.20,
+  inbound: 0.20,
   silence: 0.15,
   'draft-ok': 0.10,
   'draft-no': 0.10,

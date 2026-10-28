@@ -10,6 +10,7 @@ import type { PresetEffect } from './personaAdapter.ts'
 import { buildVoiceBrief } from '../../../persona-core/src/voice-brief.ts'
 import { pickActivities, ACTIVITY_LABELS } from '../../../persona-core/src/life-activities.ts'
 import { readQueue, writeQueue, newTask, dueTasks, markDelivered, markAttempt, prune, expireStale, type QueueTask } from './task-queue.ts'
+import { parseDmPeek } from './dm.ts'
 import { decideAction, restRecoveryDelta, actionCost, nextCheckDelay, dayKey, MIN_GAP_MS } from '../../../persona-core/src/rhythm.ts'
 
 const ROOT = process.env.BILI_WHALE_ROOT || 'E:/WorkSpace_Qoder/dsh-bili-whale'
@@ -25,6 +26,22 @@ const PUBLIC_DIARY = path.join(WHALE, 'whale-diary.md')
 const PRIVATE_DIARY = path.join(WHALE, 'whale-diary-private.md')
 const killPath = path.join(WHALE, 'bili-whale', 'control', 'kill')
 const CAUSAL_FILE = path.join(WHALE, 'bili-whale', 'causal.jsonl')
+const DM_APPLIED_FILE = path.join(WHALE, 'bili-whale', 'control', 'dm-applied.json')
+
+function readAppliedDmKeys(): string[] {
+  try {
+    const raw = JSON.parse(fs.readFileSync(DM_APPLIED_FILE, 'utf8'))
+    return Array.isArray(raw?.keys) ? raw.keys.map(String) : []
+  } catch { return [] }
+}
+function writeAppliedDmKeys(keys: string[]): void {
+  try {
+    fs.mkdirSync(path.dirname(DM_APPLIED_FILE), { recursive: true })
+    const tmp = DM_APPLIED_FILE + '.' + process.pid + '.tmp'
+    fs.writeFileSync(tmp, JSON.stringify({ keys: keys.slice(-200) }, null, 2))
+    fs.renameSync(tmp, DM_APPLIED_FILE)
+  } catch {}
+}
 const ROUND_STALE_MS = 12 * 3600_000
 function readLifeFile(): any {
   try { return JSON.parse(fs.readFileSync(LIFE_FILE, 'utf8')) } catch {}
@@ -210,6 +227,7 @@ const DECLS = [
   { name: 'bili_mood_apply', description: 'Apply emotional effects after an event. Optionally record which life activity you picked and a short note.', tags: ['write'], parameters: { type: 'object', properties: { preset: { type: 'string', description: 'watchedVideo | masterReplied | masterSilentDay | draftApproved | draftRejected | trafficPaused' }, custom: { type: 'array', items: { type: 'object', properties: { field: { type: 'string' }, delta: { type: 'number' }, source: { type: 'string' } }, required: ['field', 'delta', 'source'] } }, note: { type: 'string', description: '一句留给自己的话（会写进记忆）' }, activity: { type: 'string', enum: ['rest', 'explore', 'create', 'social', 'reflect', 'exercise', 'consume'], description: '这轮挑的生活活动 id' } }, additionalProperties: false } },
   { name: 'bili_draft_dynamic', description: "Create a dynamic draft from today's diary and an unused image. Never posts.", tags: ['write'], parameters: { type: 'object', properties: { force: { type: 'boolean' } }, additionalProperties: false } },
   { name: 'bili_diary_append', description: 'Write a section into one of her diaries (public/private). Same day+heading is replaced, not duplicated.', tags: ['write'], parameters: { type: 'object', properties: { book: { type: 'string', enum: ['public', 'private'], description: 'public = 给人看的；private = 只给自己看的偏好校准' }, heading: { type: 'string', description: '小节标题，如 看过 / 想说 / 今日指标 / 本轮留下的判断' }, text: { type: 'string', description: '这一节的正文（markdown）' } }, required: ['book', 'heading', 'text'], additionalProperties: false } },
+  { name: 'bili_dm_read', description: "Check whether 主人 (the owner) sent a new DM since last check. Read-only: never sends or marks anything read on Bilibili; advances only her local cursor. If reading fails it says so — it is NOT the same as 'no message'.", tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
 ] as const
 
 class BiliAccountWorld {
@@ -333,6 +351,7 @@ class BiliAccountWorld {
             describeState(after),
             '',
             '起因：' + decision.reason + '。',
+            ...(decision.kind === 'connect' ? ['他可能留了话——先 bili_dm_read 看一眼。'] : []),
             '这轮可以先挑一件小事（也可以不做）：\n' + activities.map((x) => `- [${x.type}] ${x.label}：${x.description}`).join('\n'),
             '挑好了，在 bili_mood_apply 里带上 activity=<id>，让我记下来。',
             todayDraft,
@@ -431,6 +450,10 @@ class BiliAccountWorld {
           return watchedRefusal()
         }
         const presetName = String(a?.preset ?? '')
+        // 主人来信只能来自传感器（bili_dm_read）；模型不能自己假装被回复
+        if (presetName === 'masterReplied' || presetName === 'inbound') {
+          return '[mood_apply] ' + presetName + ' 只能由私信传感器触发（bili_dm_read）；不要自己假装主人来信。'
+        }
         const custom = sanitizeEffects(a?.custom)
         const hasCustom = custom.length > 0
         const activityId = String(a?.activity ?? '')
@@ -539,6 +562,38 @@ class BiliAccountWorld {
         causal({ kind: 'diary', book, heading, chars: body.length })
         return `[diary] 已写入${book === 'public' ? '公开日记' : '私人日记'} · ${date} · ${heading}（${body.length} 字）`
       }),
+      mk(DECLS[8], async () => {
+        const r = await runAsync(['dm-await', '--json', '--peek'], 60000)
+        if (r.status === -2) return r.out
+        const parsed = parseDmPeek(r.status, r.out)
+        if (parsed.kind === 'empty') return '[dm] 没有新私信'
+        if (parsed.kind === 'error') {
+          causal({ kind: 'dm-read-failed', detail: parsed.detail, atMs: Date.now() })
+          return '[dm] 读取失败（不要当成没人写信）：' + parsed.detail
+        }
+        const msg = parsed.message
+        // 已加过效果但上次 ack 没成功：只补确认，不重复加 connection
+        if (readAppliedDmKeys().includes(msg.key)) {
+          await runAsync(['dm-await', '--ack', msg.receipt], 30000)
+          return '[dm] 这条之前已经处理过（补确认，不重复加效果）'
+        }
+        const before = loadState(FIELDS_FILE)
+        let after = applyEffects(before, PRESETS.inbound.effects, PRESETS.inbound.description, {
+          source: 'inbound',
+          userJustMessaged: true,
+        })
+        after = remember(after, msg.text.slice(0, 500), { sender: 'player', intensity: 0.7, tags: ['dm'] })
+        saveState(FIELDS_FILE, after)
+        writeAppliedDmKeys([...readAppliedDmKeys(), msg.key])
+        if (this.life) {
+          this.life.lastContactAt = Number(msg.ts) || Date.now()
+          writeLifeFile(this.life)
+        }
+        const ack = await runAsync(['dm-await', '--ack', msg.receipt], 30000)
+        causal({ kind: 'inbound', key: msg.key, chars: msg.text.length, ack: ack.status === 0, atMs: Date.now() })
+        return '[dm] 主人来信：' + msg.text.slice(0, 200)
+          + '\n（connection 已上升；想回的话按 ORIENTATION 走——发信仍然需要审批，不能直接发。）'
+      }),
     ]
   }
 }
@@ -558,6 +613,7 @@ export const BILI_ACCOUNT: WorldDefinition<any> = {
       bili_mood_apply: { zh: '按事件更新场值（预设或自定义）', en: 'Apply emotional effects after an event.' },
       bili_draft_dynamic: { zh: '生成动态草稿（不发送）', en: 'Create a dynamic draft (never posts).' },
       bili_diary_append: { zh: '写日记（公开/私人两本，按天按小节）', en: 'Write a diary section (public or private).' },
+      bili_dm_read: { zh: '看主人有没有来信（只读，失败不当成没人写信）', en: 'Check for new owner DMs (read-only; failure is not emptiness).' },
     }),
     events: [{ type: 'bili.action_due', description: { zh: '她想做点什么（状态驱动，不固定在几点）', en: 'She wants to do something (state-driven, no fixed clock).' }, trigger: 'flush' }],
   },

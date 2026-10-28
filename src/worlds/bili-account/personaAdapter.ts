@@ -46,6 +46,14 @@ export const PRESETS: Record<string, { effects: PresetEffect[]; description: str
       { field: 'energy', delta: -0.02, source: 'watched', priority: 3 },
     ],
   },
+  inbound: {
+    description: '主人来信了',
+    effects: [
+      { field: 'mood', delta: +0.06, source: 'inbound', priority: 9 },
+      { field: 'connection', delta: +0.07, source: 'inbound', priority: 9 },
+      { field: 'social', delta: +0.02, source: 'inbound', priority: 5 },
+    ],
+  },
   masterReplied: {
     description: '主人回我了',
     effects: [
@@ -241,7 +249,7 @@ export function applyEvent(s: PersonaState, presetName: string, now = Date.now()
   return applyEffects(s, preset.effects, preset.description, {
     now,
     source: presetName,
-    userJustMessaged: presetName === 'masterReplied',
+    userJustMessaged: presetName === 'masterReplied' || presetName === 'inbound',
   })
 }
 

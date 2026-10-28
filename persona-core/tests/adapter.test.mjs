@@ -42,6 +42,14 @@ test('冷战期主人回复：先回 missing，不被瞬时好感抹平', () => 
   assert.equal(afterReply.npcState.current, 'missing')
 })
 
+test('入站私信：connection 上升、bond +0.1，建立接触证据', () => {
+  const s = applyEvent(base(), 'inbound', at(0) + 1000)
+  assert.ok(Math.abs(s.fields.connection - 0.57) < 1e-6, 'connection ' + s.fields.connection)
+  assert.equal(s.npcState.lastUserMessageAt, at(0) + 1000)
+  assert.ok(Math.abs(s.npcState.bond.level - 0.3) < 1e-9)
+  assert.equal(s.npcState.current, 'normal')
+})
+
 test('长时间空窗：场值自然衰减写进因果链，心情不会一路单调上去', () => {
   let s = base()
   s = applyEvent(s, 'masterReplied', at(1))
