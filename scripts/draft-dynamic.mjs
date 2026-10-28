@@ -8,11 +8,13 @@ import crypto from 'node:crypto'
 import { pickDailyImage } from '../tools/lib/pick-image.mjs'
 import { DSH_HOME as WHALE_HOME } from '../tools/lib/paths.mjs'
 import { enqueue } from './ack.mjs'
+import { logicalDay } from './day-snapshot.mjs'
 
 const argv = process.argv.slice(2)
 const arg = (k, d) => { const i = argv.indexOf('--' + k); return i >= 0 ? argv[i + 1] : d }
 const FORCE = argv.includes('--force')
-const date = arg('date', new Date().toLocaleDateString('sv-SE'))
+// 与快照共用 04:00 日界：凌晨写的日记/出的稿算前一天，否则 day-report 找不到当天草稿
+const date = arg('date', logicalDay())
 const DIARY = path.join(WHALE_HOME, 'whale-diary.md')
 const DRAFTS = arg('drafts', process.env.WHALE_DRAFTS || 'D:/AI/养鱼/drafts')
 const IMAGES = arg('images', process.env.WHALE_IMAGES || 'D:/AI/养鱼/assets/daily')
@@ -65,9 +67,10 @@ export function buildText(diaryText, { max = 100, date } = {}) {
   return body
 }
 
-export function makeDraft({ date, image, text }) {
+export function makeDraft({ date, image, text, diaryHash }) {
+  const textHash = crypto.createHash('sha1').update(String(text)).digest('hex')
   const id = 'dyn-' + String(date).replace(/-/g, '') + '-' + crypto.createHash('sha1').update(String(text) + String(image)).digest('hex').slice(0, 6)
-  return { id, date, image, text, status: 'pending', createdAt: new Date().toISOString() }
+  return { id, date, image, text, textHash, diaryHash: diaryHash ?? null, status: 'pending', createdAt: new Date().toISOString() }
 }
 
 /** 和别的日期已有草稿一字不差 → 说明拿旧日记复用了，拒稿。返回撞上的那条。 */
@@ -83,8 +86,19 @@ if (process.argv[1] && process.argv[1].endsWith('draft-dynamic.mjs')) {
     console.log(JSON.stringify({ ok: false, error: '当天草稿已存在', status: cur.status, file: outJson }, null, 2))
     process.exit(0)
   }
-  let diaryText = ''
-  try { diaryText = fs.readFileSync(DIARY, 'utf8') } catch {}
+  let diaryText
+  try {
+    diaryText = fs.readFileSync(DIARY, 'utf8')
+  } catch (e) {
+    // 读不到日记必须显式失败：以前 catch{} 会退化成兜底句且 ok:true，等于假数据
+    console.log(JSON.stringify({ ok: false, error: 'diary-missing', file: DIARY, detail: String(e?.code ?? e?.message ?? e) }, null, 2))
+    process.exit(1)
+  }
+  if (!String(diaryText).trim()) {
+    console.log(JSON.stringify({ ok: false, error: 'diary-empty', file: DIARY }, null, 2))
+    process.exit(1)
+  }
+  const diaryHash = crypto.createHash('sha1').update(diaryText).digest('hex')
   const img = pickDailyImage(IMAGES, { mark: false })
   if (!img.ok) { console.log(JSON.stringify({ ok: false, error: img.error }, null, 2)); process.exit(1) }
   const text = buildText(diaryText, { date })
@@ -96,9 +110,9 @@ if (process.argv[1] && process.argv[1].endsWith('draft-dynamic.mjs')) {
     console.log(JSON.stringify({ ok: false, error: '这条文案和 ' + dup.date + ' 的草稿一字不差——别拿旧日记复用，重写今天的「想说」再出稿', duplicateOf: dup.id }, null, 2))
     process.exit(0)
   }
-  const draft = makeDraft({ date, image: img.file, text })
+  const draft = makeDraft({ date, image: img.file, text, diaryHash })
   try { draft.ackId = enqueue(WHALE_HOME, { draftId: draft.id, date }).id } catch {}
   fs.writeFileSync(outJson, JSON.stringify(draft, null, 2) + '\n', 'utf8')
-  fs.writeFileSync(path.join(DRAFTS, date + '.md'), `# 小鱼动态草稿 ${date}\n\n- id: ${draft.id}\n- 图片: ${draft.image}\n- 状态: pending\n\n---\n\n${draft.text}\n`, 'utf8')
+  fs.writeFileSync(path.join(DRAFTS, date + '.md'), `# 小鱼动态草稿 ${date}\n\n- id: ${draft.id}\n- 图片: ${draft.image}\n- 状态: pending\n- diaryHash: ${draft.diaryHash}\n- textHash: ${draft.textHash}\n\n---\n\n${draft.text}\n`, 'utf8')
   console.log(JSON.stringify({ ok: true, ...draft }, null, 2))
 }

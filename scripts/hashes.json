@@ -1,0 +1,13 @@
+{
+  "frozenAt": "2026-10-28T16:14:24.949Z",
+  "files": {
+    "scripts/day-report.mjs": "4668ba8d2b687edcbbf368777c006cc3e9bfc98ae7ed9584fbf188fb38bcdc1a",
+    "scripts/day-snapshot.mjs": "2fe5c607a79ab7a6a9180aef6610c3c96e6c25ef6850c01ca5781b8ae7a8bda5",
+    "scripts/day-watchdog.mjs": "2b765bc9694648f642ef50dad6b9364c73a874458b045db831d990993ad6f482",
+    "scripts/run-mjs-tests.mjs": "1f7371dd93c01ed337e1f01ff833b05d2315309a45c85a7d08cf5a16b5bcb27e",
+    "scripts/check-hashes.mjs": "443217012f4a59ee11b84c5b9bb919411d2a42c4b1b43dc16c51f55cc190260e"
+  },
+  "missing": [
+    "tests/contract/voice.test.mjs"
+  ]
+}

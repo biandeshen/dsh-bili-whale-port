@@ -17,8 +17,21 @@ function walk(dir, out = []) {
   return out
 }
 
-test('package.json 的 test 列表覆盖磁盘上所有 *.test.mjs', () => {
+test('npm test 覆盖磁盘上所有 *.test.mjs（手写清单或动态发现）', () => {
   const files = [...walk(path.join(ROOT, 'tests')), ...walk(path.join(ROOT, 'adapters'))]
+
+  // 动态发现：runner 从磁盘重新枚举，天然覆盖全部；只需确认它存在且没把 tests/adapters 排除
+  if (/run-mjs-tests\.mjs/.test(script)) {
+    const runner = path.join(ROOT, 'scripts', 'run-mjs-tests.mjs')
+    assert.ok(fs.existsSync(runner), 'npm test 指向了不存在的 run-mjs-tests.mjs')
+    const src = fs.readFileSync(runner, 'utf8')
+    const skipLine = (src.match(/const SKIP = new Set\(\[([^\]]*)\]\)/) || [])[1] || ''
+    for (const dir of ['tests', 'adapters']) {
+      assert.ok(!skipLine.includes(`'${dir}'`), `动态发现把 ${dir}/ 排除了`)
+    }
+    return
+  }
+
   const missing = files.filter((f) => !script.includes(f))
   assert.deepEqual(missing, [], '这些测试没被 npm test 挂上：' + missing.join(', '))
 })
