@@ -8,10 +8,13 @@ import { upsertDiarySection } from '../src/worlds/bili-account/diary.ts'
 import { diaryFresh, diaryRefusal } from '../src/worlds/bili-account/gates.ts'
 
 const HOUR = 3600_000
+const DAY = 86400_000
+const T0 = Date.parse('2026-10-01T21:40:00+08:00')
 
 test('mood：同场值不同成因得到不同情绪', () => {
   const make = (preset) => applyEvent(emptyState(), preset)
-  const silent = (days) => { let s = emptyState(); for (let i = 0; i < days; i++) s = applyEvent(s, 'masterSilentDay'); return s }
+  // 一天一次、跨天调用：同一天里连刷 5 次会被来源预算按天封顶（不是 5 天的效果）
+  const silent = (days) => { let s = emptyState(); for (let i = 1; i <= days; i++) s = applyEvent(s, 'masterSilentDay', T0 + i * DAY); return s }
   assert.equal(readMood(make('masterReplied')).primary, '开心')
   assert.equal(readMood(make('watchedVideo')).primary, '满足')
   assert.equal(readMood(applyEvent(make('watchedVideo'), 'draftApproved')).primary, '雀跃')
@@ -46,7 +49,7 @@ test('mood：刚起身的 action 成因不再恒为「平静」', () => {
 
 test('describeState：给模型的状态块带情绪标签、成因和关系', () => {
   let s = emptyState()
-  for (let i = 0; i < 5; i++) s = applyEvent(s, 'masterSilentDay')
+  for (let i = 1; i <= 5; i++) s = applyEvent(s, 'masterSilentDay', T0 + i * DAY)
   const text = describeState(s)
   assert.match(text, /【她现在的情绪】想念/)
   assert.match(text, /成因：主人沉默 \+ 连接感低/)

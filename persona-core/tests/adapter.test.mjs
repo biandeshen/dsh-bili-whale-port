@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { emptyState, applyEvent, saveState, loadState } from '../../src/worlds/bili-account/personaAdapter.ts'
+import { emptyState, applyEvent, applyEffects, saveState, loadState } from '../../src/worlds/bili-account/personaAdapter.ts'
 
 const DAY = 86400_000
 const T0 = Date.parse('2026-10-01T21:40:00+08:00')
@@ -56,6 +56,17 @@ test('未知预设不改状态', () => {
   assert.equal(applyEvent(s, 'nope', at(1)), s)
 })
 
+test('来源预算：custom 一天最多推动 0.15', () => {
+  let s = base()
+  const t = at(0)
+  const custom = [{ field: 'mood', delta: 0.5, source: 'custom', priority: 5 }]
+  s = applyEffects(s, custom, '自定义事件', { now: t })
+  const first = s.fields.mood
+  assert.ok(Math.abs(first - 0.35) < 1e-9, 'mood ' + first)
+  s = applyEffects(s, custom, '自定义事件', { now: t })
+  assert.ok(Math.abs(s.fields.mood - first) < 1e-9, '第二下被预算挡住，mood ' + s.fields.mood)
+})
+
 test('状态文件：原子写带 schemaVersion，坏文件从备份恢复且留档', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'persona-'))
   const file = path.join(dir, 'fields.json')
@@ -65,7 +76,7 @@ test('状态文件：原子写带 schemaVersion，坏文件从备份恢复且留
   saveState(file, s2)
   assert.ok(fs.existsSync(file + '.bak'))
   const raw = JSON.parse(fs.readFileSync(file, 'utf8'))
-  assert.equal(raw.schemaVersion, 3)
+  assert.equal(raw.schemaVersion, 4)
   assert.ok(Math.abs(raw.fields.connection - s2.fields.connection) < 1e-9)
 
   fs.writeFileSync(file, '{broken')

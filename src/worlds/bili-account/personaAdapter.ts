@@ -16,6 +16,7 @@ import { simulateOfflineTime } from '../../../persona-core/src/decay.ts'
 import { createInitialState, deriveNPCState } from '../../../persona-core/src/npc-state-machine.ts'
 import { readMood } from '../../../persona-core/src/emotion.ts'
 import type { MoodLabel } from '../../../persona-core/src/emotion.ts'
+import { applyBudgets, emptyBudget, type BudgetLedger } from '../../../persona-core/src/budget.ts'
 
 export { readMood }
 export type { MoodLabel }
@@ -25,6 +26,7 @@ export interface PersonaState {
   chain: CausalEvent[]
   memories: Memory[]
   npcState: ReturnType<typeof createInitialState>
+  budget: BudgetLedger
   lastAppliedAt: string
 }
 
@@ -86,6 +88,7 @@ export function emptyState(): PersonaState {
     chain: [],
     memories: [],
     npcState: createInitialState(),
+    budget: emptyBudget(),
     lastAppliedAt: new Date().toISOString(),
   }
 }
@@ -109,7 +112,7 @@ export function loadState(file: string): PersonaState {
   }
 }
 
-const STATE_SCHEMA_VERSION = 3
+const STATE_SCHEMA_VERSION = 4
 const HISTORY_LIMIT = 200
 
 function normalizeState(raw: any): PersonaState {
@@ -125,6 +128,13 @@ function normalizeState(raw: any): PersonaState {
   }
   // 只保留当前 schema 认得的字段：老文件的 trustAtColdWarStart 等别名不往新对象里带
   const ns = raw.npcState ?? {}
+  const spent: Record<string, number> = {}
+  if (raw.budget?.spent && typeof raw.budget.spent === 'object') {
+    for (const [k, v] of Object.entries(raw.budget.spent)) {
+      const n = Number(v)
+      if (Number.isFinite(n) && n > 0) spent[String(k)] = n
+    }
+  }
   return {
     fields: { ...DEFAULT_ATOMIC_FIELDS, ...raw.fields },
     chain: (raw.chain ?? []).map((e: any) => ({ ...e, timestamp: new Date(e.timestamp) })),
@@ -136,6 +146,7 @@ function normalizeState(raw: any): PersonaState {
       bond: { level: Number.isFinite(ns.bond?.level) ? ns.bond.level : 0.2 },
       bondAtColdWarStart: ns.bondAtColdWarStart ?? null,
     },
+    budget: { day: typeof raw.budget?.day === 'string' ? raw.budget.day : '', spent },
     lastAppliedAt: raw.lastAppliedAt ?? new Date().toISOString(),
   }
 }
@@ -152,6 +163,7 @@ export function saveState(file: string, s: PersonaState): void {
     chain: trimmed,
     memories: s.memories.slice(-HISTORY_LIMIT),
     npcState: s.npcState,
+    budget: s.budget,
     lastAppliedAt: s.lastAppliedAt,
   }
   const tmp = file + '.' + process.pid + '.' + Math.random().toString(36).slice(2, 8) + '.tmp'
@@ -185,10 +197,12 @@ export function applyEffects(
     if (ev) ev.source = 'decay'
   }
 
+  // 先过来源预算：同源同场按天封顶，超出部分当次截断（不是整条丢弃）
+  const budgeted = applyBudgets(effects, s.budget, now)
   // 一个事件就是一个批次，同源效果必须全部生效：
   // 旧实现每次 new FrequencyGate(50)，同源第二条起被当成重复发射丢弃（连接感/社交永远加不上）。
   const bus = new EffectBus()
-  bus.collectAll(effects.map((e) => ({ ...e })))
+  bus.collectAll(budgeted.effects.map((e) => ({ ...e })))
   const after = bus.apply(decayed, bus.resolve())
 
   for (const f of Object.keys(after) as (keyof AtomicFields)[]) {
@@ -201,7 +215,7 @@ export function applyEffects(
   // 时钟回拨：lastAppliedAt 不能被写到过去，否则下一次会重复结算同一段时间
   const prevApplied = Date.parse(s.lastAppliedAt)
   const stamp = Number.isFinite(prevApplied) ? Math.max(now, prevApplied) : now
-  return { fields: after, chain, memories, npcState, lastAppliedAt: new Date(stamp).toISOString() }
+  return { fields: after, chain, memories, npcState, budget: budgeted.ledger, lastAppliedAt: new Date(stamp).toISOString() }
 }
 
 /** 应用一个预设事件。 */
