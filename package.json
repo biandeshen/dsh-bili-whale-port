@@ -13,6 +13,7 @@
   "type": "module",
   "scripts": {
     "test": "node scripts/run-mjs-tests.mjs",
+    "gates": "node scripts/run-mjs-tests.mjs && node scripts/check-consumers.mjs && node scripts/check-hashes.mjs",
     "hashes": "node scripts/check-hashes.mjs",
     "hashes:write": "node scripts/check-hashes.mjs --write",
     "day:seed": "node scripts/day-snapshot.mjs --seed",
