@@ -25,6 +25,40 @@
 
 ### 2.1 分层与依赖方向
 
+```mermaid
+flowchart TB
+  subgraph L5["L5 呈现"]
+    UI["Cortico WebUI<br/>（Coopanion 待评估）"]
+  end
+  subgraph L4["L4 渠道 · 只做协议/工具/传感器"]
+    W["worlds/bili-account<br/>definition.ts（工具声明+编排）· runner · sensors"]
+  end
+  subgraph L3["L3 人格 · persona-core（一等包，平台无关）"]
+    F["fields/ 场值 · EffectBus · decay · budgets"]
+    E["emotion/ 投影 · baseline"]
+    M["memory/ 衰减 · 检索 · tokenizer"]
+    C["causal/ L0–L2"]
+    R["relation/ 五态"]
+    RH["rhythm/ 作息 · 生活活动"]
+    RX["reaction/ 反应表"]
+    X["expression/ 叙述"]
+    S["state/ store（唯一写者·原子写·锁）"]
+  end
+  subgraph L2["L2 认知"]
+    P["Cortico Persona<br/>目标：xiaoyu（当前 cormini+ORIENTATION）"]
+  end
+  subgraph L1["L1 运行"]
+    CO["Cortico Core<br/>事件流 / timer / 持久化"]
+  end
+  UI -.只读状态.-> W
+  W -->|调用纯函数| F & E & M & RX & X
+  W -->|唯一写| S
+  RH --> S
+  P --> W
+  CO --> P
+  W -.spawn.-> T["dsh-bili-whale<br/>tools/bili.mjs · 风控 · 审批 CLI"]
+```
+
 ```
 L5 呈现   Cortico WebUI（Coopanion 待评估）
               ↑ 只读状态
