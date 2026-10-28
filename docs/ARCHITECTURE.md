@@ -148,7 +148,8 @@ Cortico/
 | 草稿 + audit | `dsh-bili-whale/scripts/*.mjs` | `D:/AI/养鱼/drafts/` |
 | 待审队列 | `scripts/ack.mjs` | 同上 `control/pending/` |
 
-规则：**一个状态文件只有一个写者**；跨进程写一律 `wx` 锁 + `tmp→rename`；启动时读 schemaVersion，认不出就走 `.bak`，不猜（已有实现，保留）。
+规则：**一个状态文件只有一个写者**；跨进程写一律 `wx` 锁 + `tmp→rename`；启动时读 schemaVersion，认不出就走 `.bak`，不猜。
+⚠ **现状核实（2026-10-28）**：`personaAdapter.ts:130-149` 只有 `tmp+rename+.bak`，**没有跨进程锁**；`wx` 锁目前只存在于 `ack.mjs:97`、`dm-await.mjs:56`、`ai-share.mjs:70`。`life.json` 有 4 个写者（`definition.ts:286,308,338,406`）。锁与单写者均标 `OPEN(D-18)`。
 
 ## 3. 输出链路（M0 的核心）
 
@@ -342,11 +343,19 @@ E:\WorkSpace_Qoder\
 草稿记录新增字段：`voice`（快照）、`topic`（从日记标题提取）、`textHash`、`voiceHash`。`topic` 供 `avoid` 与 M4 的相似度判断。
 
 **验收（consumer assertion，新增 `tests/contract/voice.test.mjs`）**
-1. 同一日记 + `mood=雀跃` vs `mood=失落` → 文本必须不同，且失落版不得含"！"、句数 ≤1；
-2. `relation=cold_war` → 产出不含"鱼片"；
-3. 无 `voice` → `ok:false`；
-4. `avoid` 命中 → `ok:false`；
-5. 有记忆回扣时，正文必须能匹配到该记忆的 id/标题子串。
+> 2026-10-28 修订：下列旧 5 条已被 `PLAN-REVIEW-2026-10-28.md` 的 A1–A5 取代（旧条被挑刺组判定为"缺席式"，改标点即可通过）。
+1. ~~同一日记 + `mood=雀跃` vs `mood=失落` → 文本必须不同~~ → 见 A2（槽位级 diff，仅标点算失败）
+2. ~~`relation=cold_war` → 产出不含"鱼片"~~ → 见 A5（stance/provenance 一致）
+3. ~~无 `voice` → `ok:false`~~ → 保留，并入 A4 前置
+4. ~~`avoid` 命中 → `ok:false`~~ → 改为软过滤（全部命中才拒）
+5. ~~记忆回扣能匹配子串~~ → 见 A4（每个 span 必须溯源）
+
+**A1–A5（现行）**
+- A1 全标签覆盖：所有 `MoodLabel` 都有措辞；`unmapped-mood` 必须报错；同标签不同 intensity 产出必须不同（≥2 档）。
+- A2 槽位级 diff：同日记两版 voice，差异 ≥4 字，且差异落在预期槽位；仅标点/虚词变化判 FAIL。
+- A3 真实快照非恒等：用当日 `fields.json` 快照跑，产出必须与"忽略 voice"版本不同。
+- A4 span 溯源：正文每个片段能追到 日记 bullet / 记忆 id（score>0.5）/ lexicon 项；追不到判 FAIL。
+- A5 stance 一致：草稿存在 ⟺ `stance≠no`；`provenance` 必须是当天日记。
 
 ### 11.2 记忆衰减与"记得"（D-02 / D-03）
 
@@ -361,7 +370,7 @@ E:\WorkSpace_Qoder\
 - `package.json` 的 `test` 改为 `vitest run && node scripts/run-mjs-tests.mjs`。
 - `tsconfig.json` 的 `include` 加入 `persona-core/**`；`npm run typecheck` 覆盖两处。
 - **门禁新增 consumer 检查**：`scripts/check-consumers.mjs`——断言 `buildText`、`describeState`、`decideWake` 在非测试代码里至少各有一个调用点。
-- **验收**：`npm test` 输出里 `发现 = 执行`；当前磁盘上是 **26 个 `.mjs` 测试文件**（dsh 22 + Cortico 4，约 45 个用例），全部必须被执行；故意删掉一个 `.mjs` 文件后计数同步变化；把 `buildText` 的调用点注释掉后 `check-consumers` 失败。
+- **验收**：`npm test` 输出里 `发现 = 执行`；当前磁盘上是 **27 个 `.mjs` 测试文件**（`tests/` 22 + `adapters/opencode/test/` 1 + Cortico 4），全部必须被执行。**门禁必须动态发现**：`package.json` 里手写的 22 条路径清单不算数（删掉一个文件仍"自洽"，这是"测试全绿"的变体）；故意删掉一个 `.mjs` 文件后计数必须同步变化；把 `buildText` 的调用点注释掉后 `check-consumers` 失败。
 
 ### 11.4 包化与版本控制（D-15 / D-16 / E-07）
 
@@ -426,7 +435,7 @@ tick:
 - **来源预算**：仿上游 `embodiment/temporal-rates.ts` 的 `sourceBudgets` 结构——每类来源一个 id、一个每日上限；超出后该来源当次 delta 归零，但**仍写进预算账本**（便于解释"为什么今天不再变"）。
   建议初值：`rest` 0.25/天、`watch` 0.30/天、`reply` 0.20/天、`decay` 无上限。
 - **正向耦合（新增，上游没有）**：`social>0.6` → mood +0.01/天；`connection>0.6` → energy 恢复 ×1.5。目的是让"被陪着"真的能把她托起来，打破"三条耦合全下压"。
-- **`COUPLING_CAP_MS=12h`**：保留，但必须在文档与代码注释里写明这是**偏离上游的刻意选择**（ISSUES D-07 已记录它只保护离线路径的问题）。
+- **`COUPLING_CAP_MS` 已删除（2026-10-28 修订）**：它让在线 168h 比离线 12h 罚得重 14 倍，等于把 D-07 固化。改为只保留 **24h settle 上限**，穿底由 `decayAtomicFields` 的基线截断负责。
 
 ### 12.3 生活活动（治"97% 歇够了"）
 
