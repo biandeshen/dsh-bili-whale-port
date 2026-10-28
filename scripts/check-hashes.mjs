@@ -22,6 +22,7 @@ const FILES = [
   'scripts/observation-start.mjs',
   'scripts/goal-audit.mjs',
   'scripts/c2-offline.mjs',
+  'scripts/observation-status.mjs',
   'tests/contract/voice.test.mjs',
 ]
 

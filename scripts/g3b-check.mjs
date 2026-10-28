@@ -67,7 +67,7 @@ for (const d of days) {
   const snapDiaryHash = snap?.diary?.hash ?? null
   const flags = summary?.flags ?? {}
   const badFlags = Object.entries(flags).filter(([k, v]) => v === true && !['missed', 'late'].includes(k)).map(([k]) => k)
-  const draftBound = !!draft?.diaryHash && !!snapDiaryHash && draft.diaryHash === snapDiaryHash
+  const draftBound = !!draft?.diaryHash && !!snapDiaryHash && draft.diaryHash === snapDiaryHash && draft.date === d && draft.degraded !== true
   const cfBound = !!cf && cf.day === d
   const ok = !!cf?.ok && Number(cf?.diffChars) >= 4 && cfBound && draftBound && badFlags.length === 0
   if (!ok) streak = false

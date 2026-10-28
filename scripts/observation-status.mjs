@@ -57,7 +57,7 @@ for (const d of days) {
     day: d,
     ended: d < today,
     snapshot: fs.existsSync(path.join(dir, 'state.start.json')),
-    draft: !!draft?.diaryHash,
+    draft: !!draft?.diaryHash && draft.date === d && draft.degraded !== true,
     text: draft?.text ?? '',
     cfOk: !!cf?.ok,
     mood: cf?.realMood ?? null,

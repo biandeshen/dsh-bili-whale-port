@@ -62,3 +62,25 @@ test('observation-status：tainted 天会被计数并阻止 ok', () => {
   assert.equal(fs.existsSync(home), true)
   fs.rmSync(home, { recursive: true, force: true })
 })
+
+test('observation-status：degraded 草稿不计入 K1', () => {
+  const { home, drafts } = setup()
+  const f = path.join(drafts, '2026-09-02.json')
+  const d = JSON.parse(fs.readFileSync(f, 'utf8'))
+  d.degraded = true
+  fs.writeFileSync(f, JSON.stringify(d))
+  const r = run(home, drafts)
+  assert.equal(r.k1_drafts.value, 2)
+  fs.rmSync(home, { recursive: true, force: true })
+})
+
+test('observation-status：草稿 date 与文件名不一致不计入 K1', () => {
+  const { home, drafts } = setup()
+  const f = path.join(drafts, '2026-09-03.json')
+  const d = JSON.parse(fs.readFileSync(f, 'utf8'))
+  d.date = '2026-09-01'
+  fs.writeFileSync(f, JSON.stringify(d))
+  const r = run(home, drafts)
+  assert.equal(r.k1_drafts.value, 2)
+  fs.rmSync(home, { recursive: true, force: true })
+})

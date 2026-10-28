@@ -209,7 +209,7 @@ v2 原本按"缺哪项会让上层全部失效"排序，但 2026-10-28 五路红
 ## 8. 验证命令（数字须当天重跑，禁止抄本文件）
 
 ```
-cd E:/WorkSpace_Qoder/dsh-bili-whale && npm test          # 2026-10-29 实测 161/161（26 文件）
+cd E:/WorkSpace_Qoder/dsh-bili-whale && npm test          # 2026-10-29 实测 163/163（26 文件）
 cd E:/WorkSpace_Qoder/Cortico && node --import tsx ../dsh-bili-whale/scripts/drill-gate.mjs   # 34/34
 node --import tsx --test persona-core/tests/core.test.mjs persona-core/tests/adapter.test.mjs tests/core.test.mjs
 npm run typecheck      # tsc --noEmit，仅覆盖 Cortico；dsh-bili-whale 是纯 JS 无 TS 工具链
