@@ -38,13 +38,12 @@ test('rhy：太累就先睡，不硬撑', () => {
   assert.equal(d.reason, 'tired')
 })
 
-test('rhy：刚醒不久不会又醒（40min 缓冲）；每日不再设次数上限（2026-10-30 主人裁决）', () => {
-  // 40min 内算 gap
-  assert.equal(decideAction({ fields: F({ stimulation: 0, energy: 0.7 }), relation: 'normal', now: T0, mem: mem({ lastActionAt: T0 - 10 * 60_000 }), rng: () => 0 }).reason, 'gap')
-  // 50min 后不再是 gap：欲望驱动频率，体力/Token 自己收敛（冬眠模型）
-  assert.notEqual(decideAction({ fields: F({ stimulation: 0, energy: 0.7 }), relation: 'normal', now: T0, mem: mem({ lastActionAt: T0 - 50 * 60_000 }), rng: () => 0 }).reason, 'gap')
-  // 一天做了 20 次也不 cap—— stimulation 0 时 explore urge=1，rng=0 就行动；
-  // 这里断言的是"没有 cap 拦截"，行动原因是欲望而不是 'cap'
+test('rhy：纯事件驱动——无间隔门、无次数上限（2026-10-30 主人裁决二）', () => {
+  // 刚做完 10 秒后，欲望仍在 → 照样允许（防重入由单 timer 结构保证，不在这里）
+  const now = decideAction({ fields: F({ stimulation: 0, energy: 0.7 }), relation: 'normal', now: T0, mem: mem({ lastActionAt: T0 - 10_000 }), rng: () => 0 })
+  assert.notEqual(now.reason, 'gap')
+  assert.notEqual(now.reason, 'cap')
+  // 一天 20 次也不 cap
   const many = decideAction({ fields: F({ stimulation: 0, energy: 0.7 }), relation: 'normal', now: T0, mem: mem({ actionsToday: 20 }), rng: () => 0 })
   assert.notEqual(many.reason, 'cap')
 })

@@ -33,8 +33,12 @@ export type ActionDecision =
   | { act: false; reason: 'tired' | 'gap' | 'cap' | 'content'; urge: number }
   | { act: true; kind: ActionKind; reason: string; urge: number }
 
-/** 两次行动之间至少隔这么久（防止刚做完又做）。2026-10-30：2.5h → 40min，"缓一缓"而不是"排班表"。 */
-export const MIN_GAP_MS = 40 * 60_000
+/** 两次行动之间的最小间隔。
+ * 2026-10-30 主人裁决二：**事件驱动，不设人为间隔**。
+ * 唯一保留的是防重入：行动回合本身还在跑时不能开第二个（由 lifeTick 单 timer 结构保证）。
+ * B 站侧的写间隔（writeGapSec）由 traffic guard 管——那是平台风控的疼觉反射，
+ * 与她"想不想做"无关。这里 0 = 纯事件驱动：场值变了就评估，想动就动。 */
+export const MIN_GAP_MS = 0
 /**
  * 2026-10-30 主人裁决：**不设每日次数上限**。
  * "每天 ≤3 次"是发明的作息，不是她的欲望——像人 = 想做就做，
