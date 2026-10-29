@@ -21,6 +21,7 @@ node scripts/observation-status.mjs # 确认 startDay / 天数
    node scripts/cortico-health.mjs
    node scripts/observation-status.mjs
    node scripts/day-report.mjs --date <昨天>      # 昨天的完整日
+   node scripts/observation-day.mjs --date <昨天> # 一次收齐：窗口/start/行动/草稿/cf/tainted/day-report，写 days/<D>/observation-check.{json,md}
    ```
 2. **记录当天 incident**（即使没有也要写"无"）
    `~/.dsh/bili-whale/days/<今天>/incident.md`：时间 / 发生了什么 / 证据文件。
