@@ -115,3 +115,12 @@ export function release(whaleHome, id) {
   try { fs.unlinkSync(claimPath(whaleHome, id)) } catch {}
   return { ok: true, code: 'released' }
 }
+
+/** 作废一条待审（如草稿被拒）：删除令牌，不再在待审列表里出现。 */
+export function cancel(whaleHome, id) {
+  const hit = load(whaleHome, id)
+  if (!hit) return { ok: false, code: 'not-found' }
+  try { fs.unlinkSync(hit.file) } catch {}
+  try { fs.unlinkSync(claimPath(whaleHome, id)) } catch {}
+  return { ok: true, code: 'cancelled' }
+}
