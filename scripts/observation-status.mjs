@@ -14,10 +14,26 @@ import { DSH_HOME as WHALE_HOME } from '../tools/lib/paths.mjs'
 const CONTROL = path.join(WHALE_HOME, 'bili-whale', 'control')
 const DAYS = path.join(WHALE_HOME, 'bili-whale', 'days')
 const CFG = path.join(CONTROL, 'observation.json')
+const CAUSAL = path.join(WHALE_HOME, 'bili-whale', 'causal.jsonl')
 const asJson = process.argv.includes('--json')
 
 const readJson = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')) } catch { return null } }
 const logicalDay = (now = Date.now()) => new Date(now - 4 * 3600_000).toLocaleDateString('sv-SE')
+
+/** 该逻辑日有没有她自然醒过的记录（kind:'action'）。 */
+function actionDays() {
+  const set = new Set()
+  try {
+    for (const line of fs.readFileSync(CAUSAL, 'utf8').split('\n')) {
+      if (!line.trim()) continue
+      try {
+        const e = JSON.parse(line)
+        if (e?.kind === 'action' && Number.isFinite(Number(e.atMs))) set.add(logicalDay(Number(e.atMs)))
+      } catch {}
+    }
+  } catch {}
+  return set
+}
 
 function draftPath(day) {
   const legacy = 'D:/AI/养鱼/drafts'
@@ -46,6 +62,7 @@ if (!cfg?.startDay) {
 const days = dayList(cfg.startDay, Number(cfg.days ?? 14))
 const today = logicalDay()
 const done = days.filter((d) => d < today) // 已完整结束的逻辑日
+const actionSet = actionDays()
 const rows = []
 for (const d of days) {
   const dir = path.join(DAYS, d)
@@ -58,6 +75,7 @@ for (const d of days) {
     ended: d < today,
     snapshot: fs.existsSync(path.join(dir, 'state.start.json')),
     draft: !!draft?.diaryHash && draft.date === d && draft.degraded !== true,
+    action: actionSet.has(d),
     text: draft?.text ?? '',
     cfOk: !!cf?.ok,
     mood: cf?.realMood ?? null,
@@ -66,7 +84,8 @@ for (const d of days) {
   })
 }
 const inWindow = rows.filter((r) => r.ended)
-const k1 = inWindow.filter((r) => r.draft).length
+// K1 = 当天有合规稿，且当天至少有一次自然行动；重启补稿不能单独撑起一天
+const k1 = inWindow.filter((r) => r.draft && r.action).length
 // 中性标签：新词汇是「宁静」，旧数据里是「平静」——两者都不算“有情绪”
 const k3 = inWindow.filter((r) => r.cfOk && r.mood && r.mood !== '宁静' && r.mood !== '平静').length
 let k2 = 0

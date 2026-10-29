@@ -18,6 +18,8 @@ function makeHome() {
   fs.mkdirSync(drafts, { recursive: true })
   fs.writeFileSync(path.join(control, 'canary.json'), JSON.stringify({ C1: { status: 'pass' }, C2: { status: 'pass' }, C3: { status: 'pass' } }))
   const days = [1, 2, 3].map((i) => logicalDay(Date.now() - i * 86400_000))
+  fs.writeFileSync(path.join(home, 'bili-whale', 'causal.jsonl'),
+    days.map((d) => JSON.stringify({ kind: 'action', atMs: Date.parse(d + 'T12:00:00+08:00') })).join('\n') + '\n')
   for (const d of days) {
     const dir = path.join(home, 'bili-whale', 'days', d)
     fs.mkdirSync(dir, { recursive: true })
@@ -37,7 +39,7 @@ function makeHome() {
 function run(home, drafts) {
   const r = spawnSync(process.execPath, [SCRIPT, '--json'], {
     encoding: 'utf8',
-    env: { ...process.env, DSH_HOME: home, WHALE_DRAFTS: drafts },
+    env: { ...process.env, WHALE_HOME: home, DSH_HOME: home, WHALE_DRAFTS: drafts },
   })
   let json = null
   try { json = JSON.parse(r.stdout) } catch {}
@@ -47,7 +49,7 @@ function run(home, drafts) {
 function runStart(home, drafts, args = []) {
   const r = spawnSync(process.execPath, [START, ...args], {
     encoding: 'utf8',
-    env: { ...process.env, DSH_HOME: home, WHALE_DRAFTS: drafts },
+    env: { ...process.env, WHALE_HOME: home, DSH_HOME: home, WHALE_DRAFTS: drafts },
   })
   let json = null
   try { json = JSON.parse(r.stdout) } catch {}
@@ -57,7 +59,7 @@ function runStart(home, drafts, args = []) {
 test('三天齐全且草稿绑定当天任一时点的日记哈希 → ready', () => {
   const { home, drafts } = makeHome()
   const r = run(home, drafts)
-  assert.equal(r.status, 0, r.stderr)
+  assert.equal(r.status, 0, JSON.stringify(r.json?.checks ?? r.stderr))
   assert.equal(r.json.ok, true)
   assert.equal(r.json.ready, true)
 })
@@ -108,4 +110,14 @@ test('G3b 未就绪时拒绝开窗，不留下 observation.json', () => {
   assert.equal(r.status, 1)
   assert.equal(r.json.error, 'g3b-not-ready')
   assert.ok(!fs.existsSync(path.join(home, 'bili-whale', 'control', 'observation.json')))
+})
+
+test('某天没有自然 action → 不 ready（重启补稿不能单独撑一天）', () => {
+  const { home, drafts, days } = makeHome()
+  const causal = path.join(home, 'bili-whale', 'causal.jsonl')
+  fs.writeFileSync(causal, days.filter((d) => d !== days[1])
+    .map((d) => JSON.stringify({ kind: 'action', atMs: Date.parse(d + 'T12:00:00+08:00') })).join('\n') + '\n')
+  const r = run(home, drafts)
+  assert.equal(r.status, 1)
+  assert.match(r.json.checks.find((c) => c.name === '连续 3 天反事实').detail, /action=n/)
 })

@@ -18,9 +18,25 @@ const asJson = process.argv.includes('--json')
 const DAYS = path.join(WHALE_HOME, 'bili-whale', 'days')
 const CANARY = path.join(WHALE_HOME, 'bili-whale', 'control', 'canary.json')
 const HASHES = path.join(ROOT, 'scripts', 'hashes.json')
+const CAUSAL = path.join(WHALE_HOME, 'bili-whale', 'causal.jsonl')
 
 const logicalDay = (now = Date.now()) => new Date(now - 4 * 3600_000).toLocaleDateString('sv-SE')
 const readJson = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')) } catch { return null } }
+
+/** 该逻辑日有没有她自然醒过的记录（action_due → lifeTick 写的 kind:'action'）。 */
+function actionDays() {
+  const set = new Set()
+  try {
+    for (const line of fs.readFileSync(CAUSAL, 'utf8').split('\n')) {
+      if (!line.trim()) continue
+      try {
+        const e = JSON.parse(line)
+        if (e?.kind === 'action' && Number.isFinite(Number(e.atMs))) set.add(logicalDay(Number(e.atMs)))
+      } catch {}
+    }
+  } catch {}
+  return set
+}
 const sha256 = (f) => crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex')
 
 function draftPath(day) {
@@ -57,6 +73,7 @@ add('验收脚本哈希', hashOk, hashDetail.length ? hashDetail.join('; ') : '�
 const today = logicalDay()
 const days = []
 for (let i = 1; i <= 3; i += 1) days.push(logicalDay(Date.parse(today) - i * 86400_000))
+const actionSet = actionDays()
 let streak = true; const dayDetail = []
 for (const d of days) {
   const dir = path.join(DAYS, d)
@@ -77,10 +94,11 @@ for (const d of days) {
   const flags = summary?.flags ?? {}
   const badFlags = Object.entries(flags).filter(([k, v]) => v === true && !['missed', 'late'].includes(k)).map(([k]) => k)
   const draftBound = !!draft?.diaryHash && (draft.diaryHash === snapDiaryHash || tickHashes.has(draft.diaryHash)) && draft.date === d && draft.degraded !== true
+  const hasAction = actionSet.has(d)
   const cfBound = !!cf && cf.day === d
-  const ok = !!cf?.ok && Number(cf?.diffChars) >= 4 && cfBound && draftBound && badFlags.length === 0
+  const ok = !!cf?.ok && Number(cf?.diffChars) >= 4 && cfBound && draftBound && hasAction && badFlags.length === 0
   if (!ok) streak = false
-  dayDetail.push(`${d}: cf=${cf ? (cf.ok ? 'ok' : 'fail') + '/' + cf.diffChars : 'missing'}${cf && !cfBound ? '(day-mismatch)' : ''} draftHash=${draftBound ? 'match' : (draft?.diaryHash ? 'mismatch' : 'n')} flags=${badFlags.join(',') || 'ok'}`)
+  dayDetail.push(`${d}: cf=${cf ? (cf.ok ? 'ok' : 'fail') + '/' + cf.diffChars : 'missing'}${cf && !cfBound ? '(day-mismatch)' : ''} draftHash=${draftBound ? 'match' : (draft?.diaryHash ? 'mismatch' : 'n')} action=${hasAction ? 'y' : 'n'} flags=${badFlags.join(',') || 'ok'}`)
 }
 add('连续 3 天反事实', streak, dayDetail.join(' | '))
 

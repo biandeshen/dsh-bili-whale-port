@@ -16,6 +16,8 @@ function setup({ moods = ['快乐', '宁静', '兴奋'], texts = ['a', 'b', 'c']
   fs.mkdirSync(control, { recursive: true })
   const days = ['2026-09-01', '2026-09-02', '2026-09-03']
   fs.writeFileSync(path.join(control, 'observation.json'), JSON.stringify({ startDay: days[0], days: 3 }))
+fs.writeFileSync(path.join(home, 'bili-whale', 'causal.jsonl'),
+  days.map((d) => JSON.stringify({ kind: 'action', atMs: Date.parse(d + 'T12:00:00+08:00') })).join('\n') + '\n')
   days.forEach((d, i) => {
     const dir = path.join(home, 'bili-whale', 'days', d)
     fs.mkdirSync(dir, { recursive: true })
@@ -80,6 +82,16 @@ test('observation-status：草稿 date 与文件名不一致不计入 K1', () =>
   const d = JSON.parse(fs.readFileSync(f, 'utf8'))
   d.date = '2026-09-01'
   fs.writeFileSync(f, JSON.stringify(d))
+  const r = run(home, drafts)
+  assert.equal(r.k1_drafts.value, 2)
+  fs.rmSync(home, { recursive: true, force: true })
+})
+
+test('K1：某天没有自然 action，即使有稿也不计入', () => {
+  const { home, drafts } = setup()
+  const p = path.join(home, 'bili-whale', 'causal.jsonl')
+  const lines = fs.readFileSync(p, 'utf8').trim().split('\n')
+  fs.writeFileSync(p, lines.slice(0, 2).join('\n') + '\n')
   const r = run(home, drafts)
   assert.equal(r.k1_drafts.value, 2)
   fs.rmSync(home, { recursive: true, force: true })
