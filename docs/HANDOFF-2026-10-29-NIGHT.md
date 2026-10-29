@@ -8,7 +8,7 @@
 |---|---|---|---|
 | 10-30 **01:09（实际）** | 主人打断导致 wait 计时器死亡，**01:07:59 首次手动 stop 后被误起的 start 计时器立即拉起（43 秒窗，作废）**；**01:09:24 重新 stop 生效** | `control/c2-window.log` 末段 `offline window armed`；c2.json armedAt=2026-10-29T17:09:24Z |
 | 10-30 **09:12（保证空窗 ≥8h）** | `c2-start-at.cjs`（pid 21696，Temp 目录） | 睡到 09:12 后执行 `c2-window.mjs start`：收尾 + 起服务 | 日志 `starting now` → `online` |
-| 10-30 09:05 | `postcheck-at`（pid 1704） | 写 `control/c2-poststart.json`（health、end、10-29 cf） | `healthExit`、`end.derivedReason`、`cf.ok/diffChars/realMood` |
+| 10-30 **09:17** | `c2-postcheck-at.cjs`（pid 23232，Temp） | 写 `control/c2-poststart.json`（health、end、10-29 cf）——排在恢复之后 | `healthExit`、`end.derivedReason`、`cf.ok/diffChars/realMood` |
 | 10-31 04:15 | `verify-at`（pid 17960） | 跑 `c2-offline verify` | `control/c2-result.json` + `control/canary.json` 的 C2 |
 | 持续 | `action-watch`（pid 207048，到 10-30 15:06） | 命中下一次 `kind:'action'` 后 10 分钟留证 | `control/action-watch-result.json`、`days/<D>/wake-*.json` |
 
