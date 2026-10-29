@@ -160,7 +160,24 @@ if (cmd === 'stop') {
   const r = spawnSync(NODE, [path.join(ROOT, 'scripts', 'c2-offline.mjs'), 'verify'], { encoding: 'utf8', timeout: 180000 })
   log(`verify-at: exit=${r.status} ${String(r.stdout || r.stderr || '').replace(/\s+/g, ' ').slice(-600)}`)
   process.exitCode = r.status ?? 1
+} else if (cmd === 'check') {
+  const day = logicalDay()
+  const d = readJson(path.join(draftsDir(), day + '.json'))
+  const valid = validDraftToday(day)
+  const plan = readJson(path.join(CONTROL, 'c2-window-plan.json'))
+  const c2 = readJson(C2)
+  console.log(JSON.stringify({
+    ok: true,
+    day,
+    draftValid: valid,
+    draftId: d?.id ?? null,
+    draftStatus: d?.status ?? null,
+    hasDiaryHash: !!d?.diaryHash,
+    plan,
+    expectedDays: c2?.expectedDays ?? null,
+  }, null, 2))
+  process.exit(valid ? 0 : 1)
 } else {
-  console.error('用法: node scripts/c2-window.mjs stop|start|verify|wait|verify-at [--dry]')
+  console.error('用法: node scripts/c2-window.mjs stop|start|verify|wait|verify-at|check [--dry]')
   process.exit(2)
 }
