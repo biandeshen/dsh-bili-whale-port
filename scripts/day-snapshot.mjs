@@ -165,7 +165,7 @@ export function end(now = Date.now(), day = logicalDay(now)) {
  * 最后一条 tick 距现在超过 maxAgeMs（机器睡过日界/进程被挂起）就不收尾——
  * 那一段没有被观测到，宁可让 day-report 显示 MISSING，也不拿几小时前的快照冒充收口。
  */
-export function closeFromLastTick(day, { now = Date.now(), maxAgeMs = 2 * 3600_000 } = {}) {
+export function closeFromLastTick(day, { now = Date.now(), maxAgeMs = 2 * 3600_000, reason = null } = {}) {
   const dir = daysDir(day)
   const endFile = path.join(dir, 'state.end.json')
   if (fs.existsSync(endFile)) return { ok: true, wrote: false, reason: 'exists' }
@@ -180,7 +180,13 @@ export function closeFromLastTick(day, { now = Date.now(), maxAgeMs = 2 * 3600_0
     return { ok: false, wrote: false, reason: 'stale', from: last.at }
   }
   const { kind, ...snap } = last
-  writeAtomic(endFile, { ...snap, kind: 'end', endedAt: new Date().toISOString(), derivedFromLastTick: last.at })
+  writeAtomic(endFile, {
+    ...snap,
+    kind: 'end',
+    endedAt: new Date().toISOString(),
+    derivedFromLastTick: last.at,
+    ...(reason ? { derivedReason: reason } : {}),
+  })
   return { ok: true, wrote: true, from: last.at }
 }
 
