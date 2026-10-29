@@ -11,7 +11,7 @@
 - **2026-10-29：G3a 通过（进度门，不转段）。** D4 补了 `check-consumers`、`npm run gates`、`tsc` 覆盖 `persona-core`、A3 真实快照断言。证据：`evidence/G3A-2026-10-29.md`。
 - **2026-10-29：D5 canary 1/3。** 重启测试通过（杀 5988/23252 → 重启 113084 → health 5 项全过；`life.json` 前进、`actionsToday=0` 无重复行动）。期间修掉 `day-snapshot` 误读遗留 `rhythm.json` 的问题。C2（长时间离线）/C3（模型 410）未做，未进 G3b。记录：`evidence/D5-CANARY-2026-10-29.md`。
 - **2026-10-29：C3 通过、C2 口径裁决、反事实工具就绪。** C3 用死端口 `18911` 注入模型故障：重试 ×7、草稿 0 新增、状态可读；恢复后 health 全过。C2 裁决为「≥8h 真实关机 + 跨 04:00 + 一次强制终止 + 时钟回拨」，待真实关机验证。新增 `scripts/counterfactual.mjs`（真 voice vs 中性 voice，10-28 实测差异 6 字）并在看门狗里每日自动生成。记录：`evidence/C2-DECISION-2026-10-29.md`。
-- **2026-10-29：M3 收口 + 观测缺陷清理。** ①人设单一来源（D-19）：`CONSTITUTION`=她是谁、`ORIENTATION`=这一轮做什么，`~/.bili-ai/persona.md` 降为带警告的 DSH 遗留镜像，显示名=小鱼，health 增两段前缀漂移门；②行动账本启动时按 append-only 因果链对账（D-32）；③看门狗跨日用前一天最后一条 tick 收尾 `state.end`（D-34，10-28 不回填）；④审批成功判定必须有 `dyn_id`（D-23）；⑤私信回信链路上线：`bili_dm_reply` 只写草稿，`scripts/dm-approve.mjs` 一次性 token 才发（默认 dry，冷却退回）；⑥`npm test` 185/185（30 文件）、Cortico 103/103（12 文件）、`tsc` 0。G3b 现状：C1/C3 PASS、**C2 PENDING**、连续 3 天反事实 PENDING；10-28 反事实 6 字但草稿缺 `diaryHash`，判不过。证据：`evidence/D-19-PERSONA-2026-10-29.md`、`D-32-LEDGER-2026-10-29.md`、`D-34-DAY-CLOSE-2026-10-29.md`、`M3-DM-REPLY-2026-10-29.md`。
+- **2026-10-29：M3 收口 + 观测缺陷清理。** ①人设单一来源（D-19）：`CONSTITUTION`=她是谁、`ORIENTATION`=这一轮做什么，`~/.bili-ai/persona.md` 降为带警告的 DSH 遗留镜像，显示名=小鱼，health 增两段前缀漂移门；②行动账本启动时按 append-only 因果链对账（D-32）；③看门狗跨日用前一天最后一条 tick 收尾 `state.end`（D-34，10-28 不回填）；④审批成功判定必须有 `dyn_id`（D-23）；⑤私信回信链路上线：`bili_dm_reply` 只写草稿，`scripts/dm-approve.mjs` 一次性 token 才发（默认 dry，冷却退回）；⑥`npm test` 189/189（31 文件）、Cortico 103/103（12 文件）、`tsc` 0；⑦G3b 草稿日记哈希改为按当天任一 tick 绑定（D-35）；⑧唤醒语裁决：看的部分不能跳、草稿默认可拒须留原因（D-36，**待自然唤醒验证**）。G3b 现状：C1/C3 PASS、**C2 PENDING**、连续 3 天反事实 PENDING；10-28 反事实 6 字但草稿缺 `diaryHash`，判不过。证据：`evidence/D-19-PERSONA-2026-10-29.md`、`D-32-LEDGER-2026-10-29.md`、`D-34-DAY-CLOSE-2026-10-29.md`、`D-35` 见 `G3B-DIARY-BIND-2026-10-29.md`、`D-36-WAKE-RULING-2026-10-29.md`、`M3-DM-REPLY-2026-10-29.md`。
 - **2026-10-29：G3b 就绪审计上线。** `node scripts/g3b-check.mjs` 当前输出：C1 PASS / C3 PASS / **C2 PENDING** / 连续 3 天反事实 **PENDING**。观测期用 `node scripts/observation-status.mjs` 查 K1(11/14)/K2(9/14)/K3(3 天非平静)；未开始会显式提示。canary 状态在 `control/canary.json`。**启动观测必须走 `node scripts/observation-start.mjs`：G3b 未就绪会拒绝，防止误开 14 天窗口。**
 - **2026-10-29：目标完成审计器。** `npm run audit:goal` 把目标拆成 G3b / 观测窗口 / K1 / K2 / K3 五项，当前 4 项 PENDING；只有全部 PASS 才算目标达成，不接受"测试全绿"替代。
 - **2026-10-29：观测操作卡。** `docs/OBSERVATION-PROTOCOL.md` 固定了每天 20–30 分钟的检查、污染定义、允许的运维与停止条件；G3b 全绿后用 `node scripts/observation-start.mjs` 开窗。
@@ -19,7 +19,7 @@
 
 - **2026-10-27：宿主已统一到 Cortico。** DSH 插件的时钟在本机停用（`clock.enabled=false` + `night.windows=[]`，面板与 `/deps` 仍在）；HKCU `WhaleDraft`（21:30 nightly-scheduler）已删除。Cortico World 改为**状态驱动的醒/睡**（无固定 21:40；无聊/想他/累 + 抖动决定，单日 ≤3 次，冷战/连续失约会自动收敛），见 `Cortico/persona-core/src/rhythm.ts` 与 `docs/CORTICO-PATCHES.md` 第 11 条。
 - 分支 `port/core-opencode-panel`，4 个检查点提交（阶段0-2 / 阶段2 / 阶段3 / 阶段4）。
-- `npm test` **185/185**（30 文件，2026-10-29）；drill **34/34**；Cortico 套件 **103/103**（12 文件）；`tsc --noEmit` 0 错。（数字每次改动都要重跑，别抄这里）
+- `npm test` **189/189**（31 文件，2026-10-29）；drill **34/34**；Cortico 套件 **103/103**（12 文件）；`tsc --noEmit` 0 错。（数字每次改动都要重跑，别抄这里）
 - 已完成：core 化、AgentSessionPort、WHALE_HOME/WHALE_NODE、notify ntfy/bark、tick-catchup、路由抽取、OpenCode adapter（daemon+MCP）、whale-panel（含鱼缸视图）。
 - 未完成（按计划顺序）：
   1. client.js 的 schema/render 拆分（当前面板用 JSON 编辑器替代；DSH 设置页未动、回归全绿）
