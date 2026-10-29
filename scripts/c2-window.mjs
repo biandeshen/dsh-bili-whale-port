@@ -166,6 +166,14 @@ if (cmd === 'stop') {
   const valid = validDraftToday(day)
   const plan = readJson(path.join(CONTROL, 'c2-window-plan.json'))
   const c2 = readJson(C2)
+  const alive = (pid) => { try { process.kill(pid, 0); return true } catch { return false } }
+  const wdPid = pidFrom(WATCHDOG_PID)
+  const corticoPid = pidFrom(CORTICO_PID)
+  let lastTickAt = null
+  try {
+    const lines = fs.readFileSync(path.join(DSH_HOME, 'bili-whale', 'days', day, 'ticks.jsonl'), 'utf8').trim().split('\n').filter(Boolean)
+    lastTickAt = JSON.parse(lines[lines.length - 1]).at
+  } catch {}
   console.log(JSON.stringify({
     ok: true,
     day,
@@ -175,6 +183,10 @@ if (cmd === 'stop') {
     hasDiaryHash: !!d?.diaryHash,
     plan,
     expectedDays: c2?.expectedDays ?? null,
+    lastTickAt,
+    lastTickAgeMin: lastTickAt ? Math.round((Date.now() - Date.parse(lastTickAt)) / 60000) : null,
+    watchdog: { pid: wdPid || null, alive: wdPid ? alive(wdPid) : false },
+    cortico: { pid: corticoPid || null, alive: corticoPid ? alive(corticoPid) : false },
   }, null, 2))
   process.exit(valid ? 0 : 1)
 } else {
