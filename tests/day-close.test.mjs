@@ -60,3 +60,17 @@ test('睡过日界（最后 tick 已超过 2h）不收尾，宁可 MISSING 也�
   assert.equal(r.reason, 'stale')
   assert.ok(!fs.existsSync(path.join(sdir, 'state.end.json')))
 })
+
+test('C2 窗口收尾：允许陈旧 tick，但必须标注 derivedReason', () => {
+  const day = '2026-10-25'
+  const dir25 = path.join(WHALE, 'bili-whale', 'days', day)
+  fs.mkdirSync(dir25, { recursive: true })
+  fs.writeFileSync(path.join(dir25, 'ticks.jsonl'), JSON.stringify({ kind: 'tick', day, at: '2026-10-24T23:30:00.000Z', fields: { energy: 0.4 } }) + '\n')
+  const now = Date.parse('2026-10-25T09:00:00.000Z')
+  const r = closeFromLastTick(day, { now, maxAgeMs: Infinity, reason: 'c2-offline-window' })
+  assert.equal(r.ok, true)
+  assert.equal(r.wrote, true)
+  const end = JSON.parse(fs.readFileSync(path.join(dir25, 'state.end.json'), 'utf8'))
+  assert.equal(end.derivedReason, 'c2-offline-window')
+  assert.equal(end.fields.energy, 0.4)
+})
