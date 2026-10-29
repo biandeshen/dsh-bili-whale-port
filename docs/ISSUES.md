@@ -57,6 +57,7 @@
 | D-34 | **看门狗跨日不收尾**：`day-watchdog` 只 `seed+tick`，没人写 `state.end.json`，每个过去日都会在 `day-report` 里缺一项 | `control/day-watchdog.log:65-66`（03:56 还是 10-28，04:01 直接 10-29 count=1）；10-28 日报 `MISSING state.end.json` | 观测期无法证明“这一天正常收口” | 观测前 | **FIXED（只向前）**：`closeFromLastTick` 用该日最后一条 tick 的快照收尾，看门狗亲历日界时调用；启动不回补历史。10-28 不回填，如实缺项。测试 `tests/day-close.test.mjs` 3/3；看门狗已重启（pid 169964）。证据 `evidence/D-34-DAY-CLOSE-2026-10-29.md` |
 | D-35 | **G3b 草稿绑定只看日终快照**：同一天第二次写日记会改变 `state.end` 的日记哈希，第一次的有效草稿被判 `mismatch`，整天判不过 | `g3b-check.mjs` 原 `draft.diaryHash === snap.diary.hash`；单日上限 3 次行动 | 多行动日会被误杀，G3b 连续 3 天更难 | G3b 前 | **FIXED**：草稿哈希在该日**任一 tick** 的日记哈希里出现过即算绑定当天（append-only ticks），仍要求 `date===d`、`degraded!==true`。测试 `tests/contract/g3b-check.test.mjs` 2/2。证据 `evidence/G3B-DIARY-BIND-2026-10-29.md` |
 | D-36 | **唤醒语把 ORIENTATION 变成可选**：事件末尾写“做多少、做不做，由你定”，她可以在“当天还没有稿”时也选择只看不写 | `wake-audit.mjs` 回放：10-26 23:29 / 10-27 11:39 / 10-28 01:12 都完整出稿；15:49 与 22:21 跳过，但都发生在当天已有稿之后 | 若某天无稿又跳过看片，K1 会缺一天 | G3b 前 | **MITIGATED（待“无稿日”验证）**：团队裁决 D-36 —— 看的部分不能跳；草稿默认、可拒但须写原因；**当天已有稿就不重复出**。新增 `scripts/wake-audit.mjs` 还原工具序列（测试 2/2）。历史证据证明她会走完整链；仍需一次“当天无稿”的自然唤醒验证。若连续两次仍跳 → D-36b。证据 `evidence/D-36-WAKE-RULING-2026-10-29.md`（含更正） |
+| D-37 | **C2 只看 arm→now 的耗时**：服务一直跑也会满 8h，verify 可能假通过 | `c2-offline.mjs` 原检查 `hours>=8` + 区间跨 04:00；没有证明中间真的断过 | canary C2 假通过 → G3b 门禁失真 | G3b 前 | **FIXED**：verify 从 `days/<D>/ticks.jsonl` 取最大空窗，要求空窗 ≥8h 且跨 04:00（`tools/lib/offline-gap.mjs`）。测试 `tests/offline-gap.test.mjs` 4/4。证据 `evidence/C2-DECISION-2026-10-29.md` |
 
 ## 3. 待拍板（NEED-USER）
 

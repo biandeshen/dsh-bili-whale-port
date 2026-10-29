@@ -11,6 +11,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { DSH_HOME as WHALE_HOME } from '../tools/lib/paths.mjs'
+import { largestOfflineGap, readTickTimes } from '../tools/lib/offline-gap.mjs'
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..')
 const CONTROL = path.join(WHALE_HOME, 'bili-whale', 'control')
@@ -75,23 +76,18 @@ if (!cfg?.armedAt) {
 const armedAt = Date.parse(cfg.armedAt)
 const now = Date.now()
 const hours = (now - armedAt) / 3600_000
-// 精确判断区间 [armedAt, now] 是否含 04:00 日界：按小时取整采样会漏掉
-// 「04:00 之后开机但不足一小时」的情况（采样点跨过边界却落在次日）。
-const crossed = (() => {
-  const b = new Date(armedAt)
-  b.setHours(4, 0, 0, 0)
-  let t = b.getTime()
-  if (t <= armedAt) {
-    b.setDate(b.getDate() + 1)
-    t = b.getTime()
-  }
-  return t <= now
-})()
 const checks = []
 const add = (name, ok, detail) => checks.push({ name, ok, detail })
 
-add('离线 ≥8h', hours >= MIN_HOURS, `${hours.toFixed(2)}h`)
-add('跨过 04:00 日界', crossed, crossed ? 'yes' : 'no')
+add('离线 ≥8h（arm→now）', hours >= MIN_HOURS, `${hours.toFixed(2)}h`)
+// 真正的验收：tick 时间线里必须有一段 ≥8h 的空窗，且这段空窗跨过 04:00。
+// 只看 arm→now 的耗时会把“arm 了但服务一直跑”误判成离线。
+const tickTimes = readTickTimes(DAYS, cfg.expectedDays)
+const gap = largestOfflineGap(tickTimes, { armedAt, now })
+const gapHours = gap.ms / 3600_000
+add('真实离线空窗 ≥8h', gap.ms >= MIN_HOURS * 3600_000,
+  `${gapHours.toFixed(2)}h [${new Date(gap.from).toLocaleString()} → ${new Date(gap.to).toLocaleString()}]（${tickTimes.length} 条 tick）`)
+add('空窗跨 04:00 日界', gap.crossed, gap.crossed ? 'yes' : 'no')
 
 if (!process.argv.includes('--skip-health')) {
   const h = run('cortico-health.mjs')
@@ -114,12 +110,12 @@ const life = readJson(path.join(CONTROL, 'life.json'))
 add('单日行动 ≤3', Number(life?.actionsToday ?? 0) <= 3, `actionsToday=${life?.actionsToday ?? '?'}`)
 
 const bad = checks.filter((c) => !c.ok)
-const out = { ok: bad.length === 0, verifiedAt: new Date(now).toISOString(), hours: Number(hours.toFixed(2)), crossed, checks }
+const out = { ok: bad.length === 0, verifiedAt: new Date(now).toISOString(), hours: Number(hours.toFixed(2)), crossed: gap.crossed, offlineGapHours: Number(gapHours.toFixed(2)), checks }
 writeAtomic(RESULT, out)
 
 if (out.ok) {
   const canary = readJson(CANARY) ?? {}
-  canary.C2 = { status: 'pass', at: out.verifiedAt, evidence: 'control/c2-result.json', detail: `offline ${out.hours}h, crossed04=${crossed}` }
+  canary.C2 = { status: 'pass', at: out.verifiedAt, evidence: 'control/c2-result.json', detail: `offline gap ${out.offlineGapHours}h, crossed04=${gap.crossed}` }
   writeAtomic(CANARY, canary)
 }
 
