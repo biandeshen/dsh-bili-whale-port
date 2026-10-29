@@ -691,6 +691,7 @@ export const BILI_ACCOUNT: WorldDefinition<any> = {
       bili_draft_dynamic: { zh: '生成动态草稿（不发送）', en: 'Create a dynamic draft (never posts).' },
       bili_diary_append: { zh: '写日记（公开/私人两本，按天按小节）', en: 'Write a diary section (public or private).' },
       bili_dm_read: { zh: '看主人有没有来信（只读，失败不当成没人写信）', en: 'Check for new owner DMs (read-only; failure is not emptiness).' },
+      bili_dm_reply: { zh: '写一条回信草稿（只入队，不发送）', en: 'Draft a reply to the owner (queued only, never sends).' },
     }),
     events: [{ type: 'bili.action_due', description: { zh: '她想做点什么（状态驱动，不固定在几点）', en: 'She wants to do something (state-driven, no fixed clock).' }, trigger: 'flush' }],
   },
