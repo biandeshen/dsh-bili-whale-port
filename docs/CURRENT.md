@@ -5,7 +5,8 @@
 
 ## 现在到哪了
 
-- **2026-10-29：C2 计划窗口（主人批准）。** 10-30 01:00 `c2-window stop`（arm + 停 Cortico/看门狗），09:00 `start`（用 10-29 最后一条真实 tick 收尾 + 起服务），10-31 04:15 `verify`。计时器 pid 184128（wait）/ 181796（verify-at）；日志 `control/c2-window.log`。取消与睡过日界的处理见 `evidence/C2-DECISION-2026-10-29.md` 末节。
+- **2026-10-29：C2 计划窗口（主人批准）。** 10-30 01:00 `c2-window stop`（arm + 停 Cortico/看门狗），09:00 `start`（用 10-29 最后一条真实 tick 收尾 + 起服务），10-31 04:15 `verify`。计时器 pid 184128（wait）/ 181796（verify-at）；日志 `control/c2-window.log`。取消与睡过日界的处理见 `evidence/C2-DECISION-2026-10-29.md` 末节。**01:00 若 10-29 还没有带 diaryHash 的稿，stop 会跳过窗口（exit 3），不白丢她的一天。**
+- **2026-10-29：行动观察器。** `action-watch.mjs`（pid 179304，到 23:04）盯着 `causal.jsonl`；她一下次行动后等 10 分钟，自动跑 `wake-audit --strict` + `day-report`，写 `days/<D>/wake-<HHMM>.json`。只读，不改行为。
 
 - **2026-10-29：D0 完成。** Cortico 已 `git init`（`3e8ccd5`，1164 文件，无密钥入库）；`days/<D>/` 快照 + append-only ticks + `day-report` 已可用；看门狗已常驻并注册 HKCU 自启（`WhaleDayWatchdog`）；`draft-dynamic` 读不到日记现在**显式失败**并记录 `diaryHash`；`npm test` 改为动态发现（23 文件 / 145 测试）。执行记录：`evidence/D0-2026-10-29.md`；排期：`ROADMAP-2026-10-29.md`。
 - **2026-10-29：D1 完成。** `buildText` 能取真实日记的 BV 标题、保留全部「想说」bullet；`readMood` 补 `action` 成因、阈值 0.25→0.2，真实场值从恒「平静」变为「轻快」。`npm test` 147/147、World 11/11、`tsc` 0、drill 33/33。记录：`evidence/D1-2026-10-29.md`。下一步 D2：`buildVoiceBrief` + `voice.schema.json` + `buildText` 必填 voice。
