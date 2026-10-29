@@ -32,8 +32,8 @@
 
 | ID | 问题 | 证据 | 影响 | 期 | 状态 |
 |---|---|---|---|---|---|
-| D-10 | **`npm test` 执行 0 条自研测试**：`vitest.config.ts:16` 只 include `tests/**/*.test.ts`，我们全是 `.mjs` | 红队2 F3、红队5 §2 | 45 个测试一个都不跑；`rhythm.test.mjs`（11/11）覆盖的"再也不醒"bug 无门禁守护 | M0 | OPEN |
-| D-11 | **`tsc 0 错误`口径失实**：`Cortico/tsconfig.json` 的 include 不含 `persona-core/`；`dsh-bili-whale` 是纯 JS 无 TS 工具链 | 红队5 §1 | "类型安全"只覆盖上游代码 | M0 | OPEN |
+| D-10 | **`npm test` 执行 0 条自研测试**：`vitest.config.ts:16` 只 include `tests/**/*.test.ts`，我们全是 `.mjs` | 红队2 F3、红队5 §2 | 45 个测试一个都不跑；`rhythm.test.mjs`（11/11）覆盖的"再也不醒"bug 无门禁守护 | M0 | **FIXED**：`package.json` 的 `test` 已改为 `node scripts/run-mjs-tests.mjs`，`gates` 再串 Cortico 套件；2026-10-29 实测 **29 文件 / 182 测试全过**。vitest 配置已不是测试入口 |
+| D-11 | **`tsc 0 错误`口径失实**：`Cortico/tsconfig.json` 的 include 不含 `persona-core/`；`dsh-bili-whale` 是纯 JS 无 TS 工具链 | 红队5 §1 | "类型安全"只覆盖上游代码 | M0 | **FIXED（覆盖）/ 部分不变**：`Cortico/tsconfig.json` include 已含 `persona-core/src/**/*.ts`，`npx tsc --noEmit` 覆盖 L3（2026-10-29 exit 0）。`dsh-bili-whale` 仍是纯 JS，靠 182 个 node:test 与 `check-consumers`，不冒充类型安全 |
 | D-12 | **测试抓不到"写了没生效"**：drill 33 项全在 `mkdtemp` 沙箱 + 5 行假 CLI，真实网络/home/CLI 触达 0/33；每项直接 `await tools.X.handler()`，绕过 `lifeTick` | 红队5 §3；`drill-gate.mjs:21-26,128` | 33/33 全绿与"她再也不会醒"可同时成立 | M0 | OPEN |
 | D-13 | **22 个零引用导出**（`causal-chain` 6/6、`effect-bus` 3、`runner.makeRunner` 等） | 红队5；`CORTICO-PATCHES.md:9` 把 `makeRunner` 列为交付物 | 死代码继续增长（刚删 266 行又长回来） | M1 | OPEN |
 | D-14 | **L3/L4 倒挂**：`PRESETS`/`readMood`/`describeState` 住在 World；`persona-core/tests/adapter.test.mjs:6` 反向 import World | 红队2 F1 | L3 无法独立测试/移植；"换 adapter 即可"被证伪（需改约 920 行） | M1 | OPEN |
