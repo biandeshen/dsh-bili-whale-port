@@ -30,6 +30,13 @@ test('空正文/超长拒收，边界长度可入', () => {
   assert.equal(addDraft(f, { text: 'x'.repeat(MAX_TEXT) }).ok, true)
 })
 
+test('以 -- 开头的正文拒收（会被命令行当成参数）', () => {
+  const f = file()
+  const r = addDraft(f, { text: '--go 我会自己发' })
+  assert.equal(r.ok, false)
+  assert.match(r.error, /-- 开头/)
+})
+
 test('状态与令牌挂载：sent 后仍在库里，可查', () => {
   const f = file()
   const a = addDraft(f, { text: '好', inboundKey: 'msg-2' })

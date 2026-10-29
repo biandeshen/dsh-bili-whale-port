@@ -26,7 +26,7 @@ function audit(entry) {
   } catch {}
 }
 
-function recordSent(draft, out) {
+function recordSent(draft) {
   try {
     fs.mkdirSync(path.dirname(CAUSAL), { recursive: true })
     fs.appendFileSync(CAUSAL, JSON.stringify({
@@ -35,7 +35,6 @@ function recordSent(draft, out) {
       draftId: draft.id,
       inboundKey: draft.inboundKey ?? '',
       chars: String(draft.text ?? '').length,
-      outTail: String(out ?? '').slice(-200),
       atMs: Date.now(),
     }) + '\n')
   } catch {}
@@ -70,7 +69,7 @@ export function approve({ id, token, go = false, runner } = {}) {
   const status = ok ? (go ? 'sent' : 'dry-run') : (transient ? 'cooldown' : 'failed')
   setStatus(FILE, d.id, status, { result: { ok, at: new Date().toISOString(), mode: go ? 'go' : 'dry', out: out.slice(-800) } })
   if (go && !ok) { try { ack.release(WHALE_HOME, d.ackId) } catch {} }
-  if (go && ok) recordSent(d, out)
+  if (go && ok) recordSent(d)
   audit({ id: d.id, action: go ? 'send' : 'dry-run', result: status, exit: r.status ?? null, outHash: crypto.createHash('sha1').update(out).digest('hex') })
   return { ok, status, out: out.slice(-800) }
 }

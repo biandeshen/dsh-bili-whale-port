@@ -40,6 +40,8 @@ export function addDraft(file, { text, inboundKey = '', who = '', src = '', ackI
   const body = String(text ?? '').trim()
   if (!body) return { ok: false, error: '正文是空的' }
   if (body.length > MAX_TEXT) return { ok: false, error: `正文太长（>${MAX_TEXT} 字），砍短一点` }
+  // 发送走 `dm.mjs --msg <正文>`；以 -- 开头会被命令行解析成参数，直接拒绝
+  if (body.startsWith('--')) return { ok: false, error: '正文不能以 -- 开头（会被当成命令行参数）' }
   const db = loadDrafts(file)
   // 同一封来信只排一条：她一轮里反复调用不会刷出一堆重复草稿
   if (inboundKey && db.items.some((x) => x.status === 'pending' && String(x.inboundKey) === String(inboundKey))) {
