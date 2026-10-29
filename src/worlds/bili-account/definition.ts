@@ -43,6 +43,8 @@ function writeAppliedDmKeys(keys: string[]): void {
   } catch {}
 }
 const ROUND_STALE_MS = 12 * 3600_000
+/** 回信草稿只对他最近这封信写：超过 7 天的旧信先重新看一眼，别隔空回。 */
+const DM_REPLY_WINDOW_MS = 7 * 86400_000
 function readLifeFile(): any {
   try { return JSON.parse(fs.readFileSync(LIFE_FILE, 'utf8')) } catch {}
   // 旧文件迁移：只取新字段，别把 wakesToday/lastWakeAt 再写回去
@@ -256,6 +258,7 @@ const DECLS = [
   { name: 'bili_draft_dynamic', description: "Create a dynamic draft from today's diary and an unused image. Never posts.", tags: ['write'], parameters: { type: 'object', properties: { force: { type: 'boolean' } }, additionalProperties: false } },
   { name: 'bili_diary_append', description: 'Write a section into one of her diaries (public/private). Same day+heading is replaced, not duplicated.', tags: ['write'], parameters: { type: 'object', properties: { book: { type: 'string', enum: ['public', 'private'], description: 'public = 给人看的；private = 只给自己看的偏好校准' }, heading: { type: 'string', description: '小节标题，如 看过 / 想说 / 今日指标 / 本轮留下的判断' }, text: { type: 'string', description: '这一节的正文（markdown）' } }, required: ['book', 'heading', 'text'], additionalProperties: false } },
   { name: 'bili_dm_read', description: "Check whether 主人 (the owner) sent a new DM since last check. Read-only: never sends or marks anything read on Bilibili; advances only her local cursor. If reading fails it says so — it is NOT the same as 'no message'.", tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'bili_dm_reply', description: "Draft a reply to 主人's latest DM. Only queues the draft locally for the owner to approve — it never sends. Requires having read a message first.", tags: ['write'], parameters: { type: 'object', properties: { text: { type: 'string', description: '回信正文（≤500 字，第一人称）' } }, required: ['text'], additionalProperties: false } },
 ] as const
 
 class BiliAccountWorld {
@@ -646,12 +649,27 @@ class BiliAccountWorld {
         writeAppliedDmKeys([...readAppliedDmKeys(), msg.key])
         if (this.life) {
           this.life.lastContactAt = Number(msg.ts) || Date.now()
+          // 记下"这封"的 key：回信草稿只能对着他刚说的话写，不能凭空发
+          this.life.lastInboundKey = msg.key
+          this.life.lastInboundAt = Number(msg.ts) || Date.now()
           writeLifeFile(this.life)
         }
         const ack = await runAsync(['dm-await', '--ack', msg.receipt], 30000)
         causal({ kind: 'inbound', key: msg.key, chars: msg.text.length, ack: ack.status === 0, atMs: Date.now() })
         return '[dm] 主人来信：' + msg.text.slice(0, 200)
           + '\n（connection 已上升；想回的话按 ORIENTATION 走——发信仍然需要审批，不能直接发。）'
+      }),
+      mk(DECLS[9], async (a) => {
+        const text = String(a?.text ?? '').trim()
+        if (!text) return '[dm_reply] 正文是空的'
+        if (text.length > 500) return '[dm_reply] 太长（>500 字），砍短一点'
+        const key = String(this.life?.lastInboundKey ?? '')
+        const at = Number(this.life?.lastInboundAt ?? 0)
+        if (!key) return '[dm_reply] 最近没有他的新消息（先 bili_dm_read）；不凭空写私信'
+        if (!(Date.now() - at < DM_REPLY_WINDOW_MS)) return '[dm_reply] 上一封已经过去太久了，先 bili_dm_read 看看有没有新的'
+        const r = await runAsync(['dm-draft', 'add', '--text', text, '--inbound', key, '--who', '鱼片'], 30000)
+        if (r.status === 0) causal({ kind: 'dm-draft', inboundKey: key, chars: text.length, atMs: Date.now() })
+        return r.out
       }),
     ]
   }
