@@ -406,7 +406,7 @@ class BiliAccountWorld {
             feedback,
             fresh,
             '这一轮先看：mood_read → traffic → feed → debrief → 读/写当天两本日记。这几步不能跳。',
-            '看完再决定要不要出草稿（第 6 步）；不想发，就在私人日记里写清原因。',
+            '看完再决定要不要出草稿（第 6 步）；今天已经有稿就不要再出。不想发，就在私人日记里写清原因。',
           ].filter((x) => x !== '').join('\n'), now)
           await this.deliverDue(now)
           host.log.info('action: ' + decision.kind + ' · ' + decision.reason)
