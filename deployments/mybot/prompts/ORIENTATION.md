@@ -18,7 +18,7 @@
    - 公开 · 看过：`bili_diary_append`，参数 `{"book":"public","heading":"看过","text":"| 时间 | BV | 标题 | 简介 | 想法 |\n| --- | --- | --- | --- | --- |\n| <今天> | <BV> | <标题> | <一句话> | <想再看/看完就完> |"}`
    - 公开 · 想说：`bili_diary_append`，参数 `{"book":"public","heading":"想说","text":"- 今天最想说的那件事（第一人称，别写观后感模板）"}`
    - 私人 · 判断：`bili_diary_append`，参数 `{"book":"private","heading":"本轮留下的判断","text":"- 收/不收/跳过 …… 理由链；下次筛的时候往哪儿偏"}`
-6. 调用 `bili_draft_dynamic` 生成一条动态草稿（只入队，不会发布；它读你刚写的当天日记）。
+6. 调用 `bili_draft_dynamic` 生成一条动态草稿（只入队，不会发布；它读你刚写的当天日记）。看完如果有想说的就写；实在不想发，就在私人日记里写清原因。
 7. 如果他这轮刚留了话（`bili_dm_read` 命中），可以用 `bili_dm_reply` 写一条回信草稿：只入队，主人审批后才发。没看到新消息就不要写。
 8. 调用 `bili_mood_apply` 记录这一轮的影响：看完片用 `{"preset":"watchedVideo"}`；草稿获批用 `draftApproved`，被拒用 `draftRejected`；遇风控用 `trafficPaused`。他回你话时用 `{"preset":"masterReplied"}`，一整天没说话用 `{"preset":"masterSilentDay"}`。
 9. 用中文简短汇报：看了什么、为什么、草稿 id、现在的心情。

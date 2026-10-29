@@ -400,12 +400,13 @@ class BiliAccountWorld {
             '起因：' + decision.reason + '。',
             ...(decision.kind === 'connect' ? ['他可能留了话——先 bili_dm_read 看一眼。'] : []),
             recentLine,
-            '这轮可以先挑一件小事（也可以不做）：\n' + activities.map((x) => `- [${x.type}] ${x.label}：${x.description}`).join('\n'),
+            '看完还有余力，可以再挑一件小事：\n' + activities.map((x) => `- [${x.type}] ${x.label}：${x.description}`).join('\n'),
             '挑好了，在 bili_mood_apply 里带上 activity=<id>，让我记下来。',
             todayDraft,
             feedback,
             fresh,
-            '按 ORIENTATION 走一轮；做多少、做不做，由你定。',
+            '这一轮先看：mood_read → traffic → feed → debrief → 读/写当天两本日记。这几步不能跳。',
+            '看完再决定要不要出草稿（第 6 步）；不想发，就在私人日记里写清原因。',
           ].filter((x) => x !== '').join('\n'), now)
           await this.deliverDue(now)
           host.log.info('action: ' + decision.kind + ' · ' + decision.reason)
