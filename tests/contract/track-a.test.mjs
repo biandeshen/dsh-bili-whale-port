@@ -118,6 +118,15 @@ test('approve dry 不消耗审批；重复 dry 允许；go 后拒绝', () => {
   assert.equal(r4.ok, false)
 })
 
+test('成功判定必须有 dyn_id：只出现 dynamic 字样不算发出去', () => {
+  const d = makeDraft({ date: '2026-10-29', diaryText: diary, image: 'D:/x.png', text: 'y' })
+  const token = attachAck(d)
+  fs.writeFileSync(path.join(DRAFTS, '2026-10-29.json'), JSON.stringify(d))
+  const r = approve({ id: d.id, go: true, token, runner: () => ({ status: 0, stdout: 'dynamic interface ok but nothing posted' }) })
+  assert.equal(r.ok, false)
+  assert.equal(r.status, 'failed')
+})
+
 test('kill switch 阻断 approve', () => {
   const d = makeDraft({ date: '2026-10-27', diaryText: diary, image: 'D:/x.png', text: 'x' })
   fs.writeFileSync(path.join(DRAFTS, '2026-10-27.json'), JSON.stringify(d))
