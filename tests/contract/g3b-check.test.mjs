@@ -7,6 +7,7 @@ import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 
 const SCRIPT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..', '..', 'scripts', 'g3b-check.mjs')
+const START = path.resolve(path.dirname(SCRIPT), 'observation-start.mjs')
 const logicalDay = (now) => new Date(now - 4 * 3600_000).toLocaleDateString('sv-SE')
 
 function makeHome() {
@@ -35,6 +36,16 @@ function makeHome() {
 
 function run(home, drafts) {
   const r = spawnSync(process.execPath, [SCRIPT, '--json'], {
+    encoding: 'utf8',
+    env: { ...process.env, DSH_HOME: home, WHALE_DRAFTS: drafts },
+  })
+  let json = null
+  try { json = JSON.parse(r.stdout) } catch {}
+  return { status: r.status, json, stderr: r.stderr }
+}
+
+function runStart(home, drafts, args = []) {
+  const r = spawnSync(process.execPath, [START, ...args], {
     encoding: 'utf8',
     env: { ...process.env, DSH_HOME: home, WHALE_DRAFTS: drafts },
   })
@@ -73,4 +84,28 @@ test('草稿哈希不属于当天 → 不 ready；tainted flag 也会拦', () =>
   const r2 = run(home, drafts)
   assert.equal(r2.status, 1)
   assert.match(r2.json.checks.find((c) => c.name === '连续 3 天反事实').detail, /tainted/)
+})
+
+test('G3b ready 后：--dry 不写，正式才写 observation.json', () => {
+  const { home, drafts } = makeHome()
+  const obs = path.join(home, 'bili-whale', 'control', 'observation.json')
+  const dry = runStart(home, drafts, ['--dry'])
+  assert.equal(dry.status, 0, dry.stderr)
+  assert.equal(dry.json.dry, true)
+  assert.ok(!fs.existsSync(obs))
+
+  const real = runStart(home, drafts)
+  assert.equal(real.status, 0, real.stderr)
+  const j = JSON.parse(fs.readFileSync(obs, 'utf8'))
+  assert.equal(j.days, 14)
+  assert.match(j.startDay, /^\d{4}-\d{2}-\d{2}$/)
+})
+
+test('G3b 未就绪时拒绝开窗，不留下 observation.json', () => {
+  const { home, drafts, days } = makeHome()
+  fs.rmSync(path.join(drafts, days[0] + '.json'))
+  const r = runStart(home, drafts)
+  assert.equal(r.status, 1)
+  assert.equal(r.json.error, 'g3b-not-ready')
+  assert.ok(!fs.existsSync(path.join(home, 'bili-whale', 'control', 'observation.json')))
 })
