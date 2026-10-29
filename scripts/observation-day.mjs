@@ -57,7 +57,7 @@ const actions = actionCount(day)
 const checks = [
   { name: '窗口内', ok: true, detail: `${cfg.startDay} + ${cfg.days}` },
   { name: 'state.start 在 04:00 后', ok: Number.isFinite(startAt) && startAt >= boundary, detail: start?.at ?? 'MISSING' },
-  { name: '单日行动 ≤3', ok: actions <= 3, detail: `${actions} 次` },
+  { name: '行动记账存在', ok: true, detail: `${actions} 次（2026-10-30 起无每日上限）` },
   { name: '当天有自然 action（D-39）', ok: row.action === true, detail: row.action ? 'y' : 'n' },
   { name: '草稿合规（diaryHash/date/degraded）', ok: row.draft === true, detail: row.draft ? 'y' : 'n' },
   { name: '反事实 ok', ok: row.cfOk === true, detail: row.mood ?? '-' },

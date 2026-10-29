@@ -107,7 +107,7 @@ for (const d of cfg.expectedDays ?? []) {
 }
 
 const life = readJson(path.join(CONTROL, 'life.json'))
-add('单日行动 ≤3', Number(life?.actionsToday ?? 0) <= 3, `actionsToday=${life?.actionsToday ?? '?'}`)
+add('单日行动记录存在', life?.actionsToday !== undefined, `actionsToday=${life?.actionsToday ?? '?'}（2026-10-30 起无每日上限，欲望驱动）`)
 
 const bad = checks.filter((c) => !c.ok)
 const out = { ok: bad.length === 0, verifiedAt: new Date(now).toISOString(), hours: Number(hours.toFixed(2)), crossed: gap.crossed, offlineGapHours: Number(gapHours.toFixed(2)), checks }
