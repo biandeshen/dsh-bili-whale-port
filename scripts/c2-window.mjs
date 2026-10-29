@@ -189,7 +189,29 @@ if (cmd === 'stop') {
     cortico: { pid: corticoPid || null, alive: corticoPid ? alive(corticoPid) : false },
   }, null, 2))
   process.exit(valid ? 0 : 1)
+} else if (cmd === 'postcheck-at') {
+  const at = Date.parse(process.env.C2_POSTCHECK_AT || '2026-10-30T09:05:00+08:00')
+  if (!Number.isFinite(at)) { log('postcheck-at: 时间参数无效'); process.exit(2) }
+  log(`postcheck-at: ${new Date(at).toLocaleString()}`)
+  while (Date.now() < at) await new Promise((r) => setTimeout(r, 30_000))
+  const health = spawnSync(NODE, [path.join(ROOT, 'scripts', 'cortico-health.mjs')], { encoding: 'utf8', timeout: 60000 })
+  const check = spawnSync(NODE, [path.join(ROOT, 'scripts', 'c2-window.mjs'), 'check'], { encoding: 'utf8', timeout: 30000 })
+  let parsed = null
+  try { parsed = JSON.parse(check.stdout) } catch {}
+  const cf = readJson(path.join(DSH_HOME, 'bili-whale', 'days', '2026-10-29', 'counterfactual.json'))
+  const end = readJson(path.join(DSH_HOME, 'bili-whale', 'days', '2026-10-29', 'state.end.json'))
+  const out = {
+    at: new Date().toISOString(),
+    healthExit: health.status,
+    healthTail: String(health.stdout || health.stderr || '').trim().split('\n').slice(-3),
+    check: parsed,
+    cf: cf ? { ok: cf.ok, diffChars: cf.diffChars, realMood: cf.realMood } : null,
+    end: end ? { at: end.at, derivedReason: end.derivedReason ?? null } : null,
+  }
+  fs.writeFileSync(path.join(CONTROL, 'c2-poststart.json'), JSON.stringify(out, null, 2) + '\n')
+  log(`postcheck-at: health=${health.status} cf=${cf ? cf.ok + '/' + cf.diffChars : 'missing'} end=${end ? 'y' : 'n'}`)
+  process.exitCode = health.status === 0 ? 0 : 1
 } else {
-  console.error('用法: node scripts/c2-window.mjs stop|start|verify|wait|verify-at|check [--dry]')
+  console.error('用法: node scripts/c2-window.mjs stop|start|verify|wait|verify-at|check|postcheck-at [--dry]')
   process.exit(2)
 }
