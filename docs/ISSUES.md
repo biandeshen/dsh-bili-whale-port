@@ -58,6 +58,7 @@
 | D-35 | **G3b 草稿绑定只看日终快照**：同一天第二次写日记会改变 `state.end` 的日记哈希，第一次的有效草稿被判 `mismatch`，整天判不过 | `g3b-check.mjs` 原 `draft.diaryHash === snap.diary.hash`；单日上限 3 次行动 | 多行动日会被误杀，G3b 连续 3 天更难 | G3b 前 | **FIXED**：草稿哈希在该日**任一 tick** 的日记哈希里出现过即算绑定当天（append-only ticks），仍要求 `date===d`、`degraded!==true`。测试 `tests/contract/g3b-check.test.mjs` 2/2。证据 `evidence/G3B-DIARY-BIND-2026-10-29.md` |
 | D-36 | **唤醒语把 ORIENTATION 变成可选**：事件末尾写“做多少、做不做，由你定”，她可以在“当天还没有稿”时也选择只看不写 | `wake-audit.mjs` 回放：10-26 23:29 / 10-27 11:39 / 10-28 01:12 都完整出稿；15:49 与 22:21 跳过，但都发生在当天已有稿之后 | 若某天无稿又跳过看片，K1 会缺一天 | G3b 前 | **MITIGATED（待“无稿日”验证）**：团队裁决 D-36 —— 看的部分不能跳；草稿默认、可拒但须写原因；**当天已有稿就不重复出**。新增 `scripts/wake-audit.mjs` 还原工具序列（测试 2/2）。历史证据证明她会走完整链；仍需一次“当天无稿”的自然唤醒验证。若连续两次仍跳 → D-36b。证据 `evidence/D-36-WAKE-RULING-2026-10-29.md`（含更正） |
 | D-37 | **C2 只看 arm→now 的耗时**：服务一直跑也会满 8h，verify 可能假通过 | `c2-offline.mjs` 原检查 `hours>=8` + 区间跨 04:00；没有证明中间真的断过 | canary C2 假通过 → G3b 门禁失真 | G3b 前 | **FIXED**：verify 从 `days/<D>/ticks.jsonl` 取最大空窗，要求空窗 ≥8h 且跨 04:00（`tools/lib/offline-gap.mjs`）。测试 `tests/offline-gap.test.mjs` 4/4。证据 `evidence/C2-DECISION-2026-10-29.md` |
+| D-38 | **软步数提醒截断草稿**：`rounds.soft=6` 后插入“做完就 end_turn”，她的流程要 8–10 次工具，第 6 步草稿被当成收尾跳过（10-29 16:44 实测走完 feed/debrief/日记但没有 draft） | `session-main.jsonl` 16:44–16:45；`days/2026-10-29/wake-1643.json` missing=["草稿"]；`persona.ts softCapHint()` | 自然日无稿 → K1/G3b 直接受损 | G3b 前 | **MITIGATED（待下一次行动验证）**：soft 提示改为“先按 ORIENTATION 做完，尤其是还没出的草稿，再 end_turn”；ORIENTATION 第 8 步补同样规则。未改 rounds.soft/hard。证据 `evidence/D-38-SOFT-CAP-2026-10-29.md` |
 
 ## 3. 待拍板（NEED-USER）
 
