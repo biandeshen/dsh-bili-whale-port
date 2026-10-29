@@ -73,6 +73,7 @@ if (cmd === 'stop') {
   await new Promise((r) => setTimeout(r, 500))
   process.exitCode = 0
 } else if (cmd === 'start') {
+  if (dry) { log('[dry] close offline days + start-cortico + watchdog'); process.exit(0) }
   const cfg = readJson(C2)
   const today = logicalDay()
   for (const d of cfg?.expectedDays ?? []) {
@@ -80,7 +81,6 @@ if (cmd === 'stop') {
     const r = closeFromLastTick(d, { maxAgeMs: Infinity, reason: 'c2-offline-window' })
     log(`close ${d}: ${r.wrote ? 'wrote from ' + r.from : r.reason}`)
   }
-  if (dry) { log('[dry] start-cortico + watchdog'); process.exit(0) }
   const start = spawnSync(NODE, [path.join(ROOT, 'scripts', 'start-cortico.mjs')], { encoding: 'utf8', timeout: 90000 })
   log(`start-cortico: exit=${start.status} ${String(start.stdout || start.stderr || '').replace(/\s+/g, ' ').slice(-300)}`)
   if (!(await health())) { log('health 未就绪，停止'); process.exit(1) }
