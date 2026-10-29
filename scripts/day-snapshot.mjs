@@ -161,9 +161,11 @@ export function end(now = Date.now(), day = logicalDay(now)) {
 
 /**
  * 跨日收尾：用该日**自己最后一条 tick** 的快照写 state.end，不读新一天的状态。
- * 不覆盖已有 state.end；没有 tick 就不写（不补造）。只供亲历日界的看门狗调用。
+ * 不覆盖已有 state.end；没有 tick 就不写（不补造）。
+ * 最后一条 tick 距现在超过 maxAgeMs（机器睡过日界/进程被挂起）就不收尾——
+ * 那一段没有被观测到，宁可让 day-report 显示 MISSING，也不拿几小时前的快照冒充收口。
  */
-export function closeFromLastTick(day) {
+export function closeFromLastTick(day, { now = Date.now(), maxAgeMs = 2 * 3600_000 } = {}) {
   const dir = daysDir(day)
   const endFile = path.join(dir, 'state.end.json')
   if (fs.existsSync(endFile)) return { ok: true, wrote: false, reason: 'exists' }
@@ -173,6 +175,10 @@ export function closeFromLastTick(day) {
     last = lines.length ? JSON.parse(lines[lines.length - 1]) : null
   } catch {}
   if (!last) return { ok: false, wrote: false, reason: 'no-ticks' }
+  const lastAt = Date.parse(last.at)
+  if (!Number.isFinite(lastAt) || now - lastAt > maxAgeMs) {
+    return { ok: false, wrote: false, reason: 'stale', from: last.at }
+  }
   const { kind, ...snap } = last
   writeAtomic(endFile, { ...snap, kind: 'end', endedAt: new Date().toISOString(), derivedFromLastTick: last.at })
   return { ok: true, wrote: true, from: last.at }

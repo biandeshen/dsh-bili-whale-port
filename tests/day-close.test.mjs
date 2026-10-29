@@ -23,7 +23,7 @@ test('用最后一条 tick 写 end，带上出处；不读当前 fields', () => 
   ])
   // 新一天的当前状态故意写成不一样：收尾不能用它
   fs.writeFileSync(path.join(WHALE, 'bili-whale', 'fields.json'), JSON.stringify({ fields: { energy: 0.99, mood: 0.9 } }))
-  const r = closeFromLastTick(day)
+  const r = closeFromLastTick(day, { now: Date.parse('2026-10-28T20:01:00.000Z') })
   assert.equal(r.ok, true)
   assert.equal(r.wrote, true)
   const end = JSON.parse(fs.readFileSync(path.join(dir, 'state.end.json'), 'utf8'))
@@ -48,4 +48,15 @@ test('已有 end 不覆盖；没有 tick 不写', () => {
   assert.equal(r2.ok, false)
   assert.equal(r2.reason, 'no-ticks')
   assert.ok(!fs.existsSync(path.join(WHALE, 'bili-whale', 'days', empty, 'state.end.json')))
+})
+
+test('睡过日界（最后 tick 已超过 2h）不收尾，宁可 MISSING 也不拿旧快照冒充', () => {
+  const stale = '2026-10-26'
+  const sdir = path.join(WHALE, 'bili-whale', 'days', stale)
+  fs.mkdirSync(sdir, { recursive: true })
+  fs.writeFileSync(path.join(sdir, 'ticks.jsonl'), JSON.stringify({ kind: 'tick', day: stale, at: '2026-10-26T19:56:00.000Z', fields: { energy: 0.5 } }) + '\n')
+  const r = closeFromLastTick(stale, { now: Date.parse('2026-10-27T10:00:00.000Z') })
+  assert.equal(r.ok, false)
+  assert.equal(r.reason, 'stale')
+  assert.ok(!fs.existsSync(path.join(sdir, 'state.end.json')))
 })
