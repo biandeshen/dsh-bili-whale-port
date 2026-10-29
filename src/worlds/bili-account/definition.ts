@@ -330,6 +330,19 @@ class BiliAccountWorld {
         const mem = this.life
         const today = dayKey(now)
         if (mem.day !== today) { mem.day = today; mem.actionsToday = 0 }
+        // 并发实例可能在我们两次 tick 之间把 life.json 写回旧值：每轮对一次账，只增不减。
+        const disk = readLifeFile()
+        const ledger = countCausalActions(CAUSAL_FILE, today)
+        mem.actionsToday = Math.max(
+          Number(mem.actionsToday ?? 0),
+          disk?.day === today ? Number(disk.actionsToday ?? 0) : 0,
+          ledger.count,
+        )
+        mem.lastActionAt = Math.max(
+          Number(mem.lastActionAt ?? 0),
+          Number(disk?.lastActionAt ?? 0),
+          ledger.lastAt,
+        )
 
         // 每次评估都先让时间真的流逝：场值衰减 + 睡着恢复。
         // （旧实现只在"攒够 0.005"时才写盘，决策一直看上次的旧值，导致刺激量永不下降、再也不会醒）
