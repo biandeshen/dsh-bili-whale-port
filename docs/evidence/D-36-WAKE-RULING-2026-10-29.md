@@ -43,14 +43,14 @@ node scripts/wake-audit.mjs --last 8
 | 行动事件末尾 | `这一轮先看：mood_read → traffic → feed → debrief → 读/写当天两本日记。这几步不能跳。` + `看完再决定要不要出草稿（第 6 步）；今天已经有稿就不要再出。不想发，就在私人日记里写清原因。` |
 | 活动列表 | `看完还有余力，可以再挑一件小事` |
 | ORIENTATION 第 6 步 | 补：`今天已经有稿就别重复出；实在不想发，就在私人日记里写清原因。` |
-| 新工具 | `scripts/wake-audit.mjs`：从会话记录还原每次唤醒的工具序列，判定完整/缺什么；`tests/wake-audit.test.mjs` 2/2 |
+| 新工具 | `scripts/wake-audit.mjs`：从会话记录还原每次唤醒的工具序列，判定完整/缺什么；`--strict` 用于验收；`tests/wake-audit.test.mjs` 3/3 |
 
 没有改：工具参数、写操作审批、`canDraft`/`diaryFresh` 闸、feed 预算、节奏阈值。
 
 ## 4. 验收（下次自然唤醒）
 
 ```
-node scripts/wake-audit.mjs --last 1
+node scripts/wake-audit.mjs --last 1 --strict   # 最近一次不完整则 exit 1
 ```
 
 - 当天**没有稿**：应出现 `mood_read → traffic → feed → debrief → 日记 → draft_dynamic`；若只写日记不 debrief → D-36 未修好，上 D-36b。

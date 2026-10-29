@@ -137,5 +137,10 @@ if (isMain) {
       if (w.draftOut) console.log(`  本轮草稿：${w.draftOut}`)
     }
   }
+  if (argv.includes('--strict')) {
+    const lastWake = rows[rows.length - 1]
+    if (!lastWake) { console.error('strict: 没有可判定的唤醒'); process.exit(2) }
+    if (!lastWake.complete) { console.error('strict: 最近一次唤醒不完整（' + lastWake.missing.join('、') + '）'); process.exit(1) }
+  }
   process.exit(0)
 }

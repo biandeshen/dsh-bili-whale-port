@@ -54,3 +54,17 @@ test('重启消息会切断上一次唤醒，不会把它算进下一轮', () =>
   const w = auditSession(session)
   assert.equal(w[0].calls.includes('end_turn'), false)
 })
+
+test('--strict：最近一次完整才 exit 0；不完整 exit 1', async () => {
+  const { spawnSync } = await import('node:child_process')
+  const pathMod = await import('node:path')
+  const script = pathMod.resolve(pathMod.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..', 'scripts', 'wake-audit.mjs')
+  const complete = path.join(WHALE, 'complete.jsonl')
+  fs.writeFileSync(complete, fs.readFileSync(session, 'utf8').split('\n').slice(0, 7).join('\n'))
+  const env = { ...process.env, DSH_HOME: WHALE, WHALE_DRAFTS: DRAFTS }
+  const ok = spawnSync(process.execPath, [script, '--file', complete, '--strict'], { env, encoding: 'utf8' })
+  assert.equal(ok.status, 0, ok.stderr)
+  const bad = spawnSync(process.execPath, [script, '--file', session, '--strict'], { env, encoding: 'utf8' })
+  assert.equal(bad.status, 1)
+  assert.match(bad.stderr, /不完整/)
+})
