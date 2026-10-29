@@ -17,12 +17,25 @@ const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace
 const CONTROL = path.join(DSH_HOME, 'bili-whale', 'control')
 const LOG = path.join(CONTROL, 'c2-window.log')
 const C2 = path.join(CONTROL, 'c2.json')
+const SKIPPED = path.join(CONTROL, 'c2-window-skipped.json')
 const CORTICO_PID = path.join(CONTROL, 'cortico.pid')
 const WATCHDOG_PID = path.join(CONTROL, 'day-watchdog.pid')
 const NODE = process.execPath
 const cmd = process.argv[2]
 const dry = process.argv.includes('--dry')
 const logicalDay = (now = Date.now()) => new Date(now - 4 * 3600_000).toLocaleDateString('sv-SE')
+
+const LEGACY_DRAFTS = 'D:/AI/养鱼/drafts'
+function draftsDir() {
+  const home = process.env.USERPROFILE || process.env.HOME || ''
+  const isDefault = path.resolve(DSH_HOME).toLowerCase() === path.resolve(home, '.dsh').toLowerCase()
+  return process.env.WHALE_DRAFTS || (isDefault && fs.existsSync(LEGACY_DRAFTS) ? LEGACY_DRAFTS : path.join(DSH_HOME, 'bili-whale', 'drafts'))
+}
+/** 当天有带 diaryHash 的稿，C2 的 day-report 才有基础；没有就别停，停了也过不了。 */
+function validDraftToday(day) {
+  const d = readJson(path.join(draftsDir(), day + '.json'))
+  return !!d && d.date === day && !!d.diaryHash && d.degraded !== true
+}
 
 function log(msg) {
   const line = `[${new Date().toISOString()}] ${msg}`
@@ -52,6 +65,13 @@ async function health(ms = 120000) {
 }
 
 if (cmd === 'stop') {
+  const today = logicalDay()
+  if (!dry && !process.env.C2_FORCE_STOP && !validDraftToday(today)) {
+    fs.writeFileSync(SKIPPED, JSON.stringify({ at: new Date().toISOString(), day: today, reason: 'no-draft-with-diaryHash' }, null, 2) + '\n')
+    log(`skip: ${today} 还没有带 diaryHash 的稿，停了也过不了 C2；保留她的行动窗口（强停用 C2_FORCE_STOP=1）`)
+    process.exit(3)
+  }
+  if (!dry) { try { fs.rmSync(SKIPPED, { force: true }) } catch {} }
   const arm = dry ? { status: 0, stdout: '[dry] c2-offline arm' } : spawnSync(NODE, [path.join(ROOT, 'scripts', 'c2-offline.mjs'), 'arm'], { encoding: 'utf8' })
   log(`arm: exit=${arm.status} ${String(arm.stdout || arm.stderr || '').replace(/\s+/g, ' ').slice(0, 300)}`)
   const pid = pidFrom(CORTICO_PID)
@@ -119,6 +139,7 @@ if (cmd === 'stop') {
     if (!didStop && now >= stopAt) {
       const r = spawnSync(NODE, [path.join(ROOT, 'scripts', 'c2-window.mjs'), 'stop'], { encoding: 'utf8', timeout: 120000 })
       log(`wait: stop exit=${r.status} ${String(r.stdout || r.stderr || '').replace(/\s+/g, ' ').slice(-300)}`)
+      if (r.status === 3) { log('wait: 今天没有可过 C2 的稿，窗口取消；服务保持运行'); break }
       didStop = true
     }
     await sleep(30_000)
@@ -129,6 +150,12 @@ if (cmd === 'stop') {
   if (!Number.isFinite(at)) { log('verify-at: 时间参数无效'); process.exit(2) }
   log(`verify-at: ${new Date(at).toLocaleString()}`)
   while (Date.now() < at) await new Promise((r) => setTimeout(r, 30_000))
+  // 到点再看窗口是否被跳过：marker 可能是 01:00 stop 时写的
+  const skipped = readJson(SKIPPED)
+  const cfg = readJson(C2)
+  if (skipped && (cfg?.expectedDays ?? []).includes(skipped.day)) {
+    log(`verify-at: 窗口已跳过（${skipped.day}: ${skipped.reason}），不验证`); process.exit(3)
+  }
   log('verify-at: 到点，跑 c2-offline verify')
   const r = spawnSync(NODE, [path.join(ROOT, 'scripts', 'c2-offline.mjs'), 'verify'], { encoding: 'utf8', timeout: 180000 })
   log(`verify-at: exit=${r.status} ${String(r.stdout || r.stderr || '').replace(/\s+/g, ' ').slice(-600)}`)
