@@ -12,7 +12,7 @@
 | 3 | canary C3 模型故障 | `canary.json` C3=pass；C3 证据 | 无 | — |
 | 4 | 连续 3 个完整逻辑日：cf.ok/diff≥4 + 草稿带 diaryHash + 当天有自然 action | 10-28 cf=ok/6 但 draftHash=n、无 action；10-27/26 缺 cf/action；**10-29 action=16:43、draft=8e3377（diaryHash 匹配）**；10-29 反事实用 derived end 预演：**diff=32、realMood=灵感**（start 快照预演是 21/宁静，不作数） | **10-29 的 cf 文件尚未生成**；10-28 不能补 | 10-30 09:00 后确认 10-29 cf；10-30/31 出稿；**11-01 04:05 后 `g3b-check`**（窗口 10-31/30/29） |
 | 5 | 进入 14 天观测 | `observation-start` 三例测试通过；`observation.json` 未创建 | G3b 未过，开窗脚本会拒绝 | G3b 全绿后 `node scripts/observation-start.mjs` |
-| 6 | 拿到「她过完一天」真实证据 | 10-26/27/28 都有完整出稿唤醒；**10-29 是两次 turn 合力：16:43 自然 action 走完看/日记（无稿），20:51 重启轮按新提示补齐 `dyn-20261029-8e3377`**；`wake-1643.json` 已留证；行动观察器 207048 仍在等。草稿 QA：无 AI 声明/个人信息，voice 灵感、3 条高分记忆；标题被截成「（39:55…》」是显示瑕疵，不影响 K1/K2； 在真实 10-29 副本上 8/8 PASS | 还差“一次自然 turn 内从 action 到 draft 全程完成”的干净样本；10-29 是跨 turn 完成 | 10-30 04:43 行动后看 `wake-audit --strict`；若仍跨 turn，按 D-39b 评估 provenance |
+| 6 | 拿到「她过完一天」真实证据 | 10-26/27/28 都有完整出稿唤醒；**10-29 是两次 turn 合力：16:43 自然 action 走完看/日记（无稿），20:51 重启轮按新提示补齐 `dyn-20261029-8e3377`**；`wake-1643.json` 已留证；行动观察器 207048 仍在等。草稿 QA：无 AI 声明/个人信息，voice 灵感、3 条高分记忆；标题被截成「（39:55…》」是显示瑕疵，不影响 K1/K2；`observe:day` 在真实 10-29 副本上 8/8 PASS | 还差“一次自然 turn 内从 action 到 draft 全程完成”的干净样本；10-29 是跨 turn 完成 | 10-30 04:43 行动后看 `wake-audit --strict`；若仍跨 turn，按 D-39b 评估 provenance |
 | 7 | 按 ROADMAP 连续推进 | M3 私信回信、D-19/D-23/D-32/D-34/D-35/D-36/D-37/D-38/D-39、标题截断、E-01、Cortico bundle、测试 198/103 | 时间门：C2、3 天、14 天 | 不再加非必要代码；守窗口 |
 | 8 | 不能决断的交团队并留档 | D-19/D-31/D-36/D-37 裁决；C2 窗口由主人批准 | 无 | 新争议继续按六席记录 |
 
