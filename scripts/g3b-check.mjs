@@ -65,9 +65,18 @@ for (const d of days) {
   const summary = readJson(path.join(dir, 'day.json'))
   const snap = readJson(path.join(dir, 'state.end.json')) || readJson(path.join(dir, 'state.start.json'))
   const snapDiaryHash = snap?.diary?.hash ?? null
+  // 草稿写下后她可能又写了日记（同一天第二次行动）→ end 的哈希会变。
+  // 只要草稿的 diaryHash 在该日任一 tick 的日记哈希里出现过，就证明它基于当天版本。
+  const ticks = (() => {
+    try {
+      return fs.readFileSync(path.join(dir, 'ticks.jsonl'), 'utf8').trim().split('\n').filter(Boolean)
+        .map((l) => { try { return JSON.parse(l) } catch { return null } }).filter(Boolean)
+    } catch { return [] }
+  })()
+  const tickHashes = new Set(ticks.map((t) => t?.diary?.hash).filter(Boolean))
   const flags = summary?.flags ?? {}
   const badFlags = Object.entries(flags).filter(([k, v]) => v === true && !['missed', 'late'].includes(k)).map(([k]) => k)
-  const draftBound = !!draft?.diaryHash && !!snapDiaryHash && draft.diaryHash === snapDiaryHash && draft.date === d && draft.degraded !== true
+  const draftBound = !!draft?.diaryHash && (draft.diaryHash === snapDiaryHash || tickHashes.has(draft.diaryHash)) && draft.date === d && draft.degraded !== true
   const cfBound = !!cf && cf.day === d
   const ok = !!cf?.ok && Number(cf?.diffChars) >= 4 && cfBound && draftBound && badFlags.length === 0
   if (!ok) streak = false
