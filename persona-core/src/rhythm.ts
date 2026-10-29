@@ -33,9 +33,16 @@ export type ActionDecision =
   | { act: false; reason: 'tired' | 'gap' | 'cap' | 'content'; urge: number }
   | { act: true; kind: ActionKind; reason: string; urge: number }
 
-/** 两次行动之间至少隔这么久（防止刚做完又做） */
-export const MIN_GAP_MS = 2.5 * 3600_000
-export const MAX_ACTIONS_PER_DAY = 3
+/** 两次行动之间至少隔这么久（防止刚做完又做）。2026-10-30：2.5h → 40min，"缓一缓"而不是"排班表"。 */
+export const MIN_GAP_MS = 40 * 60_000
+/**
+ * 2026-10-30 主人裁决：**不设每日次数上限**。
+ * "每天 ≤3 次"是发明的作息，不是她的欲望——像人 = 想做就做，
+ * Token/体力花完自然歇（冬眠），恢复再活。频率由体力与场值自己收敛：
+ * 行动耗 0.05 体力，睡着才恢复；体力低 → tired 门自然拦住，不需要人为 cap。
+ * 保守的兜底仍是"一分钟最多被检查一次"× CHECK_PROB，不会狂刷。
+ */
+export const MAX_ACTIONS_PER_DAY = Number.POSITIVE_INFINITY
 /** 每次 5 分钟评估的基准概率（还要乘驱动强度） */
 const CHECK_PROB = 0.05
 /**

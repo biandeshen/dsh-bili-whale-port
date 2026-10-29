@@ -38,9 +38,15 @@ test('rhy：太累就先睡，不硬撑', () => {
   assert.equal(d.reason, 'tired')
 })
 
-test('rhy：刚醒不久不会又醒；一天最多 3 次', () => {
-  assert.equal(decideAction({ fields: F({ stimulation: 0, energy: 0.7 }), relation: 'normal', now: T0, mem: mem({ lastActionAt: T0 - 3600_000 }), rng: () => 0 }).reason, 'gap')
-  assert.equal(decideAction({ fields: F({ stimulation: 0, energy: 0.7 }), relation: 'normal', now: T0, mem: mem({ actionsToday: 3 }), rng: () => 0 }).reason, 'cap')
+test('rhy：刚醒不久不会又醒（40min 缓冲）；每日不再设次数上限（2026-10-30 主人裁决）', () => {
+  // 40min 内算 gap
+  assert.equal(decideAction({ fields: F({ stimulation: 0, energy: 0.7 }), relation: 'normal', now: T0, mem: mem({ lastActionAt: T0 - 10 * 60_000 }), rng: () => 0 }).reason, 'gap')
+  // 50min 后不再是 gap：欲望驱动频率，体力/Token 自己收敛（冬眠模型）
+  assert.notEqual(decideAction({ fields: F({ stimulation: 0, energy: 0.7 }), relation: 'normal', now: T0, mem: mem({ lastActionAt: T0 - 50 * 60_000 }), rng: () => 0 }).reason, 'gap')
+  // 一天做了 20 次也不 cap—— stimulation 0 时 explore urge=1，rng=0 就行动；
+  // 这里断言的是"没有 cap 拦截"，行动原因是欲望而不是 'cap'
+  const many = decideAction({ fields: F({ stimulation: 0, energy: 0.7 }), relation: 'normal', now: T0, mem: mem({ actionsToday: 20 }), rng: () => 0 })
+  assert.notEqual(many.reason, 'cap')
 })
 
 test('rhy：跨天后次数清零', () => {
@@ -108,7 +114,8 @@ test('10 天模拟：醒几次、几点醒由状态+抖动决定，不跟随固�
   assert.ok(wakes.length >= 4, '10 天只醒了 ' + wakes.length + ' 次')
   const byDay = new Map()
   for (const w of wakes) byDay.set(dayKey(w.at), (byDay.get(dayKey(w.at)) ?? 0) + 1)
-  assert.ok([...byDay.values()].every((n) => n <= 3), '单日超过 3 次：' + JSON.stringify([...byDay]))
+  // 2026-10-30 主人裁决：不设每日上限；但体力是自然的节流阀，单日不应失控（>15 次说明体力门失效）
+  assert.ok([...byDay.values()].every((n) => n <= 15), '单日失控：' + JSON.stringify([...byDay]))
   const hours = new Set(wakes.map((w) => new Date(w.at).getHours()))
   assert.ok(hours.size >= 3, '醒来时刻只有这几种：' + [...hours].join(','))
   assert.ok(wakes.some((w) => { const h = new Date(w.at).getHours(); return h < 20 || h > 23 }), '全都在 20–23 点，等于固定作息')
