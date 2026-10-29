@@ -77,7 +77,7 @@
 
 | ID | 问题 | 现状 | 影响 | 状态 |
 |---|---|---|---|---|
-| E-01 | GitHub 443 不通，**12 个提交未推**（含 `c6eb06e`、`de02d9f`、`b25d6d0`、`dbe5f13`） | `git status -sb` = ahead 12 | 远端与本地不一致，换机即丢 | BLOCKED（网络） |
+| E-01 | GitHub 443 不通，**12 个提交未推**（含 `c6eb06e`、`de02d9f`、`b25d6d0`、`dbe5f13`） | `git status -sb` = ahead 12 | 远端与本地不一致，换机即丢 | **FIXED 2026-10-29 09:40**：`git push` 成功 `29dcf73..611f658`（76 个提交，私有远端 `biandeshen/dsh-bili-whale-port`），工作区 ahead=0。GitHub 仍可能间歇，push 继续不进关键路径 |
 | E-02 | archify 装不上（`npx skills add` 被墙、gh tarball 0 字节） | 已用 mermaid 出替代图（`ARCHITECTURE.md` §2.1） | 无交互式架构图 | BLOCKED（网络）/ 有替代 |
 | E-03 | GitHub Actions 额度不足 | 不上 CI | 无自动门禁 | 改用本地 `npm run gates` + pre-push |
 | E-04 | 文档 17 份、互相矛盾 10 组、docs 占 21% churn | 目标砍到 4 份（CURRENT/BLUEPRINT/ARCHITECTURE/PROCESS）+ archive | 每次改代码前要先分辨哪份为准 | OPEN |
