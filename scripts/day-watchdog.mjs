@@ -11,7 +11,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { DSH_HOME as WHALE_HOME } from '../tools/lib/paths.mjs'
-import { tick, seed, logicalDay, daysDir } from './day-snapshot.mjs'
+import { tick, seed, logicalDay, daysDir, closeFromLastTick } from './day-snapshot.mjs'
 
 const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'))
 const CORTICO = process.env.CORTICO_ROOT || 'E:/WorkSpace_Qoder/Cortico'
@@ -79,6 +79,17 @@ function lastTickAt(day) {
     if (!lines.length) return null
     return Date.parse(JSON.parse(lines[lines.length - 1]).at)
   } catch { return null }
+}
+
+/**
+ * 跨日时给前一天收尾：用**它自己最后一条 tick** 的快照写 state.end，不读取新一天的状态。
+ * 只在进程亲历日界时调用；启动时不回补历史缺失（那属于回填，观测期禁止）。
+ */
+function closeDay(day) {
+  const r = closeFromLastTick(day)
+  if (r.wrote) log(`end ${day} derived from last tick ${r.from}`)
+  else if (r.reason !== 'exists') log(`end ${day} skipped: ${r.reason}`)
+  return r.wrote
 }
 
 /** 启动时回看 14 天：缺失的日期只标 missed，不伪造任何 state。 */
@@ -181,8 +192,15 @@ if (!acquireLock()) {
 log(`start pid=${process.pid} interval=${INTERVAL_MS}ms`)
 // 启动即打一次：否则开机后 5 分钟内关机就会整天没有 tick
 try { once() } catch (e) { log('initial tick failed: ' + String(e?.message ?? e)) }
+// 日界收尾：只有亲历 04:00 才用前一天最后一条 tick 写 state.end；
+// 启动时不追补历史（缺失就如实留在 day-report 里）。
+let lastDay = logicalDay(Date.now())
 const timer = setInterval(() => {
-  try { once() } catch (e) { log('tick failed: ' + String(e?.message ?? e)) }
+  try {
+    const day = logicalDay(Date.now())
+    if (day !== lastDay) { closeDay(lastDay); lastDay = day }
+    once()
+  } catch (e) { log('tick failed: ' + String(e?.message ?? e)) }
 }, INTERVAL_MS)
 process.on('SIGINT', () => { clearInterval(timer); try { fs.unlinkSync(LOCK) } catch {}; process.exit(0) })
 process.on('SIGTERM', () => { clearInterval(timer); try { fs.unlinkSync(LOCK) } catch {}; process.exit(0) })

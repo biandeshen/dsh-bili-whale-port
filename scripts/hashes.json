@@ -1,9 +1,9 @@
 {
-  "frozenAt": "2026-10-28T19:19:56.435Z",
+  "frozenAt": "2026-10-29T01:28:35.416Z",
   "files": {
     "scripts/day-report.mjs": "0a31044e7df40c5d875131e56625745db1bf04b376048950bb84284aa2b927c1",
-    "scripts/day-snapshot.mjs": "d49e213cc8666a49aa05d95aaa14b17268194d78752a1cdabb3af91bb9e38ed3",
-    "scripts/day-watchdog.mjs": "60b7aad1dc782009c024f8b094882576568179a94efc29d4220d1b0dcbd49abd",
+    "scripts/day-snapshot.mjs": "9f538f97296000834ec8509680f3797a446dcc0f63bebe1add5863cf389a67ea",
+    "scripts/day-watchdog.mjs": "84b74dade1a46964434f5945edd4062fb6ec799bc70ad96b88d686ebaff6f201",
     "scripts/counterfactual.mjs": "6ed37732a7057fc98abb907c72b7ef60fe648932742a65a61426957855d65bc2",
     "scripts/run-mjs-tests.mjs": "1f7371dd93c01ed337e1f01ff833b05d2315309a45c85a7d08cf5a16b5bcb27e",
     "scripts/check-consumers.mjs": "a45fb0056e31b98e13481355f39a439d6b9ad806c6818312fdb74f8f75c60106",

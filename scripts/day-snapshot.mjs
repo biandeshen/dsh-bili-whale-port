@@ -159,6 +159,25 @@ export function end(now = Date.now(), day = logicalDay(now)) {
   return { ok: true, day, dir, tickCount: summary.tickCount }
 }
 
+/**
+ * 跨日收尾：用该日**自己最后一条 tick** 的快照写 state.end，不读新一天的状态。
+ * 不覆盖已有 state.end；没有 tick 就不写（不补造）。只供亲历日界的看门狗调用。
+ */
+export function closeFromLastTick(day) {
+  const dir = daysDir(day)
+  const endFile = path.join(dir, 'state.end.json')
+  if (fs.existsSync(endFile)) return { ok: true, wrote: false, reason: 'exists' }
+  let last = null
+  try {
+    const lines = fs.readFileSync(path.join(dir, 'ticks.jsonl'), 'utf8').trim().split('\n').filter(Boolean)
+    last = lines.length ? JSON.parse(lines[lines.length - 1]) : null
+  } catch {}
+  if (!last) return { ok: false, wrote: false, reason: 'no-ticks' }
+  const { kind, ...snap } = last
+  writeAtomic(endFile, { ...snap, kind: 'end', endedAt: new Date().toISOString(), derivedFromLastTick: last.at })
+  return { ok: true, wrote: true, from: last.at }
+}
+
 export function status(now = Date.now(), day = logicalDay(now)) {
   const dir = daysDir(day)
   const summary = readJson(path.join(dir, 'day.json'))
