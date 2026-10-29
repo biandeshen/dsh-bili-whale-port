@@ -47,7 +47,7 @@
 | D-21 | **一次性令牌明文落盘**（token 与 tokenHash 同文件） | 红队4 致命3；`ack.mjs:37` | 安全性依赖"工具面恰好没有文件读" | 同上 | DECIDED-NO |
 | D-22 | **kill switch 不覆盖 tools 层**，直接 `bili.mjs --go` 可绕过 | 红队4 S2 | 急停不可靠 | 同上 | DECIDED-NO |
 | D-23 | **成功判定是装饰**：`/dyn_id|dynamic|成功/` 里 `dynamic` 任何运行都出现 | 红队4 S1；`dynamic-approve.mjs:111` | 失败可能被记为成功 | M0 | **FIXED**：go 成功必须 `status===0` 且输出含 `dyn_id=\S+`（真实成功行是 `✅ 已发布… dyn_id=…`）。新增负向测试：只出现 `dynamic interface ok` 判 failed。`track-a.test.mjs` 14/14 |
-| D-24 | **`ack.release` 在"已发出但进程被杀"时会把令牌退回** → 重试产生第二条 | 红队4 S1 | 重复发布 | M1 | OPEN |
+| D-24 | **`ack.release` 在"已发出但进程被杀"时会把令牌退回** → 重试产生第二条 | 红队4 S1 | 重复发布 | M1 | **MITIGATED**：go 之前先把草稿状态落成 `sending`；进程被杀后状态留在 `sending`，重试被 blocked 拦下（不再靠 token），提示先人工核对 B 站。测试 `track-a.test.mjs` 15/15。**残留**：sender 返回失败但平台实际已接受（输出丢失/解析失败）时仍会 failed + 退回 token，理论上可重放；这种只能人工看平台，不能自动判定 |
 | D-25 | **记忆只在测试里衰减/归档**——上游 AMpath 也一样（`batchDecayVividness` 生产零调用） | AMRESEARCH/02 | 不能靠"上游有"来证明我们该有 | 认知 | FIXED（认知已更正） |
 | D-26 | **flashbulb 分支不可触发**：`note` 路径 intensity 硬编码 0.5；watch 路径饱和后几乎必然 | 红队3 M2 | "重要的事记得牢"不成立 | M1 | **FIXED**：`mood_apply(note)` 的 intensity 改用当时的 stimulation（>0.8 才 flashbulb，符合高唤醒语义），sender 改为 `npc`（是她自己留的话，不是主人说的）。watch 路径原本就用 stimulation 强度 |
 | D-27 | **凭据缺 `dedeuserid`**：`tools/lib/cred.mjs:33-37` 只返回 sessdata/bili_jct/buvid3；而 bili-cli `dm.py:172` 靠 `dedeuserid` 判 `from` | 研讨组4 实测 | 缺了它会把"她发的"全判成"主人发的" → `connection` 假上涨、M3 假通过 | **M3 前置** | **WONTFIX（本路径不适用）**：我们的私信读取不走 bili-cli `dm.py`；`dm-history.mjs:40` 按配置的 `owner.mid` 过滤 `sender_uid`，她发出的消息 sender 是账号自身 mid，不等于 owner。证据 `tools/commands/dm-await.mjs:8,35`。若将来改用 bili-cli 读私信再重开 |

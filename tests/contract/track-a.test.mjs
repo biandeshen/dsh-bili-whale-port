@@ -127,6 +127,28 @@ test('成功判定必须有 dyn_id：只出现 dynamic 字样不算发出去', (
   assert.equal(r.status, 'failed')
 })
 
+test('go 发送前落 sending；已 sending 的草稿拒绝自动重放', () => {
+  const d = makeDraft({ date: '2026-10-30', diaryText: diary, image: 'D:/x.png', text: 'z' })
+  const token = attachAck(d)
+  const file = path.join(DRAFTS, '2026-10-30.json')
+  fs.writeFileSync(file, JSON.stringify(d))
+  let seen = null
+  const r = approve({
+    id: d.id, go: true, token,
+    runner: () => { seen = JSON.parse(fs.readFileSync(file, 'utf8')).status; return { status: 0, stdout: 'dyn_id=1 ok' } },
+  })
+  assert.equal(seen, 'sending')
+  assert.equal(r.ok, true)
+  assert.equal(r.status, 'sent')
+
+  const stuck = makeDraft({ date: '2026-10-31', diaryText: diary, image: 'D:/x.png', text: 'stuck' })
+  stuck.status = 'sending'
+  fs.writeFileSync(path.join(DRAFTS, '2026-10-31.json'), JSON.stringify(stuck))
+  const r2 = approve({ id: stuck.id, go: true, runner: () => { throw new Error('must not run') } })
+  assert.equal(r2.ok, false)
+  assert.match(r2.error, /sending|中断/)
+})
+
 test('kill switch 阻断 approve', () => {
   const d = makeDraft({ date: '2026-10-27', diaryText: diary, image: 'D:/x.png', text: 'x' })
   fs.writeFileSync(path.join(DRAFTS, '2026-10-27.json'), JSON.stringify(d))

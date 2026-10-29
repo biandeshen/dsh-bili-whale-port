@@ -70,8 +70,11 @@ export function approve({ id, token, go = false, runner } = {}) {
   const d = hit.draft
   // failed 允许重试：写之前就可能失败（网络/超时/风控），拦住等于一条草稿报废。
   // 重复发送由 traffic 层的幂等与间隔保护兜底，不靠这里挡。
-  const blocked = ['sent', 'rejected']
-  if (blocked.includes(d.status)) return { ok: false, error: '草稿已处理过：' + d.status }
+  // sending = 已在发送中途（进程可能被杀）：绝不允许自动重放，先人工核对平台。
+  const blocked = ['sent', 'rejected', 'sending']
+  if (blocked.includes(d.status)) {
+    return { ok: false, error: d.status === 'sending' ? '上次发送中断（sending），先人工核对 B 站有没有发出去，再决定 reject/重写' : '草稿已处理过：' + d.status }
+  }
   if (fs.existsSync(KILL)) { audit({ id: d.id, action: 'approve', result: 'blocked-kill' }); return { ok: false, error: 'kill switch 已触发' } }
   if (go) {
     if (!d.ackId) return { ok: false, error: '旧草稿没有一次性令牌，请重新生成草稿再发' }
@@ -79,6 +82,12 @@ export function approve({ id, token, go = false, runner } = {}) {
     if (!a.ok) return { ok: false, error: '一次性令牌校验失败：' + a.error, code: a.code }
   }
   audit({ id: d.id, action: 'approve', mode: go ? 'go' : 'dry', image: d.image, textHash: crypto.createHash('sha1').update(d.text).digest('hex') })
+  // 发送前先落 sending：如果进程在这之后被杀，重试会被 blocked 拦住，绝不自动重放。
+  if (go) {
+    d.status = 'sending'
+    d.sendingAt = new Date().toISOString()
+    save(hit.file, d)
+  }
   const args = ['dynamic-image', '--image', d.image, '--text', d.text, go ? '--go' : '--dry']
   const run = runner || ((a) => spawnSync(process.execPath, [BILI, ...a], { encoding: 'utf8', timeout: 300000, env: { ...process.env, BILI_SEND: go ? '1' : '0' } }))
   let r
