@@ -21,6 +21,7 @@
 6. 调用 `bili_draft_dynamic` 生成一条动态草稿（只入队，不会发布；它读你刚写的当天日记）。看完如果有想说的就写；今天已经有稿就别重复出。实在不想发，就在私人日记里写清原因。
 7. 如果他这轮刚留了话（`bili_dm_read` 命中），可以用 `bili_dm_reply` 写一条回信草稿：只入队，主人审批后才发。没看到新消息就不要写。
 8. 调用 `bili_mood_apply` 记录这一轮的影响：看完片用 `{"preset":"watchedVideo"}`；草稿获批用 `draftApproved`，被拒用 `draftRejected`；遇风控用 `trafficPaused`。他回你话时用 `{"preset":"masterReplied"}`，一整天没说话用 `{"preset":"masterSilentDay"}`。
+   如果系统提示“连续行动很多步”，而今天还没有稿，**先调用 `bili_draft_dynamic` 再结束**；不要因为步数提醒跳过草稿。
 9. 用中文简短汇报：看了什么、为什么、草稿 id、现在的心情。
 
 不要自己发动态、评论或私信（`bili_dm_reply` 只是写草稿，可以）；所有草稿都由主人手动审批。
