@@ -38,7 +38,7 @@
 | D-13 | **22 个零引用导出**（`causal-chain` 6/6、`effect-bus` 3、`runner.makeRunner` 等） | 红队5；`CORTICO-PATCHES.md:9` 把 `makeRunner` 列为交付物 | 死代码继续增长（刚删 266 行又长回来） | M1 | OPEN |
 | D-14 | **L3/L4 倒挂**：`PRESETS`/`readMood`/`describeState` 住在 World；`persona-core/tests/adapter.test.mjs:6` 反向 import World | 红队2 F1 | L3 无法独立测试/移植；"换 adapter 即可"被证伪（需改约 920 行） | M1 | OPEN |
 | D-15 | **`persona-core` 不是包**：无 package.json，不在 workspace/tsconfig/vitest | 红队2 F2 | "平台无关"是注释不是约束 | M0 | OPEN |
-| D-16 | **`Cortico/` 无版本控制**，约 2300 行自研代码不可回滚；上游已 0.2.8（本地 0.2.7） | 红队2 F4、红队5 §4；`cortico.log` 每次启动告警 | 升级=手工重做；改坏只能重写 | M0 | OPEN |
+| D-16 | **`Cortico/` 无版本控制**，约 2300 行自研代码不可回滚；上游已 0.2.8（本地 0.2.7） | 红队2 F4、红队5 §4；`cortico.log` 每次启动告警 | 升级=手工重做；改坏只能重写 | M0 | **PARTIAL**：Cortico 已 `git init`（D0）；2026-10-29 全历史 bundle 到 `F:/Repository/Cortico-2026-10-29.bundle`（3.9MB，`git bundle verify` = complete，HEAD `1059ba9`）。仍**无远端**；上游 0.2.7→0.2.8 未升（E-07） |
 | D-17 | **多会话并发写同一批文件**（10-27 06:50–17:34 两会话同时活跃 11 小时，正是 P0 修复窗口） | 红队5 §5；`c2a52024.txt:7615` 自认"我改到一半撞车" | 修复互相覆盖 | 流程 | OPEN |
 | D-18 | **状态 4 根目录、5 写者、0 锁**：`~/.dsh`、`~/.bili-ai`、`D:\AI\养鱼`、`Cortico/deployments/*/data` | 红队2 S4；全仓 grep `flock|lockfile` 零命中 | 备份/迁移易漏；后写覆盖 | M0 | OPEN |
 | D-19 | **两套人设并存无主从**：`~/.bili-ai/persona.md` vs `deployments/mybot/prompts/ORIENTATION.md` | 红队2 S4 | 改一处不生效，排查困难 | M1 | **FIXED 2026-10-29**：分关注点单一来源 —— `workspace/CONSTITUTION.md`=她是谁（唯一身份事实，重写为小鱼），`ORIENTATION.md`=这一轮做什么（只留称呼锚点）；`persona.md` 降为 DSH 遗留镜像并在文件头警告"改这里不影响小鱼"；`displayName=小鱼`。机器门：`cortico-health.mjs` 校验显示名 + 实际前缀两段都含小鱼、CONSTITUTION 不含英文种子。证据 `evidence/D-19-PERSONA-2026-10-29.md`（含前后哈希、六席裁决、活取件）。残留：DSH 面板编辑框仍写 persona.md（面板已停用），另立 D-19b |
