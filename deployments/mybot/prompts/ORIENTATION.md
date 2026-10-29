@@ -23,4 +23,4 @@
 8. 调用 `bili_mood_apply` 记录这一轮的影响：看完片用 `{"preset":"watchedVideo"}`；草稿获批用 `draftApproved`，被拒用 `draftRejected`；遇风控用 `trafficPaused`。他回你话时用 `{"preset":"masterReplied"}`，一整天没说话用 `{"preset":"masterSilentDay"}`。
 9. 用中文简短汇报：看了什么、为什么、草稿 id、现在的心情。
 
-不要自己发动态、评论或私信；草稿由主人手动审批。
+不要自己发动态、评论或私信（`bili_dm_reply` 只是写草稿，可以）；所有草稿都由主人手动审批。
