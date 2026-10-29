@@ -43,6 +43,18 @@ export function dayBlocks(diaryText) {
   return blocks
 }
 
+/** 标题截断：不把括号截成半个（`…（39:55…》`），也不留结尾标点。 */
+export function clipTitle(title, max = 24) {
+  const s = String(title ?? '').trim()
+  if (s.length <= max) return s
+  let cut = s.slice(0, max).trimEnd()
+  // 截断点落在未闭合的括号里：退回到括号前，别把「（39:55」露出来
+  const open = cut.lastIndexOf('（')
+  if (open >= 0 && !cut.slice(open).includes('）')) cut = cut.slice(0, open).trimEnd()
+  cut = cut.replace(/[、，,：:；;（(【\[《<]+$/, '').trimEnd()
+  return (cut || s.slice(0, max).trimEnd()) + '…'
+}
+
 export function buildText(diaryText, { max = 100, date } = {}) {
   const blocks = dayBlocks(diaryText)
   // 有日期头 → 只认当天/最后一天；没有日期头（旧格式）→ 整篇当一段
@@ -61,7 +73,7 @@ export function buildText(diaryText, { max = 100, date } = {}) {
     const i = cells.findIndex((c) => /^BV[0-9A-Za-z]+$/.test(c))
     if (i >= 0) { title = cells[i + 1] || ''; break }
   }
-  if (title.length > 24) title = title.slice(0, 24).trimEnd() + '…'
+  if (title.length > 24) title = clipTitle(title, 24)
 
   // 「想说」可能有多个 bullet，后几条往往是真正的判断；全部保留，不再在第二条截断
   const lines = find('想说').split('\n')

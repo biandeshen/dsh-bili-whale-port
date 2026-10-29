@@ -8,7 +8,7 @@ const DRAFTS = fs.mkdtempSync(path.join(os.tmpdir(), 'tracka-'))
 const WHALE = fs.mkdtempSync(path.join(os.tmpdir(), 'tracka-whale-'))
 process.env.WHALE_DRAFTS = DRAFTS
 process.env.DSH_HOME = WHALE
-const { buildText, makeDraft, findDuplicateText } = await import('../../scripts/draft-dynamic.mjs')
+const { buildText, makeDraft, findDuplicateText, clipTitle } = await import('../../scripts/draft-dynamic.mjs')
 const { approve, reject, list } = await import('../../scripts/dynamic-approve.mjs')
 const ack = await import('../../scripts/ack.mjs')
 function attachAck(draft, date) {
@@ -147,6 +147,14 @@ test('go 发送前落 sending；已 sending 的草稿拒绝自动重放', () => 
   const r2 = approve({ id: stuck.id, go: true, runner: () => { throw new Error('must not run') } })
   assert.equal(r2.ok, false)
   assert.match(r2.error, /sending|中断/)
+})
+
+test('标题截断不留半个括号：不会出现「（39:55…》」', () => {
+  const t = clipTitle('世界公认最佳解压、432Hz疗愈雨声（39:55）', 24)
+  assert.ok(t.endsWith('…'))
+  assert.equal((t.match(/（/g) ?? []).length, (t.match(/）/g) ?? []).length)
+  assert.doesNotMatch(t, /（\d/)
+  assert.equal(clipTitle('短标题', 24), '短标题')
 })
 
 test('kill switch 阻断 approve', () => {
