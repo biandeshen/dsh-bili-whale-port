@@ -25,7 +25,8 @@
     "audit:goal": "node scripts/goal-audit.mjs",
     "c2:arm": "node scripts/c2-offline.mjs arm",
     "c2:verify": "node scripts/c2-offline.mjs verify",
-    "watchdog": "node scripts/day-watchdog.mjs --audit"
+    "watchdog": "node scripts/day-watchdog.mjs --audit",
+    "wake:audit": "node scripts/wake-audit.mjs"
   },
   "main": "core/index.js",
   "exports": {
