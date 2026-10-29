@@ -24,6 +24,17 @@ try {
   const name = s?.displayName
   pass = ok(name === '小鱼', '显示名', name || '缺失') && pass
 } catch (e) { pass = ok(false, '运行状态', e.message) && pass }
+// 看门狗是"她的一天"的唯一 tick 来源：WebUI 活着不代表看门狗还活着。
+// 5 分钟一跳，超过 10 分钟没有今日 tick 就说明观测链断了（机器睡眠也会触发，如实报）。
+try {
+  const day = new Date(Date.now() - 4 * 3600_000).toLocaleDateString('sv-SE')
+  const file = path.join(H, '.dsh', 'bili-whale', 'days', day, 'ticks.jsonl')
+  const lines = fs.readFileSync(file, 'utf8').trim().split('\n').filter(Boolean)
+  const last = JSON.parse(lines[lines.length - 1])
+  const age = Date.now() - Date.parse(last.at)
+  pass = ok(age >= 0 && age < 10 * 60_000, '看门狗 tick',
+    age < 0 ? '时间在未来' : Math.round(age / 60000) + ' 分钟前') && pass
+} catch { pass = ok(false, '看门狗 tick', '今日无 tick（看门狗未运行）') && pass }
 // D-19：人设分两段（ORIENTATION=这一轮做什么 / CONSTITUTION=她是谁）。以模型实际拿到的
 // 前缀为准做漂移门：CONSTITUTION 若还是英文种子，一个会话里就同时存在两个人格。
 try {

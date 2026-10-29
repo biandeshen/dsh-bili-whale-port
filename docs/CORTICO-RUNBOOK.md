@@ -50,4 +50,5 @@
 - 启动即暂停：`curl -X POST http://127.0.0.1:7799/api/run/resume`
 - World 未挂载：看日志 `World 已启动: bili-account`；缺少 `envPromptVars` 或实例 `id` 会失败
 - 一直不行动：先跑 `node scripts/cortico-health.mjs`；再看 `control/life.json` 的 `lastCheckAt` 是否还在前进（3–7 分钟一次）、`fields.json` 的 `stimulation` 是否在缓慢下降。两者都停了说明 tick 没在跑。
+- health 的「看门狗 tick」>10 分钟：看门狗死了或机器睡过；`taskkill` 旧 pid、删 `control/day-watchdog.pid` 后用 `node scripts/day-watchdog.mjs` 重起。
 - 电脑睡眠/断电：不用补醒概念——恢复后第一次 tick 会按真实时间结算场值，她想做才做。
