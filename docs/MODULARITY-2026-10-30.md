@@ -1,6 +1,7 @@
 # 模块化与可插拔边界（2026-10-30）
 
 > 目的：把**供应商 / 渠道 / 资产 / 审批**从人格内核里剥出来，让换 TTS、换 BGM、换渲染器、换形象不用改她的一天。
+> 六席评审与优先级裁决见 `TEAM-GAP-ANALYSIS-2026-10-30.md`；本文的 M1 已按评审拆成 M1a–M1e。
 > 纪律：**现在只落文档**。11-01 起 14 天观测禁改码；观测结束后按 M1→M2→M3 机械执行，不边观测边拆。
 > 原则：不为了拆而拆；拆出来的每块必须有独立验收，拆完行为不变。
 
@@ -39,6 +40,7 @@
 | `panel/views/tank.html:162,180` | bubble 文案/待审列表只认 go-gate 队列 | 明明有 `dyn-20261030-741fdf` pending，面板仍可能说“在窗里游着，没事” |
 | `tools/lib/config.mjs:40` | `notify.type` 默认 `none` | 她出稿/醒来不会通知；只能主动开控制台或翻文件 |
 | `src/worlds/bili-account/definition.ts:632` | 日记小节日期用 `dayKey(Date.now())` | 2026-10-30 09:12/11:11 的私人日记落到了 `## 2026-10-29`；她自己在日记里记了“日期错位，要留意”。原因待查（时区/日源），不能当正常 |
+| `scripts/draft-dynamic.mjs:58,79,137` | `buildText` 取第一个「想说」、`snippetOf` 截 20 字 | 10-30 公开日记同一天有两个「想说」，稿子取了 09:12 的 Yoga Nidra 段而不是 11:11 的 283 桶段；书名被截成《…高效补》，正文留下未闭合 `**`（已发稿实证） |
 | 8447 / 7799 实测 | 8447 `whale-panel` 未监听；7799 是 Cortico 操作台 | 现在能看到的不是鱼缸，而是 agent 控制台：系统提示词、工具调用、token 数、事件帧；“B站账号”详情页显示“没有声明任何面板” |
 
 > 结论：她“活着”的证据主要在两本日记和 `causal.jsonl`，但**主人看到的界面不呈现这些**。这不是模块化洁癖，是当前使用体验的直接缺口。
@@ -114,7 +116,9 @@ scripts/lib/drafts/
 | P0 | 凭据 | 统一 credential registry；B 站/MiMo 各自 provider | 观测后 M1 |
 | P0 | 渲染器 | `video/studio.mjs` 适配层；以后可换 bili-workbench | 观测后 M1 |
 | P0 | 资产根目录 | `WHALE_IMAGE_DIR`/`WHALE_DRAFTS`/`media.outputDir`，去掉 `D:/AI/养鱼` 硬编码 | 观测后 M1（分发前必做） |
-| P0 | 可观测性（她的一天/草稿） | panel timeline 改读 `causal.jsonl` + `days/<D>/day.json`；pending 只读展示动态草稿，审批仍走 CLI/token | 观测后 M1 |
+| P0 | 可观测性（她的一天/草稿） | panel timeline 改读 `causal.jsonl` + `days/<D>/day.json`；pending 只读展示动态草稿，审批仍走 CLI/token | 观测后 M1a |
+| P0 | 内容完整性 | 日记重复 heading/日期、`buildText` 选段、`snippetOf` 截断与未闭合 markdown；先修生成器再出新稿 | 观测后 M1d（最先） |
+| P0 | 审批加固 | token 不进 stdout/模型、argv 重建、textHash+draftId、kill 全覆盖；在此之前不做一键审批 | 观测后 M1e |
 | P1 | 草稿 compose/store/publisher | 纯函数与存储/审批分离；审批只认 publisher | 观测后 M2 |
 | P1 | 动态发布器 | `publishers/bilibili-dynamic.mjs`；审批 token/kill 不变 | 观测后 M2 |
 | P1 | 形象/头像 | `assets/avatar/manifest.json` + `/api/avatar` 读 manifest | 观测后 M3 |
@@ -134,11 +138,23 @@ scripts/lib/drafts/
 - 更新 `CURRENT`/`BLUEPRINT`/`PLUGIN-*`/`VENDOR.md` 的现状与指针
 - 本文落盘；不改代码
 
-### M1（观测结束后第一个窗口）
-- 抽 `media/tts`、`media/bgm`、`credentials`、`video/studio`、资产根目录配置
-- **行为等价门**：现有 `--tts mimo/edge/none`、`--bgm auto/quiet-room/none`、`--plan`、20s 样片全部继续可跑；输出目录/封面/哈希可复现
-- 新测试：TTS 回退顺序、BGM selector、secret 不出现在 stdout、缺 key 时 fail-closed
-- **可观测门**：面板“她的一天”能读到当天 `causal.jsonl` 的 action/diary/draft 事件；有 pending 动态草稿时 bubble 不再说“没事”；只读，不新增自动发布
+### M1（观测结束后第一个窗口）——拆成 5 个子阶段，各自过门
+
+团队裁决：原来把 6 个 P0 塞进一个“行为等价门”会互相掩盖；按“先停坏内容、再保审批、再可见、最后拆供应商”排序。
+
+| 子阶段 | 内容 | 门 |
+|---|---|---|
+| **M1d 内容完整性（最先）** | `upsertDiarySection` 日期段内唯一 heading、`buildText` 只取目标日期、`snippetOf` 不截断书名/闭合 markdown；单测 | 同一日期不再出现重复「想说」；30 号稿不再引用 29 号段；书名/强调闭合 |
+| **M1e 审批加固** | token 不进 stdout/日志/模型；审批对象=展示字段重建的 argv；动态审批补 `textHash`+`draftId`；kill 在写入口统一检查 | 伪造 message 不能改变执行命令；`list` 不打印 token；panel 不做一键发送 |
+| **M1a 资产根 + 可观测** | `paths.draftsDir()/imagesDir()` 收口 5 处路径；`panel/causal.mjs` + `panel/drafts.mjs` 只读；bubble 全队列 | 换机器不依赖 `D:/AI/养鱼`；面板能显示当天 action/diary/draft；有 pending 稿时 bubble 不再说“没事” |
+| **M1b 凭据** | 新增 `credentials/mimo.mjs`；`bilibili.mjs` 只 re-export `loadCred`；secret 不出 provider | 缺 key fail-closed；stdout/日志无 secret；B 站 cookie 位置不漂移 |
+| **M1c 媒体** | 抽 `media/tts`、`media/bgm`、`media/video/studio`、`config.media` | 现有 `--tts mimo/edge/none`、`--bgm auto/quiet-room/none`、`--plan`、20s 样片继续可跑；换 provider 不改 CLI |
+
+- 先做 M1d：已发 10-30 稿的 `**`/书名截断就是它放出来的；不先堵，后面每发一次都可能再犯。
+- M1e 先于 M1a 的“待审稿可见”：可见但一键能绕过 token，比看不见更危险。
+- M1a 先于 M1b/M1c：它不改她的行为，只读，风险最低，也直接回答“使用体验”。
+- 新测试：TTS 回退顺序、BGM selector、secret 不出现在 stdout、缺 key fail-closed；日记重复 heading/跨日/书名截断。
+- **可观测门**：面板“她的一天”能读到当天 `causal.jsonl` 的 action/diary/draft 事件；有 pending 动态草稿时 bubble 不再说“没事”；只读，不新增自动发布。
 
 ### M2
 - 抽 `drafts/compose|store|publishers`；`dynamic-approve` 改调 publisher
