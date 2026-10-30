@@ -43,9 +43,9 @@
 
 ## 接下来（观测结束后，按顺序）
 
-1. **M1d 内容完整性**：日记重复 heading/日期、`buildText` 选段、`snippetOf` 截断与未闭合 markdown；先修再出新稿。
-2. **M1e 审批加固**：token 不进 stdout/模型、argv 重建、动态审批 textHash+draftId、kill 全覆盖；在此之前不做一键审批。
-3. **M1a 可观测（只读部分 ✅ 已在 dev/m1a 做完，未合 live）**：panel 改读 `causal.jsonl`（缺失回退 whale-log），`/api/drafts` 只读展示动态/回信草稿，bubble 三队列合计；资产根收口进 `paths.draftsDir/imagesDir`。`存在感`微行为层（两次 B 站 action 之间的“她在”状态）是行为改动，留观测后。
+1. **M1d 内容完整性 ✅ 已合 live（2026-10-30）**：日记重复 heading/日期、`buildText` 选段、`snippetOf` 截断与未闭合 markdown；先修再出新稿。
+2. **M1e 审批加固 ✅ 已合 live（2026-10-30，含 kill 统一检查·D-22 翻案）**：token 不进 stdout/模型、argv 重建、动态审批 textHash+draftId、kill 全覆盖；在此之前不做一键审批。
+3. **M1a 可观测（只读部分 ✅ 已合 live，2026-10-30）**：panel 改读 `causal.jsonl`（缺失回退 whale-log），`/api/drafts` 只读展示动态/回信草稿，bubble 三队列合计；资产根收口进 `paths.draftsDir/imagesDir`。`存在感`微行为层（两次 B 站 action 之间的“她在”状态）是行为改动，留观测后。
 4. **M1b/M1c**：MiMo 凭据 provider、TTS/BGM/渲染器适配层、资产根目录去 `D:/AI/养鱼`。
 5. **行动密度 Drive v2**：加 create/social 驱动，分离“存在感”与“B 站 action”；先 10 天模拟再定阈值。**不要只把 `CHECK_PROB` 拉到 1**。
 6. **M2/M3**：草稿 publisher/DM 回信可见/通知；形象、语音、视频接 World；V2 出片/剪映。
