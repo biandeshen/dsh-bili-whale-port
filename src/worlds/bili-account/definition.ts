@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { describeTools, type WorldDefinition } from '../../world.ts'
 import { canDraft, draftRefusal, canApplyWatched, watchedRefusal, violationNotice, diaryFresh, diaryRefusal } from './gates.ts'
-import { upsertDiarySection, DIARY_DEFAULT_HEADER } from './diary.ts'
+import { upsertDiarySection, sectionStats, DIARY_DEFAULT_HEADER } from './diary.ts'
 import { loadState, saveState, applyEffects, remember, describeState, recentWatch, annotateFeed, PRESETS } from './personaAdapter.ts'
 import type { PresetEffect } from './personaAdapter.ts'
 import { buildVoiceBrief } from '../../../persona-core/src/voice-brief.ts'
@@ -259,7 +259,7 @@ const DECLS = [
   { name: 'bili_mood_read', description: "Read Xiaoyu's current emotion (fields + cause + label).", tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'bili_mood_apply', description: 'Apply emotional effects after an event. Optionally record which life activity you picked and a short note.', tags: ['write'], parameters: { type: 'object', properties: { preset: { type: 'string', description: 'watchedVideo | masterReplied | masterSilentDay | draftApproved | draftRejected | trafficPaused' }, custom: { type: 'array', items: { type: 'object', properties: { field: { type: 'string' }, delta: { type: 'number' }, source: { type: 'string' } }, required: ['field', 'delta', 'source'] } }, note: { type: 'string', description: '一句留给自己的话（会写进记忆）' }, activity: { type: 'string', enum: ['rest', 'explore', 'create', 'social', 'reflect', 'exercise', 'consume'], description: '这轮挑的生活活动 id' } }, additionalProperties: false } },
   { name: 'bili_draft_dynamic', description: "Create a dynamic draft from today's diary and an unused image. Never posts.", tags: ['write'], parameters: { type: 'object', properties: { force: { type: 'boolean' } }, additionalProperties: false } },
-  { name: 'bili_diary_append', description: 'Write a section into one of her diaries (public/private). Same day+heading is replaced, not duplicated.', tags: ['write'], parameters: { type: 'object', properties: { book: { type: 'string', enum: ['public', 'private'], description: 'public = 给人看的；private = 只给自己看的偏好校准' }, heading: { type: 'string', description: '小节标题，如 看过 / 想说 / 今日指标 / 本轮留下的判断' }, text: { type: 'string', description: '这一节的正文（markdown）' } }, required: ['book', 'heading', 'text'], additionalProperties: false } },
+  { name: 'bili_diary_append', description: "Write a section into one of her diaries (public/private). Policy is FIXED: same day+heading = WHOLE-section replace (receipt says 已替换); a heading not yet present = append as a NEW section (receipt says 已追加). There is no incremental append — rewrite the whole section each time.", tags: ['write'], parameters: { type: 'object', properties: { book: { type: 'string', enum: ['public', 'private'], description: 'public = 给人看的；private = 只给自己看的偏好校准' }, heading: { type: 'string', description: '小节标题，如 看过 / 想说 / 今日指标 / 本轮留下的判断' }, text: { type: 'string', description: '这一节的正文（markdown）' } }, required: ['book', 'heading', 'text'], additionalProperties: false } },
   { name: 'bili_dm_read', description: "Check whether 主人 (the owner) sent a new DM since last check. Read-only: never sends or marks anything read on Bilibili; advances only her local cursor. If reading fails it says so — it is NOT the same as 'no message'.", tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'bili_dm_reply', description: "Draft a reply to 主人's latest DM. Only queues the draft locally for the owner to approve — it never sends. Requires having read a message first.", tags: ['write'], parameters: { type: 'object', properties: { text: { type: 'string', description: '回信正文（≤500 字，第一人称）' } }, required: ['text'], additionalProperties: false } },
 ] as const
@@ -633,13 +633,16 @@ class BiliAccountWorld {
         try { cur = fs.readFileSync(file, 'utf8') } catch {}
         if (!cur) cur = DIARY_DEFAULT_HEADER[book as 'public' | 'private']
         const date = dayKey(Date.now())
+        // OPS B2（2026-10-30）：替换/追加必须在回执里说死——判定与 upsert 同源（sectionStats），不猜
+        const prev = sectionStats(cur, date, heading, book as 'public' | 'private')
         const next = upsertDiarySection(cur, { book: book as 'public' | 'private', heading, body, date })
         fs.mkdirSync(path.dirname(file), { recursive: true })
         const tmp = file + '.' + process.pid + '.' + Math.random().toString(36).slice(2, 8) + '.tmp'
         fs.writeFileSync(tmp, next)
         fs.renameSync(tmp, file)
         causal({ kind: 'diary', book, heading, chars: body.length })
-        return `[diary] 已写入${book === 'public' ? '公开日记' : '私人日记'} · ${date} · ${heading}（${body.length} 字）`
+        const modeNote = prev.existed ? `已替换原小节（原 ${prev.chars} 字）` : '已追加新小节'
+        return `[diary] 已写入${book === 'public' ? '公开日记' : '私人日记'} · ${date} · ${heading}（${body.length} 字 · ${modeNote}）`
       }),
       mk(DECLS[8], async () => {
         const r = await runAsync(['dm-await', '--json', '--peek'], 60000)
@@ -706,7 +709,7 @@ export const BILI_ACCOUNT: WorldDefinition<any> = {
       bili_mood_read: { zh: '读取小鱼的场值与当前情绪（含成因）', en: "Read Xiaoyu's fields and current emotion with cause." },
       bili_mood_apply: { zh: '按事件更新场值（预设或自定义）', en: 'Apply emotional effects after an event.' },
       bili_draft_dynamic: { zh: '生成动态草稿（不发送）', en: 'Create a dynamic draft (never posts).' },
-      bili_diary_append: { zh: '写日记（公开/私人两本，按天按小节）', en: 'Write a diary section (public or private).' },
+      bili_diary_append: { zh: '写日记（公开/私人两本）：同日同名小节整节替换（回执「已替换」），新小节才追加（回执「已追加」），没有增量模式', en: 'Write a diary section (replace-if-exists, append-if-new; receipt says which).' },
       bili_dm_read: { zh: '看主人有没有来信（只读，失败不当成没人写信）', en: 'Check for new owner DMs (read-only; failure is not emptiness).' },
       bili_dm_reply: { zh: '写一条回信草稿（只入队，不发送）', en: 'Draft a reply to the owner (queued only, never sends).' },
     }),

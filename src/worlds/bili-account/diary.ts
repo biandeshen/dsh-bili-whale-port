@@ -63,3 +63,37 @@ export function upsertDiarySection(text: string, input: DiarySectionInput): stri
 
   return [...lines.slice(0, end), ...section, ...lines.slice(end)].join('\n')
 }
+
+/**
+ * 小节存在性统计（2026-10-30 她的 OPS B2：回执必须说清「替换」还是「追加」）。
+ * 与 upsertDiarySection 复用同一套日期块/标题匹配——绝不出现“回执说追加、实际替换”。
+ */
+export function sectionStats(
+  text: string,
+  date: string,
+  heading: string,
+  book: DiaryBook,
+): { existed: boolean; chars: number } {
+  const headingLine = `${book === 'public' ? '## ' : '### '}${heading}`.trim()
+  const dateHeading = new RegExp('^##\\s+' + escapeRe(date) + '(?:\\D|$)')
+  const lines = String(text ?? '').split(/\r?\n/)
+  let start = -1
+  for (let i = 0; i < lines.length; i++) {
+    if (dateHeading.test(lines[i])) start = i
+  }
+  if (start < 0) return { existed: false, chars: 0 }
+  let end = lines.length
+  for (let i = start + 1; i < lines.length; i++) {
+    if (isDateHeading(lines[i])) { end = i; break }
+  }
+  let s = -1
+  for (let i = start + 1; i < end; i++) {
+    if (lines[i].trim() === headingLine) { s = i; break }
+  }
+  if (s < 0) return { existed: false, chars: 0 }
+  let e = end
+  for (let i = s + 1; i < end; i++) {
+    if (isAnyHeading(lines[i])) { e = i; break }
+  }
+  return { existed: true, chars: lines.slice(s + 1, e).join('\n').trim().length }
+}

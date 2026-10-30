@@ -4,7 +4,7 @@ import { canDraft, canApplyWatched, draftRefusal } from '../src/worlds/bili-acco
 import { makeRunner } from '../src/worlds/bili-account/runner.ts'
 import { emptyState, applyEvent, readMood, describeState, remember, recentWatch, annotateFeed } from '../src/worlds/bili-account/personaAdapter.ts'
 import { sanitizeEffects } from '../src/worlds/bili-account/definition.ts'
-import { upsertDiarySection } from '../src/worlds/bili-account/diary.ts'
+import { upsertDiarySection, sectionStats } from '../src/worlds/bili-account/diary.ts'
 import { diaryFresh, diaryRefusal } from '../src/worlds/bili-account/gates.ts'
 
 const HOUR = 3600_000
@@ -176,4 +176,21 @@ test('M4：feed 标注近 7 天看过的 BV，并提示避开同 UP', () => {
   assert.doesNotMatch(out, /BV1newCandidate.*\[近 7 天看过\]/)
   assert.match(out, /避开同题材/)
   assert.match(out, /雨声实验室/)
+})
+
+test('OPS-B2：sectionStats 与 upsert 同源——回执能区分替换/追加', () => {
+  const pub = ['# 鲸鱼日记', '', '## 2026-10-30', '', '## 想说', '', '- 旧内容一二三四', ''].join(String.fromCharCode(10))
+  const r1 = sectionStats(pub, '2026-10-30', '想说', 'public')
+  assert.equal(r1.existed, true)
+  assert.ok(r1.chars > 0, '已有小节要报出字数')
+  assert.equal(sectionStats(pub, '2026-10-30', '今日指标', 'public').existed, false, '没有的小节 = 追加')
+  assert.equal(sectionStats(pub, '2026-10-31', '想说', 'public').existed, false, '没有的日期 = 追加')
+  const priv = ['## 2026-10-30', '', '### 本轮留下的判断', '', '- 甲', ''].join(String.fromCharCode(10))
+  assert.equal(sectionStats(priv, '2026-10-30', '本轮留下的判断', 'private').existed, true, '私人日记三级标题')
+
+  const replaced = upsertDiarySection(pub, { book: 'public', heading: '想说', body: '- 新内容', date: '2026-10-30' })
+  assert.ok(sectionStats(replaced, '2026-10-30', '想说', 'public').existed)
+  assert.ok(replaced.includes('- 新内容'))
+  const appended = upsertDiarySection(pub, { book: 'public', heading: '今日指标', body: 'X=1', date: '2026-10-30' })
+  assert.equal(sectionStats(appended, '2026-10-30', '今日指标', 'public').existed, true)
 })

@@ -38,7 +38,10 @@ export interface PresetEffect { field: keyof AtomicFields; delta: number; source
 /** 预设事件 → 场值效果（可扩展；这是她的"反应表"） */
 export const PRESETS: Record<string, { effects: PresetEffect[]; description: string; layer?: 'L0' }> = {
   watchedVideo: {
-    description: '看了一条喜欢的视频',
+    // 2026-10-30 她的 OPS B1：文案中性化——「看完」≠「喜欢」。
+    // 实测旧文案「看了一条喜欢的视频」只进 chain（fields.json 23 处/causal 9 处），
+    // 从未进 memories（0 处）；中性化后 chain/最近发生不再替她下“喜欢”的结论。
+    description: '看完一条',
     effects: [
       { field: 'curiosity', delta: +0.03, source: 'watched', priority: 5 },
       // 刺激量要盖过一天的自然衰减（0.12/天），否则永远停在"零刺激"耦合区
