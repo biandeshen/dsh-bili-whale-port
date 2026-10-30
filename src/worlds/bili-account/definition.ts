@@ -11,6 +11,7 @@ import { buildVoiceBrief } from '../../../persona-core/src/voice-brief.ts'
 import { pickActivities, ACTIVITY_LABELS } from '../../../persona-core/src/life-activities.ts'
 import { readQueue, writeQueue, newTask, dueTasks, markDelivered, markAttempt, prune, expireStale, type QueueTask } from './task-queue.ts'
 import { parseDmPeek } from './dm.ts'
+import { canReply } from './dm-reply.ts'
 import { decideAction, restRecoveryDelta, actionCost, nextCheckDelay, dayKey, MIN_GAP_MS } from '../../../persona-core/src/rhythm.ts'
 
 const ROOT = process.env.BILI_WHALE_ROOT || 'E:/WorkSpace_Qoder/dsh-bili-whale'
@@ -43,8 +44,6 @@ function writeAppliedDmKeys(keys: string[]): void {
   } catch {}
 }
 const ROUND_STALE_MS = 12 * 3600_000
-/** 回信草稿只对他最近这封信写：超过 7 天的旧信先重新看一眼，别隔空回。 */
-const DM_REPLY_WINDOW_MS = 7 * 86400_000
 function readLifeFile(): any {
   try { return JSON.parse(fs.readFileSync(LIFE_FILE, 'utf8')) } catch {}
   // 旧文件迁移：只取新字段，别把 wakesToday/lastWakeAt 再写回去
@@ -648,11 +647,17 @@ class BiliAccountWorld {
         const r = await runAsync(['dm-await', '--json', '--peek'], 60000)
         if (r.status === -2) return r.out
         const parsed = parseDmPeek(r.status, r.out)
-        if (parsed.kind === 'empty') return '[dm] 没有新私信'
+        // 回信时效刷新（2026-10-31 死循环修复）：成功读收件箱（空读也算读到）就记时间；
+        // 读取失败不刷——没读到就是没读到。刷的是回信窗口，不加任何效果。
+        const touchInbox = () => {
+          if (this.life) { this.life.lastDmReadAt = Date.now(); writeLifeFile(this.life) }
+        }
+        if (parsed.kind === 'empty') { touchInbox(); return '[dm] 没有新私信' }
         if (parsed.kind === 'error') {
           causal({ kind: 'dm-read-failed', detail: parsed.detail, atMs: Date.now() })
           return '[dm] 读取失败（不要当成没人写信）：' + parsed.detail
         }
+        touchInbox()
         const msg = parsed.message
         // 已加过效果但上次 ack 没成功：只补确认，不重复加 connection
         if (readAppliedDmKeys().includes(msg.key)) {
@@ -684,9 +689,11 @@ class BiliAccountWorld {
         if (!text) return '[dm_reply] 正文是空的'
         if (text.length > 500) return '[dm_reply] 太长（>500 字），砍短一点'
         const key = String(this.life?.lastInboundKey ?? '')
-        const at = Number(this.life?.lastInboundAt ?? 0)
         if (!key) return '[dm_reply] 最近没有他的新消息（先 bili_dm_read）；不凭空写私信'
-        if (!(Date.now() - at < DM_REPLY_WINDOW_MS)) return '[dm_reply] 上一封已经过去太久了，先 bili_dm_read 看看有没有新的'
+        // 时效=最后一次成功读收件箱（见 dm-reply.ts）；空读也刷新 → “先看一眼”从此真能解锁
+        if (!canReply(this.life, Date.now()).ok) {
+          return '[dm_reply] 上下文过期：先 bili_dm_read 刷一下收件箱（刷完 7 天内都能回）'
+        }
         const r = await runAsync(['dm-draft', 'add', '--text', text, '--inbound', key, '--who', '鱼片'], 30000)
         if (r.status === 0) causal({ kind: 'dm-draft', inboundKey: key, chars: text.length, atMs: Date.now() })
         return r.out

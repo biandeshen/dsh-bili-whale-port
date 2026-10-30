@@ -5,6 +5,7 @@ import { makeRunner } from '../src/worlds/bili-account/runner.ts'
 import { emptyState, applyEvent, readMood, describeState, remember, recentWatch, annotateFeed } from '../src/worlds/bili-account/personaAdapter.ts'
 import { sanitizeEffects } from '../src/worlds/bili-account/definition.ts'
 import { upsertDiarySection, sectionStats } from '../src/worlds/bili-account/diary.ts'
+import { canReply, DM_REPLY_WINDOW_MS } from '../src/worlds/bili-account/dm-reply.ts'
 import { diaryFresh, diaryRefusal } from '../src/worlds/bili-account/gates.ts'
 
 const HOUR = 3600_000
@@ -193,4 +194,19 @@ test('OPS-B2：sectionStats 与 upsert 同源——回执能区分替换/追加'
   assert.ok(replaced.includes('- 新内容'))
   const appended = upsertDiarySection(pub, { book: 'public', heading: '今日指标', body: 'X=1', date: '2026-10-30' })
   assert.equal(sectionStats(appended, '2026-10-30', '今日指标', 'public').existed, true)
+})
+test('OPS-故障：回信时效=最后一次成功读收件箱，空读解锁（她的死循环）', () => {
+  const now = Date.parse('2026-10-31T00:00:00+08:00')
+  // 旧行为：只有消息时刻 → 超过 7 天永远拒
+  const lifeOld = { lastInboundKey: 'k1', lastInboundAt: now - (DM_REPLY_WINDOW_MS + 1000) }
+  assert.equal(canReply(lifeOld, now).reason, 'stale', '没读过时退回消息时刻：超窗仍拒')
+  // 新行为：刚读过（哪怕是空读）→ 解锁
+  const lifeRead = { ...lifeOld, lastDmReadAt: now - 5000 }
+  assert.deepEqual(canReply(lifeRead, now), { ok: true, reason: 'ok' })
+  // 读过但超过 7 天 → 仍拒（上下文真的旧了）
+  const lifeStale = { lastInboundKey: 'k1', lastDmReadAt: now - (DM_REPLY_WINDOW_MS + 1) }
+  assert.equal(canReply(lifeStale, now).reason, 'stale')
+  // 没有来信 → no-key（不凭空写私信）
+  assert.equal(canReply({ lastDmReadAt: now }, now).reason, 'no-key')
+  assert.equal(canReply(null, now).reason, 'no-key')
 })
