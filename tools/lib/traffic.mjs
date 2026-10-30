@@ -3,6 +3,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import { setTimeout as delay } from 'node:timers/promises'
 import { configPath } from './paths.mjs'
+import { isKillOn } from './kill.mjs'
 
 export const RISK_DEFAULTS = { minGapMs: 1500, readHourly: 600, readDaily: 3000, writeHourly: 12, writeDaily: 30, writeGapSec: 120, dmGapSec: 60 }
 const digest = value => crypto.createHash('sha256').update(value).digest('hex')
@@ -94,6 +95,9 @@ export function createTrafficGuard({ directory, transport = (...a) => globalThis
     const headers = options.headers ?? input.headers ?? {}, account = identity(headers)
     const method = String(options.method ?? input.method ?? 'GET').toUpperCase()
     const writing = !['GET','HEAD','OPTIONS'].includes(method)
+    // D-22 补做（主人 2026-10-30）：kill 的统一收口 —— 所有 B 站写（CLI --go、面板放行、
+    // MCP、直接 bili.mjs）都在这里拦下；读不受影响。approve 层另有一道同文件的提前拦截。
+    if (writing && isKillOn()) throw new TrafficError('kill switch 已开启，写操作全部停止（control/kill）')
     const body = options.body ?? (writing && input instanceof Request ? await input.clone().text() : undefined)
     const operation = writing ? await fingerprint(url, body) : null
     const id = operation ? account.slice(0,16) + ':' + operation : null

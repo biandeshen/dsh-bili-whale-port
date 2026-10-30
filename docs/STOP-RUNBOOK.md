@@ -29,7 +29,7 @@ node scripts/day-snapshot.mjs --end
 # 5. 停止 Cortico（pid 在 control/cortico.pid；不要删数据）
 ```
 
-⚠ **kill 的覆盖范围（实测）**：`control/kill` 只被 `dynamic-approve.mjs:75` 与 World 的 spawn 守卫检查；**`tools/bili.mjs` 本身不检查 kill**（ISSUES D-22，主人 2026-10-28 决定暂不修）。所以判停后必须**停进程**，不能只靠 kill 文件。
+⚠ **kill 的覆盖范围（2026-10-30 更新）**：`control/kill` 现在在 `tools/lib/traffic.mjs` 的写通道**统一检查**（`tools/lib/kill.mjs` 单一读取源）——CLI `--go`、面板放行、MCP、`apiPost` 一切出网写全被拦，读不受影响；`dynamic-approve`/`dm-approve` 层仍保留更友好的提前拦截。D-22 已由主人 2026-10-30 图片指令翻案并修复（`tests/contract/kill-unified.test.mjs` 2/2）。**判停时仍建议同时停进程**：kill 拦的是“发出去”，拦不住她继续评估场值烧 token。
 
 **禁止**：删除状态/日记/草稿、修改历史 `days/`、为了让报告变绿而重跑、在 kill 期间批准任何 pending。
 
@@ -70,6 +70,7 @@ node -e "require('fs').writeFileSync(process.env.WHALE_HOME+'/bili-whale/control
 node scripts/day-snapshot.mjs --end
 node scripts/day-report.mjs --date $(node -e "console.log(new Date(Date.now()-4*3600e3).toLocaleDateString('sv-SE'))")
 # 期望：kill 存在时审批被拒（dynamic-approve 输出 blocked-kill），快照仍可读；
-# 不要用 tools/bili.mjs 验证 kill——它不检查（D-22）。
+# 2026-10-30 起 tools 写通道也被 traffic 统一拦（tests/contract/kill-unified.test.mjs 2/2 保证），
+# 但不要拿真实发布命令去试探 kill——万一没拦住就真发了。
 ```
 记录输出到 `days/<D>/incident.md`（D0 当天）。

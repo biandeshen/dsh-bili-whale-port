@@ -78,7 +78,7 @@ DSH/大肥鱼插件生态确实大，但绝大多数是 **DSH 宿主插件**，�
 | 子阶段 | 内容 | 门 |
 |---|---|---|
 | M1d 内容完整性 | 日记 heading/日期、buildText 选段、snippetOf/markdown；单测 | 同一日期不再出现重复「想说」；30 号稿不再引用 29 号段；书名/强调闭合 |
-| M1e 审批加固 ✅ 已在 `dev/m1e` 实现 | token 默认不进 stdout（`--show-token` 单条）、argv 按 kind 重建、textHash+draftId 绑定；kill 全覆盖 **未做**（D-22 DECIDED-NO） | 注入一条伪造 message 不能改变执行命令；默认 list 不打印 token；改稿后 go 被拒 |
+| M1e 审批加固 ✅ 已在 `dev/m1e` 实现 | token 默认不进 stdout（`--show-token` 单条）、argv 按 kind 重建、textHash+draftId 绑定；kill 全覆盖 **已补**（主人 2026-10-30 翻案 D-22，traffic 写通道收口） | 注入一条伪造 message 不能改变执行命令；默认 list 不打印 token；改稿后 go 被拒；kill 下一切出网写被拦 |
 | M1a 资产根 + 可观测 | `paths.draftsDir/imagesDir`，panel causal/drafts 只读，bubble 全队列 | 换机器不依赖 `D:/AI/养鱼`；面板能显示当天 action/diary/draft；有 pending 稿时 bubble 不再说“没事” |
 | M1b 凭据 | MiMo provider；B 站 `loadCred` re-export；secret 不出 provider | 缺 key fail-closed；stdout/日志无 secret；B 站 cookie 位置不漂移 |
 | M1c 媒体 | TTS/BGM/studio 适配层、config.media | 现有 20s 样片命令继续可跑；换 provider 不改 CLI |

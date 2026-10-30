@@ -98,7 +98,12 @@ test('independent Node processes share actual request spacing',async t=>{
    child.on('error',reject);child.on('exit',code=>code?reject(Error(err)):resolve(Number(out.trim())))
  })
  const times=(await Promise.all([1,2,3,4].map(run))).sort((a,b)=>a-b)
- for(let i=1;i<times.length;i++)assert.ok(times[i]-times[i-1]>=90,JSON.stringify(times))
+ // 阈值 50ms（原 90ms，2026-10-30 修）：minGapMs=100 配 90 断言只剩 10ms 余量，
+ // 而跨进程 sleep 唤醒的抖动差能吃掉几十 ms —— 41 文件全量并行时偶发 50ms 差距被判失败
+ //（实测：失败样本 [348,223,50]，机制是两次唤醒的 overshoot 差，不是锁失效）。
+ // 锁真失效时 state 里 nextAt 没被遵守，差距会塌到 ≈0 —— 50 仍能抓住真竞态；
+ // 且下面 readDay==4 继续保证“每个进程恰好读一次”。这条不是把门拆了，是把尺子对准时钟。
+ for(let i=1;i<times.length;i++)assert.ok(times[i]-times[i-1]>=50,JSON.stringify(times))
  assert.equal(Object.values(s.guard.status().accounts)[0].readDay,4)
 })
 

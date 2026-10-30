@@ -45,7 +45,7 @@
 | D-19b | **DSH 面板的人设编辑框仍写 `~/.bili-ai/persona.md`**（D-19 的残留）：面板里改人设不影响现行 Cortico 路径 | D-19 验收 §5；`core/api/routes.js:38`；面板未运行 | 会让人误以为改了不生效 | M3 | OPEN |
 | D-20 | **`--force` 可擦除 `sent` 状态 → 同日重复发布**（按日期命名整文件覆盖，审批闸读的就是该字段） | 红队4 致命2；`definition.ts:207`、`draft-dynamic.mjs:80-101` | 绕过审批的唯一屏障 | **主人 2026-10-28 决定不做**（与 AI 标识一并撤） | DECIDED-NO |
 | D-21 | **一次性令牌明文落盘**（token 与 tokenHash 同文件） | 红队4 致命3；`ack.mjs:37` | 安全性依赖"工具面恰好没有文件读" | 同上 | DECIDED-NO |
-| D-22 | **kill switch 不覆盖 tools 层**，直接 `bili.mjs --go` 可绕过 | 红队4 S2 | 急停不可靠 | 同上 | DECIDED-NO |
+| D-22 | **kill switch 不覆盖 tools 层**，直接 `bili.mjs --go` 可绕过 | 红队4 S2 | 急停不可靠 | ~~同上（10-28 DECIDED-NO）~~ → **主人 2026-10-30 图片指令“kill 统一检查也补上，别留口子”重新开禁** | **FIXED（2026-10-30，dev/m1a）**：`tools/lib/kill.mjs` 单一读取源 + `traffic.mjs` guarded() 写通道统一拦——CLI `--go`、面板放行、MCP、`apiPost` 一切出网写全被拦，读不受影响；approve 层提前拦截保留。测试 `tests/contract/kill-unified.test.mjs` 2/2。**状态翻案留痕：本条曾于 10-28 判 DECIDED-NO** |
 | D-23 | **成功判定是装饰**：`/dyn_id|dynamic|成功/` 里 `dynamic` 任何运行都出现 | 红队4 S1；`dynamic-approve.mjs:111` | 失败可能被记为成功 | M0 | **FIXED**：go 成功必须 `status===0` 且输出含 `dyn_id=\S+`（真实成功行是 `✅ 已发布… dyn_id=…`）。新增负向测试：只出现 `dynamic interface ok` 判 failed。`track-a.test.mjs` 14/14 |
 | D-24 | **`ack.release` 在"已发出但进程被杀"时会把令牌退回** → 重试产生第二条 | 红队4 S1 | 重复发布 | M1 | **MITIGATED**：go 之前先把草稿状态落成 `sending`；进程被杀后状态留在 `sending`，重试被 blocked 拦下（不再靠 token），提示先人工核对 B 站。测试 `track-a.test.mjs` 15/15。**残留**：sender 返回失败但平台实际已接受（输出丢失/解析失败）时仍会 failed + 退回 token，理论上可重放；这种只能人工看平台，不能自动判定 |
 | D-25 | **记忆只在测试里衰减/归档**——上游 AMpath 也一样（`batchDecayVividness` 生产零调用） | AMRESEARCH/02 | 不能靠"上游有"来证明我们该有 | 认知 | FIXED（认知已更正） |
