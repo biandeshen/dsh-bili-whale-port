@@ -5,7 +5,7 @@
 
 ## 现在到哪了
 
-- **2026-10-31 凌晨：Drive v2 模拟对比完成（只比数，live rhythm 未动）。** 三变体（现状骰子 / 概率×3 / 紧急度累积+create/social 驱动）7天×5种子：骰子不是密度主闸（提概率仅 +16%），Drive v2 零空日、间隔尾巴最短、首次出现 create 行动；social 驱动当前参数下是死的（0 次，建议改挂 connection 后重跑）。采纳与否待拍板。`docs/DRIVE-V2-SIM-2026-10-31.md`。
+- **2026-10-31 凌晨：Drive v2 模拟对比完成（只比数，live rhythm 未动）。** 三变体（现状骰子 / 概率×3 / 紧急度累积+create/social 驱动）7天×5种子：骰子不是密度主闸（提概率仅 +16%）；v2 零空日、间隔尾巴最短、五种行动全部出现（social 改盈余式定义后 2 次/7天）。采纳与否待拍板。`docs/DRIVE-V2-SIM-2026-10-31.md`。
 
 - **2026-10-31 凌晨 03:13：权限分级放开落地（live）。** 三裁决之②已实现并合并重启：`bili_dm_reply` 直发主人（被拒自动退回草稿队列等放行）、新增 `bili_like`/`bili_fav` 自发档（收藏五判据/每天 3 条不变；点赞本地账 30 天去重，防 B站 toggle 误取消）、评论/弹幕维持 go-gate 人工放行、关注/取关不开放。档位边界由 `tests/perm-tier.test.mjs` 锁死；dsh **255/255**、Cortico core 18/18；World 重启 pid 159456，health 全绿。证据 `docs/evidence/PERM-TIER-2026-10-31.md`。
 
