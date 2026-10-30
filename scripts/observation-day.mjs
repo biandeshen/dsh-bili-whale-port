@@ -19,7 +19,7 @@ const CFG = path.join(CONTROL, 'observation.json')
 const argv = process.argv.slice(2)
 const arg = (k, d) => { const i = argv.indexOf('--' + k); return i >= 0 ? argv[i + 1] : d }
 const asJson = argv.includes('--json')
-const logicalDay = (now = Date.now()) => new Date(now - 4 * 3600_000).toLocaleDateString('sv-SE')
+const logicalDay = (now = Date.now()) => new Date(now).toLocaleDateString('sv-SE') // 自然日
 const day = arg('date', logicalDay())
 
 const readJson = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')) } catch { return null } }

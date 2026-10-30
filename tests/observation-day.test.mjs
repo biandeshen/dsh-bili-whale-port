@@ -8,7 +8,7 @@ import crypto from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 
 const SCRIPT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..', 'scripts', 'observation-day.mjs')
-const logicalDay = (now = Date.now()) => new Date(now - 4 * 3600_000).toLocaleDateString('sv-SE')
+const logicalDay = (now = Date.now()) => new Date(now).toLocaleDateString('sv-SE') // 自然日（2026-10-31 拍板）
 
 function makeHome({ withAction = true } = {}) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'obsday-'))

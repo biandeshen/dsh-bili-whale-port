@@ -1,17 +1,17 @@
 {
-  "frozenAt": "2026-10-30T01:45:28.514Z",
+  "frozenAt": "2026-10-30T18:00:52.632Z",
   "files": {
-    "scripts/day-report.mjs": "b98d20483845cfff7ae9cf3c4b291a1dc71764dd535ddef18633085f82825c15",
-    "scripts/day-snapshot.mjs": "3dd37fad112a1ee52cd17af5b09169fd9205875c2999c747503af4bc74523d71",
-    "scripts/day-watchdog.mjs": "84b74dade1a46964434f5945edd4062fb6ec799bc70ad96b88d686ebaff6f201",
-    "scripts/counterfactual.mjs": "6ed37732a7057fc98abb907c72b7ef60fe648932742a65a61426957855d65bc2",
+    "scripts/day-report.mjs": "a74ac7fe9c78333f8525208cc4cf490920ffc37eaf08d55953cd05e581827701",
+    "scripts/day-snapshot.mjs": "6daf4e09d067a9b4d84f276c350959fe7dac4509a57e879558b3a978e843a9c3",
+    "scripts/day-watchdog.mjs": "cd495cb2bcdbdb4f903b6572d588ef26729f315e6a4043e3b91e07f5c8aa6ab9",
+    "scripts/counterfactual.mjs": "281e87316425f2951ed44c4f488d9ba3462c750250eb123393b00b0cd495169a",
     "scripts/run-mjs-tests.mjs": "1f7371dd93c01ed337e1f01ff833b05d2315309a45c85a7d08cf5a16b5bcb27e",
     "scripts/check-consumers.mjs": "a45fb0056e31b98e13481355f39a439d6b9ad806c6818312fdb74f8f75c60106",
-    "scripts/g3b-check.mjs": "a87be8229eef3e10676d344519392e4eb0fd3edf8ea4289df643794bdde4edc3",
-    "scripts/observation-start.mjs": "c1e18d0a7c4bb39222f1558243723743b9111acdc63c73bdb534b892a85f931f",
+    "scripts/g3b-check.mjs": "0d6f824e0d24e5ccf745a33325340f0ab9f2cc2f534ccbdeeabc789fa935f1c4",
+    "scripts/observation-start.mjs": "6502a58661ae637b153eb1bd764417f11bdd3787ce43b1fe7e8dd81a67949f3c",
     "scripts/goal-audit.mjs": "d4b6eb2a17fc82d14bfff4ff6316af948d122da24fdb8b5a1d4de4ba44145a8c",
-    "scripts/c2-offline.mjs": "002be74c85ad62c2fd2b3ae991a5a51d4b4bbb668fb132c7bed0c74e683ba75e",
-    "scripts/observation-status.mjs": "5ffe75fdbb0cc68f6a9ba75626bca2bb12d92b0e63dd5573fffa9f6b9c131a7d",
+    "scripts/c2-offline.mjs": "4e9a46acf4cafca61fec7ed956c35663d5750ebdb29b911bb6224276fec7b517",
+    "scripts/observation-status.mjs": "a9b18dda56d5c807d72b7de4c434db6ed6981ddac6fb7d2cfeb8a1391553ad0c",
     "tests/contract/voice.test.mjs": "49fa357f2d65ba89e78ab46b9bba6955b545fdd6be546effa8bc1096fcc99cfd"
   },
   "missing": []

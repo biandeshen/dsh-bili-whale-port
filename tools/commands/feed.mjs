@@ -300,7 +300,7 @@ console.log('\n看完跑：node bili.mjs debrief <BV>   → 然后把"想法"写
 //   快照只写本地、只读字段（无 cookie/凭据），供 day-report / 复盘查"是不是碎屑"。
 try {
   const whaleHome = process.env.WHALE_HOME || path.join(HOME, '.dsh')
-  const day = new Date(Date.now() - 4 * 3600_000).toLocaleDateString('sv-SE')
+  const day = new Date(Date.now()).toLocaleDateString('sv-SE') // 自然日
   const dir = path.join(whaleHome, 'bili-whale', 'feed')
   fs.mkdirSync(dir, { recursive: true })
   const rows = [

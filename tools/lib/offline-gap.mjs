@@ -5,8 +5,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-/** a 之后最近的一个 04:00 是否落在 (a, b] 内。 */
-export function crossesBoundary(a, b, hour = 4) {
+/** a 之后最近的一个日界（自然日 00:00）是否落在 (a, b] 内。 */
+export function crossesBoundary(a, b, hour = 0) {
   if (!(b > a)) return false
   const d = new Date(a)
   d.setHours(hour, 0, 0, 0)
@@ -20,10 +20,10 @@ export function crossesBoundary(a, b, hour = 4) {
 
 /**
  * @param {number[]} timestamps 观测到的 tick 时刻（毫秒）
- * @param {{armedAt:number, now:number, boundaryHour?:number}} opts
+ * @param {{armedAt:number, now:number, boundaryHour?:number}} opts（自然日界=0）
  * @returns {{ms:number, from:number, to:number, crossed:boolean}}
  */
-export function largestOfflineGap(timestamps, { armedAt, now, boundaryHour = 4 }) {
+export function largestOfflineGap(timestamps, { armedAt, now, boundaryHour = 0 }) {
   const pts = [armedAt, ...timestamps.filter((t) => Number.isFinite(t) && t >= armedAt && t <= now), now]
     .sort((x, y) => x - y)
   let best = { ms: 0, from: armedAt, to: now }

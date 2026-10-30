@@ -23,7 +23,7 @@ const WATCHDOG_PID = path.join(CONTROL, 'day-watchdog.pid')
 const NODE = process.execPath
 const cmd = process.argv[2]
 const dry = process.argv.includes('--dry')
-const logicalDay = (now = Date.now()) => new Date(now - 4 * 3600_000).toLocaleDateString('sv-SE')
+const logicalDay = (now = Date.now()) => new Date(now).toLocaleDateString('sv-SE') // 自然日
 
 const LEGACY_DRAFTS = 'D:/AI/养鱼/drafts'
 function draftsDir() {

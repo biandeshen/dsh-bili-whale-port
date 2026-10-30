@@ -12,7 +12,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import { DSH_HOME as WHALE_HOME } from '../tools/lib/paths.mjs'
 
-const DAY_BOUNDARY_HOUR = 4
+const DAY_BOUNDARY_HOUR = 0 // 2026-10-31 主人拍板：自然日
 const DAYS_ROOT = path.join(WHALE_HOME, 'bili-whale', 'days')
 const DIARY = path.join(WHALE_HOME, 'whale-diary.md')
 

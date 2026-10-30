@@ -8,7 +8,7 @@ import crypto from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 
 const SCRIPT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..', '..', 'scripts', 'day-report.mjs')
-const logicalDay = (now = Date.now()) => new Date(now - 4 * 3600_000).toLocaleDateString('sv-SE')
+const logicalDay = (now = Date.now()) => new Date(now).toLocaleDateString('sv-SE')
 const sha1 = (s) => crypto.createHash('sha1').update(s).digest('hex')
 
 function makeHome() {

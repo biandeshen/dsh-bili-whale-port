@@ -27,7 +27,7 @@ try {
 // 看门狗是"她的一天"的唯一 tick 来源：WebUI 活着不代表看门狗还活着。
 // 5 分钟一跳，超过 10 分钟没有今日 tick 就说明观测链断了（机器睡眠也会触发，如实报）。
 try {
-  const day = new Date(Date.now() - 4 * 3600_000).toLocaleDateString('sv-SE')
+  const day = new Date(Date.now()).toLocaleDateString('sv-SE') // 自然日
   const file = path.join(H, '.dsh', 'bili-whale', 'days', day, 'ticks.jsonl')
   const lines = fs.readFileSync(file, 'utf8').trim().split('\n').filter(Boolean)
   const last = JSON.parse(lines[lines.length - 1])

@@ -8,7 +8,7 @@ import { largestOfflineGap, crossesBoundary, readTickTimes } from '../tools/lib/
 
 const at = (iso) => Date.parse(iso)
 
-test('关机一夜：最大空窗跨 04:00，接近 12h', () => {
+test('关机一夜：最大空窗跨 00:00 日界，接近 12h', () => {
   const g = largestOfflineGap([
     at('2026-10-28T21:05:00+08:00'),
     at('2026-10-28T21:10:00+08:00'),
@@ -29,9 +29,9 @@ test('服务一直在跑：最大空窗只有 5 分钟，不能算离线', () =>
   assert.equal(g.crossed, false)
 })
 
-test('04:00 边界判定：跨过才算；05:00 之后到 06:00 不算', () => {
-  assert.equal(crossesBoundary(at('2026-10-29T03:00:00+08:00'), at('2026-10-29T05:00:00+08:00')), true)
-  assert.equal(crossesBoundary(at('2026-10-29T05:00:00+08:00'), at('2026-10-29T06:00:00+08:00')), false)
+test('00:00 边界判定：跨过才算；01:00 之后到 03:00 不算', () => {
+  assert.equal(crossesBoundary(at('2026-10-28T23:30:00+08:00'), at('2026-10-29T00:30:00+08:00')), true)
+  assert.equal(crossesBoundary(at('2026-10-29T01:00:00+08:00'), at('2026-10-29T03:00:00+08:00')), false)
 })
 
 test('readTickTimes 跳过坏行/缺文件', () => {

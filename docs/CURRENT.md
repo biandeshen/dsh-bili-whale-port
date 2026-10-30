@@ -6,6 +6,7 @@
 ## 现在到哪了
 
 - **2026-10-30：V1 视频切片本地成片通过（未接线）。** 20s/1080×1920/h264+aac，MiMo TTS（`mimo-v2.5-tts`，音色茉莉，7.04s）+ CC0 BGM（AERIS `quiet-room`，0.14），9:16 + 16:9 两张封面；`tools/video-build.mjs` 走 vendor/dsh-video-studio（MIT）。只写 `~/.dsh/bili-whale/media/_smoke/`，不接 World、不投稿。证据卡 `docs/evidence/V1-VIDEO-SMOKE-2026-10-30.md`；BGM 曲库与许可见 `assets/bgm/README.md`；模块化边界与观测后拆分计划见 `docs/MODULARITY-2026-10-30.md`。
+- **2026-10-31 主人三裁决**：①**日界 04:00 → 自然日 00:00**（全链路 13 处 + 测试 + hashes 重冻；改动在 dev/day-boundary，合并重启后生效）；②**权限分级放开**：点赞/收藏她自己发（限额与去重代码已在），给主人的回信免审批直发（仍过风控/冷却），公开评论维持人工放行，关注/取关不开放（下一开发任务）；③feed 关注豁免保留（观察两轮再议）。
 - **2026-10-31 凌晨（她的 OPS 修复批，全部合入并重启加载）**：①**放行入口**——面板「待审草稿」卡 ✓放行/✗拒掉，token 全程服务端（过期/正文被改自动按当前正文重入队）；②**意见箱**——`bili_feedback` 工具 + 面板卡（add/list/resolve，全本地 jsonl，ORIENTATION 第 10 步教她用）；③**dm_reply 死循环修复**——回信时效=最后一次成功读收件箱（空读也刷新）；④B1 文案中性化、B2 回执说死替换/追加、B3 关注源字段、B4 三路回流全部 live。两次重启 health 全绿（当前 pid 38372）；全量 **252/252**。证据卡：`OPS-FIXES` / `APPROVAL-ENTRY` / `FEEDBACK-BOX`（均 2026-10-30/31）。
 - **2026-10-30 主人拍板（两问）**：①观测期“禁改码”细化为**只冻结 live**——禁合并、禁为加载新代码重启；dev 分支照常推进，观测结束一次性合并；②验收加 **K4 体验复盘项**（连续 7 天私信有来有回、成稿对得上当日情绪、无日记日期错位），**只复盘不卡验收**。协议原文已改：`OBSERVATION-PROTOCOL.md` §2/§3/§6、ROADMAP §4。
 - **2026-10-30：C2 通过（canary 3/3 齐）。** 01:09:24 arm → 09:12:07 恢复，tick 空窗 **8.05h**、跨 04:00；health 5 项全过；10-29/30 day-report 均通过。`c2-result.json.ok=true`、`canary.json.C2=pass`。G3b 只剩连续 3 天：10-29 全绿；10-30 自然 action 11:11、草稿 `dyn-20261030-741fdf`，cf 等 10-31 04:05；10-31 待发生。证据 `evidence/C2-DECISION-2026-10-29.md`、`days/2026-10-30/wake-1111.json`。

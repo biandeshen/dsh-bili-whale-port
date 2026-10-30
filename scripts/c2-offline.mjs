@@ -2,7 +2,7 @@
  * C2 离线验证：关机前 arm（预登记），开机后 verify（按裁决 7 步核对）。
  *
  *   node scripts/c2-offline.mjs arm      # 关机前跑：记录 T0，并给 D0/D1 预登记 expected.json
- *   node scripts/c2-offline.mjs verify   # 开机后跑：>=8h、跨 04:00、健康、日报告、行动上限
+ *   node scripts/c2-offline.mjs verify   # 开机后跑：>=8h、跨 00:00、健康、日报告、行动上限
  *   node scripts/c2-offline.mjs verify --skip-health   # 演练用
  *
  * 裁决见 docs/evidence/C2-DECISION-2026-10-29.md
@@ -28,7 +28,7 @@ const writeAtomic = (f, o) => {
   fs.writeFileSync(tmp, JSON.stringify(o, null, 2) + '\n')
   fs.renameSync(tmp, f)
 }
-const logicalDay = (now = Date.now()) => new Date(now - 4 * 3600_000).toLocaleDateString('sv-SE')
+const logicalDay = (now = Date.now()) => new Date(now).toLocaleDateString('sv-SE') // 自然日
 const addDays = (day, n) => new Date(Date.parse(day) + n * 86400_000).toLocaleDateString('sv-SE')
 const run = (script, args = []) => spawnSync(process.execPath, [path.join(ROOT, 'scripts', script), ...args], { encoding: 'utf8', timeout: 120000 })
 
@@ -80,14 +80,14 @@ const checks = []
 const add = (name, ok, detail) => checks.push({ name, ok, detail })
 
 add('离线 ≥8h（arm→now）', hours >= MIN_HOURS, `${hours.toFixed(2)}h`)
-// 真正的验收：tick 时间线里必须有一段 ≥8h 的空窗，且这段空窗跨过 04:00。
+// 真正的验收：tick 时间线里必须有一段 ≥8h 的空窗，且这段空窗跨过 00:00（自然日界）。
 // 只看 arm→now 的耗时会把“arm 了但服务一直跑”误判成离线。
 const tickTimes = readTickTimes(DAYS, cfg.expectedDays)
 const gap = largestOfflineGap(tickTimes, { armedAt, now })
 const gapHours = gap.ms / 3600_000
 add('真实离线空窗 ≥8h', gap.ms >= MIN_HOURS * 3600_000,
   `${gapHours.toFixed(2)}h [${new Date(gap.from).toLocaleString()} → ${new Date(gap.to).toLocaleString()}]（${tickTimes.length} 条 tick）`)
-add('空窗跨 04:00 日界', gap.crossed, gap.crossed ? 'yes' : 'no')
+add('空窗跨 00:00 日界', gap.crossed, gap.crossed ? 'yes' : 'no')
 
 if (!process.argv.includes('--skip-health')) {
   const h = run('cortico-health.mjs')

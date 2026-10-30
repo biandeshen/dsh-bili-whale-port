@@ -31,7 +31,7 @@ function parseDur(s) {
   if (!m) return 12 * 3600_000
   return Number(m[1]) * (m[2] === 'h' ? 3600_000 : 60_000)
 }
-function logicalDay(now) { return new Date(now - 4 * 3600_000).toLocaleDateString('sv-SE') }
+function logicalDay(now) { return new Date(now).toLocaleDateString('sv-SE') } // 自然日（2026-10-31 拍板）
 function readJson(f) { try { return JSON.parse(fs.readFileSync(f, 'utf8')) } catch { return null } }
 function log(msg) {
   const line = `[${new Date().toISOString()}] ${msg}`

@@ -14,7 +14,7 @@ const CORTICO = process.env.CORTICO_ROOT || 'E:/WorkSpace_Qoder/Cortico'
 const argv = process.argv.slice(2)
 const arg = (k, d) => { const i = argv.indexOf('--' + k); return i >= 0 ? argv[i + 1] : d }
 const asJson = argv.includes('--json')
-const DAY_BOUNDARY_HOUR = 4
+const DAY_BOUNDARY_HOUR = 0 // 2026-10-31 主人拍板：自然日
 const logicalDay = (now = Date.now()) => new Date(now - DAY_BOUNDARY_HOUR * 3600_000).toLocaleDateString('sv-SE')
 
 const { buildVoiceBrief } = await import('file:///' + CORTICO.replace(/\\/g, '/') + '/persona-core/src/voice-brief.ts')

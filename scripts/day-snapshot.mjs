@@ -15,7 +15,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import { DSH_HOME as WHALE_HOME } from '../tools/lib/paths.mjs'
 
-const DAY_BOUNDARY_HOUR = 4
+const DAY_BOUNDARY_HOUR = 0
 const DAYS_ROOT = path.join(WHALE_HOME, 'bili-whale', 'days')
 const FIELDS = path.join(WHALE_HOME, 'bili-whale', 'fields.json')
 const RHYTHM = path.join(WHALE_HOME, 'bili-whale', 'control', 'rhythm.json')
@@ -26,7 +26,7 @@ const DIARY = path.join(WHALE_HOME, 'whale-diary.md')
 const argv = process.argv.slice(2)
 const arg = (k, d) => { const i = argv.indexOf('--' + k); return i >= 0 ? argv[i + 1] : d }
 
-/** 04:00 为日界：凌晨 2 点算前一天。 */
+/** 日界 = 自然日 00:00（2026-10-31 主人拍板；原 04:00）。 */
 export function logicalDay(now = Date.now()) {
   const d = new Date(now - DAY_BOUNDARY_HOUR * 3600_000)
   return d.toLocaleDateString('sv-SE')

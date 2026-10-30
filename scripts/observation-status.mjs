@@ -18,7 +18,7 @@ const CAUSAL = path.join(WHALE_HOME, 'bili-whale', 'causal.jsonl')
 const asJson = process.argv.includes('--json')
 
 const readJson = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')) } catch { return null } }
-const logicalDay = (now = Date.now()) => new Date(now - 4 * 3600_000).toLocaleDateString('sv-SE')
+const logicalDay = (now = Date.now()) => new Date(now).toLocaleDateString('sv-SE') // 自然日
 
 /** 该逻辑日有没有她自然醒过的记录（kind:'action'）。 */
 function actionDays() {

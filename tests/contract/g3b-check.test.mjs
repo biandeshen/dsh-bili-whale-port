@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process'
 
 const SCRIPT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..', '..', 'scripts', 'g3b-check.mjs')
 const START = path.resolve(path.dirname(SCRIPT), 'observation-start.mjs')
-const logicalDay = (now) => new Date(now - 4 * 3600_000).toLocaleDateString('sv-SE')
+const logicalDay = (now) => new Date(now).toLocaleDateString('sv-SE') // 自然日（2026-10-31 拍板）
 
 function makeHome() {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'g3b-'))

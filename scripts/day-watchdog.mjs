@@ -108,10 +108,10 @@ function audit(days = 14) {
   }
 }
 
-/** 04:05 之后，为"前一天"生成一次反事实报告（G3b 要连续 3 天）。 */
+/** 00:05 之后，为"前一天"生成一次反事实报告（G3b 要连续 3 天）。 */
 function autoCounterfactual(now) {
   const d = new Date(now)
-  if (d.getHours() < 4 || (d.getHours() === 4 && d.getMinutes() < 5)) return
+  if (d.getMinutes() < 5) return // 自然日界后 5 分钟内不跑
   const prev = logicalDay(now - 86400_000)
   const dir = daysDir(prev)
   const outFile = path.join(dir, 'counterfactual.json')
@@ -130,10 +130,10 @@ function autoCounterfactual(now) {
   log(`counterfactual ${prev} ok=${payload.ok} diff=${payload.diffChars ?? '-'}`)
 }
 
-/** 04:05 后每天跑一次 G3b 就绪审计，结果落 control/g3b-status.json。 */
+/** 00:05 后每天跑一次 G3b 就绪审计，结果落 control/g3b-status.json。 */
 function autoG3bStatus(now) {
   const d = new Date(now)
-  if (d.getHours() < 4 || (d.getHours() === 4 && d.getMinutes() < 5)) return
+  if (d.getMinutes() < 5) return // 自然日界后 5 分钟内不跑
   const file = path.join(CONTROL, 'g3b-status.json')
   const day = logicalDay(now)
   const cur = readJson(file)
@@ -154,9 +154,9 @@ function once() {
   autoCounterfactual(now)
   autoG3bStatus(now)
   const hhmm = new Date(now).toLocaleTimeString('sv-SE').slice(0, 5)
-  // 04:30 后仍无 state.start → missed（正常情况 seed 已建，这里防 seed 失败）
-  if (hhmm >= '04:30' && !fs.existsSync(path.join(daysDir(day), 'state.start.json'))) {
-    markFlag(day, 'missed', '04:30 后仍无 state.start')
+  // 00:30 后仍无 state.start → missed（正常情况 seed 已建，这里防 seed 失败）
+  if (hhmm >= '00:30' && !fs.existsSync(path.join(daysDir(day), 'state.start.json'))) {
+    markFlag(day, 'missed', '00:30 后仍无 state.start')
   }
   // 超过 2 小时没有 tick → late（机器休眠/看门狗被杀）
   const last = lastTickAt(day)
@@ -192,7 +192,7 @@ if (!acquireLock()) {
 log(`start pid=${process.pid} interval=${INTERVAL_MS}ms`)
 // 启动即打一次：否则开机后 5 分钟内关机就会整天没有 tick
 try { once() } catch (e) { log('initial tick failed: ' + String(e?.message ?? e)) }
-// 日界收尾：只有亲历 04:00 才用前一天最后一条 tick 写 state.end；
+// 日界收尾：只有亲历自然日界（00:00）才用前一天最后一条 tick 写 state.end；
 // 启动时不追补历史（缺失就如实留在 day-report 里）。
 let lastDay = logicalDay(Date.now())
 const timer = setInterval(() => {

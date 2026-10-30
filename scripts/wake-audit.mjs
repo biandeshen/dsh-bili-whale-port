@@ -15,7 +15,7 @@ const LEGACY_DRAFTS = 'D:/AI/养鱼/drafts'
 const USERPROFILE = process.env.USERPROFILE || process.env.HOME || ''
 const DSH_HOME = process.env.WHALE_HOME || process.env.DSH_HOME || path.join(USERPROFILE, '.dsh')
 
-const logicalDay = (iso) => new Date(Date.parse(iso) - 4 * 3600_000).toLocaleDateString('sv-SE')
+const logicalDay = (iso) => new Date(Date.parse(iso)).toLocaleDateString('sv-SE') // 自然日（2026-10-31 拍板）
 function draftPath(day) {
   const isDefault = path.resolve(DSH_HOME).toLowerCase() === path.resolve(USERPROFILE, '.dsh').toLowerCase()
   const dir = process.env.WHALE_DRAFTS || (isDefault && fs.existsSync(LEGACY_DRAFTS) ? LEGACY_DRAFTS : path.join(DSH_HOME, 'bili-whale', 'drafts'))

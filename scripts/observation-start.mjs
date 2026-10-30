@@ -23,7 +23,7 @@ if (!report?.ready) {
   process.exit(1)
 }
 
-const startDay = new Date(Date.now() - 4 * 3600_000).toLocaleDateString('sv-SE')
+const startDay = new Date(Date.now()).toLocaleDateString('sv-SE') // 自然日
 const payload = { startDay, days, createdAt: new Date().toISOString() }
 if (dry) {
   console.log(JSON.stringify({ ok: true, dry: true, wouldWrite: FILE, ...payload }, null, 2))

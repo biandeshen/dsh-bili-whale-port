@@ -20,7 +20,7 @@ const CANARY = path.join(WHALE_HOME, 'bili-whale', 'control', 'canary.json')
 const HASHES = path.join(ROOT, 'scripts', 'hashes.json')
 const CAUSAL = path.join(WHALE_HOME, 'bili-whale', 'causal.jsonl')
 
-const logicalDay = (now = Date.now()) => new Date(now - 4 * 3600_000).toLocaleDateString('sv-SE')
+const logicalDay = (now = Date.now()) => new Date(now).toLocaleDateString('sv-SE') // 自然日（2026-10-31 拍板）
 const readJson = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')) } catch { return null } }
 
 /** 该逻辑日有没有她自然醒过的记录（action_due → lifeTick 写的 kind:'action'）。 */

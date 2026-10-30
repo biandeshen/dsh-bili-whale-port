@@ -45,10 +45,10 @@ test('C2 arm/verify：≥8h 跨日才 PASS；只 arm 不放宽 day-report；veri
   // 只 arm：expected.json 不放宽
   assert.equal(sh('day-report.mjs', ['--date', '2026-10-27'], env).status, 1)
 
-  // 伪造一次「跨过 04:00 且 ≥8h」的 arm：从最近一次日界往前推 9h。
-  // 固定 21h 前会随时间翻转（凌晨跑时区间里没有 04:00），这里按日界锚定。
+  // 伪造一次「跨过 00:00 且 ≥8h」的 arm：从最近一次日界往前推 9h。
+  // 固定 21h 前会随时间翻转（跨午夜时区间里没有日界），这里按日界锚定。
   const boundary = new Date()
-  boundary.setHours(4, 0, 0, 0)
+  boundary.setHours(0, 0, 0, 0)
   if (boundary.getTime() > Date.now()) boundary.setDate(boundary.getDate() - 1)
   const cfg = JSON.parse(fs.readFileSync(path.join(control, 'c2.json'), 'utf8'))
   cfg.armedAt = new Date(boundary.getTime() - 9 * 3600_000).toISOString()
