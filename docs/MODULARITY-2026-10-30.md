@@ -30,6 +30,19 @@
 | 12 | `panel/server.js:70-72`、`panel/views/tank.html:234` | 固定 `/api/avatar` + 单个 `avatar.png` | 换序列帧/Live2D 要改服务端和页面 |
 | 13 | `vendor/dsh-video-studio/{fonts.js,render.js}` | 字体是 Windows 绝对路径、渲染契约固定 | 跨平台/换字体要动 vendor；适配层应吸收 |
 
+### 1.1 可观测性耦合（当前“使用体验”的根）
+
+| 位置 | 现状 | 后果 |
+|---|---|---|
+| `panel/data.js:13-14` | “她的一天”时间线读 `~/.dsh/whale-log.jsonl` | Cortico World 写的是 `causal.jsonl`；`whale-log` 最后一条是 **2026-10-25**，面板会显示旧 DSH 时代的事件 |
+| `core/api/routes.js:195`、`panel/data.js:51` | `/api/pending` 只读 `~/.bili-ai/pending-replies.json`（go-gate） | 每日动态草稿（`D:/AI/养鱼/drafts/<D>.json`）不在面板里；bubble 的 `pendingCount` 也不会算它 |
+| `panel/views/tank.html:162,180` | bubble 文案/待审列表只认 go-gate 队列 | 明明有 `dyn-20261030-741fdf` pending，面板仍可能说“在窗里游着，没事” |
+| `tools/lib/config.mjs:40` | `notify.type` 默认 `none` | 她出稿/醒来不会通知；只能主动开控制台或翻文件 |
+| `src/worlds/bili-account/definition.ts:632` | 日记小节日期用 `dayKey(Date.now())` | 2026-10-30 09:12/11:11 的私人日记落到了 `## 2026-10-29`；她自己在日记里记了“日期错位，要留意”。原因待查（时区/日源），不能当正常 |
+| 8447 / 7799 实测 | 8447 `whale-panel` 未监听；7799 是 Cortico 操作台 | 现在能看到的不是鱼缸，而是 agent 控制台：系统提示词、工具调用、token 数、事件帧；“B站账号”详情页显示“没有声明任何面板” |
+
+> 结论：她“活着”的证据主要在两本日记和 `causal.jsonl`，但**主人看到的界面不呈现这些**。这不是模块化洁癖，是当前使用体验的直接缺口。
+
 ## 2. 目标模块（只在观测后创建）
 
 ```
@@ -101,6 +114,7 @@ scripts/lib/drafts/
 | P0 | 凭据 | 统一 credential registry；B 站/MiMo 各自 provider | 观测后 M1 |
 | P0 | 渲染器 | `video/studio.mjs` 适配层；以后可换 bili-workbench | 观测后 M1 |
 | P0 | 资产根目录 | `WHALE_IMAGE_DIR`/`WHALE_DRAFTS`/`media.outputDir`，去掉 `D:/AI/养鱼` 硬编码 | 观测后 M1（分发前必做） |
+| P0 | 可观测性（她的一天/草稿） | panel timeline 改读 `causal.jsonl` + `days/<D>/day.json`；pending 只读展示动态草稿，审批仍走 CLI/token | 观测后 M1 |
 | P1 | 草稿 compose/store/publisher | 纯函数与存储/审批分离；审批只认 publisher | 观测后 M2 |
 | P1 | 动态发布器 | `publishers/bilibili-dynamic.mjs`；审批 token/kill 不变 | 观测后 M2 |
 | P1 | 形象/头像 | `assets/avatar/manifest.json` + `/api/avatar` 读 manifest | 观测后 M3 |
@@ -124,6 +138,7 @@ scripts/lib/drafts/
 - 抽 `media/tts`、`media/bgm`、`credentials`、`video/studio`、资产根目录配置
 - **行为等价门**：现有 `--tts mimo/edge/none`、`--bgm auto/quiet-room/none`、`--plan`、20s 样片全部继续可跑；输出目录/封面/哈希可复现
 - 新测试：TTS 回退顺序、BGM selector、secret 不出现在 stdout、缺 key 时 fail-closed
+- **可观测门**：面板“她的一天”能读到当天 `causal.jsonl` 的 action/diary/draft 事件；有 pending 动态草稿时 bubble 不再说“没事”；只读，不新增自动发布
 
 ### M2
 - 抽 `drafts/compose|store|publishers`；`dynamic-approve` 改调 publisher
