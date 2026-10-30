@@ -23,6 +23,7 @@ import { createOpenCodeController } from '../adapters/opencode/controller.js'
 import { loadToken, authorized } from './auth.js'
 import { timeline, diary, vitals } from './data.js'
 import { collectDrafts } from './drafts.mjs'
+import { listFeedback, resolveFeedback } from './feedback.mjs'
 // 放行入口：approveFromPanel 的 token 只在服务端用，响应永不含 token（2026-10-31）
 import { approveFromPanel, reject as rejectDraft } from '../scripts/dynamic-approve.mjs'
 
@@ -73,6 +74,17 @@ const extra = {
   // M1a：动态/回信草稿只读列表（无 token；放行走 CLI）
   '/api/drafts': (req, res) => json(res, 200, collectDrafts({ whaleHome: WHALE_HOME })),
   // 放行入口（2026-10-31 主人要）：浏览器只发 {id,action}，token 全程在服务端（M1e：永远不进响应/浏览器）
+  // 她的意见箱（本地 jsonl，只读列表 + 主人侧 resolve）
+  '/api/feedback': (req, res) => json(res, 200, listFeedback()),
+  '/api/feedback/resolve': async (req, res) => {
+    if (req.method !== 'POST') { json(res, 405, { ok: false, error: 'POST only' }); return }
+    let body = ''
+    for await (const chunk of req) body += chunk
+    let b = {}
+    try { b = JSON.parse(body || '{}') } catch { json(res, 400, { ok: false, error: '请求体不是 JSON' }); return }
+    const r = resolveFeedback(String(b.id ?? ''), 'owner')
+    json(res, 200, { ok: r.ok, error: r.error ?? null })
+  },
   '/api/draft-approve': async (req, res) => {
     if (req.method !== 'POST') { json(res, 405, { ok: false, error: 'POST only' }); return }
     let body = ''

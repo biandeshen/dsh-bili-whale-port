@@ -98,3 +98,12 @@ test('放行入口：无 token 拒绝；有 token 的未知 id 返 ok:false（�
   const bad = await fetch(base + '/api/draft-approve', { method: 'GET', headers: { authorization: 'Bearer ' + token } })
   assert.equal(bad.status, 405, 'GET 不给放行')
 })
+
+test('意见箱入口：GET 列表可用；resolve 未知 id 返 ok:false（本地，不联网）', async (t) => {
+  const { base, token } = await boot(t)
+  const fb = await (await get(base, '/api/feedback', token)).json()
+  assert.equal(fb.ok, true)
+  assert.equal((await get(base, '/api/feedback')).status, 503, '意见箱也要鉴权')
+  const r = await fetch(base + '/api/feedback/resolve', { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token }, body: JSON.stringify({ id: 'f-nope' }) })
+  assert.equal((await r.json()).ok, false)
+})

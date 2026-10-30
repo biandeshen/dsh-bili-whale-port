@@ -116,6 +116,7 @@ textarea{width:100%;min-height:260px;font-family:ui-monospace,Menlo,monospace}
       <div class="card"><h2>🌑 给她自己的（whale-diary-private.md）</h2><div id="d2" class="hint">载入中…</div></div>
     </div>
     <div class="card"><h2>待审草稿（发前审核）</h2><div id="pending"><span class="hint">载入中…</span></div><div id="adrafts" style="margin-top:10px"></div></div>
+    <div class="card"><h2>她的意见箱（本地，不联网）</h2><div id="fb"><span class="hint">载入中…</span></div></div>
   </div>
 
   <div class="pane" id="p3">
@@ -141,7 +142,7 @@ const EMO={ 'wake':'🌊','skip':'🎲','fired':'🌊','reply-sent':'💌','repl
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))
 function bar(el,n,total,hot){const v=Math.max(0,Math.min(1,total?n/total:0));el.style.width=(v*100).toFixed(0)+'%';el.classList.toggle('hot',!!hot)}
 async function loadAll(){
-  const [v,st,tl,dy,cfg,pd,dr]=await Promise.all([api('/api/vitals'),api('/api/status'),api('/api/timeline?limit=60'),api('/api/diary'),api('/api/settings'),api('/api/pending'),api('/api/drafts')])
+  const [v,st,tl,dy,cfg,pd,dr,fb]=await Promise.all([api('/api/vitals'),api('/api/status'),api('/api/timeline?limit=60'),api('/api/diary'),api('/api/settings'),api('/api/pending'),api('/api/drafts'),api('/api/feedback')])
   // HUD
   const rem=v.traffic?.remaining, s=v.traffic?.settings
   const moodPct=rem&&s?Math.round(100*(0.5*rem.readDay/s.readDaily+0.5*rem.writeDay/s.writeDaily)):null
@@ -193,12 +194,21 @@ async function loadAll(){
       :'<div class="hint">'+(x.queue==='动态'?'已处理（sent/rejected）':'回信稿放行仍走 CLI：scripts/dm-approve.mjs approve '+esc(x.id)+' --token <token> --go')+'</div>')
     +'</div>').join('')
     :'')
+  $('fb').innerHTML=((fb&&fb.items&&fb.items.length)?fb.items.map(x=>
+    '<div class="quest"><div class="h">'+esc(x.id)+' ['+esc(x.severity)+(x.selfHandled?'·她已对治':'')+'] '+esc(x.day)+'</div>'
+    +'<div class="q">'+esc(x.issue)+'</div>'
+    +(x.note?'<div class="a">对治：'+esc(x.note)+'</div>':'')
+    +'<button class="act ok" data-fb="'+esc(x.id)+'">✓ 已解决</button></div>').join('')
+    :'<span class="hint">她还没提过意见 ✓（她可以用 bili_feedback add 记一条）</span>')
   const wiz=$('wiz');const s1=!!(cfg.config.owner&&cfg.config.owner.mid);const s2=!!(cfg.credentials&&cfg.credentials.hasSess&&cfg.credentials.hasJct);const s3=true
   if(!(s1&&s2)){wiz.style.display='block';$('wz1').textContent=s1?'✓':'去设置里填';$('wz2').textContent=s2?'✓':'去设置里粘贴';$('wz3').textContent='默认 20:00–24:00 醒 1 次；ntfy/bark 可选';$('wzhint').textContent='都亮 ✓ 后，装 DSH 插件或起 whale-daemon，到窗口她就自己醒（见 docs/RUNBOOK.md）'}else wiz.style.display='none'
   if(!$('cfg').dataset.loaded){$('cfg').value=JSON.stringify(cfg.config,null,2);$('cfg').dataset.loaded='1'}
   if(!$('persona').value){try{const pe=await api('/api/persona');$('persona').value=pe.text??''}catch{}}
 }
 document.addEventListener('click',async e=>{
+  const fbBtn=e.target.closest('[data-fb]')
+  if(fbBtn){const r=await api('/api/feedback/resolve',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:fbBtn.dataset.fb})})
+    toast(r.ok?'✓ 已标记解决':('失败：'+(r.error||'')));loadAll();return}
   const da=e.target.closest('[data-da]')
   if(da){const r=await api('/api/draft-approve',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:da.dataset.id,action:da.dataset.da})})
     toast(r.ok?(r.dynId?('✓ 已发出 '+r.dynId):'✓ 已处理'):('失败：'+(r.error||'未知')))
@@ -248,7 +258,7 @@ function applySprite(asleep,v){
   setSprite(asleep?'sleep':(v.pendingCount?'think':(v.plan&&v.plan.fired?'working':(v.shares>0?'joy':'idle'))))
 }
 const ava=document.getElementById('ava');ava.src='/api/avatar?t='+encodeURIComponent(T);ava.onerror=()=>ava.remove()
-const fail=e=>{const msg='✗ '+(e&&e.message||'加载失败');for(const id of ['clock','story','d1','d2','pending','adrafts','traffic','today']){const el=document.getElementById(id);if(el)el.textContent=msg}}
+const fail=e=>{const msg='✗ '+(e&&e.message||'加载失败');for(const id of ['clock','story','d1','d2','pending','adrafts','fb','traffic','today']){const el=document.getElementById(id);if(el)el.textContent=msg}}
 initSprite().then(()=>loadAll()).catch(fail)
 setInterval(()=>loadAll().catch(()=>{}),60000)
 </script></body></html>
