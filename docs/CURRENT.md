@@ -5,7 +5,7 @@
 
 ## 现在到哪了
 
-- **2026-10-30：V1 视频切片本地成片通过（未接线）。** 20s/1080×1920/h264+aac，Edge-TTS 人声 5.78s，9:16 + 16:9 两张封面；`tools/video-build.mjs` 走 vendor/dsh-video-studio（MIT）。只写 `~/.dsh/bili-whale/media/_smoke/`，不接 World、不投稿。证据卡 `docs/evidence/V1-VIDEO-SMOKE-2026-10-30.md`。接入顺序见 `docs/PLUGIN-INTEGRATION-PLAN-2026-10-30.md`：观测期禁改码。
+- **2026-10-30：V1 视频切片本地成片通过（未接线）。** 20s/1080×1920/h264+aac，MiMo TTS（`mimo-v2.5-tts`，音色茉莉，7.04s）+ CC0 BGM（AERIS `quiet-room`，0.14），9:16 + 16:9 两张封面；`tools/video-build.mjs` 走 vendor/dsh-video-studio（MIT）。只写 `~/.dsh/bili-whale/media/_smoke/`，不接 World、不投稿。证据卡 `docs/evidence/V1-VIDEO-SMOKE-2026-10-30.md`；BGM 曲库与许可见 `assets/bgm/README.md`。
 - **2026-10-30：C2 通过（canary 3/3 齐）。** 01:09:24 arm → 09:12:07 恢复，tick 空窗 **8.05h**、跨 04:00；health 5 项全过；10-29/30 day-report 均通过。`c2-result.json.ok=true`、`canary.json.C2=pass`。G3b 只剩连续 3 天：10-29 全绿；10-30 自然 action 11:11、草稿 `dyn-20261030-741fdf`，cf 等 10-31 04:05；10-31 待发生。证据 `evidence/C2-DECISION-2026-10-29.md`、`days/2026-10-30/wake-1111.json`。
 - **2026-10-29：行动观察器。** `action-watch.mjs`（pid 207048，到 10-30 15:06）盯着 `causal.jsonl`；她下一次行动后等 10 分钟，自动跑 `wake-audit --strict` + `day-report`，写 `days/<D>/wake-<HHMM>.json`。只读，不改行为；覆盖 C2 09:00 恢复后的第一轮。
 
