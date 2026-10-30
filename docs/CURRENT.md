@@ -5,6 +5,8 @@
 
 ## 现在到哪了
 
+- **2026-10-31 凌晨：Drive v2 模拟对比完成（只比数，live rhythm 未动）。** 三变体（现状骰子 / 概率×3 / 紧急度累积+create/social 驱动）7天×5种子：骰子不是密度主闸（提概率仅 +16%），Drive v2 零空日、间隔尾巴最短、首次出现 create 行动；social 驱动当前参数下是死的（0 次，建议改挂 connection 后重跑）。采纳与否待拍板。`docs/DRIVE-V2-SIM-2026-10-31.md`。
+
 - **2026-10-31 凌晨 03:13：权限分级放开落地（live）。** 三裁决之②已实现并合并重启：`bili_dm_reply` 直发主人（被拒自动退回草稿队列等放行）、新增 `bili_like`/`bili_fav` 自发档（收藏五判据/每天 3 条不变；点赞本地账 30 天去重，防 B站 toggle 误取消）、评论/弹幕维持 go-gate 人工放行、关注/取关不开放。档位边界由 `tests/perm-tier.test.mjs` 锁死；dsh **255/255**、Cortico core 18/18；World 重启 pid 159456，health 全绿。证据 `docs/evidence/PERM-TIER-2026-10-31.md`。
 
 - **2026-10-30：V1 视频切片本地成片通过（未接线）。** 20s/1080×1920/h264+aac，MiMo TTS（`mimo-v2.5-tts`，音色茉莉，7.04s）+ CC0 BGM（AERIS `quiet-room`，0.14），9:16 + 16:9 两张封面；`tools/video-build.mjs` 走 vendor/dsh-video-studio（MIT）。只写 `~/.dsh/bili-whale/media/_smoke/`，不接 World、不投稿。证据卡 `docs/evidence/V1-VIDEO-SMOKE-2026-10-30.md`；BGM 曲库与许可见 `assets/bgm/README.md`；模块化边界与观测后拆分计划见 `docs/MODULARITY-2026-10-30.md`。
