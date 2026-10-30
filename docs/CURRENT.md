@@ -5,6 +5,8 @@
 
 ## 现在到哪了
 
+- **2026-10-31 凌晨：M1c 媒体层拆分合 live（`ae023a5`）。** `video-build.mjs` 变薄壳；`tools/media/{tts,bgm,video/studio,config}.mjs` 各司其职，BGM 有了 `assets/bgm/catalog.json`，换 TTS/渲染 provider 不动 CLI。门：npm **263/263**（+8 媒体测试）+ 真实闸 `--tts mimo --bgm quiet-room --plan`（茉莉 1.6s）通过。M1 子阶段只剩「观测后重冻 4 个验收脚本 + wake-audit/c2-window 内联 legacy」。
+
 - **2026-10-31 凌晨：Drive v2 模拟对比完成（只比数，live rhythm 未动）。** 三变体（现状骰子 / 概率×3 / 紧急度累积+create/social 驱动）7天×5种子：骰子不是密度主闸（提概率仅 +16%）；v2 零空日、间隔尾巴最短、五种行动全部出现（social 改盈余式定义后 2 次/7天）。采纳与否待拍板。`docs/DRIVE-V2-SIM-2026-10-31.md`。
 
 - **2026-10-31 凌晨 03:13：权限分级放开落地（live）。** 三裁决之②已实现并合并重启：`bili_dm_reply` 直发主人（被拒自动退回草稿队列等放行）、新增 `bili_like`/`bili_fav` 自发档（收藏五判据/每天 3 条不变；点赞本地账 30 天去重，防 B站 toggle 误取消）、评论/弹幕维持 go-gate 人工放行、关注/取关不开放。档位边界由 `tests/perm-tier.test.mjs` 锁死；dsh **255/255**、Cortico core 18/18；World 重启 pid 159456，health 全绿。证据 `docs/evidence/PERM-TIER-2026-10-31.md`。
