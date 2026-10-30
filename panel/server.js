@@ -22,6 +22,7 @@ import { startScheduler } from '../core/scheduler.js'
 import { createOpenCodeController } from '../adapters/opencode/controller.js'
 import { loadToken, authorized } from './auth.js'
 import { timeline, diary, vitals } from './data.js'
+import { collectDrafts } from './drafts.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(HERE, '..')
@@ -67,6 +68,8 @@ const extra = {
     json(res, 200, timeline(WHALE_HOME, { cursor: u.searchParams.get('cursor') || 0, limit: u.searchParams.get('limit') || 50 }))
   },
   '/api/diary': (req, res) => json(res, 200, diary(WHALE_HOME)),
+  // M1a：动态/回信草稿只读列表（无 token；放行走 CLI）
+  '/api/drafts': (req, res) => json(res, 200, collectDrafts({ whaleHome: WHALE_HOME })),
   '/api/avatar': (req, res) => {
     try { const b = fs.readFileSync(path.join(WHALE_HOME, 'avatar.png')); res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'max-age=60' }); res.end(b) } catch { json(res, 404, { ok: false, error: '未设置头像：放一张 png 到 ' + path.join(WHALE_HOME, 'avatar.png') }) }
   },

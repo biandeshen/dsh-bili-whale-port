@@ -16,9 +16,13 @@ async function boot(t) {
   fs.writeFileSync(path.join(wh, 'bili-whale.config.json'), JSON.stringify({ owner: { mid: '1' }, listen: {} }))
   fs.writeFileSync(path.join(wh, 'whale-log.jsonl'), JSON.stringify({ at: new Date().toISOString(), kind: 'wake', note: 'e2e' }) + '\n')
   fs.writeFileSync(path.join(wh, 'whale-diary.md'), '## 看过\n| 10-25 | BV1 | 标题 | 想法 |\n')
+  // M1a：注入一条 pending 动态稿，验证它进 vitals 计数与 /api/drafts（以前面板看不见它）
+  const drafts = path.join(home, 'm1a-drafts')
+  fs.mkdirSync(drafts, { recursive: true })
+  fs.writeFileSync(path.join(drafts, '2026-10-30.json'), JSON.stringify({ id: 'dyn-m1a-x', date: '2026-10-30', status: 'pending', text: '面板要看的稿', image: 'x.png', textHash: 't' }))
   const port = 18441 + Math.floor(Math.random() * 900)
   const srv = spawn(process.execPath, [path.join(ROOT, 'panel', 'server.js'), '--port', String(port)], {
-    env: { ...process.env, WHALE_HOME: wh, BILI_WHALE_CONFIG: path.join(wh, 'bili-whale.config.json'), USERPROFILE: home, HOME: home, ProgramFiles: 'C:\\nonexistent' },
+    env: { ...process.env, WHALE_HOME: wh, BILI_WHALE_CONFIG: path.join(wh, 'bili-whale.config.json'), USERPROFILE: home, HOME: home, ProgramFiles: 'C:\\nonexistent', WHALE_DRAFTS: drafts },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   t.after(() => srv.kill('SIGKILL'))
@@ -47,6 +51,15 @@ test('token 下：vitals/timeline/diary/settings 形状正确（补三缺口的�
   assert.equal(v.ok, true)
   assert.equal(v.scheduler.ok, false, 'PANEL_SCHED（默认关） → 时钟状态如实上报，不装活')
   assert.ok(v.traffic.settings.readDaily >= 100)
+  // M1a：bubble 的 pending 计数必须含动态稿（以前只有 go-gate → 有稿也说“没事”）
+  assert.ok(v.pendingCount >= 1, 'pendingCount 应包含注入的 pending 动态稿，实得 ' + v.pendingCount)
+  assert.ok(v.pendingParts && v.pendingParts.dynamic >= 1, 'pendingParts.dynamic 应 ≥1')
+  const dr = await (await get(base, '/api/drafts', token)).json()
+  assert.equal(dr.ok, true)
+  assert.equal(dr.dynamic[0].id, 'dyn-m1a-x')
+  assert.equal(dr.needs, 1)
+  assert.ok(!JSON.stringify(dr).includes('token'), '/api/drafts 不得返回 token（M1e 不变量）')
+  assert.equal((await get(base, '/api/drafts')).status, 503, '/api/drafts 同样要鉴权')
   const tl = await (await get(base, '/api/timeline?limit=1', token)).json()
   assert.equal(tl.items.length, 1); assert.equal(tl.items[0].kind, 'wake'); assert.equal(tl.next, null)
   const dy = await (await get(base, '/api/diary', token)).json()

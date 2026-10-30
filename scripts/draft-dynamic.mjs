@@ -6,7 +6,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { pickDailyImage } from '../tools/lib/pick-image.mjs'
-import { DSH_HOME as WHALE_HOME } from '../tools/lib/paths.mjs'
+import { DSH_HOME as WHALE_HOME, draftsDir, imagesDir } from '../tools/lib/paths.mjs'
 import { enqueue } from './ack.mjs'
 import { logicalDay } from './day-snapshot.mjs'
 
@@ -16,8 +16,9 @@ const FORCE = argv.includes('--force')
 // 与快照共用 04:00 日界：凌晨写的日记/出的稿算前一天，否则 day-report 找不到当天草稿
 const date = arg('date', logicalDay())
 const DIARY = path.join(WHALE_HOME, 'whale-diary.md')
-const DRAFTS = arg('drafts', process.env.WHALE_DRAFTS || 'D:/AI/养鱼/drafts')
-const IMAGES = arg('images', process.env.WHALE_IMAGES || 'D:/AI/养鱼/assets/daily')
+// M1a 收口：目录解析只走 paths.draftsDir/imagesDir（env → 旧路径 → whale home），不再散写硬编码
+const DRAFTS = arg('drafts', draftsDir())
+const IMAGES = arg('images', imagesDir())
 
 function clip(s, max) {
   if (s.length <= max) return s

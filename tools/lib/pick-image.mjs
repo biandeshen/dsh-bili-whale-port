@@ -6,6 +6,7 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
+import { imagesDir } from './paths.mjs'
 
 export function pickDailyImage(dir, { mark = true } = {}) {
   let files = []
@@ -25,6 +26,6 @@ export function pickDailyImage(dir, { mark = true } = {}) {
 
 if (process.argv[1] && process.argv[1].endsWith('pick-image.mjs')) {
   const i = process.argv.indexOf('--dir')
-  const dir = i >= 0 ? process.argv[i + 1] : (process.env.WHALE_IMAGE_DIR || 'D:/AI/养鱼/assets/daily')
+  const dir = i >= 0 ? process.argv[i + 1] : imagesDir()
   console.log(JSON.stringify(pickDailyImage(dir), null, 2))
 }

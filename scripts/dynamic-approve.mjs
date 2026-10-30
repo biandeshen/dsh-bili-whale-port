@@ -7,11 +7,11 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { spawnSync } from 'node:child_process'
-import { DSH_HOME as WHALE_HOME } from '../tools/lib/paths.mjs'
+import { DSH_HOME as WHALE_HOME, draftsDir } from '../tools/lib/paths.mjs'
 import * as ack from './ack.mjs'
 
-const LEGACY_DRAFTS = 'D:/AI/养鱼/drafts'
-const DRAFTS = process.env.WHALE_DRAFTS || (fs.existsSync(LEGACY_DRAFTS) ? LEGACY_DRAFTS : path.join(WHALE_HOME, 'bili-whale', 'drafts'))
+// M1a 收口：与 draft-dynamic 同一个来源（paths.draftsDir），不再是本地一份 legacy 判断
+const DRAFTS = draftsDir()
 const CONTROL = path.join(WHALE_HOME, 'bili-whale', 'control')
 const KILL = path.join(CONTROL, 'kill')
 const AUDIT = path.join(DRAFTS, 'audit.jsonl')

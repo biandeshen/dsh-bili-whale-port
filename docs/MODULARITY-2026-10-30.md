@@ -146,7 +146,7 @@ scripts/lib/drafts/
 |---|---|---|
 | **M1d 内容完整性（最先）** | `upsertDiarySection` 日期段内唯一 heading、`buildText` 只取目标日期、`snippetOf` 不截断书名/闭合 markdown；单测 | 同一日期不再出现重复「想说」；30 号稿不再引用 29 号段；书名/强调闭合 |
 | **M1e 审批加固** ✅ 已在 `dev/m1e` 实现 | `list` 默认不打印 token（`--show-token <id>` 才给单条）；panel 放行按 kind 白名单重建 argv（展示字段覆盖执行）；动态审批补 `textHash`+`draftId` 绑定 | 伪造 message 改不了执行命令；默认 `list` 无 token；改稿后 go 被拒。**kill 统一检查未做——D-22 是 DECIDED-NO，要开需主人翻案** |
-| **M1a 资产根 + 可观测** | `paths.draftsDir()/imagesDir()` 收口 5 处路径；`panel/causal.mjs` + `panel/drafts.mjs` 只读；bubble 全队列 | 换机器不依赖 `D:/AI/养鱼`；面板能显示当天 action/diary/draft；有 pending 稿时 bubble 不再说“没事” |
+| **M1a 资产根 + 可观测** ✅ 只读部分已在 `dev/m1a` 实现 | `paths.draftsDir()/imagesDir()` 收口（draft-dynamic/dynamic-approve/pick-image + Cortico 传 `--drafts`）；`panel/causal.mjs` + `panel/drafts.mjs` 只读；`/api/drafts`；bubble 三队列合计 | 换机器不依赖 `D:/AI/养鱼`；面板时间线读 `causal.jsonl`（缺则回退 whale-log）；有 pending 稿时 bubble 不再说“没事”。**残留**：4 个冻结验收脚本 + wake-audit/c2-window 的内联 legacy 同优先级未动（观测后重冻统一）；“存在感”微行为属行为改动，观测后 |
 | **M1b 凭据** | 新增 `credentials/mimo.mjs`；`bilibili.mjs` 只 re-export `loadCred`；secret 不出 provider | 缺 key fail-closed；stdout/日志无 secret；B 站 cookie 位置不漂移 |
 | **M1c 媒体** | 抽 `media/tts`、`media/bgm`、`media/video/studio`、`config.media` | 现有 `--tts mimo/edge/none`、`--bgm auto/quiet-room/none`、`--plan`、20s 样片继续可跑；换 provider 不改 CLI |
 

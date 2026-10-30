@@ -13,6 +13,7 @@
  * 保留旧行为：USERPROFILE 优先于 HOME，`BILI_WHALE_CONFIG` 仍可覆盖配置文件位置。
  * 凭据按 OS 用户走 ~/.bili-ai，不随 whale home 漂移。
  */
+import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -40,3 +41,27 @@ export const homePath = (...parts) => path.join(HOME, ...parts)
 
 /** Credentials are per OS user, independent of whale home. */
 export const credentialsPath = homePath('.bili-ai', 'credentials.json')
+
+/**
+ * 旧机器上的固定落点（移植期兼容）。新机器没有这些目录就落 whale home ——
+ * 这两个函数是全仓唯一来源（M1a 收口），别再在脚本里散写 `D:/AI/养鱼`。
+ * 注意：scripts/hashes.json 冻结的 4 个验收脚本里仍有内联 legacy 逻辑，
+ * 优先级与这里完全一致（env → legacy-if-exists → home）；观测结束后重冻时再统一。
+ */
+export const LEGACY_DRAFTS = 'D:/AI/养鱼/drafts'
+export const LEGACY_IMAGES = 'D:/AI/养鱼/assets/daily'
+
+/** 草稿目录。优先级：WHALE_DRAFTS → 旧路径（存在才用） → whale home。 */
+export function draftsDir(env = process.env, { legacy = LEGACY_DRAFTS } = {}) {
+  if (env.WHALE_DRAFTS) return env.WHALE_DRAFTS
+  if (legacy) { try { if (fs.existsSync(legacy)) return legacy } catch {} }
+  return path.join(DSH_HOME, 'bili-whale', 'drafts')
+}
+
+/** 每日立绘目录。优先级：WHALE_IMAGE_DIR / WHALE_IMAGES（两个旧名都认）→ 旧路径 → whale home。 */
+export function imagesDir(env = process.env, { legacy = LEGACY_IMAGES } = {}) {
+  const e = env.WHALE_IMAGE_DIR || env.WHALE_IMAGES
+  if (e) return e
+  if (legacy) { try { if (fs.existsSync(legacy)) return legacy } catch {} }
+  return path.join(DSH_HOME, 'bili-whale', 'assets', 'daily')
+}
