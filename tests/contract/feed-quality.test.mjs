@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { keepCandidate, looksLikeJunk, snapshotRow, JUNK_PLAY, JUNK_DM } from '../../tools/lib/feed-quality.mjs'
+import { keepCandidate, looksLikeJunk, snapshotRow, JUNK_PLAY, JUNK_DM, numOf } from '../../tools/lib/feed-quality.mjs'
 
 // D-31：质量下限不许被"多偏好命中"绕过。
 // 判定函数是纯的，这里锁的是 feed.mjs 真正调用的那一个（不是另写一份）。
@@ -37,4 +37,19 @@ test('快照行不含凭据字段，标题截断', () => {
   assert.equal(row.cookie, undefined)
   assert.equal(row.keep, false)
   assert.equal(row.why, 'unverified')
+})
+
+test('B3：numOf 宽容解析——万/亿/字符串/坏值归 0（fail-closed）', () => {
+  assert.equal(numOf('1.2万'), 12000)
+  assert.equal(numOf('10亿'), 1000000000)
+  assert.equal(numOf('344'), 344)
+  assert.equal(numOf('1,234'), 1234)
+  assert.equal(numOf(344), 344)
+  assert.equal(numOf(null), 0)
+  assert.equal(numOf(''), 0)
+  assert.equal(numOf('N/A'), 0)
+  assert.equal(numOf(NaN), 0)
+  // 坏值归 0 → 质量下限把它当“未验证”丢掉；NaN 比较会让 floor 悄悄放行（快照 play=null 的教训）
+  assert.equal(looksLikeJunk({ play: numOf(null), dm: 0 }), true)
+  assert.equal(looksLikeJunk({ play: numOf('1.2万'), dm: 40 }), false)
 })

@@ -43,3 +43,23 @@ export function snapshotRow(x, decision, rank = null) {
     rank,
   }
 }
+
+/**
+ * 宽容数字解析（B3，2026-10-30 她的 OPS：关注源 play 曾落成 NaN、快照显示 null）：
+ *   '1.2万'→12000、'10亿'→1000000000、'344'/'3445'→344、344→344；
+ *   null/''/'-'/非数字串 → 0（0 会被质量下限当“未验证”，fail-closed 而不是 NaN 放行）。
+ */
+export function numOf(v) {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0
+  const s = String(v ?? '').replace(/[,\s]/g, '')
+  if (!s) return 0
+  const m = /^(\d+(?:\.\d+)?)(万|亿|[wW])?$/.exec(s)
+  if (!m) return 0
+  const n = Number(m[1])
+  if (!Number.isFinite(n)) return 0
+  const unit = m[2]
+  if (!unit) return n
+  if (unit === '亿') return n * 1e8
+  if (unit === '万' || unit === 'w' || unit === 'W') return n * 1e4
+  return n
+}

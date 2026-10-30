@@ -1,5 +1,6 @@
 import { guardedFetch as fetch } from '../lib/traffic.mjs'
-import { keepCandidate, snapshotRow } from '../lib/feed-quality.mjs'
+import { keepCandidate, snapshotRow, numOf } from '../lib/feed-quality.mjs'
+import { collectLearnedTokens } from '../lib/feed-feedback.mjs'
 // 选题器：照"她自己的偏好"挑今天该看什么。**只读**，不产生任何对外动作。
 //
 // 用法: node feed.mjs [--n 6] [--per 2] [--pool 30]
@@ -12,7 +13,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { config } from '../lib/config.mjs'
 import crypto from 'node:crypto'
-import { dshPath } from '../lib/paths.mjs'
+import { dshPath, draftsDir } from '../lib/paths.mjs'
 
 
 const argv = process.argv.slice(2)
@@ -156,7 +157,9 @@ async function fetchFollowing() {
     const p = dt.split(':').map(Number)
     const secs = p.length === 2 ? p[0] * 60 + p[1] : p.length === 3 ? p[0] * 3600 + p[1] * 60 + p[2] : 0
     pool.push({ bv: ar.bvid, t: String(ar.title ?? '').replace(/<[^>]+>/g, ''), d: secs,
-      dm: 0, play: Number(ar.stat?.play ?? 0), up: a?.name ?? '', kw: '关注' })
+      // B3（2026-10-30 她的 OPS）：快照实锤此处 play 曾落成 NaN（快照显示 null）、dm 恒为 0 ——
+      // 关注片密度全失真、排序/下限全按假数据走。stat 可能是 '1.2万' 字符串 → numOf 解析，坏值归 0（fail-closed）。
+      dm: numOf(ar.stat?.dm ?? ar.stat?.danmaku), play: numOf(ar.stat?.view ?? ar.stat?.play), up: a?.name ?? '', kw: '关注' })
   }
 }
 try { if (SOURCE_HOT === 'popular' || SOURCE_HOT === 'all') await fetchPopular() } catch { console.error('（热门源取不到，跳过）') }
@@ -185,36 +188,26 @@ try {
   const fb = JSON.parse(fs.readFileSync(FEEDBACK, 'utf8'))
   for (const e of (fb.events ?? [])) if (e?.bv) likedBVs.add(e.bv)
 } catch {}
-  // 抽主题词：拉丁词（≥2）+ 中文 3-4 字 n-gram（更具体，避免"我为/添加"这类噪音）
-  // 为什么不比标题相似度（Jaccard）：实测"几乎改一个字"的两条标题相似度只有 0.036 ✗
-  //   主题词方案能学到"dsh""大肥鱼"这种真正跨标题复用的信号 ✓
-  const STOP_WORDS = new Set(['我为', '添加', '开屏', '广告', '这个', '那个', '什么', '自己', '可以', '就是', '一个'])
-  const ownerName = String(config().owner?.name ?? '')
-  const learnTokens = (text) => {
-    const out = new Set()
-    // ⚠️ ownerName 为空时 new RegExp('') 会在每个字之间插空格 → 必须先判断 ✗（实测踩过）
-    const base = ownerName ? String(text).replace(new RegExp(ownerName, 'g'), ' ') : String(text)
-    const t = base.replace(/@\S+/g, ' ')
-    for (const m of t.matchAll(/[A-Za-z][A-Za-z0-9]{1,}/g)) if (m[0].length >= 2) out.add(m[0].toLowerCase())
-    for (const m of t.matchAll(/[\u4e00-\u9fa5]{2,}/g)) {
-      const run = m[0]
-      for (const n of [3, 4]) for (let i = 0; i + n <= run.length; i += 1) {
-        const g = run.slice(i, i + n)
-        if (!STOP_WORDS.has(g)) out.add(g)
-      }
-    }
-    return [...out]
-  }
-  // 她自己收藏过的（favorites.json）也算"品味信号" ✓ 和"被赞过的"并列
+  // 她自己收藏过的（favorites.json）也算“品味信号” ✓ 和“被赞过的”并列
   let favItems = []
   try {
     const fj = JSON.parse(fs.readFileSync(path.join(HOME, '.bili-ai', 'favorites.json'), 'utf8'))
     favItems = (fj.items ?? []).filter((x) => x && x.bv)
   } catch {}
-  const learnedTokens = [...new Set([
-    ...likedEvents.flatMap((e) => learnTokens(String(e.videoTitle ?? '') + ' ' + String(e.comment ?? ''))),
-    ...favItems.flatMap((x) => learnTokens(String(x.title ?? '') + ' ' + String(x.reason ?? ''))),
-  ])]
+  // B4（2026-10-30 她的 OPS）：回流源加第三路 —— 主人放行且已发送的动态草稿；
+  // 抽词规则整体挪进 tools/lib/feed-feedback.mjs（纯函数、带测试），这里只取数。
+  let sentDrafts = []
+  try {
+    const dd = draftsDir()
+    sentDrafts = fs.readdirSync(dd)
+      .filter((f) => f.endsWith('.json')).sort().slice(-14)
+      .map((f) => {
+        try { const d = JSON.parse(fs.readFileSync(path.join(dd, f), 'utf8')); return d?.status === 'sent' ? d : null } catch { return null }
+      })
+      .filter(Boolean)
+  } catch { /* 没有草稿目录 = 还没发过稿 */ }
+  const ownerName = String(config().owner?.name ?? '')
+  const learnedTokens = collectLearnedTokens({ likedEvents, favItems, sentDrafts, ownerName })
   const learnedHitsOf = (title) => learnedTokens.filter((tok) => title.toLowerCase().includes(tok)).length
   // 每条命中 +2.5，最多 +7.5（不压过偏好命中的主权重 ✓）
   const boostOf = (title) => Math.min(7.5, learnedHitsOf(title) * 2.5)
@@ -287,7 +280,7 @@ for (const x of uniq) {
 }
 
 console.log(`偏好（来自日记）: ${prefs.join(' · ')}`)
-console.log(`反馈回流: 被赞 ${likedEvents.length} 条 · 她收藏 ${favItems.length} 条 → 学会 ${learnedTokens.length} 个主题词`)
+console.log(`反馈回流: 被赞 ${likedEvents.length} 条 · 她收藏 ${favItems.length} 条 · 已发稿 ${sentDrafts.length} 条 → 学会 ${learnedTokens.length} 个主题词`)
 console.log(`已看过/已评论过（已排除）: ${seen.size} 个 BV`)
 console.log(`候选池: ${pool.length} 条 → 去重去已看后 ${uniq.length} 条（质量下限丢掉 ${dropped.length} 条）\n`)
 console.log(`今天可以看这几条（每词最多 ${PER} 条，共 ${N} 条）：`)
