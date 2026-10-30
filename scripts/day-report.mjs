@@ -70,7 +70,12 @@ function buildReport(day, opts = {}) {
     const textOk = !!draft.textHash || !!draft.text
     add('draft', textOk, `${draft.id} status=${draft.status} textHash=${String(draft.textHash ?? sha1(draft.text)).slice(0, 10)}`)
     if (draft.diaryHash && diary !== null) {
-      add('draft.diaryHash==diary', draft.diaryHash === sha1(diary), draft.diaryHash === sha1(diary) ? 'match' : 'MISMATCH')
+      // D-35 同口径：草稿写下后她可能又写了日记（同一天第二次行动），日终哈希会变。
+      // 只要草稿的 diaryHash 在该日任一 tick 的日记哈希里出现过，就证明它基于当天版本。
+      const tickHashes = new Set(ticks.map((t) => t?.diary?.hash).filter(Boolean))
+      const direct = draft.diaryHash === sha1(diary)
+      const bound = direct || tickHashes.has(draft.diaryHash)
+      add('draft.diaryHash 绑定当天', bound, bound ? (direct ? 'match' : 'match(tick)') : 'MISMATCH')
     } else {
       add('draft.diaryHash', false, 'MISSING（旧草稿或未记录）')
     }
