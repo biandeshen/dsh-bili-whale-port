@@ -36,6 +36,8 @@
 ### V1（观测后第一个开发窗口）：video-studio 单条切片
 
 > **2026-10-30 已完成前置**：核心 6 文件已 vendor 到 （MIT + LICENSE + SHA256SUMS + 完整性测试 2/2），未接线、无行为变更。
+> **2026-10-30 渲染通路 smoke 通过**：12s/1080×1920/h264+aac/0.77MB，标题+正文双字幕位置正确；计费、输出目录、封面均不涉及 B 站。证据卡：`docs/evidence/V1-VIDEO-SMOKE-2026-10-30.md`。
+> **V1 门仍未全过**：静音成片（无 TTS）、无封面；留给观测后第一个窗口。
 - vendor `render/media/cover` 核心 + LICENSE + SHA256；写 `tools/video-build.mjs`
 - 输入：一段文案 + 一张立绘 + Edge-TTS 音轨
 - 输出：`~/.dsh/bili-whale/media/<date>/<slug>.mp4`（1080×1920，≤60s）+ 封面 PNG
