@@ -147,7 +147,7 @@ scripts/lib/drafts/
 | **M1d 内容完整性 ✅ 已合 live** | `upsertDiarySection` 日期段内唯一 heading、`buildText` 只取目标日期、`snippetOf` 不截断书名/闭合 markdown；单测 | 同一日期不再出现重复「想说」；30 号稿不再引用 29 号段；书名/强调闭合 |
 | **M1e 审批加固** ✅ 已合 live | `list` 默认不打印 token（`--show-token <id>` 才给单条）；panel 放行按 kind 白名单重建 argv（展示字段覆盖执行）；动态审批补 `textHash`+`draftId` 绑定 | 伪造 message 改不了执行命令；默认 `list` 无 token；改稿后 go 被拒；**kill 统一检查 ✅ 已补（主人 2026-10-30 翻案 D-22）：`tools/lib/kill.mjs` + traffic 写通道收口** |
 | **M1a 资产根 + 可观测** ✅ 只读部分已合 live | `paths.draftsDir()/imagesDir()` 收口（draft-dynamic/dynamic-approve/pick-image + Cortico 传 `--drafts`）；`panel/causal.mjs` + `panel/drafts.mjs` 只读；`/api/drafts`；bubble 三队列合计 | 换机器不依赖 `D:/AI/养鱼`；面板时间线读 `causal.jsonl`（缺则回退 whale-log）；有 pending 稿时 bubble 不再说“没事”。**残留**：4 个冻结验收脚本 + wake-audit/c2-window 的内联 legacy 同优先级未动（观测后重冻统一）；“存在感”微行为属行为改动，观测后 |
-| **M1b 凭据** | 新增 `credentials/mimo.mjs`；`bilibili.mjs` 只 re-export `loadCred`；secret 不出 provider | 缺 key fail-closed；stdout/日志无 secret；B 站 cookie 位置不漂移 |
+| **M1b 凭据** ✅ 已合 live（2026-10-30） | `credentials/{mimo,bilibili,index}.mjs` 注册表：顺序 env→auth.json→credentials 与原实现一致；`describe` 只回来源；video-build 改走 provider，B 站仍纯 re-export `loadCred` | 缺 key fail-closed（严格 null）；测试锁“describe 不含 key”；B 站 cookie 位置不漂移；`--tts mimo --plan` 实跑通过 |
 | **M1c 媒体** | 抽 `media/tts`、`media/bgm`、`media/video/studio`、`config.media` | 现有 `--tts mimo/edge/none`、`--bgm auto/quiet-room/none`、`--plan`、20s 样片继续可跑；换 provider 不改 CLI |
 
 - 先做 M1d：已发 10-30 稿的 `**`/书名截断就是它放出来的；不先堵，后面每发一次都可能再犯。

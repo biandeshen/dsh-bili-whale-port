@@ -10,7 +10,6 @@
  * 依赖：vendor/dsh-video-studio（MIT）+ 本机 ffmpeg/ffprobe + tools/venv/edge-tts（回退用）。
  */
 import fs from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
 import https from 'node:https'
 import { spawn } from 'node:child_process'
@@ -19,6 +18,8 @@ import { DSH_HOME } from './lib/paths.mjs'
 import { render } from '../vendor/dsh-video-studio/render.js'
 import { makeCover } from '../vendor/dsh-video-studio/cover.js'
 import { resolveBinaries } from '../vendor/dsh-video-studio/ffmpeg.js'
+// M1b：key 只在 credentials provider 里出（顺序不变：env → auth.json → credentials/mimo.json）
+import { loadMimoKey } from './lib/credentials/mimo.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const REPO = path.resolve(HERE, '..')
@@ -110,25 +111,9 @@ if (bgmArg && bgmArg !== 'none') {
   if (!bgmFile) console.warn('[bgm] assets/bgm 里没有 mp3，本次只用人声/静音')
 }
 
-// ---- TTS：MiMo 优先，失败回退 edge-tts ----
-function readMimoKey() {
-  if (process.env.MIMO_API_KEY) return process.env.MIMO_API_KEY
-  const files = [
-    path.join(os.homedir(), '.local', 'share', 'mimocode', 'auth.json'),
-    path.join(DSH_HOME, 'bili-whale', 'credentials', 'mimo.json'),
-  ]
-  for (const f of files) {
-    try {
-      const j = JSON.parse(fs.readFileSync(f, 'utf8'))
-      const k = j?.xiaomi?.key ?? j?.key ?? j?.apiKey
-      if (k) return k
-    } catch {}
-  }
-  return null
-}
-
+// ---- TTS：MiMo 优先，失败回退 edge-tts（key 来源见 credentials/mimo.mjs，M1b）----
 async function mimoTts(text, voice) {
-  const key = readMimoKey()
+  const key = loadMimoKey().key
   if (!key) throw new Error('未找到 MiMo API key（~/.local/share/mimocode/auth.json 或 MIMO_API_KEY）')
   const payload = JSON.stringify({
     model: mimoModel,

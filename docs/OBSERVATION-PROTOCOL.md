@@ -29,13 +29,15 @@ node scripts/observation-status.mjs # 确认 startDay / 天数
    - `days/<今天>/ticks.jsonl` 最后一行时间是否在推进（3–7 分钟）；
    - `control/life.json` 的 `lastCheckAt` 是否前进；
    - 草稿是否带 `voiceHash` / `diaryHash`。
-4. **不做事**：不改代码、不重启、不 `--force`、不手动触发、不补写日记。
+4. **不做事**：不把 dev 合进 live、不为加载新代码重启 live、不 `--force`、不手动触发、不补写日记。
+
+> **2026-10-30 主人拍板（细化“禁改码”）**：**只冻结 live** —— 写代码在 dev 分支/worktree 照常推进，观测结束一次性合并。证据归因靠“live 冻结在同一份代码”保证，不靠全项目停工；崩溃恢复式的同代码重启仍按 §5 允许并留 incident。
 
 ## 3. 什么算污染（`tainted`）
 
 任一条出现，当天标 `tainted` 并写入原因：
 
-- 改代码（含 persona-core、World、脚本）；
+- 观测期间把新代码**合入 live**（或重启 live 加载新代码）——在 dev 分支/worktree 里写代码不算污染；
 - 用 `--force` 重出稿；
 - 回填/手写 `days/` 或 `fields.json`；
 - 补造草稿、补写日记；
@@ -63,6 +65,8 @@ node scripts/observation-status.mjs --json
 node scripts/g3b-check.mjs
 ```
 对照 K1（≥11/14 有稿）、K2（≥9/14 文本不同）、K3（≥3 天 mood≠宁静；2026-10-29 前的数据里中性标签叫「平静」）。
+
+> **K4 体验复盘项（2026-10-30 主人拍板，只复盘、不卡验收）**：连续 7 天私信有来有回、成稿对得上当日情绪、无日记日期错位。挑刺席意见：K1–K3 测的是阈值与字数，不测“她活得好不好”；K4 用于观测后复盘与下阶段立项。
 **不满足就继续观测，不许改判据。**
 
 ## 7. 停止条件（任一）
