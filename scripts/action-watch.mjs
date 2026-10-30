@@ -5,6 +5,8 @@
  *
  * 只读 causal.jsonl；命中 `kind:'action'` 后等 settle（让她把 feed/debrief/日记/草稿走完），
  * 再跑 wake-audit + day-report，写 days/<day>/wake-<HHMM>.json。不改变她的行为。
+ *
+ *   --follow  捕获一轮后不退出，重置起点继续等下一轮（观测期长驻用）
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -20,7 +22,8 @@ const argv = process.argv.slice(2)
 const arg = (k, d) => { const i = argv.indexOf('--' + k); return i >= 0 ? argv[i + 1] : d }
 const timeoutMs = parseDur(arg('timeout', '12h'))
 const settleMs = parseDur(arg('settle', '10m'))
-const startMs = Date.now()
+const follow = argv.includes('--follow')
+let startMs = Date.now()
 const startDay = logicalDay(startMs)
 
 function parseDur(s) {
@@ -72,6 +75,11 @@ while (Date.now() - startMs < timeoutMs) {
     log(`captured ${out} (audit exit=${audit.status}, report exit=${report.status})`)
     fs.writeFileSync(path.join(CONTROL, 'action-watch-result.json'), JSON.stringify({ ok: true, at: payload.capturedAt, day, file: out }, null, 2) + '\n')
     process.exitCode = 0
+    if (follow) {
+      startMs = Date.now()
+      log('follow: continuing after capture')
+      continue
+    }
     break
   }
   await new Promise((r) => setTimeout(r, 30_000))

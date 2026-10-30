@@ -5,8 +5,8 @@
 
 ## 现在到哪了
 
-- **2026-10-30：插件前置（未接线）。** dsh-video-studio 0.4.3 核心 6 文件 vendor 到 vendor/dsh-video-studio（MIT，零宿主依赖，完整性测试 2/2）；dsh-autocut 0.3.0 lib 15 文件 vendor 到 vendor/dsh-autocut（MIT，2/2）；AMpath conversation-assessment 移植到 persona-core（112/112，未接线）。接入顺序见 docs/PLUGIN-INTEGRATION-PLAN-2026-10-30.md：观测期禁改码，V1 在 14 天观测结束后。
-- **2026-10-30：C2 通过（canary 3/3 齐）。** 01:09:24 arm → 09:12:07 恢复，tick 空窗 **8.05h**、跨 04:00；health 5 项全过；10-29/30 day-report 均通过。`c2-result.json.ok=true`、`canary.json.C2=pass`；09:17 自检 health=0 / cf=true/32 / end=y。G3b 只剩连续 3 天：10-29 已全绿，10-30 有稿待自然 action，10-31 待发生。证据 `evidence/C2-DECISION-2026-10-29.md`。
+- **2026-10-30：V1 视频切片本地成片通过（未接线）。** 20s/1080×1920/h264+aac，Edge-TTS 人声 5.78s，9:16 + 16:9 两张封面；`tools/video-build.mjs` 走 vendor/dsh-video-studio（MIT）。只写 `~/.dsh/bili-whale/media/_smoke/`，不接 World、不投稿。证据卡 `docs/evidence/V1-VIDEO-SMOKE-2026-10-30.md`。接入顺序见 `docs/PLUGIN-INTEGRATION-PLAN-2026-10-30.md`：观测期禁改码。
+- **2026-10-30：C2 通过（canary 3/3 齐）。** 01:09:24 arm → 09:12:07 恢复，tick 空窗 **8.05h**、跨 04:00；health 5 项全过；10-29/30 day-report 均通过。`c2-result.json.ok=true`、`canary.json.C2=pass`。G3b 只剩连续 3 天：10-29 全绿；10-30 自然 action 11:11、草稿 `dyn-20261030-741fdf`，cf 等 10-31 04:05；10-31 待发生。证据 `evidence/C2-DECISION-2026-10-29.md`、`days/2026-10-30/wake-1111.json`。
 - **2026-10-29：行动观察器。** `action-watch.mjs`（pid 207048，到 10-30 15:06）盯着 `causal.jsonl`；她下一次行动后等 10 分钟，自动跑 `wake-audit --strict` + `day-report`，写 `days/<D>/wake-<HHMM>.json`。只读，不改行为；覆盖 C2 09:00 恢复后的第一轮。
 
 - **2026-10-29：D0 完成。** Cortico 已 `git init`（`3e8ccd5`，1164 文件，无密钥入库）；`days/<D>/` 快照 + append-only ticks + `day-report` 已可用；看门狗已常驻并注册 HKCU 自启（`WhaleDayWatchdog`）；`draft-dynamic` 读不到日记现在**显式失败**并记录 `diaryHash`；`npm test` 改为动态发现（23 文件 / 145 测试）。执行记录：`evidence/D0-2026-10-29.md`；排期：`ROADMAP-2026-10-29.md`。
@@ -21,9 +21,9 @@
 - **2026-10-29：观测操作卡。** `docs/OBSERVATION-PROTOCOL.md` 固定了每天 20–30 分钟的检查、污染定义、允许的运维与停止条件；G3b 全绿后用 `node scripts/observation-start.mjs` 开窗。
 - **2026-10-29：日界统一到 04:00。** `rhythm.dayKey`、`diary_append`、`todayDraftLine`、草稿 voice 文件全部用同一日界；此前 life 在午夜清零、快照按 04:00 统计，跨 00:00 会把一天算两次。重启后 `life.day=2026-10-28`（00:51 属前一天），health 通过，drill 34/34（测试自身也改为 04:00）。
 
-- **2026-10-27：宿主已统一到 Cortico。** DSH 插件的时钟在本机停用（`clock.enabled=false` + `night.windows=[]`，面板与 `/deps` 仍在）；HKCU `WhaleDraft`（21:30 nightly-scheduler）已删除。Cortico World 改为**状态驱动的醒/睡**（无固定 21:40；无聊/想他/累 + 抖动决定，单日 ≤3 次，冷战/连续失约会自动收敛），见 `Cortico/persona-core/src/rhythm.ts` 与 `docs/CORTICO-PATCHES.md` 第 11 条。
+- **2026-10-27：宿主已统一到 Cortico。** DSH 插件的时钟在本机停用（`clock.enabled=false` + `night.windows=[]`，面板与 `/deps` 仍在）；HKCU `WhaleDraft`（21:30 nightly-scheduler）已删除。Cortico World 改为**状态驱动的醒/睡**（无聊/想他/累 + 抖动决定），见 `Cortico/persona-core/src/rhythm.ts` 与 `docs/CORTICO-PATCHES.md` 第 11 条。**2026-10-30 主人裁决：无每日行动上限、无最小间隔**（`MAX_ACTIONS_PER_DAY=Infinity`、`MIN_GAP_MS=0`），靠体力/事件自然收敛，不用打卡式约束。
 - 分支 `port/core-opencode-panel`，4 个检查点提交（阶段0-2 / 阶段2 / 阶段3 / 阶段4）。
-- `npm test` **197/197**（33 文件，2026-10-29）；drill **34/34**；Cortico 套件 **103/103**（12 文件）；`tsc --noEmit` 0 错。（数字每次改动都要重跑，别抄这里）
+- `npm test` **212/212**（37 文件，2026-10-30）；drill **34/34**；Cortico 套件 **112/112**；`tsc --noEmit` 0 错。（数字每次改动都要重跑，别抄这里）
 - 已完成：core 化、AgentSessionPort、WHALE_HOME/WHALE_NODE、notify ntfy/bark、tick-catchup、路由抽取、OpenCode adapter（daemon+MCP）、whale-panel（含鱼缸视图）。
 - 未完成（按计划顺序）：
   1. client.js 的 schema/render 拆分（当前面板用 JSON 编辑器替代；DSH 设置页未动、回归全绿）
