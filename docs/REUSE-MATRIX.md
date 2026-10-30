@@ -132,10 +132,11 @@
 
 | 插件 | 来源 / 版本 | 许可 | 与 DSH 的耦合 | 我们怎么用 | 阶段 |
 |---|---|---|---|---|---|
-| **dsh-video-studio** | npm `0.4.3`（仓库 `litao36253/dsh-video-studio` 为空，包本身完整） | **MIT** | **核心零耦合**：`render.js / media.js / cover.js / ffmpeg.js` 不引用 `ctx`，纯 Node + ffmpeg，零运行时依赖（Node ≥22，仅 Windows） | **vendor 6 个核心文件 + LICENSE** 到 `tools/vendor/dsh-video-studio@0.4.3/`（包 `exports` 只暴露 `"."`，不能 `npm i` 后 import 内部路径），再包成我们的 `video-build` 子命令 | P2 |
+| **dsh-video-studio** | npm `0.4.3`（仓库 `litao36253/dsh-video-studio` 为空，包本身完整） | **MIT** | **核心零耦合**：`render.js / media.js / cover.js / ffmpeg.js` 不引用 `ctx`，纯 Node + ffmpeg，零运行时依赖（Node ≥22，仅 Windows） | **已 vendor 6 个核心文件 + LICENSE** 到 `vendor/dsh-video-studio/`（包 `exports` 只暴露 `"."`，不能 `npm i` 后 import 内部路径）；`tools/video-build.mjs` 已本地 smoke 通过 | V1 本地已通 |
 | **dsh-bili-workbench** | `xiaweihuaniubi/dsh-bili-workbench`（2★，10-27） | **MIT** | 拆成两半：`client.js` 是 DSH web UI；**`bili-op/` 是独立引擎**（`gen.mjs/tts.mjs/build.mjs`，脚本→配音→渲染→封面，**不自动发布**，仅依赖 sharp） | **子进程插件**：直接跑 `bili-op` 流水线；它自己也用 spawn 调 `bili` CLI | P2 |
 | **dsh-autocut** | `lolistlisa/dsh-autocut` v0.3.0（1★） | **MIT** | 入口 `index.js` 绑 `@deepseek-ai/dsh-tools`；`lib/`（timeline/export/render/sound）可能可剥 | 二期：先评估剥 `lib/timeline` + 剪映草稿导出；否则只借设计 | P2 后 |
-| **dsh-voice** | npm `0.4.3`（`STARDUSTLC666/dsh-voice`） | **MIT** | 入口绑 DSH 运行时（`engines.dsh>=0.2.1-rc.3`，依赖 `@stardustlc/dsh-updates`、ws、undici）；**但核心里 `edge-tts.js` / `stt.js` 的 ctx 引用数为 0，可剥** | 优先直接走 Edge-TTS；若要 STT 再 vendor `edge-tts.js`/`stt.js`（需实测依赖） | P3 |
+| **dsh-voice** | npm `0.5.2`（`STARDUSTLC666/dsh-voice`） | **MIT AND LGPL-3.0-only** | 入口绑 DSH 运行时（`engines.dsh>=0.2.1-rc.3`，依赖 `@stardustlc/dsh-updates`、ws、undici）；核心里 `edge-tts.js` / `stt.js` 的 ctx 引用数为 0，可剥 | **不再需要**：MiMo TTS 已接；Edge-TTS 仅回退；LGPL 不 vendor、不分发 | 不接 |
+| **MiMo TTS** | 小米官方 API `api.xiaomimimo.com/v1` | 商业 API（当前限时免费，条款以平台为准） | 不绑 DSH，纯 HTTPS；返回 base64 mp3 | 已接 `tools/video-build.mjs`；key 走 `MIMO_API_KEY` 或本机 `mimocode/auth.json`，不入库 | 已接（本地） |
 | **dsh-whale-maid**（多实现） | `lov0vo` / `yefeng7531`(9★) / `Sun-L1` | 各异 | 精灵图 + 状态机，DSH web UI 内嵌 | L5 备选；我们已有 Cyrene（MIT）渲染层 | P3 |
 
 **同域其它候选**（供 P2 比较）：`q253595422/dsh-imagegen-video`（64★，图+视频无限画布）、`fengyungithub/dsh-short-video-studio`（34★，ComfyUI）、`hackerFish/dsh-video-studio`（鲸影，六段导演流水线）。

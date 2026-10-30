@@ -26,7 +26,7 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ L5 呈现    Cortico WebUI ·（待评估）Coopanion 皮套 / 语音      │
+│ L5 呈现    Cortico WebUI ·（待评估）Coopanion 皮套 · 语音：MiMo TTS 本地已通（未接 L5）│
 ├──────────────────────────────────────────────────────────────┤
 │ L4 渠道    adapters: bilibili / video / live / qq              │
 │            只做协议、工具、风控与**传感器**，不含人格            │
@@ -81,8 +81,8 @@
 | 7 | 粉丝问答整理 | ✗ | 依赖 17 私信 |
 | 8 | 月度精选合集 | ✗ | 依赖 29 记忆检索 |
 | 9 | 跨平台同步 | ✗ | |
-| 10 | 音频播客版日记 | ✗ | 供给 minicpm-o-voice-manager |
-| 11 | 视频版日记（ffmpeg） | ✗ | 供给 bili-cli 投稿实现 |
+| 10 | 音频播客版日记 | ✗ | 供给 minicpm-o-voice-manager；TTS 本地已通（MiMo），播客成片未接 |
+| 11 | 视频版日记（ffmpeg） | ◐ | 2026-10-30 本地渲染链路通：20s/1080×1920，MiMo TTS + CC0 BGM + 双封面；**未接 World、未投稿**。证据 `evidence/V1-VIDEO-SMOKE-2026-10-30.md` |
 | 12 | 直播预告 | ✗ | |
 | — | 两本日记（公开/私人） | ✓ | 清单外新增；`bili_diary_append`；2026-10-28 实测含 10-25/10-27/10-28 三个日期块 |
 
@@ -159,10 +159,10 @@
 | **project-atlas** | 治理 | 文档地图 | 未借 |
 | **multi-agent-hub** | 治理 | 41 / 49 | 未借 |
 | **bili-cli**（MIT，已 fork） | 渠道 | 11 / 3 + ASR + **17 私信** | 排序靠后；M3 走**子进程插件**（`bili dm list/read`），重写为备选 |
-| **dsh-video-studio**（MIT，npm 0.4.3） | 渠道 | 11 / 3 视频渲染 | 核心 `render/media/cover` 不依赖 DSH 宿主，可库级引入；P2 |
+| **dsh-video-studio**（MIT，npm 0.4.3） | 渠道 | 11 / 3 视频渲染 | 核心 `render/media/cover` 不依赖 DSH 宿主；已 vendor 并本地 smoke 通过（未接线）；P2 |
 | **dsh-bili-workbench**（MIT） | 渠道 | 11 / 3 出片流水线 | `bili-op/` 是独立引擎（脚本→配音→渲染→封面，不自动发布），可子进程跑；P2 |
 | **dsh-autocut**（MIT） | 渠道 | 视频剪辑 / 剪映草稿 | 入口绑 DSH，需剥 `lib/`；P2 后 |
-| **dsh-voice**（MIT，npm 0.4.3） | 渠道 | 10 语音 | 绑 DSH 运行时；优先直接用 Edge-TTS；P3 |
+| **dsh-voice**（MIT，npm 0.5.2） | 渠道 | 10 语音 | **已被 MiMo TTS 取代**（官方 API，本地已接）；Edge-TTS 回退；dsh-voice 暂不需要 |
 | **video-summarizer** | 渠道 | 3 / 21 | 排序靠后 |
 | **minicpm-o-voice-manager** | 渠道 | 10 | 排序靠后 |
 | **Coopanion / Cortico 生态** | 呈现 | L5 | **待评估**（v1 误标"弃用"）。主人 10-25 09:06 原话：「Coopanion 这个软件说实话就完全能满足我们的需求吧，甚至我感觉它比当前的这个项目更先进呢」——是正面评价，无弃用指令 |

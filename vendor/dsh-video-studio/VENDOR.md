@@ -17,5 +17,5 @@
 
 ## 状态
 
-- 2026-10-30：已 vendor，**尚未接线**（观测期前不引入行为变更）。V1 视频切片在 14 天观测结束后开始。
-- 依赖外部 ffmpeg/ffprobe（`ffmpeg.js` 会解析 PATH/常见安装目录）；本机已有 ffmpeg（preflight 检查过）。
+- 2026-10-30：已 vendor；**V1 本地成片 smoke 通过**（20s/1080×1920，MiMo TTS + CC0 BGM + 双封面），但**未接 World、未投稿**。证据 `docs/evidence/V1-VIDEO-SMOKE-2026-10-30.md`。观测期不接线；模块化边界见 `docs/MODULARITY-2026-10-30.md`。
+- 依赖外部 ffmpeg/ffprobe（`ffmpeg.js` 会解析 PATH/常见安装目录）；本机已升级到 9.0.2（旧 2020 版保留为 `ffmpeg-2020.exe`）。

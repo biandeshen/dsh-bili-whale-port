@@ -19,7 +19,7 @@
 | dsh-bili-workbench（出片流水线） | P2，Q-04 待拍板 | `bili-op/` 独立引擎可子进程跑（不自动发布） |
 | dsh-video-studio（七阶段导演） | P2，vendor 方案已定 | 核心 `render/media/cover` 零耦合，库级引入 |
 | dsh-autocut（剪映草稿） | P2 后 | 入口绑 DSH，剥 `lib/` |
-| dsh-voice（Edge-TTS） | P3 | 直接用 Edge-TTS 本体，不经过插件 |
+| dsh-voice（Edge-TTS） | 不再需要 | MiMo TTS 官方 API 已接本地视频（2026-10-30）；Edge-TTS 仅回退，不 vendor LGPL |
 | dsh-whale-maid（形象动画） | 已有替代 | 溟月序列帧仓库已调研（CC BY-NC-SA） |
 | bili-cli（80+ 命令） | **我们自带 30 个命令**（tools/commands/，4666 行），覆盖投稿/评论/私信/数据，且全部过 traffic guard + 审批 | 不需要外挂 |
 

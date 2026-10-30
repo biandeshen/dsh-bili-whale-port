@@ -10,7 +10,7 @@
 | **dsh-video-studio** | npm `0.4.3` | **MIT** | 核心 `render/media/cover` 零 DSH 依赖；但 `exports` 只有 `"."`，子路径 import 会 `ERR_PACKAGE_PATH_NOT_EXPORTED`（E-13 已实测） | **可接**：vendor 6 个核心文件 + LICENSE + SHA256，不 npm import 内部路径 |
 | **dsh-bili-workbench** | **不在 npm**（仅 GitHub） | **MIT** | `bili-op/` 是独立出片引擎（脚本→配音→渲染→封面），默认不自动发布；计费/输出目录未知 | **可接但需隔离**：子进程跑，不 import，不接自动发布 |
 | **dsh-autocut** | **不在 npm**（仅 GitHub） | **MIT** | 入口绑 DSH 运行时；`lib/` 可剥出 | **可接（后置）**：剥 lib 或子进程；剪映草稿是加分项 |
-| **dsh-voice** | npm `0.5.2` | **MIT AND LGPL-3.0-only** | 绑 DSH 运行时；LGPL 部分需查是依赖还是本体 | **暂缓**：先直接 Edge-TTS（若许可干净）；LGPL 未审计前不 vendor、不分发 |
+| **dsh-voice** | npm `0.5.2` | **MIT AND LGPL-3.0-only** | 绑 DSH 运行时；LGPL 部分需查是依赖还是本体 | **不再需要**：MiMo TTS 官方 API 已在本地视频接入（V1 证据）；Edge-TTS 仅作回退；LGPL 不碰、不 vendor |
 | **dsh-whale-maid** | **不在 npm**（仅 GitHub） | 仓库许可待核 | 精灵图集 + 状态机；形象素材是溟月二创（**CC BY-NC-SA**） | **可接展示层**：序列帧可 vendor，必须署名 + 非商用；Live2D 受重分发限制，不接 |
 | **bili-cli** | GitHub | 需核（历史上部分仓库被律师函关停） | Python，80+ 命令 | **不接**：我们已有 30 个命令（4660 行）+ traffic guard + 审批，重复且引入第二运行时 |
 
@@ -30,10 +30,10 @@
 ```
 现在 ──10-31  G3b 收尾/开窗准备（零插件代码）
 11-01 ── 14 天观测（禁改码，只留证据）
-观测结束 ── V1 视频切片 ── V2 出片流水线 ── A1 形象 ── S1 语音 ── V3 自动剪辑
+观测结束 ── M1 模块化（TTS/BGM/凭据/渲染器，行为等价） ── V1 接 World ── V2 出片 ── A1 形象 ── S1 剩余（10s 试听/音色设计） ── V3 自动剪辑
 ```
 
-### V1（观测后第一个开发窗口）：video-studio 单条切片
+### V1（本地已通，观测后接线）：video-studio 单条切片
 
 > **2026-10-30 已完成前置**：核心 6 文件已 vendor 到 （MIT + LICENSE + SHA256SUMS + 完整性测试 2/2），未接线、无行为变更。
 > **2026-10-30 V1 本地成片 smoke 通过**：20s/1080×1920/h264+aac，MiMo TTS（`mimo-v2.5-tts`，音色茉莉，7.04s）+ CC0 BGM（AERIS `quiet-room`），9:16 + 16:9 两张封面；不涉及 B 站投稿。证据卡：`docs/evidence/V1-VIDEO-SMOKE-2026-10-30.md`。
@@ -55,8 +55,10 @@
 - 门：12 状态中至少 6 个可用（眨眼/思考/说话/困/开心/低落），掉帧不影响主流程
 
 ### S1：语音
-- 先审计 Edge-TTS 本体许可；若不干净，改用 dsh-voice（LGPL 部分单独隔离为可选依赖，不随包分发）
-- 门：一条 10s 中文试听，采样率/音量一致，失败回退静音不阻塞出片
+- **2026-10-30 本地已通（◐）**：MiMo `mimo-v2.5-tts` 接入 `tools/video-build.mjs`，音色 `茉莉`，7.04s 中文样片；key 走 env/auth.json，不落库；`--tts auto` 失败回退 Edge-TTS。
+- 剩余：10s 试听门未单独补；MiMo 限时免费，收费后走 Edge；voiceclone/音色设计未接。
+- 原计划「审计 Edge-TTS 许可 / dsh-voice LGPL」**不再需要**（不 vendor、不分发该插件本体）。
+- 门：一条 10s 中文试听，采样率/音量一致，失败回退静音不阻塞出片。
 
 ### V3：autocut
 - 只做"文案→多轨时间线→剪映草稿"；不直接发布
@@ -72,6 +74,6 @@
 
 ## 5. 现在的动作
 
-1. **观测期前不再接插件**（避免污染 3 天证据与 14 天冻结）。
-2. 观测结束后按 V1 → A1 → S1 → V2 → V3 顺序，每步一门，失败就停。
+1. **观测期前不再接插件**（避免污染 3 天证据与 14 天冻结）；V1/S1 的本地能力已够，不接线。
+2. 观测结束后先做 **M1 模块化**（TTS/BGM/凭据/渲染器/资产根目录，行为等价），再接 World；之后按 V1 接线 → A1 → S1 剩余 → V2 → V3，每步一门，失败就停。边界见 `docs/MODULARITY-2026-10-30.md`。
 3. Q-04/Q-08 按本方案视为"已选 A（库/子进程，不引第二宿主）"；若主人要改 B（sidecar），需在观测结束后重新裁决。
