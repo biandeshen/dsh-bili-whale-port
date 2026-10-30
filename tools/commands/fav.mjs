@@ -12,7 +12,7 @@ import { apiGet } from '../lib/bili-api.mjs'
 //   ② 每天最多 3 条
 //   ③ 同一视频 30 天只收一次
 //   ④ 同类（按理由首词）已有 ≥2 条 → 除非 --better 否则拒
-//   ⑤ 先 --dry 再 --go（和其它写操作一致）
+//   ⑤ --go 直接收（2026-10-31 分级放开：收藏自发，不进待审队列；--dry 仍可预检）
 import fs from 'node:fs'
 import path from 'node:path'
 import { dshPath } from '../lib/paths.mjs'
@@ -43,11 +43,7 @@ for (let i = 0; i < argv.length; i += 1) {
     if (argv[i + 1] && !argv[i + 1].startsWith('--')) { opt[k] = argv[i + 1]; i += 1 } else opt[k] = true
   } else positional.push(argv[i])
 }
-import { shouldGate, queueGo } from '../lib/go-gate.mjs'
-if (shouldGate(argv)) {
-  queueGo({ argv: ['fav', ...argv.filter((a) => a !== '--go')], kind: '收藏', bvid: positional[0] ?? '', oid: positional[0] ?? '', message: opt.reason ?? '', src: positional[0] ?? '' })
-  process.exit(0)
-}
+// 2026-10-31 分级放开（主人拍板）：收藏属自发档——五判据 + 额度仍然强制，不再进 go-gate 待审队列
 const DRY = !!opt.dry
 const GO = !!opt.go
 const DAY = 86400000

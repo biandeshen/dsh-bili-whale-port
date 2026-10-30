@@ -1,4 +1,5 @@
-// go-gate 契约：非分享写操作 --go 一律进待审队列；panel 放行重放 argv+--go
+// go-gate 契约：公开表达类写操作（评论/弹幕）--go 进待审队列；panel 放行重放 argv+--go
+// 2026-10-31 分级放开：收藏/点赞改自发档、回主人私信直发——不在此列（见 tests/perm-tier.test.mjs）
 process.env.BILI_TRAFFIC_TEST = '1'
 import test from 'node:test'
 import assert from 'node:assert/strict'
@@ -29,11 +30,14 @@ test('普通评论 --go 进待审，不发网络请求', () => {
   const it = items().at(-1)
   assert.equal(it.kind, '评论'); assert.equal(it.argv[0], 'comment'); assert.ok(!it.argv.includes('--go'))
 })
-test('收藏 --go 进待审', () => {
+test('收藏 --go 不进待审（2026-10-31 分级放开：自发档），五判据仍然强制', () => {
+  const before = items().length
   const r = run('tools/commands/fav.mjs', ['BV1234567890', '--reason', '想留着', '--go'])
-  assert.equal(r.status, 0, r.stderr)
-  const it = items().at(-1)
-  assert.equal(it.kind, '收藏'); assert.equal(it.argv[0], 'fav'); assert.match(it.message, /想留着/)
+  // 不入队、也不放行：理由太短在判据层就被拒（exit 3，发生在任何网络请求之前）
+  assert.equal(r.status, 3, r.stderr)
+  assert.match(r.stderr, /理由太短/)
+  assert.equal(items().length, before, 'fav --go 不得再进待审队列')
+  assert.equal(REQ(), '', '判据拒了就不该发请求')
 })
 test('弹幕 send --go 进待审', () => {
   const r = run('tools/commands/danmaku.mjs', ['send', '--room', '999', '--msg', 'hi', '--go'])
