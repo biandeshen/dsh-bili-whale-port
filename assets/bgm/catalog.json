@@ -1,0 +1,9 @@
+{
+  "license": "CC0-1.0",
+  "source": "https://github.com/farmmer938-lgtm/aeris-cc0-music",
+  "tracks": [
+    { "file": "bedroom-window-outlands.mp3", "title": "Bedroom Window (Outlands)", "mood": "lofi/calm", "bpm": 74, "seconds": 58 },
+    { "file": "quiet-room.mp3", "title": "Quiet Room", "mood": "ambient/calm", "bpm": 68, "seconds": 57 },
+    { "file": "colder-air.mp3", "title": "Colder Air", "mood": "dark/cold", "bpm": null, "seconds": 55 }
+  ]
+}
