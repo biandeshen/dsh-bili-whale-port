@@ -261,6 +261,7 @@ const DECLS = [
   { name: 'bili_diary_append', description: "Write a section into one of her diaries (public/private). Policy is FIXED: same day+heading = WHOLE-section replace (receipt says 已替换); a heading not yet present = append as a NEW section (receipt says 已追加). There is no incremental append — rewrite the whole section each time.", tags: ['write'], parameters: { type: 'object', properties: { book: { type: 'string', enum: ['public', 'private'], description: 'public = 给人看的；private = 只给自己看的偏好校准' }, heading: { type: 'string', description: '小节标题，如 看过 / 想说 / 今日指标 / 本轮留下的判断' }, text: { type: 'string', description: '这一节的正文（markdown）' } }, required: ['book', 'heading', 'text'], additionalProperties: false } },
   { name: 'bili_dm_read', description: "Check whether 主人 (the owner) sent a new DM since last check. Read-only: never sends or marks anything read on Bilibili; advances only her local cursor. If reading fails it says so — it is NOT the same as 'no message'.", tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'bili_dm_reply', description: "Draft a reply to 主人's latest DM. Only queues the draft locally for the owner to approve — it never sends. Requires having read a message first.", tags: ['write'], parameters: { type: 'object', properties: { text: { type: 'string', description: '回信正文（≤500 字，第一人称）' } }, required: ['text'], additionalProperties: false } },
+  { name: 'bili_feedback', description: "Her local issue box (never touches Bilibili): add = report a tool/system problem in one sentence (you do NOT fix code); list = show open items; resolve = mark one resolved (yours or owner's). Use it instead of silently enduring defects.", tags: ['write'], parameters: { type: 'object', properties: { action: { type: 'string', enum: ['add', 'list', 'resolve'] }, issue: { type: 'string', description: '一句话现象（≤500 字）' }, severity: { type: 'string', enum: ['low', 'high'], description: 'high = 卡住主链路；low = 体验瑕疵' }, note: { type: 'string', description: '你已如何对治（可选）' }, selfHandled: { type: 'boolean', description: '你自己已绕开/对治 = true' }, id: { type: 'string', description: 'resolve 时必填（先 list）' } }, additionalProperties: false } },
 ] as const
 
 class BiliAccountWorld {
@@ -698,6 +699,27 @@ class BiliAccountWorld {
         if (r.status === 0) causal({ kind: 'dm-draft', inboundKey: key, chars: text.length, atMs: Date.now() })
         return r.out
       }),
+      mk(DECLS[10], async (a) => {
+        const action = String(a?.action ?? 'list')
+        if (action === 'add') {
+          const issue = String(a?.issue ?? '').trim()
+          if (!issue) return '[feedback] 缺 issue：一句话现象就够'
+          const args = ['feedback', 'add', '--issue', issue, '--severity', a?.severity === 'high' ? 'high' : 'low']
+          if (a?.selfHandled) args.push('--self')
+          if (a?.note) args.push('--note', String(a.note).slice(0, 200))
+          const r = await runAsync(args, 30000)
+          if (r.status === 0) causal({ kind: 'feedback', issue: issue.slice(0, 80), severity: a?.severity === 'high' ? 'high' : 'low', selfHandled: !!a?.selfHandled, atMs: Date.now() })
+          return r.out
+        }
+        if (action === 'resolve') {
+          const id = String(a?.id ?? '')
+          if (!id) return '[feedback] resolve 需要 id（先 list）'
+          const r = await runAsync(['feedback', 'resolve', id, '--by', 'whale'], 30000)
+          return r.out
+        }
+        const r = await runAsync(['feedback', 'list'], 30000)
+        return r.out
+      }),
     ]
   }
 }
@@ -719,6 +741,7 @@ export const BILI_ACCOUNT: WorldDefinition<any> = {
       bili_diary_append: { zh: '写日记（公开/私人两本）：同日同名小节整节替换（回执「已替换」），新小节才追加（回执「已追加」），没有增量模式', en: 'Write a diary section (replace-if-exists, append-if-new; receipt says which).' },
       bili_dm_read: { zh: '看主人有没有来信（只读，失败不当成没人写信）', en: 'Check for new owner DMs (read-only; failure is not emptiness).' },
       bili_dm_reply: { zh: '写一条回信草稿（只入队，不发送）', en: 'Draft a reply to the owner (queued only, never sends).' },
+      bili_feedback: { zh: '她的意见箱：add 记一条问题 / list 看清单 / resolve 标已解决（本地文件，不联网、不发帖）', en: 'Local issue box: add / list / resolve (never touches Bilibili).' },
     }),
     events: [{ type: 'bili.action_due', description: { zh: '她想做点什么（状态驱动，不固定在几点）', en: 'She wants to do something (state-driven, no fixed clock).' }, trigger: 'flush' }],
   },
