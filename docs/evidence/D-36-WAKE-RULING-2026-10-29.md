@@ -57,3 +57,16 @@ node scripts/wake-audit.mjs --last 1 --strict   # 最近一次不完整则 exit 
 - 当天**已有稿**：允许不看片（她可以只记一笔），不算失败；但“看”的步骤若发生则不应跳过 debrief。
 - D-36 关闭条件：一次“当天无稿”的自然唤醒走完 feed→debrief→草稿，或私人日记里明确写“不发+原因”。
 - 不把“提示词改了”算通过；不算 G3b 证据。
+
+## 5. 2026-10-30 11:11 自然唤醒观察（仍 OPEN）
+
+`days/2026-10-30/wake-1111.json` 的工具序列：
+
+```
+traffic → feed → debrief → diary_read → diary_append×2 → mood_apply → dm_read
+```
+
+- **做到**：feed → debrief → 公开+私人日记；当天有稿（`dyn-20261030-741fdf`，09:12 重启时生成），符合 §4「当天已有稿」分支。
+- **没做到**：`mood_read` 缺失；本轮没有 `draft_dynamic` 调用（因为已有稿，按 §4 不算失败）。
+- **结论**：D-36 仍不关闭。等一次“当天无稿”的自然唤醒，看它是否走完 `mood_read → traffic → feed → debrief → 日记 → draft`；若仍跳 debrief/草稿，再上 D-36b 工具级 nudge。
+
