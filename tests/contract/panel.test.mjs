@@ -84,3 +84,17 @@ test('页面 HTML 内联可用（零外部资源、含鱼缸与三页签）', as
   assert.match(html, /headers:\{\.\.\.H,\.\.\.\(opt\.headers\|\|\{\}\)\}/, 'P1：POST 必须合并 Authorization，不能被 opt.headers 覆盖')
   assert.ok(!/<link|src="http|@import/.test(html), '不得引用外部资源')
 })
+
+test('放行入口：无 token 拒绝；有 token 的未知 id 返 ok:false（不真发）', async (t) => {
+  const { base, token } = await boot(t)
+  const noTok = await fetch(base + '/api/draft-approve', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: 'dyn-x' }) })
+  assert.ok([401, 503].includes(noTok.status), '无 token 必须拒，实得 ' + noTok.status)
+  const post = (body) => fetch(base + '/api/draft-approve', { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token }, body: JSON.stringify(body) })
+  const r = await (await post({ id: 'dyn-nope-xyz' })).json()
+  assert.equal(r.ok, false)
+  assert.match(r.error, /找不到草稿/)
+  const rj = await (await post({ id: 'dyn-nope-xyz', action: 'reject' })).json()
+  assert.equal(rj.ok, false)
+  const bad = await fetch(base + '/api/draft-approve', { method: 'GET', headers: { authorization: 'Bearer ' + token } })
+  assert.equal(bad.status, 405, 'GET 不给放行')
+})

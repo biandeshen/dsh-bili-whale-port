@@ -117,6 +117,47 @@ export function approve({ id, token, go = false, runner } = {}) {
   audit({ id: d.id, action: go ? 'send' : 'dry-run', result: ok ? d.status : 'failed', exit: r.status ?? null, outHash: crypto.createHash('sha1').update(out).digest('hex') })
   return { ok, status: d.status, out: out.slice(-800) }
 }
+
+/**
+ * 面板放行入口（2026-10-31 主人：“我去哪里放行她的操作？”）。
+ * token 只在服务端流转：浏览器 POST 只带 {id}，响应里永远没有 token（比 CLI stdout 更严，M1e 方向不变）。
+ * 令牌缺失/过期、或正文在入队后被改过 → 用**当前这份正文**重新入队再发：
+ * 审批对象 = 面板上显示的正文 = 实际执行的正文（M1e「展示=执行」原则保持）。
+ * kill / 一次性 / status 拦截全部沿用 approve()，本函数只是保证“有可用且绑定当前正文的令牌”。
+ * @returns {{ok:boolean, status?:string, error?:string, dynId?:string|null, outTail?:string}} 不含 token
+ */
+export function approveFromPanel({ id, runner } = {}) {
+  const hit = load(id)
+  if (!hit) return { ok: false, error: '找不到草稿 ' + id }
+  const d = hit.draft
+  if (['sent', 'rejected', 'sending'].includes(d.status)) {
+    return { ok: false, error: d.status === 'sending' ? '上次发送中断（sending），先人工核对 B 站有没有发出去' : '草稿已处理过：' + d.status }
+  }
+  const nowHash = crypto.createHash('sha1').update(String(d.text ?? '')).digest('hex')
+  const pend = ack.listPending(WHALE_HOME).find((x) => x.id === d.ackId)
+  const bound = pend
+    && String(pend.payload?.draftId ?? '') === String(d.id)
+    && String(pend.payload?.textHash ?? '') === nowHash
+  let token
+  if (bound) {
+    token = pend.token
+  } else {
+    const it = ack.enqueue(WHALE_HOME, { draftId: d.id, date: d.date, textHash: nowHash })
+    d.ackId = it.id
+    save(hit.file, d)
+    token = it.token
+  }
+  const r = approve({ id, token, go: true, runner })
+  const out = String(r.out ?? '')
+  return {
+    ok: r.ok,
+    status: r.status ?? undefined,
+    error: r.error ?? undefined,
+    dynId: (out.match(/dyn_id=([^\s]+)/) || [])[1] || null,
+    outTail: out.slice(-300),
+  }
+}
+
 export function reject(id) {
   const hit = load(id)
   if (!hit) return { ok: false, error: '找不到草稿 ' + id }

@@ -118,7 +118,7 @@ scripts/lib/drafts/
 | P0 | 资产根目录 | `WHALE_IMAGE_DIR`/`WHALE_DRAFTS`/`media.outputDir`，去掉 `D:/AI/养鱼` 硬编码 | 观测后 M1（分发前必做） |
 | P0 | 可观测性（她的一天/草稿） | panel timeline 改读 `causal.jsonl` + `days/<D>/day.json`；pending 只读展示动态草稿，审批仍走 CLI/token | 观测后 M1a |
 | P0 | 内容完整性 | 日记重复 heading/日期、`buildText` 选段、`snippetOf` 截断与未闭合 markdown；先修生成器再出新稿 | 观测后 M1d（最先） |
-| P0 | 审批加固 | token 不进 stdout/模型、argv 重建、textHash+draftId、kill 全覆盖；在此之前不做一键审批 | 观测后 M1e |
+| P0 | 审批加固 | token 不进 stdout/模型、argv 重建、textHash+draftId、kill 全覆盖；~~不做一键审批~~ **2026-10-31 主人要入口** → 服务端持 token 放行（浏览器只发 id） | 观测后 M1e |
 | P1 | 草稿 compose/store/publisher | 纯函数与存储/审批分离；审批只认 publisher | 观测后 M2 |
 | P1 | 动态发布器 | `publishers/bilibili-dynamic.mjs`；审批 token/kill 不变 | 观测后 M2 |
 | P1 | 形象/头像 | `assets/avatar/manifest.json` + `/api/avatar` 读 manifest | 观测后 M3 |
@@ -151,7 +151,7 @@ scripts/lib/drafts/
 | **M1c 媒体** | 抽 `media/tts`、`media/bgm`、`media/video/studio`、`config.media` | 现有 `--tts mimo/edge/none`、`--bgm auto/quiet-room/none`、`--plan`、20s 样片继续可跑；换 provider 不改 CLI |
 
 - 先做 M1d：已发 10-30 稿的 `**`/书名截断就是它放出来的；不先堵，后面每发一次都可能再犯。
-- M1e 先于 M1a 的“待审稿可见”：可见但一键能绕过 token，比看不见更危险。
+- M1e 先于 M1a 的“待审稿可见”：可见但一键能绕过 token，比看不见更危险。**2026-10-31 更新**：主人要放行入口 → 已按「服务端持 token、浏览器只见按钮」实现（`approveFromPanel`），红线其余部分（绑定/kill/argv 重建）全部保留；证据卡 `evidence/APPROVAL-ENTRY-2026-10-31.md`。
 - M1a 先于 M1b/M1c：它不改她的行为，只读，风险最低，也直接回答“使用体验”。
 - 新测试：TTS 回退顺序、BGM selector、secret 不出现在 stdout、缺 key fail-closed；日记重复 heading/跨日/书名截断。
 - **可观测门**：面板“她的一天”能读到当天 `causal.jsonl` 的 action/diary/draft 事件；有 pending 动态草稿时 bubble 不再说“没事”；只读，不新增自动发布。

@@ -183,10 +183,15 @@ async function loadAll(){
     :'<span class="hint">队列是空的 ✓</span>')
   // M1a：动态/回信草稿只读区 —— 以前这三条队列面板看不见，主人会以为没事；无一键发送，放行走 CLI
   const drq=((dr&&dr.dynamic)||[]).concat((dr&&dr.dm)||[])
+  const DYN_ACTIVE=['pending','dry-run','failed','cooldown']
   $('adrafts').innerHTML=(drq.length?drq.map(x=>
     '<div class="quest"><div class="h">'+esc(x.queue)+' · '+esc(x.id)+' · '+esc(x.date||'—')+' ['+esc(x.status)+']'+(x.who?' → '+esc(x.who):'')+'</div>'
     +'<div class="a">'+esc((x.text||'').slice(0,140))+'</div>'
-    +'<div class="hint">只读 · 放行走 CLI：'+(x.queue==='动态'?'scripts/dynamic-approve.mjs':'scripts/dm-approve.mjs')+' approve '+esc(x.id)+' --token <token> --go（token 用 list --show-token '+esc(x.id)+' 查看）</div></div>').join('')
+    +(x.queue==='动态'&&DYN_ACTIVE.includes(x.status)
+      ?'<div><button class="act ok" data-da="approve" data-id="'+esc(x.id)+'">✓ 放行发布</button><button class="act" data-da="reject" data-id="'+esc(x.id)+'">✗ 拒掉</button></div>'
+       +'<div class="hint">放行按钮只发 id，token 全在服务端；令牌过期会自动用当前正文重新入队再发</div>'
+      :'<div class="hint">'+(x.queue==='动态'?'已处理（sent/rejected）':'回信稿放行仍走 CLI：scripts/dm-approve.mjs approve '+esc(x.id)+' --token <token> --go')+'</div>')
+    +'</div>').join('')
     :'')
   const wiz=$('wiz');const s1=!!(cfg.config.owner&&cfg.config.owner.mid);const s2=!!(cfg.credentials&&cfg.credentials.hasSess&&cfg.credentials.hasJct);const s3=true
   if(!(s1&&s2)){wiz.style.display='block';$('wz1').textContent=s1?'✓':'去设置里填';$('wz2').textContent=s2?'✓':'去设置里粘贴';$('wz3').textContent='默认 20:00–24:00 醒 1 次；ntfy/bark 可选';$('wzhint').textContent='都亮 ✓ 后，装 DSH 插件或起 whale-daemon，到窗口她就自己醒（见 docs/RUNBOOK.md）'}else wiz.style.display='none'
@@ -194,6 +199,10 @@ async function loadAll(){
   if(!$('persona').value){try{const pe=await api('/api/persona');$('persona').value=pe.text??''}catch{}}
 }
 document.addEventListener('click',async e=>{
+  const da=e.target.closest('[data-da]')
+  if(da){const r=await api('/api/draft-approve',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:da.dataset.id,action:da.dataset.da})})
+    toast(r.ok?(r.dynId?('✓ 已发出 '+r.dynId):'✓ 已处理'):('失败：'+(r.error||'未知')))
+    loadAll();return}
   const b=e.target.closest('[data-a]')
   if(b){const r=await api('/api/pending/'+(b.dataset.a==='ok'?'approve':'reject'),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:b.dataset.id})})
     toast(r.ok?(b.dataset.a==='ok'?'✓ 已发出':'✗ 已拒绝'):('失败：'+(r.error??r.err??'')));loadAll();return}

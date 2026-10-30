@@ -23,6 +23,8 @@ import { createOpenCodeController } from '../adapters/opencode/controller.js'
 import { loadToken, authorized } from './auth.js'
 import { timeline, diary, vitals } from './data.js'
 import { collectDrafts } from './drafts.mjs'
+// 放行入口：approveFromPanel 的 token 只在服务端用，响应永不含 token（2026-10-31）
+import { approveFromPanel, reject as rejectDraft } from '../scripts/dynamic-approve.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(HERE, '..')
@@ -70,6 +72,27 @@ const extra = {
   '/api/diary': (req, res) => json(res, 200, diary(WHALE_HOME)),
   // M1a：动态/回信草稿只读列表（无 token；放行走 CLI）
   '/api/drafts': (req, res) => json(res, 200, collectDrafts({ whaleHome: WHALE_HOME })),
+  // 放行入口（2026-10-31 主人要）：浏览器只发 {id,action}，token 全程在服务端（M1e：永远不进响应/浏览器）
+  '/api/draft-approve': async (req, res) => {
+    if (req.method !== 'POST') { json(res, 405, { ok: false, error: 'POST only' }); return }
+    let body = ''
+    for await (const chunk of req) body += chunk
+    let b = {}
+    try { b = JSON.parse(body || '{}') } catch { json(res, 400, { ok: false, error: '请求体不是 JSON' }); return }
+    const id = String(b.id ?? '')
+    if (!id) { json(res, 400, { ok: false, error: '需要 id' }); return }
+    if (b.action === 'reject') {
+      const r = rejectDraft(id)
+      json(res, 200, { ok: r.ok, error: r.error ?? null })
+      return
+    }
+    if (!id.startsWith('dyn-')) {
+      json(res, 400, { ok: false, error: '暂只支持动态草稿放行（回信稿等 dm 死循环修复上线后接入）' })
+      return
+    }
+    const r = approveFromPanel({ id })
+    json(res, 200, { ok: r.ok, status: r.status ?? null, error: r.error ?? null, dynId: r.dynId ?? null, outTail: r.outTail ?? '' })
+  },
   '/api/avatar': (req, res) => {
     try { const b = fs.readFileSync(path.join(WHALE_HOME, 'avatar.png')); res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'max-age=60' }); res.end(b) } catch { json(res, 404, { ok: false, error: '未设置头像：放一张 png 到 ' + path.join(WHALE_HOME, 'avatar.png') }) }
   },
