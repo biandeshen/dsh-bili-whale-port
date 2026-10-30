@@ -141,3 +141,78 @@ test('M1e：dynamic-approve list 不吐完整 token，--show-token 才给单条'
   const showOther = spawnSync(process.execPath, [cli, 'list', '--show-token', 'dyn-nonexistent'], { env, encoding: 'utf8', timeout: 30000 })
   assert.ok(!showOther.stdout.includes(it.token), '指错 id 不得泄露别的令牌')
 })
+
+// ── ④ panel 端点：真走 routes，坏队列项必须 400 且一次执行都不发生 ────────
+// 注意：routes → support → paths.mjs 会在模块初始化时读 env，
+// 所以必须动态 import（静态 import 会被提升到上面的 DSH_HOME 赋值之前）。
+import { Readable } from 'node:stream'
+
+function makeRes() {
+  return {
+    statusCode: 0, headers: null, body: '',
+    writeHead(code, h) { this.statusCode = code; this.headers = h },
+    end(t) { this.body = t },
+    json() { return JSON.parse(this.body) },
+  }
+}
+
+async function callRoute(routes, body) {
+  const req = Readable.from([Buffer.from(JSON.stringify(body))])
+  req.method = 'POST'
+  req.headers = { host: '127.0.0.1' }
+  const res = makeRes()
+  await routes['/dsh-bili/api/pending/approve'](req, res)
+  return res
+}
+
+async function routeSetup(queuedItem) {
+  const { makeRoutes } = await import('../../core/api/routes.js')
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'm1e-panel-'))
+  const whaleHome = path.join(home, 'whale')
+  fs.mkdirSync(path.join(home, '.bili-ai'), { recursive: true })
+  fs.writeFileSync(path.join(home, '.bili-ai', 'pending-replies.json'), JSON.stringify({ items: [queuedItem] }))
+  const execs = []
+  const fakeExec = (args, opts, cb) => {
+    if (args.includes('reply-draft')) { cb(null, JSON.stringify(queuedItem), ''); return }
+    execs.push(args)
+    cb(null, 'code=0 rpid=7', '')
+  }
+  const { routes } = makeRoutes({
+    cfgFile: path.join(whaleHome, 'bili-whale.config.json'),
+    credFile: path.join(home, '.bili-ai', 'credentials.json'),
+    toolsRoot: ROOT, home, whaleHome,
+    getSchedStatus: () => ({ ok: false, reason: 't', at: null }),
+    execNode: fakeExec,
+    fetch: async () => ({ json: async () => ({ data: { isLogin: false } }) }),
+    onConfigSaved: () => {},
+  })
+  return { routes, execs }
+}
+
+test('M1e：panel 放行——白名单外 argv → 400，且从不真的执行', async () => {
+  const { routes, execs } = await routeSetup({
+    id: 'evil1', kind: '评论', who: 'x', message: 'hi',
+    oid: '1', bvid: '', argv: ['comment', '--oid', '1', '--message', 'hi', '--share'],
+  })
+  const res = await callRoute(routes, { id: 'evil1' })
+  assert.equal(res.statusCode, 400)
+  assert.match(res.json().error, /拒绝放行/)
+  assert.equal(execs.length, 0, '拒绝时不得发生任何发送执行')
+})
+
+test('M1e：panel 放行——正常项按重建 args 执行（展示 message=执行 message）', async () => {
+  const { routes, execs } = await routeSetup({
+    id: 'ok1', kind: '评论', who: 'x', message: '面板显示的正文',
+    oid: '42', bvid: 'BV1a2b3c4', root: '9', parent: '8',
+    argv: ['comment', '--oid', '42', '--message', 'argv里的旧正文', '--root', '9', '--parent', '8', '--bvid', 'BV1a2b3c4'],
+  })
+  const res = await callRoute(routes, { id: 'ok1' })
+  assert.equal(res.statusCode, 200)
+  assert.equal(res.json().ok, true)
+  assert.equal(execs.length, 1)
+  const run = execs[0].map(String)
+  assert.ok(run.includes('面板显示的正文'), '执行必须用展示的 message')
+  assert.ok(!run.includes('argv里的旧正文'), '不得执行队列 argv 里的旧正文')
+  assert.ok(run.includes('--go') && run.includes('comment'))
+  assert.ok(!run.includes('--share'))
+})
