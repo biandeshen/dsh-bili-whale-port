@@ -186,9 +186,9 @@ test('硬耦合：体力过低会拖累心情', () => {
   assert.ok(Math.abs(after.mood - 0.48) < 0.001)
 })
 
-test('dayKey：04:00 为日界，凌晨算前一天', () => {
-  assert.equal(dayKey(Date.parse('2026-10-29T03:59:00+08:00')), '2026-10-28')
-  assert.equal(dayKey(Date.parse('2026-10-29T04:00:00+08:00')), '2026-10-29')
+test('dayKey：自然日 00:00 为日界（2026-10-31 主人拍板）', () => {
+  assert.equal(dayKey(Date.parse('2026-10-29T23:59:00+08:00')), '2026-10-29')
+  assert.equal(dayKey(Date.parse('2026-10-30T00:00:00+08:00')), '2026-10-30')
 })
 
 test('时钟回拨：lastActionAt 在未来时不被间隔门卡死', () => {

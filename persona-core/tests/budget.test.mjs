@@ -37,7 +37,7 @@ test('预算：负向同样计费（防止刷负面）', () => {
   assert.equal(b.effects.length, 0)
 })
 
-test('预算：换日清零（04:00 日界）', () => {
+test('预算：换日清零（自然日 00:00 日界）', () => {
   const a = applyBudgets([E('custom', 'mood', 0.15)], emptyBudget(), T)
   const next = T + 86400_000
   assert.notEqual(dayKey(T), dayKey(next))

@@ -67,9 +67,9 @@ export const NEXT_CHECK_MAX_MS = 7 * 60_000
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n))
 
-/** 04:00 为日界，与 days/ 快照、草稿日期保持一致（凌晨算前一天）。 */
+/** 日界 = 自然日 00:00（2026-10-31 主人拍板；原 04:00），与 days/ 快照、草稿日期保持一致。 */
 export function dayKey(now: number): string {
-  return new Date(now - 4 * 3600_000).toLocaleDateString('sv-SE')
+  return new Date(now).toLocaleDateString('sv-SE')
 }
 
 /** 歇着这段时间体力恢复了多少（0 表示已经满了）。 */
