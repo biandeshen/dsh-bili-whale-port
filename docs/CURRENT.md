@@ -5,6 +5,7 @@
 
 ## 现在到哪了
 
+- **2026-10-30：插件前置（未接线）。** dsh-video-studio 0.4.3 核心 6 文件 vendor 到 vendor/dsh-video-studio（MIT，零宿主依赖，完整性测试 2/2）；dsh-autocut 0.3.0 lib 15 文件 vendor 到 vendor/dsh-autocut（MIT，2/2）；AMpath conversation-assessment 移植到 persona-core（112/112，未接线）。接入顺序见 docs/PLUGIN-INTEGRATION-PLAN-2026-10-30.md：观测期禁改码，V1 在 14 天观测结束后。
 - **2026-10-30：C2 通过（canary 3/3 齐）。** 01:09:24 arm → 09:12:07 恢复，tick 空窗 **8.05h**、跨 04:00；health 5 项全过；10-29/30 day-report 均通过。`c2-result.json.ok=true`、`canary.json.C2=pass`；09:17 自检 health=0 / cf=true/32 / end=y。G3b 只剩连续 3 天：10-29 已全绿，10-30 有稿待自然 action，10-31 待发生。证据 `evidence/C2-DECISION-2026-10-29.md`。
 - **2026-10-29：行动观察器。** `action-watch.mjs`（pid 207048，到 10-30 15:06）盯着 `causal.jsonl`；她下一次行动后等 10 分钟，自动跑 `wake-audit --strict` + `day-report`，写 `days/<D>/wake-<HHMM>.json`。只读，不改行为；覆盖 C2 09:00 恢复后的第一轮。
 
