@@ -104,12 +104,18 @@ if (isMain) {
   if (cmd === 'list') {
     const items = list()
     if (!items.length) { console.log('（没有回信草稿）'); process.exit(0) }
+    // M1e：默认隐藏完整 token；要看某条用 list --show-token <草稿id>
+    const si = argv.indexOf('--show-token')
+    const showId = si >= 0 ? argv[si + 1] : null
+    if (si >= 0 && !showId) console.log('（--show-token 需要指定草稿 id）')
     for (const d of items) {
       const t = new Date(d.at).toLocaleString('zh-CN', { hour12: false })
       console.log(`\n${d.id}  ${d.status}  ${t}  → ${d.who || '鱼片'}`)
       console.log(`  她写：${d.text}`)
       if (d.status === 'pending' || d.status === 'failed' || d.status === 'cooldown') {
-        console.log(d.token ? `  令牌：${d.token}  （到期 ${new Date(d.expiresAt).toLocaleString()}）` : '  ⚠ 没有令牌，请重新生成草稿')
+        if (!d.token) console.log('  ⚠ 没有令牌，请重新生成草稿')
+        else if (showId === d.id) console.log(`  令牌：${d.token}  （到期 ${new Date(d.expiresAt).toLocaleString()}）`)
+        else console.log(`  令牌：已隐藏（本条用 list --show-token ${d.id} 查看）  （到期 ${new Date(d.expiresAt).toLocaleString()}）`)
       }
     }
     process.exit(0)

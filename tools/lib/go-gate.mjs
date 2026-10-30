@@ -14,10 +14,11 @@ export function shouldGate(argv, { exemptFlags = [] } = {}) {
   return !exemptFlags.some((f) => argv.includes(f))
 }
 
-export function queueGo({ argv, kind, who, src, message, oid, bvid }) {
+export function queueGo({ argv, kind, who, src, message, oid, bvid, ...extra }) {
   const items = (() => { try { return JSON.parse(fs.readFileSync(FILE, 'utf8')).items ?? [] } catch { return [] } })()
   const id = Math.random().toString(16).slice(2, 10)
-  items.push({ id, at: new Date().toISOString(), kind, who: who || kind, src: src || '', message: message || '', oid: oid ?? '', bvid: bvid ?? '', argv })
+  // 结构化字段（含 root/parent/room 等 extra）是放行时重建 argv 的依据：展示什么就执行什么（M1e）
+  items.push({ id, at: new Date().toISOString(), kind, who: who || kind, src: src || '', message: message || '', oid: oid ?? '', bvid: bvid ?? '', ...extra, argv })
   fs.mkdirSync(path.dirname(FILE), { recursive: true })
   fs.writeFileSync(FILE, JSON.stringify({ items }, null, 2) + '\n')
   console.log(`[go-gate] ${kind}（id=${id}）已进待审队列：主人在 panel「信箱与事件」放行后才会发出 ✓`)

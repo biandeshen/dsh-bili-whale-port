@@ -78,6 +78,14 @@ export function approve({ id, token, go = false, runner } = {}) {
   if (fs.existsSync(KILL)) { audit({ id: d.id, action: 'approve', result: 'blocked-kill' }); return { ok: false, error: 'kill switch 已触发' } }
   if (go) {
     if (!d.ackId) return { ok: false, error: '旧草稿没有一次性令牌，请重新生成草稿再发' }
+    // M1e：令牌必须绑定 draftId + 入队时的正文哈希 —— 审完又改稿就拒（与 dm-approve 同一条规则）
+    const pending = ack.listPending(WHALE_HOME).find((x) => x.id === d.ackId)
+    if (!pending) return { ok: false, error: '令牌不存在或已过期' }
+    if (String(pending.payload?.draftId ?? '') !== String(d.id)) return { ok: false, error: '令牌与草稿不匹配' }
+    const nowHash = crypto.createHash('sha1').update(String(d.text ?? '')).digest('hex')
+    if (String(pending.payload?.textHash ?? '') !== nowHash) {
+      return { ok: false, error: '正文在入队后被改过（哈希不符），请重新生成草稿再审' }
+    }
     const a = ack.approve(WHALE_HOME, d.ackId, token)
     if (!a.ok) return { ok: false, error: '一次性令牌校验失败：' + a.error, code: a.code }
   }
@@ -135,13 +143,20 @@ if (process.argv[1] && process.argv[1].endsWith('dynamic-approve.mjs')) {
     const drafts = list()
     const pend = ack.listPending(WHALE_HOME)
     const byDraft = new Map(pend.map((p) => [p.payload?.draftId, p]))
+    // M1e：默认隐藏完整 token（不进 stdout/日志/模型）；要看哪条用 --show-token <草稿id>
+    const showTok = process.argv.includes('--show-token')
+    if (showTok && !id) console.log('（--show-token 需要指定草稿 id，如：list --show-token dyn-20261030-xxx）')
     if (!drafts.length) console.log('（没有草稿）')
     for (const d of drafts) {
       const p = byDraft.get(d.id)
       console.log(`${d.id}  [${d.status}]  ${path.basename(d.image)}`)
       console.log(`   ${String(d.text).replace(/\s+/g, ' ').slice(0, 70)}`)
-      if (p) console.log(`   待审 token: ${p.token}  过期 ${new Date(p.expiresAt).toLocaleString()}`)
-      else if (d.status === 'pending') console.log('   待审 token: （无或已过期，不能真发；请重新生成草稿）')
+      if (p) {
+        const full = showTok && id === d.id
+        console.log(full
+          ? `   待审 token: ${p.token}  过期 ${new Date(p.expiresAt).toLocaleString()}`
+          : `   待审 token: 已隐藏（本条用 list --show-token ${d.id} 查看）  过期 ${new Date(p.expiresAt).toLocaleString()}`)
+      } else if (d.status === 'pending') console.log('   待审 token: （无或已过期，不能真发；请重新生成草稿）')
     }
     process.exitCode = 0
     process.exit(0)

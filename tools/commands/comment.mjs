@@ -93,7 +93,9 @@ import { shouldGate, queueGo } from '../lib/go-gate.mjs'
 const go = args.get('go') === true || args.has('go')
 // 方案三 go-gate：非分享评论（被注入诱导的主要面）必须主人放行
 if (shouldGate(process.argv.slice(2), { exemptFlags: ['--auto', '--share'] })) {
-  queueGo({ argv: ['comment', ...process.argv.slice(2).filter((a) => a !== '--go')], kind: '评论', oid: args.get('oid') ?? '', bvid: args.get('bvid') ?? '', message: args.get('message') ?? '', src: args.get('referer') ?? '' })
+  queueGo({ argv: ['comment', ...process.argv.slice(2).filter((a) => a !== '--go')], kind: '评论', oid: args.get('oid') ?? '', bvid: args.get('bvid') ?? '', message: args.get('message') ?? '', src: args.get('referer') ?? '',
+    // M1e：坐标也结构化入队，放行时不再从模型写的 argv 里挖 root/parent
+    root: root ? String(root) : '', parent: parent ? String(parent) : '', type, referer: refererArg })
   process.exit(0)
 }
 

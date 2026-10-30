@@ -145,7 +145,7 @@ scripts/lib/drafts/
 | 子阶段 | 内容 | 门 |
 |---|---|---|
 | **M1d 内容完整性（最先）** | `upsertDiarySection` 日期段内唯一 heading、`buildText` 只取目标日期、`snippetOf` 不截断书名/闭合 markdown；单测 | 同一日期不再出现重复「想说」；30 号稿不再引用 29 号段；书名/强调闭合 |
-| **M1e 审批加固** | token 不进 stdout/日志/模型；审批对象=展示字段重建的 argv；动态审批补 `textHash`+`draftId`；kill 在写入口统一检查 | 伪造 message 不能改变执行命令；`list` 不打印 token；panel 不做一键发送 |
+| **M1e 审批加固** ✅ 已在 `dev/m1e` 实现 | `list` 默认不打印 token（`--show-token <id>` 才给单条）；panel 放行按 kind 白名单重建 argv（展示字段覆盖执行）；动态审批补 `textHash`+`draftId` 绑定 | 伪造 message 改不了执行命令；默认 `list` 无 token；改稿后 go 被拒。**kill 统一检查未做——D-22 是 DECIDED-NO，要开需主人翻案** |
 | **M1a 资产根 + 可观测** | `paths.draftsDir()/imagesDir()` 收口 5 处路径；`panel/causal.mjs` + `panel/drafts.mjs` 只读；bubble 全队列 | 换机器不依赖 `D:/AI/养鱼`；面板能显示当天 action/diary/draft；有 pending 稿时 bubble 不再说“没事” |
 | **M1b 凭据** | 新增 `credentials/mimo.mjs`；`bilibili.mjs` 只 re-export `loadCred`；secret 不出 provider | 缺 key fail-closed；stdout/日志无 secret；B 站 cookie 位置不漂移 |
 | **M1c 媒体** | 抽 `media/tts`、`media/bgm`、`media/video/studio`、`config.media` | 现有 `--tts mimo/edge/none`、`--bgm auto/quiet-room/none`、`--plan`、20s 样片继续可跑；换 provider 不改 CLI |

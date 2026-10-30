@@ -13,6 +13,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { json, readBody, isLoopbackReq, merge, DEFAULTS, KNOWN_CONFIG_KEYS } from './support.js'
+// M1e：panel 放行前必须重建 argv（审批对象 = 执行对象），不重放模型可写的队列 argv
+import { rebuildApproveArgs } from '../../tools/lib/go-rebuild.mjs'
 
 const readJson = (p) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')) } catch { return null } }
 
@@ -22,6 +24,14 @@ export function makeRoutes(deps) {
   const readConfig = () => {
     const user = readJson(cfgFile) ?? {}
     return { ...merge(DEFAULTS, user), __hasUserFile: Object.keys(user).length > 0 }
+  }
+
+  /** 面板动作落 whale-log（只记事实，不进模型上下文）。 */
+  const auditLog = (whaleHome, kind, target, note) => {
+    try {
+      fs.appendFileSync(path.join(whaleHome, 'whale-log.jsonl'),
+        JSON.stringify({ at: new Date().toISOString(), kind, target, note }) + '\n')
+    } catch {}
   }
   const writeConfig = (next) => {
     fs.mkdirSync(path.dirname(cfgFile), { recursive: true })
@@ -229,12 +239,18 @@ export function makeRoutes(deps) {
       let item = null
       try { item = JSON.parse(String(stdout ?? '')) } catch {}
       if (!item) { json(res, 400, { ok: false, error: '队列里没有这条（可能已经发过）' }); return }
-      // go-gate 项：重放原始 argv 并补 --go（普通评论/收藏/弹幕统一走待审）
+      // go-gate 项：不重放队列里存的 argv（模型可写），按 kind 白名单重建后再补 --go（M1e）
       if (item.argv) {
-        execNode([bili, ...item.argv, '--go'], { timeout: 120000, windowsHide: true }, (e2, out2, err2) => {
+        const rebuilt = rebuildApproveArgs(item)
+        if (!rebuilt.ok) {
+          auditLog(whaleHome, 'reply-rejected', item.who, `放行被拒（M1e 重建失败） · ${item.kind} · ${rebuilt.error}`)
+          json(res, 400, { ok: false, error: `拒绝放行：${rebuilt.error}` })
+          return
+        }
+        execNode([bili, ...rebuilt.args, '--go'], { timeout: 120000, windowsHide: true }, (e2, out2, err2) => {
           const text = String(out2 ?? '')
           const ok = !e2 && /code=0/.test(text)
-          try { fs.appendFileSync(path.join(whaleHome, 'whale-log.jsonl'), JSON.stringify({ at: new Date().toISOString(), kind: ok ? 'reply-sent' : 'reply-failed', target: item.who, note: `${ok ? '主人放行' : '发送失败'} · ${item.kind} · ${String(item.message).slice(0, 60)}` }) + '\n') } catch {}
+          auditLog(whaleHome, ok ? 'reply-sent' : 'reply-failed', item.who, `${ok ? '主人放行' : '发送失败'} · ${item.kind} · ${String(item.message).slice(0, 60)}`)
           json(res, 200, { ok, out: text.slice(-600), err: String(err2 ?? '').slice(0, 400) })
         })
         return

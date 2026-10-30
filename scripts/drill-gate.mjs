@@ -5,6 +5,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
+import crypto from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -125,7 +126,7 @@ const draftDir = path.join(tmp, 'drafts')
 fs.mkdirSync(draftDir, { recursive: true })
 process.env.WHALE_DRAFTS = draftDir
 const { approve } = await import('./dynamic-approve.mjs')
-const ackItem = ack.enqueue(home, { draftId: 'd-prod' })
+const ackItem = ack.enqueue(home, { draftId: 'd-prod', textHash: crypto.createHash('sha1').update('t').digest('hex') })
 fs.writeFileSync(path.join(draftDir, 'd-prod.json'), JSON.stringify({ id: 'd-prod', text: 't', image: 'x.png', status: 'pending', ackId: ackItem.id }))
 const fakeRun = () => ({ status: 0, stdout: 'dyn_id=1', stderr: '' })
 check('无 token 真发被拒', approve({ id: 'd-prod', go: true, runner: fakeRun }).ok === false)

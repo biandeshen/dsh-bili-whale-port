@@ -256,7 +256,8 @@ if (process.argv[1] && process.argv[1].endsWith('draft-dynamic.mjs')) {
     process.exit(0)
   }
   const draft = makeDraft({ date, image: img.file, text, diaryHash, voice, voiceHash: composed.voiceHash, degraded: noVoice })
-  try { draft.ackId = enqueue(WHALE_HOME, { draftId: draft.id, date }).id } catch {}
+  // M1e：令牌绑定 draftId + 正文哈希 —— 审完再改稿，approve 会拒
+  try { draft.ackId = enqueue(WHALE_HOME, { draftId: draft.id, date, textHash: draft.textHash }).id } catch {}
   fs.writeFileSync(outJson, JSON.stringify(draft, null, 2) + '\n', 'utf8')
   fs.writeFileSync(path.join(DRAFTS, date + '.md'), `# 小鱼动态草稿 ${date}\n\n- id: ${draft.id}\n- 图片: ${draft.image}\n- 状态: pending\n- diaryHash: ${draft.diaryHash}\n- textHash: ${draft.textHash}\n- voiceHash: ${draft.voiceHash}\n- degraded: ${draft.degraded}\n\n---\n\n${draft.text}\n`, 'utf8')
   console.log(JSON.stringify({ ok: true, ...draft }, null, 2))

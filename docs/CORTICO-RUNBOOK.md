@@ -32,11 +32,13 @@
 出稿三闸：feed 后必须 debrief；公开日记 24h 内更新过；文案不能与其它日期草稿一字不差。
 
 ## 审批
-- 列表（会打印完整一次性 token）：`node scripts/dynamic-approve.mjs list`
+- 列表（**默认隐藏 token**，只给草稿/状态/过期时间）：`node scripts/dynamic-approve.mjs list`
+- 查看某条完整 token：`node scripts/dynamic-approve.mjs list --show-token <草稿id>`（只显示指定那一条）
 - 试发（不消耗审批）：`node scripts/dynamic-approve.mjs approve <id>`
 - 真发：`node scripts/dynamic-approve.mjs approve <id> --token <完整token> --go`
+- **正文绑定（M1e）**：go 时校验令牌绑定的 `draftId` + 入队时正文哈希；入队后改过稿 → 拒发，要改就 `reject` 后重新出稿。
 - token 默认 12 小时；只剩 12h 内有效。冷却/风控类失败会退回 token，可原 token 重试；成功后一次性作废。
-- 私信回信草稿：`node scripts/dm-approve.mjs list` / `approve <id>`（dry，不耗 token）/ `approve <id> --token <完整token> --go` / `reject <id>`。她只有 `bili_dm_reply`（只入队），发送仍只走这条审批。
+- 私信回信草稿：`node scripts/dm-approve.mjs list`（同样默认隐藏令牌，`list --show-token <id>` 查看单条）/ `approve <id>`（dry，不耗 token）/ `approve <id> --token <完整token> --go` / `reject <id>`。她只有 `bili_dm_reply`（只入队），发送仍只走这条审批。
 
 ## 纪律
 - 正文不写 AI 声明；披露在简介与平台标签

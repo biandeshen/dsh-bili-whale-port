@@ -12,7 +12,8 @@ const { buildText, makeDraft, findDuplicateText, clipTitle } = await import('../
 const { approve, reject, list } = await import('../../scripts/dynamic-approve.mjs')
 const ack = await import('../../scripts/ack.mjs')
 function attachAck(draft, date) {
-  const it = ack.enqueue(WHALE, { draftId: draft.id, date })
+  // M1e：令牌绑定 draftId+正文哈希（与生产 draft-dynamic 入队一致）
+  const it = ack.enqueue(WHALE, { draftId: draft.id, date, textHash: draft.textHash })
   draft.ackId = it.id
   return it.token
 }

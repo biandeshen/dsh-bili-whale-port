@@ -90,7 +90,7 @@ if (mode === 'history') {
 if (mode === 'send') {
   if (!msg) { console.error('send 需要 --msg'); process.exit(2) }
   if (isDry === isGo) { console.error('必须且只能给一个 --dry 或 --go'); process.exit(2) }
-  if (isGo) { queueGo({ argv: ['danmaku', ...argv.filter((a) => a !== '--go')], kind: '弹幕', message: msg, src: 'room ' + (args.get('room') ?? '') }); process.exit(0) }
+  if (isGo) { queueGo({ argv: ['danmaku', ...argv.filter((a) => a !== '--go')], kind: '弹幕', message: msg, src: 'room ' + (args.get('room') ?? ''), room: String(args.get('room') ?? '') }); process.exit(0) }
 
   // P0-5：弹幕也是对外发言 —— 过闸（白名单里的房间 = room:<房间号>）
   if (!gate({ type: 'danmaku', target: `room:${args.get('room') ?? ''}`, auto: process.argv.includes('--auto') })) {
