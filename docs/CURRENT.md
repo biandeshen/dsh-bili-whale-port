@@ -5,6 +5,8 @@
 
 ## 现在到哪了
 
+- **2026-10-31 凌晨 03:13：权限分级放开落地（live）。** 三裁决之②已实现并合并重启：`bili_dm_reply` 直发主人（被拒自动退回草稿队列等放行）、新增 `bili_like`/`bili_fav` 自发档（收藏五判据/每天 3 条不变；点赞本地账 30 天去重，防 B站 toggle 误取消）、评论/弹幕维持 go-gate 人工放行、关注/取关不开放。档位边界由 `tests/perm-tier.test.mjs` 锁死；dsh **255/255**、Cortico core 18/18；World 重启 pid 159456，health 全绿。证据 `docs/evidence/PERM-TIER-2026-10-31.md`。
+
 - **2026-10-30：V1 视频切片本地成片通过（未接线）。** 20s/1080×1920/h264+aac，MiMo TTS（`mimo-v2.5-tts`，音色茉莉，7.04s）+ CC0 BGM（AERIS `quiet-room`，0.14），9:16 + 16:9 两张封面；`tools/video-build.mjs` 走 vendor/dsh-video-studio（MIT）。只写 `~/.dsh/bili-whale/media/_smoke/`，不接 World、不投稿。证据卡 `docs/evidence/V1-VIDEO-SMOKE-2026-10-30.md`；BGM 曲库与许可见 `assets/bgm/README.md`；模块化边界与观测后拆分计划见 `docs/MODULARITY-2026-10-30.md`。
 - **2026-10-31 主人三裁决**：①**日界 04:00 → 自然日 00:00**（全链路 13 处 + 测试 + hashes 重冻；改动在 dev/day-boundary，合并重启后生效）；②**权限分级放开**：点赞/收藏她自己发（限额与去重代码已在），给主人的回信免审批直发（仍过风控/冷却），公开评论维持人工放行，关注/取关不开放（下一开发任务）；③feed 关注豁免保留（观察两轮再议）。
 - **2026-10-31 凌晨（她的 OPS 修复批，全部合入并重启加载）**：①**放行入口**——面板「待审草稿」卡 ✓放行/✗拒掉，token 全程服务端（过期/正文被改自动按当前正文重入队）；②**意见箱**——`bili_feedback` 工具 + 面板卡（add/list/resolve，全本地 jsonl，ORIENTATION 第 10 步教她用）；③**dm_reply 死循环修复**——回信时效=最后一次成功读收件箱（空读也刷新）；④B1 文案中性化、B2 回执说死替换/追加、B3 关注源字段、B4 三路回流全部 live。两次重启 health 全绿（当前 pid 38372）；全量 **252/252**。证据卡：`OPS-FIXES` / `APPROVAL-ENTRY` / `FEEDBACK-BOX`（均 2026-10-30/31）。
