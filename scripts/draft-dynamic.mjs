@@ -21,14 +21,23 @@ const IMAGES = arg('images', process.env.WHALE_IMAGES || 'D:/AI/养鱼/assets/da
 
 function clip(s, max) {
   if (s.length <= max) return s
-  const head = s.slice(0, max)
+  let head = s.slice(0, max)
+  // 截断点落在未闭合的书名号里：退回到《之前，别把《…高效补》截成半句
+  const openBook = head.lastIndexOf('《')
+  if (openBook >= 0 && !head.slice(openBook).includes('》')) head = head.slice(0, openBook).trimEnd()
   const marks = '。！？…'
   let cut = -1
   for (let i = head.length - 1; i >= 0; i -= 1) if (marks.includes(head[i])) { cut = i; break }
-  if (cut >= 0) return head.slice(0, cut + 1)
+  if (cut >= 0) return balanceBold(head.slice(0, cut + 1))
   let out = head.trimEnd()
   while (out && '，、；：'.includes(out[out.length - 1])) out = out.slice(0, -1)
-  return out + '…'
+  return balanceBold(out) + '…'
+}
+
+/** 截断可能落在 ** 中间：补齐闭合，别把 `**` 原样发出去。 */
+function balanceBold(s) {
+  const marks = (String(s).match(/\*\*/g) || []).length
+  return marks % 2 === 1 ? String(s) + '**' : String(s)
 }
 
 /** 把日记按 `## YYYY-MM-DD` 切天；只取当天那段，避免旧文案被重复拿来出稿。 */
@@ -62,17 +71,16 @@ export function buildText(diaryText, { max = 100, date } = {}) {
     ? blocks.filter((b) => b.date === date).pop()
     : (blocks.length ? blocks[blocks.length - 1] : { lines: String(diaryText || '').split(/\r?\n/) })
   const sections = (today ? today.lines.join('\n') : '').split(/^## /m)
-  const find = (name) => sections.find((s) => s.startsWith(name)) || ''
+  // 同一天可能因旧 bug 出现重复小节；取最后一个（最新写入），别拿 09:12 的旧段出稿
+  const find = (name) => sections.filter((s) => s.startsWith(name)).pop() || ''
   const rows = find('看过').split('\n').map((l) => l.trim()).filter(Boolean)
-  // 真实日记首列是 BV（不是日期），旧格式首列是日期；一律按单元格找 BV 列，下一格就是标题。
-  // 不按长度卡：测试与旧数据里可能存在 BVnew 这类短 ID。
+  // 真实日记表格首列是日期（旧格式也兼容）；优先取 date 当天那一行，其次取最后一行。
+  const table = rows.filter((r) => r.startsWith('|')).map((r) => r.split('|').map((c) => c.trim()))
+  const dataRows = table.filter((cells) => cells.some((c) => /^BV[0-9A-Za-z]+$/.test(c)))
+  const picked = dataRows.find((cells) => cells[0] === date) || dataRows[dataRows.length - 1] || []
   let title = ''
-  for (const row of rows) {
-    if (!row.startsWith('|')) continue
-    const cells = row.split('|').map((c) => c.trim())
-    const i = cells.findIndex((c) => /^BV[0-9A-Za-z]+$/.test(c))
-    if (i >= 0) { title = cells[i + 1] || ''; break }
-  }
+  const i = picked.findIndex((c) => /^BV[0-9A-Za-z]+$/.test(c))
+  if (i >= 0) title = picked[i + 1] || ''
   if (title.length > 24) title = clipTitle(title, 24)
 
   // 「想说」可能有多个 bullet，后几条往往是真正的判断；全部保留，不再在第二条截断
@@ -133,12 +141,17 @@ const MOOD_TAIL = {
   纠结: '想了半天，也没想明白。',
 }
 
-/** 记忆里的可引用片段：看过的取片名（去掉 Ⅰ 之后的长标签），主人说过的取原话开头。 */
+/** 记忆里的可引用片段：看过的取片名（在逗号/冒号处收短），主人说过的取原话开头。 */
 export function snippetOf(text, from = 'npc') {
   const s = String(text ?? '').replace(/\s+/g, ' ').trim()
   if (from === 'npc') {
     const t = s.match(/看过《([^》]+)》/)
-    if (t) return t[1].split(/[Ⅰ|｜]/)[0].trim().slice(0, 20)
+    if (t) {
+      const base = t[1].split(/[Ⅰ|｜]/)[0].trim()
+      // 不按 20 字硬切：优先在逗号/冒号处收短，避免《…高效补》这种半句书名
+      const short = base.split(/[，,。；;：:]/)[0].trim() || base
+      return short.slice(0, 30)
+    }
   }
   return s.slice(0, 16)
 }
