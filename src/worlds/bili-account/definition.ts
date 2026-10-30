@@ -11,7 +11,7 @@ import { buildVoiceBrief } from '../../../persona-core/src/voice-brief.ts'
 import { pickActivities, ACTIVITY_LABELS } from '../../../persona-core/src/life-activities.ts'
 import { readQueue, writeQueue, newTask, dueTasks, markDelivered, markAttempt, prune, expireStale, type QueueTask } from './task-queue.ts'
 import { parseDmPeek } from './dm.ts'
-import { canReply } from './dm-reply.ts'
+import { dmAutoPlan } from './dm-reply.ts'
 import { decideAction, restRecoveryDelta, actionCost, nextCheckDelay, dayKey, MIN_GAP_MS } from '../../../persona-core/src/rhythm.ts'
 
 const ROOT = process.env.BILI_WHALE_ROOT || 'E:/WorkSpace_Qoder/dsh-bili-whale'
@@ -260,8 +260,10 @@ const DECLS = [
   { name: 'bili_draft_dynamic', description: "Create a dynamic draft from today's diary and an unused image. Never posts.", tags: ['write'], parameters: { type: 'object', properties: { force: { type: 'boolean' } }, additionalProperties: false } },
   { name: 'bili_diary_append', description: "Write a section into one of her diaries (public/private). Policy is FIXED: same day+heading = WHOLE-section replace (receipt says 已替换); a heading not yet present = append as a NEW section (receipt says 已追加). There is no incremental append — rewrite the whole section each time.", tags: ['write'], parameters: { type: 'object', properties: { book: { type: 'string', enum: ['public', 'private'], description: 'public = 给人看的；private = 只给自己看的偏好校准' }, heading: { type: 'string', description: '小节标题，如 看过 / 想说 / 今日指标 / 本轮留下的判断' }, text: { type: 'string', description: '这一节的正文（markdown）' } }, required: ['book', 'heading', 'text'], additionalProperties: false } },
   { name: 'bili_dm_read', description: "Check whether 主人 (the owner) sent a new DM since last check. Read-only: never sends or marks anything read on Bilibili; advances only her local cursor. If reading fails it says so — it is NOT the same as 'no message'.", tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
-  { name: 'bili_dm_reply', description: "Draft a reply to 主人's latest DM. Only queues the draft locally for the owner to approve — it never sends. Requires having read a message first.", tags: ['write'], parameters: { type: 'object', properties: { text: { type: 'string', description: '回信正文（≤500 字，第一人称）' } }, required: ['text'], additionalProperties: false } },
+  { name: 'bili_dm_reply', description: "Reply to 主人's latest DM. Sends directly (owner DMs are auto-approved since 2026-10-31; still traffic-guarded); if the send is refused it falls back to the local draft queue. Requires having read a message first.", tags: ['write'], parameters: { type: 'object', properties: { text: { type: 'string', description: '回信正文（≤500 字，第一人称）' } }, required: ['text'], additionalProperties: false } },
   { name: 'bili_feedback', description: "Her local issue box (never touches Bilibili): add = report a tool/system problem in one sentence (you do NOT fix code); list = show open items; resolve = mark one resolved (yours or owner's). Use it instead of silently enduring defects.", tags: ['write'], parameters: { type: 'object', properties: { action: { type: 'string', enum: ['add', 'list', 'resolve'] }, issue: { type: 'string', description: '一句话现象（≤500 字）' }, severity: { type: 'string', enum: ['low', 'high'], description: 'high = 卡住主链路；low = 体验瑕疵' }, note: { type: 'string', description: '你已如何对治（可选）' }, selfHandled: { type: 'boolean', description: '你自己已绕开/对治 = true' }, id: { type: 'string', description: 'resolve 时必填（先 list）' } }, additionalProperties: false } },
+  { name: 'bili_like', description: "Like a video she actually enjoyed (self-sent since 2026-10-31, still traffic-guarded). A like is a light signal — no cap, but do not like everything.", tags: ['write'], parameters: { type: 'object', properties: { bvid: { type: 'string' }, reason: { type: 'string', description: '为什么赞（一句话，写进偏好账）' } }, required: ['bvid'], additionalProperties: false } },
+  { name: 'bili_fav', description: "Add a video to her favorites (self-sent since 2026-10-31). Five criteria still apply and the tool REFUSES when they fail: reason ≥6 chars, ≤3/day, no repeat within 30 days, ≤2 per kind unless better. A refusal is final — do not retry.", tags: ['write'], parameters: { type: 'object', properties: { bvid: { type: 'string' }, reason: { type: 'string', description: '为什么留（≥6 字）' }, better: { type: 'boolean', description: '比同类别已收的明显更好时置 true' } }, required: ['bvid', 'reason'], additionalProperties: false } },
 ] as const
 
 class BiliAccountWorld {
@@ -683,21 +685,29 @@ class BiliAccountWorld {
         const ack = await runAsync(['dm-await', '--ack', msg.receipt], 30000)
         causal({ kind: 'inbound', key: msg.key, chars: msg.text.length, ack: ack.status === 0, atMs: Date.now() })
         return '[dm] 主人来信：' + msg.text.slice(0, 200)
-          + '\n（connection 已上升；想回的话按 ORIENTATION 走——发信仍然需要审批，不能直接发。）'
+          + '\n（connection 已上升；想回的话用 bili_dm_reply——给主人的回信可以直接发，不用等审批。）'
       }),
       mk(DECLS[9], async (a) => {
         const text = String(a?.text ?? '').trim()
-        if (!text) return '[dm_reply] 正文是空的'
-        if (text.length > 500) return '[dm_reply] 太长（>500 字），砍短一点'
         const key = String(this.life?.lastInboundKey ?? '')
-        if (!key) return '[dm_reply] 最近没有他的新消息（先 bili_dm_read）；不凭空写私信'
-        // 时效=最后一次成功读收件箱（见 dm-reply.ts）；空读也刷新 → “先看一眼”从此真能解锁
-        if (!canReply(this.life, Date.now()).ok) {
-          return '[dm_reply] 上下文过期：先 bili_dm_read 刷一下收件箱（刷完 7 天内都能回）'
+        const plan = dmAutoPlan(text, this.life, Date.now())
+        if (!plan.ok) {
+          const why = plan.reason === 'empty' ? '正文是空的'
+            : plan.reason === 'too-long' ? '太长（>500 字），砍短一点'
+            : plan.reason === 'no-key' ? '最近没有他的新消息（先 bili_dm_read）；不凭空写私信'
+            : '上下文过期：先 bili_dm_read 刷一下收件箱（刷完 7 天内都能回）'
+          return `[dm_reply] ${why}`
         }
+        const sent = await runAsync(plan.args, 180000)
+        if (sent.status === 0 && sent.out.includes('已发送')) {
+          causal({ kind: 'dm-auto-sent', inboundKey: key, chars: text.length, atMs: Date.now() })
+          return '[dm_reply] 回信已直接发出（给主人的私信免人工审批，仍过风控/冷却/互关检查）。\n' + sent.out
+        }
+        // 直发被拒（互关断了 / 风控 / 发送失败）→ 退回草稿队列，主人可在面板放行
         const r = await runAsync(['dm-draft', 'add', '--text', text, '--inbound', key, '--who', '鱼片'], 30000)
-        if (r.status === 0) causal({ kind: 'dm-draft', inboundKey: key, chars: text.length, atMs: Date.now() })
-        return r.out
+        if (r.status === 0) causal({ kind: 'dm-draft', inboundKey: key, chars: text.length, fallback: true, atMs: Date.now() })
+        const why = (sent.out || `exit ${sent.status}`).trim().split('\n').slice(-2).join(' ').slice(0, 200)
+        return `[dm_reply] 直发没成功（${why}）——已退回草稿队列，主人可在面板放行。\n` + r.out
       }),
       mk(DECLS[10], async (a) => {
         const action = String(a?.action ?? 'list')
@@ -720,6 +730,29 @@ class BiliAccountWorld {
         const r = await runAsync(['feedback', 'list'], 30000)
         return r.out
       }),
+      mk(DECLS[11], async (a) => {
+        const bvid = String(a?.bvid ?? '').trim()
+        if (!/^BV[0-9A-Za-z]{10}$/.test(bvid)) return '[like] 缺 bvid 或格式不对（BV 号 = BV + 10 位）'
+        const args = ['like', bvid]
+        const reason = String(a?.reason ?? '').trim()
+        if (reason) args.push('--reason', reason.slice(0, 120))
+        args.push('--go')
+        const r = await runAsync(args, 60000)
+        if (r.status === 0) causal({ kind: 'like', bvid, atMs: Date.now() })
+        return r.out
+      }),
+      mk(DECLS[12], async (a) => {
+        const bvid = String(a?.bvid ?? '').trim()
+        if (!/^BV[0-9A-Za-z]{10}$/.test(bvid)) return '[fav] 缺 bvid 或格式不对（BV 号 = BV + 10 位）'
+        const reason = String(a?.reason ?? '').trim()
+        if (reason.length < 6) return '[fav] 理由太短（≥6 字）——说不清为什么留，就不收'
+        const args = ['fav', bvid, '--reason', reason.slice(0, 200)]
+        if (a?.better) args.push('--better')
+        args.push('--go')
+        const r = await runAsync(args, 60000)
+        if (r.status === 0) causal({ kind: 'fav', bvid, atMs: Date.now() })
+        return r.out
+      }),
     ]
   }
 }
@@ -740,8 +773,10 @@ export const BILI_ACCOUNT: WorldDefinition<any> = {
       bili_draft_dynamic: { zh: '生成动态草稿（不发送）', en: 'Create a dynamic draft (never posts).' },
       bili_diary_append: { zh: '写日记（公开/私人两本）：同日同名小节整节替换（回执「已替换」），新小节才追加（回执「已追加」），没有增量模式', en: 'Write a diary section (replace-if-exists, append-if-new; receipt says which).' },
       bili_dm_read: { zh: '看主人有没有来信（只读，失败不当成没人写信）', en: 'Check for new owner DMs (read-only; failure is not emptiness).' },
-      bili_dm_reply: { zh: '写一条回信草稿（只入队，不发送）', en: 'Draft a reply to the owner (queued only, never sends).' },
+      bili_dm_reply: { zh: '回主人的私信（直接发送；被拒才退回草稿队列等放行）', en: 'Reply to the owner (sends directly; falls back to the draft queue only if refused).' },
       bili_feedback: { zh: '她的意见箱：add 记一条问题 / list 看清单 / resolve 标已解决（本地文件，不联网、不发帖）', en: 'Local issue box: add / list / resolve (never touches Bilibili).' },
+      bili_like: { zh: '给她看完觉得好的视频点赞（自己发，过风控）', en: 'Like a video she enjoyed (self-sent, traffic-guarded).' },
+      bili_fav: { zh: '收藏视频（自己发；五条判据+每天 3 条上限，不过就拒）', en: 'Favorite a video (self-sent; five criteria + 3/day cap, refuses on failure).' },
     }),
     events: [{ type: 'bili.action_due', description: { zh: '她想做点什么（状态驱动，不固定在几点）', en: 'She wants to do something (state-driven, no fixed clock).' }, trigger: 'flush' }],
   },

@@ -5,7 +5,7 @@ import { makeRunner } from '../src/worlds/bili-account/runner.ts'
 import { emptyState, applyEvent, readMood, describeState, remember, recentWatch, annotateFeed } from '../src/worlds/bili-account/personaAdapter.ts'
 import { sanitizeEffects } from '../src/worlds/bili-account/definition.ts'
 import { upsertDiarySection, sectionStats } from '../src/worlds/bili-account/diary.ts'
-import { canReply, DM_REPLY_WINDOW_MS } from '../src/worlds/bili-account/dm-reply.ts'
+import { canReply, dmAutoPlan, DM_REPLY_WINDOW_MS } from '../src/worlds/bili-account/dm-reply.ts'
 import { diaryFresh, diaryRefusal } from '../src/worlds/bili-account/gates.ts'
 
 const HOUR = 3600_000
@@ -209,4 +209,21 @@ test('OPS-故障：回信时效=最后一次成功读收件箱，空读解锁（
   // 没有来信 → no-key（不凭空写私信）
   assert.equal(canReply({ lastDmReadAt: now }, now).reason, 'no-key')
   assert.equal(canReply(null, now).reason, 'no-key')
+})
+test('分级放开：bili_dm_reply 直发计划 = 文案校验 + 时效门，参数永远带 --go', () => {
+  const now = Date.parse('2026-10-31T00:00:00+08:00')
+  const life = { lastInboundKey: 'k1', lastDmReadAt: now - 5000 }
+  // 合法 → 直发参数
+  assert.deepEqual(dmAutoPlan('  收到，本小姐这就去看  ', life, now), {
+    ok: true, reason: 'ok', args: ['dm', '--msg', '收到，本小姐这就去看', '--go'],
+  })
+  // 文案校验先于时效门
+  assert.equal(dmAutoPlan('', life, now).reason, 'empty')
+  assert.equal(dmAutoPlan('  ', life, now).reason, 'empty')
+  assert.equal(dmAutoPlan('字'.repeat(501), life, now).reason, 'too-long')
+  assert.deepEqual(dmAutoPlan('字'.repeat(500), life, now).args.slice(0, 2), ['dm', '--msg'], '500 字整不拒')
+  // 时效门原样传导（直发不放松任何门）
+  assert.equal(dmAutoPlan('回一句', { lastInboundKey: 'k1', lastDmReadAt: now - (DM_REPLY_WINDOW_MS + 1) }, now).reason, 'stale')
+  assert.equal(dmAutoPlan('回一句', { lastDmReadAt: now }, now).reason, 'no-key')
+  assert.equal(dmAutoPlan('回一句', null, now).reason, 'no-key')
 })

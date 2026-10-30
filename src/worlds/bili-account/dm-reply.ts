@@ -29,3 +29,26 @@ export function canReply(
   if (nowMs - at >= DM_REPLY_WINDOW_MS) return { ok: false, reason: 'stale' }
   return { ok: true, reason: 'ok' }
 }
+
+export const DM_REPLY_MAX_CHARS = 500
+
+export interface DmAutoPlan {
+  ok: boolean
+  reason: 'ok' | 'empty' | 'too-long' | 'no-key' | 'stale'
+  /** bili.mjs 的参数；仅 ok 时有效。发送侧仍过 traffic 风控与互关检查。 */
+  args: string[]
+}
+
+/** 回信直发计划（2026-10-31 分级放开）：给主人的私信免人工审批，文案校验+时效门与草稿模式相同。 */
+export function dmAutoPlan(
+  text: string,
+  life: ReplyGateLife | null | undefined,
+  nowMs: number = Date.now(),
+): DmAutoPlan {
+  const t = text.trim()
+  if (!t) return { ok: false, reason: 'empty', args: [] }
+  if (t.length > DM_REPLY_MAX_CHARS) return { ok: false, reason: 'too-long', args: [] }
+  const gate = canReply(life, nowMs)
+  if (!gate.ok) return { ok: false, reason: gate.reason, args: [] }
+  return { ok: true, reason: 'ok', args: ['dm', '--msg', t, '--go'] }
+}
