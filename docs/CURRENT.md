@@ -41,6 +41,17 @@
 - **已知缺陷**：私人日记 10-30 09:12/11:11 的内容落到了 `## 2026-10-29`（日期错位，她自己在日记里记了）；公开日记同一天出现两个 `## 想说`，`buildText` 取第一个，导致 10-30 稿用了 09:12 的 Yoga Nidra，而不是 11:11 的雷雨 283 桶；已发稿还有一个未闭合 `**` 和被截书名。原因待查，观测期不修。
 - **团队分析**：六席短板与设计见 [TEAM-GAP-ANALYSIS-2026-10-30.md](TEAM-GAP-ANALYSIS-2026-10-30.md)；DSH/大肥鱼开源件核查见 [PLUGIN-RADAR-2026-10-30.md](PLUGIN-RADAR-2026-10-30.md)。结论：不装 DSH 插件、不引第二宿主，借 `dsh-dafeiyu-life` 的信息架构和 `dsh-bili-scroll` 的日报设计；先修内容完整性，再做只读“她的一天”，最后拆媒体供应商。
 
+## 接下来（观测结束后，按顺序）
+
+1. **M1d 内容完整性**：日记重复 heading/日期、`buildText` 选段、`snippetOf` 截断与未闭合 markdown；先修再出新稿。
+2. **M1e 审批加固**：token 不进 stdout/模型、argv 重建、动态审批 textHash+draftId、kill 全覆盖；在此之前不做一键审批。
+3. **M1a 可观测 + 存在感**：panel 改读 `causal.jsonl`，三队列待审稿只读；两次 B 站 action 之间加低成本“她在”状态，不再空白。
+4. **M1b/M1c**：MiMo 凭据 provider、TTS/BGM/渲染器适配层、资产根目录去 `D:/AI/养鱼`。
+5. **行动密度 Drive v2**：加 create/social 驱动，分离“存在感”与“B 站 action”；先 10 天模拟再定阈值。**不要只把 `CHECK_PROB` 拉到 1**。
+6. **M2/M3**：草稿 publisher/DM 回信可见/通知；形象、语音、视频接 World；V2 出片/剪映。
+
+观测期（11-01 起）不改码；10-31 是 G3b 最后数据日，11-01 04:05 后才可能过门。
+
 ## 一分钟接上
 
 ```bash
