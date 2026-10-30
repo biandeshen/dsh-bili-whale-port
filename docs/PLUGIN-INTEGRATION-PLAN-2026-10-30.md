@@ -34,6 +34,8 @@
 ```
 
 ### V1（观测后第一个开发窗口）：video-studio 单条切片
+
+> **2026-10-30 已完成前置**：核心 6 文件已 vendor 到 （MIT + LICENSE + SHA256SUMS + 完整性测试 2/2），未接线、无行为变更。
 - vendor `render/media/cover` 核心 + LICENSE + SHA256；写 `tools/video-build.mjs`
 - 输入：一段文案 + 一张立绘 + Edge-TTS 音轨
 - 输出：`~/.dsh/bili-whale/media/<date>/<slug>.mp4`（1080×1920，≤60s）+ 封面 PNG
