@@ -39,18 +39,26 @@ export function upsertDiarySection(text: string, input: DiarySectionInput): stri
     if (isDateHeading(lines[i])) { end = i; break }
   }
 
-  let s = -1
+  // 同一日期段里可能有历史遗留的重复小节（10-30 实测两个「想说」）：
+  // 全部收集，删掉旧块，只在第一个位置写一份新内容；中间其它小节（看过等）保留。
+  const hits: number[] = []
   for (let i = start + 1; i < end; i++) {
-    if (lines[i].trim() === headingLine) { s = i; break }
+    if (lines[i].trim() === headingLine) hits.push(i)
   }
 
   const section = ['', headingLine, '', ...bodyLines, '']
-  if (s >= 0) {
-    let e = end
-    for (let i = s + 1; i < end; i++) {
-      if (isAnyHeading(lines[i])) { e = i; break }
-    }
-    return [...lines.slice(0, s), ...section, ...lines.slice(e)].join('\n')
+  if (hits.length) {
+    const ranges = hits.map((s) => {
+      let e = end
+      for (let i = s + 1; i < end; i++) {
+        if (isAnyHeading(lines[i])) { e = i; break }
+      }
+      return [s, e] as const
+    })
+    const out = [...lines]
+    for (const [s, e] of [...ranges].reverse()) out.splice(s, e - s)
+    out.splice(hits[0], 0, ...section)
+    return out.join('\n')
   }
 
   return [...lines.slice(0, end), ...section, ...lines.slice(end)].join('\n')

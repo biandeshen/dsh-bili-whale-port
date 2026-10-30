@@ -99,6 +99,18 @@ test('diary：新的一天自动建日期块，同名小节替换不重复', () 
   assert.match(t, /今天想说的/)
 })
 
+test('diary：同一天历史重复「想说」收拢为一个，保留其它小节', () => {
+  let t = '# 鲸鱼日记 · 给鱼片\n\n## 2026-10-30\n\n## 想说\n\n- 09:12 的旧段 Yoga Nidra\n\n## 看过\n\n| 时间 | BV | 标题 |\n| 2026-10-30 | BV1d3411t7dV | 雷雨声 |\n\n## 想说\n\n- 11:11 的雷雨 283 桶\n'
+  t = upsertDiarySection(t, { book: 'public', heading: '想说', body: '- 最新写入', date: '2026-10-30' })
+  const dateBlock = t.slice(t.indexOf('## 2026-10-30'))
+  assert.equal((dateBlock.match(/## 想说/g) || []).length, 1)
+  assert.equal((dateBlock.match(/## 看过/g) || []).length, 1)
+  assert.match(dateBlock, /最新写入/)
+  assert.doesNotMatch(dateBlock, /Yoga Nidra/)
+  assert.doesNotMatch(dateBlock, /雷雨 283 桶/)
+  assert.match(dateBlock, /雷雨声/)
+})
+
 test('diary：私有日记用三级标题，跨天不串段', () => {
   let t = ''
   t = upsertDiarySection(t, { book: 'private', heading: '本轮留下的判断', body: '- 第一条', date: '2026-10-27' })
