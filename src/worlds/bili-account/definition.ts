@@ -150,6 +150,9 @@ function rememberWatch(state: any, receipt: string, bvid: string): any {
   })
 }
 
+// M1a：与 dsh 仓 tools/lib/paths.mjs 的 draftsDir() 同优先级（env → 旧路径-if-exists → home）。
+// 跨仓 import 比复制三行更脆，所以保持本地等价实现 + 下面用 --drafts 把本进程解析的目录
+// 显式传给 draft-dynamic 子进程 —— 读的和写的永远是同一个目录。
 const DRAFTS_DIR = process.env.WHALE_DRAFTS
   || (fs.existsSync('D:/AI/养鱼/drafts') ? 'D:/AI/养鱼/drafts' : path.join(WHALE, 'bili-whale', 'drafts'))
 
@@ -611,7 +614,7 @@ class BiliAccountWorld {
         } catch (e: any) {
           return '[bili_draft_dynamic failed] 无法写入 voiceBrief：' + String(e?.message ?? e)
         }
-        const args = [...(a?.force ? ['--force'] : []), '--voice', voiceFile]
+        const args = [...(a?.force ? ['--force'] : []), '--drafts', DRAFTS_DIR, '--voice', voiceFile]
         const r = await runNodeAsync(path.join(ROOT, 'scripts', 'draft-dynamic.mjs'), args, 90000)
         return r.out
       }),
