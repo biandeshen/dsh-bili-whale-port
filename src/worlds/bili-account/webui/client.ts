@@ -184,8 +184,9 @@ function mountTimeline(ctx: WebUiPanelContext): void {
   const draw = (st: TimelineState): void => {
     err.hidden = true;
     if (st?.ok === false) { err.textContent = '时间线读不到：' + (st?.error ?? ''); err.hidden = false; return; }
-    table.clear('还没有事件');
-    for (const e of st?.items ?? []) {
+    const items = st?.items ?? [];
+    table.clear(items.length ? undefined : '还没有事件');
+    for (const e of items) {
       const t = e.at ? new Date(e.at) : null;
       const hhmm = t ? `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}` : '—';
       const content = e.note ?? e.heading ?? e.bvid ?? e.result ?? '';
