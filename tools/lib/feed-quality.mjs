@@ -63,3 +63,18 @@ export function numOf(v) {
   if (unit === '万' || unit === 'w' || unit === 'W') return n * 1e4
   return n
 }
+
+/**
+ * 否定词命中（dislike）：任一 dislike 词——按与偏好同样的切分（去连接符、≥2 字）——
+ * 出现在标题里即拦下，返回命中的那个词（null = 放行）。
+ * 2026-10-31 修：dislike 之前只在 feed.mjs 读进变量、从未参与筛选（她报「词表未生效」的字面根因）。
+ */
+export function dislikeHit(title, words) {
+  const t = String(title ?? '').toLowerCase()
+  for (const w of words ?? []) {
+    for (const tok of String(w).split(/[\s·,，、/]+|与|和|及|向|的|类/).map((s) => s.trim()).filter((s) => s.length >= 2)) {
+      if (t.includes(tok.toLowerCase())) return tok
+    }
+  }
+  return null
+}

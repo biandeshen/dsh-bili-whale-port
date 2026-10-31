@@ -1,5 +1,5 @@
 import { guardedFetch as fetch } from '../lib/traffic.mjs'
-import { keepCandidate, snapshotRow, numOf } from '../lib/feed-quality.mjs'
+import { keepCandidate, snapshotRow, numOf, dislikeHit } from '../lib/feed-quality.mjs'
 import { collectLearnedTokens } from '../lib/feed-feedback.mjs'
 // 选题器：照"她自己的偏好"挑今天该看什么。**只读**，不产生任何对外动作。
 //
@@ -253,9 +253,15 @@ const selfName = String(config().self?.name ?? "")
 //   300/3 是 10-22 已有的规则，这次不新增数值；关注流例外（她订阅的人不算平台碎屑）
 //   判定与快照在 tools/lib/feed-quality.mjs（纯函数，可单测）
 const dropped = []
+const droppedDislike = []
 const uniq = [...new Map(pool.map((x) => [x.bv, x])).values()]
   .filter((x) => !seen.has(x.bv) && !likedBVs.has(x.bv) && !favBVs.has(x.bv))
   .filter((x) => !(selfName && String(x.up ?? "").includes(selfName)))
+  .filter((x) => {
+    const d = dislikeHit(x.t, dislike)
+    if (d) droppedDislike.push({ ...x, _dislike: d })
+    return !d
+  })
   .filter((x) => {
     const d = keepCandidate(x)
     if (!d.keep) dropped.push(x)
@@ -282,7 +288,8 @@ for (const x of uniq) {
 console.log(`偏好（来自日记）: ${prefs.join(' · ')}`)
 console.log(`反馈回流: 被赞 ${likedEvents.length} 条 · 她收藏 ${favItems.length} 条 · 已发稿 ${sentDrafts.length} 条 → 学会 ${learnedTokens.length} 个主题词`)
 console.log(`已看过/已评论过（已排除）: ${seen.size} 个 BV`)
-console.log(`候选池: ${pool.length} 条 → 去重去已看后 ${uniq.length} 条（质量下限丢掉 ${dropped.length} 条）\n`)
+console.log(`候选池: ${pool.length} 条 → 去重去已看后 ${uniq.length} 条（质量下限丢掉 ${dropped.length} 条 · dislike 拦下 ${droppedDislike.length} 条）\n`)
+if (droppedDislike.length) console.log(`  dislike 命中样例: ${droppedDislike.slice(0, 3).map((x) => `${x._dislike}←「${String(x.t).slice(0, 20)}」`).join(' · ')}`)
 console.log(`今天可以看这几条（每词最多 ${PER} 条，共 ${N} 条）：`)
 const perKw = {}
 let shown = 0
