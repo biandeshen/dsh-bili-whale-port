@@ -12,6 +12,12 @@ import { pickActivities, ACTIVITY_LABELS } from '../../../persona-core/src/life-
 import { readQueue, writeQueue, newTask, dueTasks, markDelivered, markAttempt, prune, expireStale, type QueueTask } from './task-queue.ts'
 import { parseDmPeek } from './dm.ts'
 import { dmAutoPlan } from './dm-reply.ts'
+import type { WorldWebUiDecl } from '../../core/types.ts'
+import type { Language } from '../../core/language.ts'
+import {
+  warmConsole, consoleReady, tankLocal, killOn, lastTickAt, pendingDraftCount, openFeedbackCount,
+  timelineState, diaryState, draftsState, draftAction, feedbackResolve, feedbackListSafe, vitalsState, avatarBinary, trafficStatus,
+} from './tank.ts'
 import { decideAction, restRecoveryDelta, actionCost, nextCheckDelay, dayKey, MIN_GAP_MS } from '../../../persona-core/src/rhythm.ts'
 
 const ROOT = process.env.BILI_WHALE_ROOT || 'E:/WorkSpace_Qoder/dsh-bili-whale'
@@ -301,8 +307,102 @@ class BiliAccountWorld {
     try { writeQueue(QUEUE_FILE, this.queue) } catch {}
   }
 
+  /**
+   * 世界页「小鱼 · 鱼缸」—— 2026-10-31 主人拍板功能聚合：原独立面板（panel/8447）
+   * 的时间线/审批/意见箱/体征/日记全部收进这一页，与聊天同一个入口。
+   * 数据面在 tank.ts（复用 dsh 模块）；浏览器面板在 webui/client.ts。
+   */
+  webUi(language: Language = 'zh'): WorldWebUiDecl {
+    const zh = language !== 'en'
+    const t = (a: string, b: string) => (zh ? a : b)
+    void warmConsole()
+
+    const tick = lastTickAt()
+    const tickAgeMin = tick ? Math.max(0, Math.round((Date.now() - Date.parse(tick)) / 60000)) : null
+    const pending = pendingDraftCount()
+    const kill = killOn()
+    const tank = tankLocal()
+    const ready = consoleReady()
+    const life = readLifeFile() ?? {}
+    const traffic = trafficStatus()
+
+    const trafficState: 'online' | 'loading' | 'error' | 'offline' =
+      traffic === undefined ? 'loading'
+      : traffic === null ? 'offline'
+      : traffic.paused ? 'error' : 'online'
+
+    return {
+      label: t('小鱼 · 鱼缸', 'Xiaoyu · Tank'),
+      lamps: [
+        {
+          label: t('生活循环', 'Life loop'),
+          state: tick === null ? 'offline' : tickAgeMin !== null && tickAgeMin <= 30 ? 'online' : 'offline',
+          hint: tick === null ? t('还没动过', 'no activity yet') : t(`${tickAgeMin} 分钟前有动静`, `last activity ${tickAgeMin}m ago`),
+        },
+        { label: 'kill', state: kill ? 'error' : 'online', hint: kill ? t('已触发——所有写被拦', 'engaged — all writes blocked') : t('未触发', 'not engaged') },
+        { label: t('发布通道', 'Publish gate'), state: trafficState, hint: traffic?.hint ?? (trafficState === 'loading' ? t('模块预热中', 'warming up') : undefined) },
+        {
+          label: t('待审稿', 'Drafts'),
+          state: ready ? 'online' : 'loading',
+          hint: pending > 0 ? t(`${pending} 条等你放行`, `${pending} awaiting approval`) : t('没有等放行的稿', 'nothing to approve'),
+        },
+        { label: t('数据面', 'Data plane'), state: ready ? 'online' : 'loading', hint: ready ? t('dsh 模块已就绪', 'dsh modules ready') : t('dsh 模块预热中', 'warming dsh modules') },
+      ],
+      badges: [
+        { label: t('心情', 'Mood'), value: tank.ok ? String(tank.mood?.primary ?? '—') : '—', tone: 'plain' },
+        { label: t('今日行动', 'Actions today'), value: Number(life.actionsToday ?? 0), tone: Number(life.actionsToday ?? 0) > 0 ? 'on' : 'plain' },
+        { label: t('待放行', 'Pending'), value: pending, tone: pending > 0 ? 'off' : 'on' },
+        { label: t('意见箱', 'Issues'), value: openFeedbackCount(), tone: 'plain' },
+      ],
+      panels: [
+        { id: 'tank', title: t('鱼缸', 'Tank'), description: t('她的场值、心情与头像', 'Her fields, mood and avatar'), getMethods: ['state'] },
+        { id: 'drafts', title: t('待审稿', 'Drafts'), description: t('放行或拒掉她的动态草稿', 'Approve or reject her dynamic drafts'), getMethods: ['state'] },
+        { id: 'timeline', title: t('她的一天', 'Her day'), description: t('因果链事件（只读）', 'Causal events (read-only)'), getMethods: ['state'] },
+        { id: 'diary', title: t('日记', 'Diary'), description: t('公开与私人两本', 'Public and private books'), getMethods: ['state'] },
+        { id: 'feedback', title: t('意见箱', 'Issues'), description: t('她报的问题与处理', 'Her reported issues'), getMethods: ['state'] },
+        { id: 'vitals', title: t('体征', 'Vitals'), description: t('风控额度与今日计数', 'Traffic budget and today counts'), getMethods: ['state'] },
+      ],
+      invoke: async (panel, method, args) => {
+        if (panel === 'tank') {
+          if (method === 'state') return tankLocal()
+          if (method === 'avatar') {
+            const a = avatarBinary()
+            if (!a) throw new Error('还没放头像（把 png 放到 whale home 根下的 avatar.png）')
+            return a
+          }
+          throw new Error('unknown method ' + method)
+        }
+        if (panel === 'drafts') {
+          if (method === 'state') return draftsState()
+          if (method === 'approve') return draftAction(String(args[0]), 'approve')
+          if (method === 'reject') return draftAction(String(args[0]), 'reject')
+          throw new Error('unknown method ' + method)
+        }
+        if (panel === 'timeline') {
+          if (method === 'state') return timelineState(Number(args[0] ?? 0), Number(args[1] ?? 50))
+          throw new Error('unknown method ' + method)
+        }
+        if (panel === 'diary') {
+          if (method === 'state') return diaryState()
+          throw new Error('unknown method ' + method)
+        }
+        if (panel === 'feedback') {
+          if (method === 'state') return feedbackListSafe()
+          if (method === 'resolve') return feedbackResolve(String(args[0]))
+          throw new Error('unknown method ' + method)
+        }
+        if (panel === 'vitals') {
+          if (method === 'state') return vitalsState()
+          throw new Error('unknown method ' + method)
+        }
+        throw new Error('unknown panel ' + panel)
+      },
+    }
+  }
+
   async start(host: any): Promise<void> {
     this.host = host
+    void warmConsole()   // 世界页数据面的 dsh 模块预热（不阻塞启动；未好时灯显 loading）
     this.queue = expireStale(readQueue(QUEUE_FILE), Date.now())
     if (this.queue.some((t) => t.status === 'dead')) { try { writeQueue(QUEUE_FILE, this.queue) } catch {} }
     host.log.info('bili-account ready')
