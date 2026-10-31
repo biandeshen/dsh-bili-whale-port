@@ -5,25 +5,54 @@
 import fs from 'node:fs'
 import crypto from 'node:crypto'
 
+/**
+ * 括号对：截断点落在未闭合的开括号里时，退回到它之前。
+ * 半角 `<>` 也算——日记里有人写 <Untitled>，全角规则救不了它。
+ */
+const OPEN_PAIRS = [['《', '》'], ['〈', '〉'], ['『', '』'], ['「', '」'], ['『', '』'], ['（', '）'], ['<', '>']]
+
+/** 书名号里再套书名号：只留外层标记，内层是排版噪声。`《A《B》C》`→`《ABC》`，并列的《A》《B》不动。 */
+export function flattenBookMarks(raw) {
+  const out = []
+  let depth = 0
+  for (const ch of String(raw ?? '')) {
+    if (ch === '《') { if (depth === 0) out.push(ch); depth += 1; continue }
+    if (ch === '》') { if (depth > 0) depth -= 1; if (depth === 0) out.push(ch); continue }
+    out.push(ch)
+  }
+  return out.join('')
+}
+
+/** markdown 粗体不进正文：成对的只留内容，落单的删掉（截断可能把一对切开，所以不留半个）。 */
+export function stripBold(s) {
+  return String(s ?? '')
+    .replace(/\*\*\*([^*]+)\*\*\*/g, '$1')
+    .replace(/\*\*([^*]*)\*\*/g, '$1')
+    .replace(/\*\*/g, '')
+}
+
+/** 退回到最后一个未闭合的开括号之前（含它自己）。 */
+function retreatUnclosed(s) {
+  let out = String(s)
+  for (const [open, close] of OPEN_PAIRS) {
+    const i = out.lastIndexOf(open)
+    if (i >= 0 && !out.slice(i + open.length).includes(close)) out = out.slice(0, i)
+  }
+  return out.trimEnd()
+}
+
 function clip(s, max) {
   if (s.length <= max) return s
   let head = s.slice(0, max)
-  // 截断点落在未闭合的书名号里：退回到《之前，别把《…高效补》截成半句
-  const openBook = head.lastIndexOf('《')
-  if (openBook >= 0 && !head.slice(openBook).includes('》')) head = head.slice(0, openBook).trimEnd()
+  // 截断点落在未闭合的括号里：退回到开括号之前，别把《…高效补》截成半句
+  head = retreatUnclosed(head)
   const marks = '。！？…'
   let cut = -1
   for (let i = head.length - 1; i >= 0; i -= 1) if (marks.includes(head[i])) { cut = i; break }
-  if (cut >= 0) return balanceBold(head.slice(0, cut + 1))
+  if (cut >= 0) return stripBold(head.slice(0, cut + 1))
   let out = head.trimEnd()
   while (out && '，、；：'.includes(out[out.length - 1])) out = out.slice(0, -1)
-  return balanceBold(out) + '…'
-}
-
-/** 截断可能落在 ** 中间：补齐闭合，别把 `**` 原样发出去。 */
-function balanceBold(s) {
-  const marks = (String(s).match(/\*\*/g) || []).length
-  return marks % 2 === 1 ? String(s) + '**' : String(s)
+  return out ? stripBold(out) + '…' : ''
 }
 
 /** 把日记按 `## YYYY-MM-DD` 切天；只取当天那段，避免旧文案被重复拿来出稿。 */
@@ -38,16 +67,58 @@ export function dayBlocks(diaryText) {
   return blocks
 }
 
-/** 标题截断：不把括号截成半个（`…（39:55…》`），也不留结尾标点。 */
+/**
+ * 标题截断：先剥 markdown、折平嵌套书名号，再在集数分隔符（Ⅰ｜|）与句读处收短；
+ * 只有实在收不下时才按长度退，且退到未闭合括号之前。绝不产出 `《…高效补》` 这种半截书名。
+ */
 export function clipTitle(title, max = 24) {
-  const s = String(title ?? '').trim()
-  if (s.length <= max) return s
-  let cut = s.slice(0, max).trimEnd()
-  // 截断点落在未闭合的括号里：退回到括号前，别把「（39:55」露出来
-  const open = cut.lastIndexOf('（')
-  if (open >= 0 && !cut.slice(open).includes('）')) cut = cut.slice(0, open).trimEnd()
-  cut = cut.replace(/[、，,：:；;（(【\[《<]+$/, '').trimEnd()
-  return (cut || s.slice(0, max).trimEnd()) + '…'
+  const s = stripBold(flattenBookMarks(String(title ?? '').trim()))
+  if (!s || s.length <= max) return s
+  let cut = retreatUnclosed(s.slice(0, max).trimEnd())
+  cut = cut.replace(/[、，,：:；;（(【\[《<〈「『]+$/, '').trimEnd()
+  return cut ? stripBold(cut) + '…' : ''
+}
+
+const SERIES_SPLIT = /[Ⅰ|｜]/
+const PAUSE_SPLIT = /[，,。；;：:、]/
+
+/** 标题本体清洗：剥 `**`、整对书名号脱掉、嵌套或零散的书名号折平成纯文字。 */
+function cleanTitleInner(raw) {
+  let s = stripBold(flattenBookMarks(String(raw ?? '').trim()))
+  if (/^《[^《》]*》$/.test(s)) s = s.slice(1, -1)
+  else s = s.replace(/[《》]/g, '')
+  return s.replace(/^<([^<>]*)>$/, '$1').trim()
+}
+
+/**
+ * 标题取位（正文与记忆回扣共用）：`splitAlways` 时无条件先在集数分隔符（Ⅰ｜|）、再在句读处收短
+ * （旧 snippetOf 的口径）；否则只在超长时才收。实在收不下才按长度退，且不留未闭合括号。
+ */
+export function shortTitle(raw, max = 24, { splitAlways = false } = {}) {
+  let s = cleanTitleInner(raw)
+  if (!s) return ''
+  if (splitAlways || s.length > max) {
+    const series = s.split(SERIES_SPLIT)[0].trim()
+    if (series) s = series
+  }
+  if (splitAlways || s.length > max) {
+    const pause = s.split(PAUSE_SPLIT)[0].trim()
+    if (pause) s = pause
+  }
+  if (s.length > max) s = clipTitle(s, max)
+  return s.replace(/^[…]+/, '')
+}
+
+/**
+ * 正文里引用的《作品名》：要么成对完整，要么整条不提。
+ * 这是「看过」表格与记忆回扣共用的唯一取位口——以前 buildText 自己拼《${title}》，
+ * 截断发生在加书名号之前，于是出现《…高效补》。
+ */
+export function titleMark(raw, max = 24) {
+  const inner = shortTitle(raw, max)
+  if (!inner) return ''
+  if (/[《》〈〉「」『』<>]/.test(inner)) return ''
+  return `《${inner}》`
 }
 
 export function buildText(diaryText, { max = 100, date } = {}) {
@@ -67,7 +138,7 @@ export function buildText(diaryText, { max = 100, date } = {}) {
   let title = ''
   const i = picked.findIndex((c) => /^BV[0-9A-Za-z]+$/.test(c))
   if (i >= 0) title = picked[i + 1] || ''
-  if (title.length > 24) title = clipTitle(title, 24)
+  const titleText = titleMark(title, 24)
 
   // 「想说」可能有多个 bullet，后几条往往是真正的判断；全部保留，不再在第二条截断
   const lines = find('想说').split('\n')
@@ -83,7 +154,7 @@ export function buildText(diaryText, { max = 100, date } = {}) {
   }
   if (cur) bullets.push(cur)
   const said = bullets.join(' ').replace(/\s+/g, ' ').trim()
-  const line = [title ? `今晚看的是《${title}》。` : '', said].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim()
+  const line = [titleText ? `今晚看的是${titleText}。` : '', said].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim()
   const body = clip(line || '今晚只听了会儿雨声，没看到特别想说的。', max)
   return body
 }
@@ -127,23 +198,79 @@ const MOOD_TAIL = {
   纠结: '想了半天，也没想明白。',
 }
 
-/** 记忆里的可引用片段：看过的取片名（在逗号/冒号处收短），主人说过的取原话开头。 */
+/** 记忆里的可引用片段：看过的取片名（走与正文同一个 shortTitle 口径），主人说过的取原话开头。 */
 export function snippetOf(text, from = 'npc') {
   const s = String(text ?? '').replace(/\s+/g, ' ').trim()
   if (from === 'npc') {
     const t = s.match(/看过《([^》]+)》/)
-    if (t) {
-      const base = t[1].split(/[Ⅰ|｜]/)[0].trim()
-      // 不按 20 字硬切：优先在逗号/冒号处收短，避免《…高效补》这种半句书名
-      const short = base.split(/[，,。；;：:]/)[0].trim() || base
-      return short.slice(0, 30)
-    }
+    if (t) return shortTitle(t[1], 30, { splitAlways: true })
   }
   return s.slice(0, 16)
 }
 
+// ---- voiceBrief 新增的可选状态通道：缺字段 = 退回旧行为，绝不因此拒稿 ----
+
+const PACES = new Set(['tired', 'calm', 'wired'])
+const PACE_TAIL = { tired: '今天先这样。', wired: '还想接着说两句。' }
+const TODAY_MAX = 40
+
+/** 「今天做了什么」：voice.today 比日记更像事实，有就顶到开头当第一句。 */
+function todayLead(voice) {
+  if (!Array.isArray(voice.today)) return ''
+  const first = voice.today.find((x) => typeof x === 'string' && x.trim())
+  if (!first) return ''
+  let s = first.replace(/\s+/g, ' ').trim().replace(/[。！？.!?]+$/, '')
+  if (!s) return ''
+  if (s.length > TODAY_MAX) {
+    const head = s.slice(0, TODAY_MAX)
+    const cut = head.lastIndexOf('，')
+    s = (cut > 8 ? head.slice(0, cut) : head).replace(/[，、；：,;:]$/, '')
+  }
+  return `今天${s}`
+}
+
+/** 凌晨/深夜的时间感：钟点真的在两头才写，白天硬塞就假了。 */
+function hourLead(voice) {
+  if (typeof voice.hour !== 'number' || !Number.isInteger(voice.hour)) return ''
+  const h = voice.hour
+  if (h < 0 || h > 23) return ''
+  if (h <= 4) return '这个点还醒着。'
+  if (h === 23) return '快到零点了。'
+  return ''
+}
+
+/** 场值只补一句、不叠加：写成她的口气，不写成状态播报。缺 state 或都不越线 → 空。 */
+function stateFlavor(voice) {
+  const st = voice.state
+  if (!st || typeof st !== 'object') return ''
+  const num = (k) => {
+    const n = Number(st[k])
+    return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : null
+  }
+  const energy = num('energy')
+  const social = num('social')
+  const curiosity = num('curiosity')
+  const creativity = num('creativity')
+  const stimulation = num('stimulation')
+  if (energy !== null && energy <= 0.25) return '话说得有点费力。'
+  if (creativity !== null && creativity >= 0.7) return '脑子里有个还没试过的念头。'
+  if (social !== null && social >= 0.7 && voice.relation !== 'cold_war') return '今天想多跟你说两句。'
+  if (social !== null && social <= 0.25) return '想说，又不知道跟谁说。'
+  if (curiosity !== null && curiosity >= 0.7) return '还想去翻点什么。'
+  if (stimulation !== null && stimulation <= 0.2 && curiosity !== null && curiosity <= 0.2) return '没什么新东西，就想安静会儿。'
+  return ''
+}
+
+const FIRST_SENTENCE = /^[^。！？!?]*[。！？!?]?/
+
+/** 句群：按句末标点切开（保留标点），丢空段。 */
+function sentences(text) {
+  return String(text).split(/(?<=[。！？!?])/).map((s) => s.trim()).filter(Boolean)
+}
+
 /**
  * 把 voiceBrief 落成正文。缺 voice 直接拒稿；不再静默退化成"没有情绪"的模板。
+ * 节律 pace / 今天 today / 钟点 hour / 场值 state / 记忆槽 slot 都进正文；任一缺字段该项退回旧行为。
  * 返回 { ok, text, voiceHash } 或 { ok:false, error }。
  */
 export function composeDraft(diaryText, { date, voice, max = 100 } = {}) {
@@ -154,31 +281,60 @@ export function composeDraft(diaryText, { date, voice, max = 100 } = {}) {
   if (!LOW_TONE.has(voice.mood.label) && !HIGH_TONE.has(voice.mood.label)) {
     return { ok: false, error: 'unmapped-mood', label: voice.mood.label }
   }
+  const pace = PACES.has(voice.pace) ? voice.pace : null
 
   let text = buildText(diaryText, { date, max })
+  const lead = [hourLead(voice), todayLead(voice)]
+    .filter(Boolean)
+    .map((s) => (/[。！？]$/.test(s) ? s : `${s}。`))
+    .join('')
+  if (lead) text = `${lead}${text}`
 
   if (LOW_TONE.has(voice.mood.label)) {
     // 低落时只留第一句，且不出现感叹号
-    text = (text.match(/^[^。！？!?]*[。！？!?]?/) || [text])[0].replace(/[！!]/g, '。').trim()
+    text = (text.match(FIRST_SENTENCE) || [text])[0].replace(/[！!]/g, '。').trim()
   } else {
     // M4 决策钩子：草稿回扣一条真正相关的记忆，并说清出处（谁说的、多少天前）
-    const m = (voice.memories || []).find((x) => x.slot !== 'surprise' && x.score > 0.5)
-    const snippet = m ? snippetOf(m.text, m.from) : ''
-    if (m && snippet && voice.relation !== 'cold_war' && !text.includes(snippet)) {
-      const when = m.days === 0 ? '今天' : m.days === 1 ? '昨天' : `${m.days} 天前`
-      const line = m.from === 'player'
-        ? `你${when}说的「${snippet}」我还记着。`
-        : `我${when}记下的《${snippet}》还在。`
+    const core = (voice.memories || []).find((x) => x && x.slot !== 'surprise' && x.score > 0.5)
+    const coreSnippet = core ? snippetOf(core.text, core.from) : ''
+    if (core && coreSnippet && voice.relation !== 'cold_war' && !text.includes(coreSnippet)) {
+      const when = core.days === 0 ? '今天' : core.days === 1 ? '昨天' : `${core.days} 天前`
+      const line = core.from === 'player'
+        ? `你${when}说的「${coreSnippet}」我还记着。`
+        : `我${when}记下的《${coreSnippet}》还在。`
       text = `${text} ${line}`
+    } else {
+      // 意外槽：没有可回扣的近期记忆时，"忽然想起"进正文。
+      // 意外只带出语感、不复述原话——它的价值是"冒出来"这件事，不是把旧文本再抄一遍。
+      const surprise = (voice.memories || []).find((x) => x && x.slot === 'surprise' && x.score > 0.5)
+      if (surprise) {
+        const snippet = snippetOf(surprise.text, surprise.from)
+        const quotable = /《[^》]+》/.test(String(surprise.text ?? ''))
+        text += snippet
+          ? (quotable ? ` 忽然想起《${snippet}》，说不上为什么。` : ' 忽然想起有件旧事，说不上为什么。')
+          : ' 忽然想起有件旧事，说不上为什么。'
+      }
     }
+    const flavor = stateFlavor(voice)
+    if (flavor && !text.includes(flavor)) text = `${text} ${flavor}`
+  }
+
+  if (pace === 'tired' && !LOW_TONE.has(voice.mood.label)) {
+    // 低落已经把正文压成一句了，再加收尾会变成两句
+    text = `${(sentences(text)[0] || text).trim()} ${PACE_TAIL.tired}`
+  } else if (pace === 'wired') {
+    // 更跳、信息更密：句子之间的停顿收掉，末尾还想接一句
+    text = `${sentences(text).map((s) => s.replace(/[。！？!?]$/, '')).join('，')}。 ${PACE_TAIL.wired}`
   }
 
   for (const w of voice.banned) if (w) text = text.split(w).join('他')
 
   const tail = MOOD_TAIL[voice.mood.label] ?? ''
-  if (tail && !text.includes(tail)) text = `${text} ${tail}`
+  // 收尾句本身就是 tired 的语气，再叠一句情绪标签会读成两句套话
+  if (tail && pace !== 'tired' && !text.includes(tail)) text = `${text} ${tail}`
 
-  return { ok: true, text, voiceHash: crypto.createHash('sha1').update(JSON.stringify(voice)).digest('hex') }
+  const final = clip(text.replace(/[ \t]+/g, ' ').trim(), max)
+  return { ok: true, text: final, voiceHash: crypto.createHash('sha1').update(JSON.stringify(voice)).digest('hex') }
 }
 
 /** 和别的日期已有草稿一字不差 → 说明拿旧日记复用了，拒稿。返回撞上的那条。 */

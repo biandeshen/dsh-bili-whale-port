@@ -39,6 +39,20 @@
       }
     },
     "banned": { "type": "array", "items": { "type": "string" } },
+    "pace": { "enum": ["tired", "calm", "wired"] },
+    "hour": { "type": "integer", "minimum": 0, "maximum": 23 },
+    "today": { "type": "array", "maxItems": 3, "items": { "type": "string", "maxLength": 40 } },
+    "state": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "energy": { "type": "number", "minimum": 0, "maximum": 1 },
+        "stimulation": { "type": "number", "minimum": 0, "maximum": 1 },
+        "curiosity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "social": { "type": "number", "minimum": 0, "maximum": 1 },
+        "creativity": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
     "stance": {
       "type": "object",
       "required": ["share", "because"],
