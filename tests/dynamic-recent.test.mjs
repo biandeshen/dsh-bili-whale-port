@@ -41,7 +41,7 @@ const FIX = {
   },
 }
 
-function run(extraArgs, fx = FIX) {
+function run(extraArgs, fx = FIX, extraEnv = {}) {
   const fxFile = path.join(home, 'space-' + Math.random().toString(36).slice(2) + '.json')
   fs.writeFileSync(fxFile, JSON.stringify(fx))
   const reqFile = path.join(home, 'req-' + path.basename(fxFile))
@@ -54,6 +54,7 @@ function run(extraArgs, fx = FIX) {
       HOME: home,
       TEST_REQUESTS: reqFile,
       TEST_SPACE_FILE: fxFile,
+      ...extraEnv,
       NODE_OPTIONS: '--import=' + pathToFileURL(path.join(HERE, 'helpers', 'mock-fetch.mjs')).href,
     },
   })
@@ -85,4 +86,55 @@ test('接口报错不当成功：code≠0 退出 6', () => {
   const bad = run(['--date', '2026-10-30', '--json'], { pages: { '': { __code: -352, items: [], offset: '', has_more: false } } })
   assert.equal(bad.status, 6)
   assert.match(bad.stderr, /code=-352/)
+})
+
+// ── 批次③：正文取位（纯文字 / 带图嵌 JSON 字符串 / 只有段落的 DRAW / 全落空） ──
+const at = (extraS) => noon('10-30') + extraS
+const TYPE_FX = {
+  pages: {
+    '': {
+      items: [
+        // 纯文字稿：正文在顶层 description
+        { id_str: '4001', dynamic_type: 'DYNAMIC_TEXT', description: '纯文字稿：今天风很大', modules: { module_author: { pub_ts: at(0) } } },
+        // 带图稿：正文嵌在 item.dynamic 这段 JSON 字符串里
+        { id_str: '4002', dynamic_type: 'DRAW', dynamic: JSON.stringify({ item: { description: '带图稿：嵌在 dynamic 字符串里的正文' } }), modules: { module_author: { pub_ts: at(60) } } },
+        // DRAW 的另一种：新版卡片只有段落
+        { id_str: '4003', dynamic_type: 'DRAW', modules: { module_author: { pub_ts: at(120) }, module_dynamic: { paragraphs: [{ text: '只有段落的图稿正文' }] } } },
+        // 哪里都没有正文——必须显式说取不到，不能给空串
+        { id_str: '4004', dynamic_type: 'ARTICLE', modules: { module_author: { pub_ts: at(180) } } },
+      ],
+      offset: '',
+      has_more: false,
+    },
+  },
+}
+
+test('四种卡片形状各取到位：取不到的那条是 null 不是空串', () => {
+  const r = run(['--date', '2026-10-30', '--json'], TYPE_FX)
+  assert.equal(r.status, 0, r.stderr)
+  const items = JSON.parse(r.stdout).items
+  assert.deepEqual(items.map((x) => x.dyn_id), ['4001', '4002', '4003', '4004'])
+  assert.deepEqual(items.map((x) => x.text), ['纯文字稿：今天风很大', '带图稿：嵌在 dynamic 字符串里的正文', '只有段落的图稿正文', null])
+  assert.deepEqual(items.map((x) => x.text_from), ['description', 'dynamic', 'paragraph', null])
+})
+
+test('取不到正文在人读输出里说出来（type 带上），不静默', () => {
+  const r = run(['--date', '2026-10-30'], TYPE_FX)
+  assert.equal(r.status, 0, r.stderr)
+  assert.match(r.stdout, /dyn_id=4004.*（这条取不到正文，type=ARTICLE）/)
+  assert.match(r.stdout, /1 条取不到正文/)
+  assert.ok(!/dyn_id=4004.*\[ARTICLE\] \s*$/.test(r.stdout), '不能退化成空白正文')
+})
+
+test('dyn_id 对回本地草稿 id：result.dynId 与 result.out 里的 dyn_id 都认', () => {
+  const drafts = path.join(home, 'drafts-' + Math.random().toString(36).slice(2))
+  fs.mkdirSync(drafts, { recursive: true })
+  fs.writeFileSync(path.join(drafts, '2026-10-30-a.json'), JSON.stringify({ id: 'dyn-2026-10-30-a', date: '2026-10-30', result: { ok: true, dynId: '4001' } }))
+  fs.writeFileSync(path.join(drafts, '2026-10-30-b.json'), JSON.stringify({ id: 'dyn-2026-10-30-b', date: '2026-10-30', result: { ok: true, out: '…\n   复核: node bili.mjs dynamic check --id 4002\n' } }))
+  const r = run(['--date', '2026-10-30', '--json'], TYPE_FX, { WHALE_DRAFTS: drafts })
+  assert.equal(r.status, 0, r.stderr)
+  const items = JSON.parse(r.stdout).items
+  assert.equal(items[0].draft_id, 'dyn-2026-10-30-a', 'result.dynId 对上了')
+  assert.equal(items[1].draft_id, 'dyn-2026-10-30-b', '只有 result.out 时也能对上')
+  assert.equal(items[3].draft_id, null, '没有对应草稿就留 null')
 })
