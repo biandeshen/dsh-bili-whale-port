@@ -11,6 +11,7 @@ import crypto from 'node:crypto'
 // 2026-10-21 修（外部审计）：下面 --go 路径里调了 gate()，但从来没导入过 ✗
 //   一跑到那儿就是 ReferenceError（danmaku.mjs 早就踩过同一个坑，这次补齐三条）
 import { gate } from '../lib/quota-gate.mjs'
+import { draftsDir } from '../lib/paths.mjs'
 import { postTextDynamic } from '../drafts/publishers/bilibili-dynamic.mjs'
 
 const argv = process.argv.slice(2)
@@ -109,11 +110,72 @@ if (mode === 'recent') {
   process.exitCode = 0
 }
 
+// 下面三个是 recent 的取位助手；用 function 声明（不是 const 箭头），
+// 因为 `if (mode === 'recent')` 在文件里就早于它们执行，const 会撞 TDZ。
+function flat(v) { return String(v ?? '').replace(/\s+/g, ' ').trim() }
+function paragraphsOf(o) {
+  const ps = o?.paragraphs ?? o?.item?.paragraphs
+  if (!Array.isArray(ps)) return ''
+  return flat(ps.map((p) => String(p?.text ?? p?.words ?? p?.content ?? '')).filter(Boolean).join(' '))
+}
+function asObject(v) {
+  if (v && typeof v === 'object') return v
+  const s = String(v ?? '').trim()
+  if (!s.startsWith('{') && !s.startsWith('[')) return null
+  try { return JSON.parse(s) } catch { return null }
+}
+
+/**
+ * 动态卡片正文取位（缺口清单批次③）：同一句稿子在不同类型、不同代接口里位置不一样——
+ * 纯文字在顶层 description，新版 feed/space 在 modules.module_dynamic.desc.text，
+ * 老卡片把整份稿子塞在 item.dynamic/item.card 一段 JSON 字符串里，DRAW/opus 还可能只有段落。
+ * 按这些位置依次回退；全落空返回 text=null，由调用方显式说「取不到」，不静默给空串。
+ * @returns {{text:string|null, from:string|null}}
+ */
+export function pickDynamicText(item = {}) {
+  const direct = [
+    ['description', () => flat(item.description)],
+    ['desc.text', () => flat(item.modules?.module_dynamic?.desc?.text)],
+    ['content.text', () => flat(item.content?.text ?? item.modules?.module_dynamic?.content?.text)],
+    ['paragraph', () => paragraphsOf(item) || paragraphsOf(item.modules?.module_dynamic)],
+  ]
+  for (const [from, get] of direct) { const t = get(); if (t) return { text: t, from } }
+  for (const key of ['dynamic', 'card', 'origin']) {
+    const nested = asObject(item[key])
+    if (!nested) continue
+    for (const t of [flat(nested.item?.description), flat(nested.text), flat(nested.desc), flat(nested.item?.content), paragraphsOf(nested)]) {
+      if (t) return { text: t, from: key }
+    }
+  }
+  return { text: null, from: null }
+}
+
+/**
+ * dyn_id → 本地草稿（"今天发的动态对应她哪篇稿"）。
+ * 草稿文件里的出处有两种：publisher 直接写 result.dynId，
+ * 审批层只留了 result.out（stdout 尾巴里有 `dyn_id=…` 或 `dynamic check --id …`），两种都认。
+ */
+function draftIndexByDynId() {
+  const out = new Map()
+  const dir = draftsDir()
+  if (!fs.existsSync(dir)) return out
+  for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.json'))) {
+    let d
+    try { d = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')) } catch { continue }
+    const outText = String(d?.result?.out ?? '')
+    const fromOut = outText.match(/dyn(?:amic)?_id=([0-9]+)/) ?? outText.match(/dynamic check --id ([0-9]+)/)
+    const id = String(d?.result?.dynId ?? fromOut?.[1] ?? '')
+    if (id) out.set(id, { draftId: String(d?.id ?? f.replace(/\.json$/, '')), date: String(d?.date ?? '') })
+  }
+  return out
+}
+
 async function runRecent() {
   const day = String(args.get('date') ?? new Date().toLocaleDateString('sv-SE'))
   const cap = Math.max(1, Math.min(50, Number(args.get('n') ?? 10) || 10))
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) { console.error('recent 的 --date 要形如 2026-10-31'); process.exit(2) }
   const mid = args.has('json') ? await whoamiQuiet() : await whoami()
+  const drafts = draftIndexByDynId()
   const rows = []
   let offset = ''
   let stop = false
@@ -134,12 +196,18 @@ async function runRecent() {
       const localDate = new Date(t * 1000).toLocaleDateString('sv-SE')
       if (localDate < day) { stop = true; break }  // 流是按时间倒序的：翻过那天就停
       if (localDate !== day) continue
+      const dynId = String(it.id_str ?? it.id ?? '')
+      const picked = pickDynamicText(it)
+      const link = drafts.get(dynId)
       rows.push({
-        dyn_id: String(it.id_str ?? it.id ?? ''),
+        dyn_id: dynId,
         at: new Date(t * 1000).toISOString(),
         local: new Date(t * 1000).toLocaleString('zh-CN', { hour12: false }),
         type: String(it.dynamic_type ?? it.type ?? ''),
-        text: String(it.modules?.module_dynamic?.desc?.text ?? '').replace(/\s+/g, ' ').slice(0, 80),
+        text: picked.text === null ? null : picked.text.slice(0, 80) + (picked.text.length > 80 ? '…' : ''),
+        text_from: picked.from,
+        draft_id: link?.draftId ?? null,
+        draft_date: link?.date ?? null,
       })
       if (rows.length >= cap) { stop = true; break }
     }
@@ -153,7 +221,12 @@ async function runRecent() {
     console.log(`  ${day} 没有查到她发的动态（发布失败/还没发/就是没有这一天）`)
   } else {
     console.log(`=== ${day} 她发过的动态（${rows.length} 条）===`)
-    for (const x of rows) console.log(`  dyn_id=${x.dyn_id}  ${x.local}  [${x.type}] ${x.text}`)
+    for (const x of rows) {
+      const body = x.text === null ? `（这条取不到正文，type=${x.type || '未知'}）` : x.text
+      console.log(`  dyn_id=${x.dyn_id}  ${x.local}  [${x.type}] ${body}${x.draft_id ? `  ←草稿 ${x.draft_id}` : ''}`)
+    }
+    const missing = rows.filter((x) => x.text === null).length
+    if (missing) console.log(`  ⚠ ${missing} 条取不到正文：别当作「她今天没写字」，按 type 人工核对`)
     console.log('  复核单条: node bili.mjs dynamic check --id <dyn_id>')
   }
 }
