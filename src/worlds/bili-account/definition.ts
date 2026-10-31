@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url'
 import { describeTools, type WorldDefinition } from '../../world.ts'
 import { canDraft, draftRefusal, canApplyWatched, watchedRefusal, violationNotice, diaryFresh, diaryRefusal } from './gates.ts'
 import { upsertDiarySection, sectionStats, diaryDefaultHeader } from './diary.ts'
-import { loadState, saveState, applyEffects, remember, rememberFirst, describeStateWithTrace, applyRecall, recentWatch, annotateFeed, PRESETS } from './personaAdapter.ts'
+import { loadState, saveState, applyEffects, remember, rememberFirst, describeStateWithTrace, applyRecall, recentWatch, annotateFeed, PRESETS, WATCH_VERDICTS } from './personaAdapter.ts'
+import type { WatchVerdict } from './personaAdapter.ts'
 import type { PresetEffect } from './personaAdapter.ts'
 import { buildVoiceBrief } from '../../../persona-core/src/voice-brief.ts'
 import { pickActivities, ACTIVITY_LABELS } from '../../../persona-core/src/life-activities.ts'
@@ -304,7 +305,7 @@ const DECLS = [
   { name: 'bili_debrief', description: 'Understand one video via subtitles, danmaku, comments (read-only).', tags: ['read'], parameters: { type: 'object', properties: { bvid: { type: 'string' } }, required: ['bvid'], additionalProperties: false } },
   { name: 'bili_diary_read', description: 'Read the two diary files (read-only).', tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'bili_mood_read', description: "Read Xiaoyu's current emotion (fields + cause + label) plus what she recalls. Recalling marks those memories as thought-of-again: they get clearer.", tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
-  { name: 'bili_mood_apply', description: 'Apply emotional effects after an event. Optionally record which life activity you picked and a short note.', tags: ['write'], parameters: { type: 'object', properties: { preset: { type: 'string', description: 'watchedVideo | masterReplied | masterSilentDay | draftApproved | draftRejected | trafficPaused' }, custom: { type: 'array', items: { type: 'object', properties: { field: { type: 'string' }, delta: { type: 'number' }, source: { type: 'string' } }, required: ['field', 'delta', 'source'] } }, note: { type: 'string', description: '一句留给自己的话（会写进记忆）' }, activity: { type: 'string', enum: ['rest', 'explore', 'create', 'social', 'reflect', 'exercise', 'consume'], description: '这轮挑的生活活动 id' } }, additionalProperties: false } },
+  { name: 'bili_mood_apply', description: 'Apply emotional effects after an event. Optionally record which life activity you picked and a short note. For watchedVideo, say what you actually concluded with verdict (keep / drop / unclear); without it nothing is counted as a positive.', tags: ['write'], parameters: { type: 'object', properties: { preset: { type: 'string', description: 'watchedVideo | masterReplied | masterSilentDay | draftApproved | draftRejected | trafficPaused' }, verdict: { type: 'string', enum: ['keep', 'drop', 'unclear'], description: '只给 watchedVideo 用：你这条到底收不收。keep=收 / drop=不收 / unclear=无从判断（不传按 unclear 记，不替你判成喜欢）' }, custom: { type: 'array', items: { type: 'object', properties: { field: { type: 'string' }, delta: { type: 'number' }, source: { type: 'string' } }, required: ['field', 'delta', 'source'] } }, note: { type: 'string', description: '一句留给自己的话（会写进记忆）' }, activity: { type: 'string', enum: ['rest', 'explore', 'create', 'social', 'reflect', 'exercise', 'consume'], description: '这轮挑的生活活动 id' } }, additionalProperties: false } },
   { name: 'bili_draft_dynamic', description: "Create a dynamic draft from today's diary and an unused image. Never posts.", tags: ['write'], parameters: { type: 'object', properties: { force: { type: 'boolean' } }, additionalProperties: false } },
   { name: 'bili_diary_append', description: "Write a section into one of her diaries (public/private). Policy is FIXED: same day+heading = WHOLE-section replace (receipt says 已替换); a heading not yet present = append as a NEW section (receipt says 已追加). There is no incremental append — rewrite the whole section each time.", tags: ['write'], parameters: { type: 'object', properties: { book: { type: 'string', enum: ['public', 'private'], description: 'public = 给人看的；private = 只给自己看的偏好校准' }, heading: { type: 'string', description: '小节标题，如 看过 / 想说 / 今日指标 / 本轮留下的判断' }, text: { type: 'string', description: '这一节的正文（markdown）' } }, required: ['book', 'heading', 'text'], additionalProperties: false } },
   { name: 'bili_dm_read', description: "Check whether 主人 (the owner) sent a new DM since last check. Read-only: never sends or marks anything read on Bilibili; advances only her local cursor. If reading fails it says so — it is NOT the same as 'no message'.", tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
@@ -731,11 +732,21 @@ class BiliAccountWorld {
           }
           return '[mood_apply] 未知预设：' + presetName
         }
-        const description = hasCustom ? '自定义事件' : PRESETS[presetName].description
-        const effects = hasCustom ? custom : PRESETS[presetName].effects
+        // 看完一条视频的结论由她自己给；不给就按「无从判断」记，不默认成喜欢
+        let verdict: WatchVerdict | null = null
+        if (!hasCustom && presetName === 'watchedVideo') {
+          if (a?.verdict === undefined) verdict = 'unclear'
+          else if (String(a.verdict) in WATCH_VERDICTS) verdict = String(a.verdict) as WatchVerdict
+          else return '[mood_apply] verdict 无效：只能是 keep（收）/ drop（不收）/ unclear（无从判断）；不传按 unclear 记，不替你判成喜欢'
+        } else if (a?.verdict !== undefined) {
+          return '[mood_apply] verdict 只给 preset=watchedVideo 用，别的预设没有"这条收不收"可判'
+        }
+        const picked = verdict ? WATCH_VERDICTS[verdict] : null
+        const description = hasCustom ? '自定义事件' : (picked?.description ?? PRESETS[presetName].description)
+        const effects = hasCustom ? custom : (picked?.effects ?? PRESETS[presetName].effects)
         const before = loadState(FIELDS_FILE)
         let after = applyEffects(before, effects, description, {
-          source: hasCustom ? 'custom' : presetName,
+          source: hasCustom ? 'custom' : (picked?.source ?? presetName),
           userJustMessaged: presetName === 'masterReplied',
         })
         // 这句是她自己留的（source=npc_self）；强度只决定编码强度，不再替她判定"刻在心里"
@@ -758,6 +769,7 @@ class BiliAccountWorld {
         }
         causal({
           kind: hasCustom ? 'custom' : presetName,
+          verdict: verdict ?? null,
           note: a?.note ?? null,
           activity: activityId || null,
           description,
@@ -767,7 +779,11 @@ class BiliAccountWorld {
           chainDelta: after.chain.length - before.chain.length,
           relation: after.npcState.current,
         })
-        return statePrompt(after, { queryText: diaryTail(), seed: dayKey(Date.now()) })
+        const verdictLine = picked
+          ? '\n（这轮的结论：' + picked.label + '；写进账本的是「' + picked.description + '」；场值：'
+            + (picked.effects.map((e) => e.field + (e.delta > 0 ? '+' : '') + e.delta).join(' ') || '没动') + '）'
+          : ''
+        return statePrompt(after, { queryText: diaryTail(), seed: dayKey(Date.now()) }) + verdictLine
       }),
       mk(DECLS[6], async (a) => {
         if (!canDraft(round.feedAt ?? 0, round.debriefed === true)) {

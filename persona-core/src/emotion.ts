@@ -55,7 +55,8 @@ function causeBoost(cause: string | null, f: AtomicFields): Record<string, numbe
     case 'draftRejected': return { frustration: 0.5 }
     case 'masterReplied': return { warmth: 0.45 }
     case 'draftApproved': return { joy: 0.45 }
-    case 'watchedVideo': return { inspiration: 0.3 }
+    case 'watchedVideo':
+    case 'watchedKeep': return { inspiration: 0.3 }
     case 'masterSilentDay':
       return f.connection < 0.35 ? { loneliness: 0.5 } : { serenity: 0.2 }
     case 'action':
@@ -103,7 +104,12 @@ function innerFor(cause: string | null, f: AtomicFields): string {
     case 'draftApproved':
       return f.connection < 0.55 ? `${ownerName()}回我了……才、才没有一直等。` : `${ownerName()}在，今天就挺好。`
     case 'watchedVideo':
-      return f.mood >= 0.2 ? '这条真不错，记下来，明天还想看类似的。' : '看是看了，但没太看进去。'
+    case 'watchedUnclear':
+      return '看完了，收没收我还没判断出来。'
+    case 'watchedKeep':
+      return '这条我收了，记下来，明天还想看类似的。'
+    case 'watchedDrop':
+      return '这条没收，就不往心里放。'
     case 'action':
       if (f.energy < 0.35) return '刚动了一下就有点累，今天不想撑。'
       if (f.creativity > 0.6) return '想写点什么，哪怕只有两句。'
@@ -121,7 +127,10 @@ function reasonFor(cause: string | null, f: AtomicFields): string {
       return f.connection < 0.35 ? '主人沉默 + 连接感低' : '主人沉默，但还没到想念的程度'
     case 'masterReplied': return '被主人回复'
     case 'draftApproved': return '草稿被放行'
-    case 'watchedVideo': return f.mood >= 0.2 ? '看完喜欢的视频 + 心情为正' : '看了视频，心情一般'
+    case 'watchedVideo':
+    case 'watchedUnclear': return '看完一条，结论未定'
+    case 'watchedKeep': return '看完一条，收了'
+    case 'watchedDrop': return '看完一条，没收'
     case 'action':
       if (f.energy < 0.35) return '刚起身 + 体力低'
       if (f.creativity > 0.6) return '刚起身 + 创造欲高'

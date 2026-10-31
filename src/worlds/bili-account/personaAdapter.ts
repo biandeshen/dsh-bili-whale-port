@@ -38,9 +38,7 @@ export interface PresetEffect { field: keyof AtomicFields; delta: number; source
 /** 预设事件 → 场值效果（可扩展；这是她的"反应表"） */
 export const PRESETS: Record<string, { effects: PresetEffect[]; description: string; layer?: 'L0' }> = {
   watchedVideo: {
-    // 2026-10-30 她的 OPS B1：文案中性化——「看完」≠「喜欢」。
-    // 实测旧文案「看了一条喜欢的视频」只进 chain（fields.json 23 处/causal 9 处），
-    // 从未进 memories（0 处）；中性化后 chain/最近发生不再替她下“喜欢”的结论。
+    // 「看完」≠「喜欢」：这条预设只描述发生了什么，价值结论由 WATCH_VERDICTS 给。
     description: '看完一条',
     effects: [
       { field: 'curiosity', delta: +0.03, source: 'watched', priority: 5 },
@@ -95,6 +93,33 @@ export const PRESETS: Record<string, { effects: PresetEffect[]; description: str
     ],
   },
 }
+
+/**
+ * 看完一条视频后的三种结论（她自己的口径：收 / 不收 / 无从判断）。
+ * 只有「收」拿正向场值；「不收」和「无从判断」只记这次花了的体力——
+ * 系统不替她把"看完了"结算成"喜欢"。source 进因果链与情绪成因，所以三种结论在她
+ * 下一轮读到的自己嘴里也不一样。默认按 unclear（不传即未判断）。
+ */
+export type WatchVerdict = 'keep' | 'drop' | 'unclear'
+
+export const WATCH_VERDICTS: Record<WatchVerdict, {
+  label: string; source: string; description: string; effects: PresetEffect[]
+}> = {
+  keep: {
+    label: '收', source: 'watchedKeep', description: '看完一条，收了',
+    effects: PRESETS.watchedVideo.effects,
+  },
+  drop: {
+    label: '不收', source: 'watchedDrop', description: '看完一条，没收',
+    effects: [{ field: 'energy', delta: -0.02, source: 'watched', priority: 3 }],
+  },
+  unclear: {
+    label: '无从判断', source: 'watchedUnclear', description: '看完一条，没判断出来',
+    effects: [{ field: 'energy', delta: -0.02, source: 'watched', priority: 3 }],
+  },
+}
+
+export const WATCH_VERDICT_IDS = Object.keys(WATCH_VERDICTS) as WatchVerdict[]
 
 export function emptyState(): PersonaState {
   return {
