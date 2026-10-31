@@ -74,9 +74,9 @@ async function wbi(fetchImpl, cookieHeader, params) {
   return `${q}&w_rid=${crypto.createHash('md5').update(q + mixin).digest('hex')}`
 }
 
-function caught(e) {
+function caught(e, lines = []) {
   const msg = String(e?.message ?? e)
-  return { exit: 1, ok: false, dynId: null, transient: /冷却|TRAFFIC_PAUSED|请稍后/.test(msg) || e?.name === 'TrafficError', out: msg }
+  return { exit: 1, ok: false, dynId: null, transient: /冷却|TRAFFIC_PAUSED|请稍后/.test(msg) || e?.name === 'TrafficError', out: [...lines, '✗ ' + msg].join('\n') }
 }
 
 /**
@@ -86,7 +86,7 @@ function caught(e) {
 export async function postImageDynamic({ image, text = '', atMid = null, atName = null, go = false, fetchImpl = guarded, gateFn = quotaGate } = {}) {
   const lines = []
   const log = (s) => lines.push(s)
-  const done = (extra) => ({ dynId: null, transient: false, ...extra, out: lines.join('\n') })
+  const done = (extra) => ({ dynId: null, transient: false, ...extra, out: extra.out ?? lines.join('\n') })
 
   if (!image || !fs.existsSync(image)) return done({ exit: 2, ok: false, out: lines.concat(`图片不存在: ${image}`).join('\n') })
   const buf = fs.readFileSync(image)
@@ -105,7 +105,7 @@ export async function postImageDynamic({ image, text = '', atMid = null, atName 
     nav = await (await fetchImpl('https://api.bilibili.com/x/web-interface/nav', {
       headers: { 'user-agent': UA, referer: 'https://www.bilibili.com/', cookie: cookieHeader },
     })).json()
-  } catch (e) { return done(caught(e)) }
+  } catch (e) { return done(caught(e, lines)) }
   log('\n=== 登录态 ===')
   if (nav.code !== 0) return done({ exit: 4, ok: false, out: lines.concat(`  登录态无效 code=${nav.code} ${nav.message}`).join('\n') })
   log(`  账号: ${nav.data.uname} (mid ${nav.data.mid})  手机绑定=${nav.data.mobile_verified ? '是' : '否'}`)
@@ -139,7 +139,7 @@ export async function postImageDynamic({ image, text = '', atMid = null, atName 
     })
     upJson = await up.json()
     log(`     HTTP ${up.status}  code=${upJson.code} ${upJson.message ?? ''}`)
-  } catch (e) { return done(caught(e)) }
+  } catch (e) { return done(caught(e, lines)) }
   if (upJson.code !== 0) return done({ exit: 6, ok: false, out: lines.concat(`     上传失败: ${JSON.stringify(upJson).slice(0, 300)}`).join('\n') })
   const { image_url: imgSrc, image_width: w, image_height: h, img_size: kb } = upJson.data ?? {}
   log(`     image_url=${imgSrc}  ${w}x${h}  ${kb}KB`)
@@ -165,7 +165,7 @@ export async function postImageDynamic({ image, text = '', atMid = null, atName 
     })
     out = await r.json()
     log(`     HTTP ${r.status}  code=${out.code} ${out.message ?? ''}`)
-  } catch (e) { return done(caught(e)) }
+  } catch (e) { return done(caught(e, lines)) }
   if (out.code === 0) {
     const id = out.data?.dyn_id_str ?? out.data?.dyn_id
     log(`\n✅ 已发布  dyn_id=${id}`)
@@ -180,7 +180,7 @@ export async function postImageDynamic({ image, text = '', atMid = null, atName 
 export async function postTextDynamic({ text, go = false, fetchImpl = guarded, gateFn = quotaGate } = {}) {
   const lines = []
   const log = (s) => lines.push(s)
-  const done = (extra) => ({ dynId: null, transient: false, ...extra, out: lines.join('\n') })
+  const done = (extra) => ({ dynId: null, transient: false, ...extra, out: extra.out ?? lines.join('\n') })
   if (!text) return done({ exit: 2, ok: false, out: 'post 需要 --text' })
 
   const { cred, cookieHeader, error } = loadCred()
@@ -190,7 +190,7 @@ export async function postTextDynamic({ text, go = false, fetchImpl = guarded, g
     nav = await (await fetchImpl('https://api.bilibili.com/x/web-interface/nav', {
       headers: { 'user-agent': UA, referer: 'https://www.bilibili.com/', cookie: cookieHeader },
     })).json()
-  } catch (e) { return done(caught(e)) }
+  } catch (e) { return done(caught(e, lines)) }
   log('=== 登录态 ===')
   if (nav.code !== 0) return done({ exit: 4, ok: false, out: lines.concat(`  登录态无效: code=${nav.code} ${nav.message}`).join('\n') })
   log(`  账号: ${nav.data.uname} (mid ${nav.data.mid})  手机绑定=${nav.data.mobile_verified ? '是' : '否'}`)
@@ -217,7 +217,7 @@ export async function postTextDynamic({ text, go = false, fetchImpl = guarded, g
     })
     out = await r.json()
     log(`\n[go] HTTP ${r.status}  code=${out.code} message=${out.message ?? ''}`)
-  } catch (e) { return done(caught(e)) }
+  } catch (e) { return done(caught(e, lines)) }
   if (out.code === 0) {
     const id = out.data?.dyn_id_str ?? out.data?.dyn_id
     log(`  ✅ 已发布  dyn_id=${id}`)

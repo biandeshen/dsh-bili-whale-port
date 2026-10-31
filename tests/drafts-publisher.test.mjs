@@ -74,3 +74,16 @@ test('发布端点报错不误报成功；TrafficError 归 transient（审批层
   assert.equal(paused.ok, false)
   assert.equal(paused.transient, true)
 })
+
+test('失败原因必须留在 out 里（回归：caught 曾把收集的日志整段丢掉）', async () => {
+  const failer = async (url) => {
+    const u = String(url)
+    if (u.includes('/nav')) return { status: 200, json: async () => ({ code: 0, data: { uname: 't', mid: 1, mobile_verified: true, wbi_img: { img_url: 'https://x/bfs/wbi/a123.png', sub_url: 'https://x/bfs/wbi/b456.png' } } }) }
+    if (u.includes('upload_bfs')) return { status: 200, json: async () => ({ code: 0, data: { image_url: 'u', image_width: 1, image_height: 2, img_size: 3 } }) }
+    throw new Error('B站返回了风控页（HTML）')
+  }
+  const r = await postImageDynamic({ image: png, text: 'hi', go: true, fetchImpl: failer, gateFn: () => true })
+  assert.equal(r.ok, false)
+  assert.match(r.out, /\[2\/2\] 发布图文动态/, '失败前的进度要留着')
+  assert.match(r.out, /B站返回了风控页/, '失败原因必须在 out 里')
+})

@@ -62,7 +62,14 @@ async function whoami() {
 
 async function list(mid) {
   const u = `https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/space_history?host_uid=${mid}&offset_dynamic_id=0&need_top=0`
-  const d = await (await fetch(u, { headers: { 'user-agent': UA, referer: REF, cookie: cookieHeader } })).json()
+  let d
+  try {
+    d = await (await fetch(u, { headers: { 'user-agent': UA, referer: REF, cookie: cookieHeader } })).json()
+  } catch {
+    // 该老接口时常回 HTML 风控页：说清楚，别把 stack 甩给人
+    console.log('  space_history 返回的不是 JSON（该老接口常被打码/风控）；判定单条存在用 dynamic check --id <dyn_id>')
+    return []
+  }
   console.log(`  space_history code=${d.code} ${d.message ?? ''}  卡片数=${(d.data?.cards ?? []).length}`)
   for (const c of (d.data?.cards ?? []).slice(0, 6)) {
     const desc = c.desc ?? {}
