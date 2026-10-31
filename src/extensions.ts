@@ -424,8 +424,18 @@ export function fetchFailure(url: string, err: unknown): string {
   const cause = err instanceof Error ? err.cause : undefined;
   const code = (cause as { code?: unknown } | undefined)?.code;
   const detail = cause instanceof Error ? [typeof code === 'string' ? code : '', cause.message].filter(Boolean).join(': ') : '';
-  return `${new URL(url).host}: ${message}${detail ? ` (${detail})` : ''}`;
+  const hint = typeof code === 'string' && CERT_FAILURE_CODES.has(code) ? HINT_TLS_INTERCEPTED : '';
+  return `${new URL(url).host}: ${message}${detail ? ` (${detail})` : ''}${hint}`;
 }
+
+/** 这几类是证书链问题:站点没变,是本机链路上有中间人换了证书(游戏加速器与安全软件常见)。 */
+const CERT_FAILURE_CODES = new Set([
+  'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
+  'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+  'CERT_UNTRUSTED',
+  'SELF_SIGNED_CERT_IN_CHAIN',
+]);
+const HINT_TLS_INTERCEPTED = ' — 证书链被本机替换(加速器/安全软件),配代理与加 CA 都没用;换索引源或关掉加速器对 GitHub 域名的加速';
 
 /** extensions/ 里的 npm 配置文件;`pnpm add` 与 `pnpm config get` 在这个目录跑,都读它。 */
 const NPMRC = '.npmrc';
