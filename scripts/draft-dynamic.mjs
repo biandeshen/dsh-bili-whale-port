@@ -13,7 +13,10 @@ import { enqueue } from './ack.mjs'
 import { logicalDay } from './day-snapshot.mjs'
 import { readAllDrafts, writeNewDraft } from '../tools/drafts/store.mjs'
 
-export { dayBlocks, clipTitle, buildText, makeDraft, VOICE_REQUIRED, assertVoice, snippetOf, composeDraft, findDuplicateText } from '../tools/drafts/compose.mjs'
+export {
+  dayBlocks, clipTitle, shortTitle, titleMark, flattenBookMarks, stripBold,
+  buildText, makeDraft, VOICE_REQUIRED, assertVoice, snippetOf, composeDraft, findDuplicateText,
+} from '../tools/drafts/compose.mjs'
 import { buildText, makeDraft, composeDraft, findDuplicateText } from '../tools/drafts/compose.mjs'
 
 const argv = process.argv.slice(2)

@@ -32,6 +32,16 @@ const DRY = !!opt.dry
 const GO = !!opt.go
 const DAY = 86400000
 
+// 档位收回（publish-policy）：config.permissions.like='review' 时，--go 进待审队列而不是直发。
+// 默认 'self' = 自发档（2026-10-31 分级放开）。
+import { config } from '../lib/config.mjs'
+import { readPolicy, tierQueues } from '../lib/publish-policy.mjs'
+import { queueGo } from '../lib/go-gate.mjs'
+if (GO && tierQueues(readPolicy(config()).like)) {
+  queueGo({ argv: ['like', ...argv.filter((a) => a !== '--go')], kind: '点赞', bvid: positional[0] ?? '', message: String(opt.reason ?? ''), src: positional[0] ?? '' })
+  process.exit(0)
+}
+
 const load = () => { try { return JSON.parse(fs.readFileSync(LIKE_LOG, 'utf8')) } catch { return { items: [] } } }
 const save = (d) => { fs.mkdirSync(path.dirname(LIKE_LOG), { recursive: true }); fs.writeFileSync(LIKE_LOG, JSON.stringify(d, null, 2)) }
 
