@@ -14,7 +14,9 @@ import { pathToFileURL } from 'node:url'
 import { loadState, readMood, describeState } from './personaAdapter.ts'
 
 const ROOT = process.env.BILI_WHALE_ROOT || 'E:/WorkSpace_Qoder/dsh-bili-whale'
-const WHALE = process.env.WHALE_HOME || path.join(process.env.USERPROFILE || '', '.dsh')
+// home 优先级与 dsh `tools/lib/paths.mjs:resolveWhaleHome` 一致（WHALE_HOME → DSH_HOME → ~/.dsh）。
+// 少一档就会读另一个 home：页上的意见箱列表来自 dsh 模块（它认 DSH_HOME），计数却来自这里，两处会不自洽。
+const WHALE = process.env.WHALE_HOME || process.env.DSH_HOME || path.join(process.env.USERPROFILE || '', '.dsh')
 const FIELDS_FILE = path.join(WHALE, 'bili-whale', 'fields.json')
 const CAUSAL_FILE = path.join(WHALE, 'bili-whale', 'causal.jsonl')
 const KILL_FILE = path.join(WHALE, 'bili-whale', 'control', 'kill')
@@ -76,17 +78,28 @@ export function pendingDraftCount(): number {
   } catch { return 0 }
 }
 
-/** 意见箱未解决数：jsonl 按 id 后写覆盖（add/resolve 同 id 一行）。 */
-export function openFeedbackCount(): number {
-  let open = 0
+/**
+ * 意见箱未解决数。折叠规则归 dsh 模块所有：同 id 出现 `kind:'feedback-resolved'` 行 = 已解决，
+ * 原始条目永不删（历史可回放）。模块未预热时按同一条规则本地兜底——
+ * 原先"后写覆盖再判 `!e.resolved`"是错的：resolved 行本身没有 resolved 字段，
+ * 会让已解决项永久计入未解决灯。
+ */
+export function openFeedbackCount(file?: string): number {
+  if (!file && mods.feedback) {
+    try { return (mods.feedback.listFeedback()?.items ?? []).filter((x: any) => !x.resolved).length } catch { return 0 }
+  }
+  const resolved = new Set<string>()
+  const open = new Set<string>()
   try {
-    const byId = new Map<string, any>()
-    for (const line of fs.readFileSync(FEEDBACK_FILE, 'utf8').split('\n').filter(Boolean)) {
-      try { const e = JSON.parse(line); if (e?.id) byId.set(String(e.id), e) } catch {}
+    for (const line of fs.readFileSync(file ?? FEEDBACK_FILE, 'utf8').split('\n').filter(Boolean)) {
+      let e: any
+      try { e = JSON.parse(line) } catch { continue }
+      if (!e?.id) continue
+      if (e.kind === 'feedback-resolved') { resolved.add(String(e.id)); open.delete(String(e.id)) }
+      else if (e.kind === 'feedback') open.add(String(e.id))
     }
-    for (const e of byId.values()) if (!e.resolved) open += 1
-  } catch {}
-  return open
+  } catch { return 0 }
+  return open.size
 }
 
 export function tankLocal() {

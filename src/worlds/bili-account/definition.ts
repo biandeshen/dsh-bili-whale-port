@@ -23,7 +23,9 @@ import { decideAction, restRecoveryDelta, actionCost, nextCheckDelay, dayKey, MI
 
 const ROOT = process.env.BILI_WHALE_ROOT || 'E:/WorkSpace_Qoder/dsh-bili-whale'
 const BILI = path.join(ROOT, 'tools', 'bili.mjs')
-const WHALE = process.env.WHALE_HOME || path.join(process.env.USERPROFILE || '', '.dsh')
+// home 优先级与 dsh `tools/lib/paths.mjs:resolveWhaleHome` 一致（WHALE_HOME → DSH_HOME → ~/.dsh）；
+// 少一档就会和 dsh 子进程读不到同一片数据。
+const WHALE = process.env.WHALE_HOME || process.env.DSH_HOME || path.join(process.env.USERPROFILE || '', '.dsh')
 const FIELDS_FILE = path.join(WHALE, 'bili-whale', 'fields.json')
 const ROUND_FILE = path.join(WHALE, 'bili-whale', 'control', 'round.json')
 const LIFE_FILE = path.join(WHALE, 'bili-whale', 'control', 'life.json')

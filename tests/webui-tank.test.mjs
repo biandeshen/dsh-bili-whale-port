@@ -5,7 +5,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { BILI_ACCOUNT } from '../src/worlds/bili-account/definition.ts'
-import { readPolicyLite, policyInWindow, policySet, policyState, autoSentToday, draftForDay, freshAckToken } from '../src/worlds/bili-account/tank.ts'
+import { readPolicyLite, policyInWindow, policySet, policyState, autoSentToday, draftForDay, freshAckToken, openFeedbackCount } from '../src/worlds/bili-account/tank.ts'
 
 const decl = BILI_ACCOUNT.create().webUi('zh')
 
@@ -93,4 +93,24 @@ test('freshAckToken + draftForDay：只认草稿自带且仍有效的令牌，�
   mk('2026-11-03', 'dyn-20261103-ddd', 'ack-d', { payload: { draftId: 'other' } })
   assert.equal(freshAckToken(draftForDay('2026-11-03', drafts), whale), null, '绑定不符 = 没有')
   assert.equal(draftForDay('2026-11-04', drafts), null, '没那天的草稿文件 = null，不去别的草稿兜底')
+})
+
+test('意见箱灯：resolved 行不删原始条目，按同 id 折叠；已解决的不能再算未解决', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'feedback-count-'))
+  const file = path.join(dir, 'feedback.jsonl')
+  const line = (o) => JSON.stringify(o)
+  const add = (id) => ({ kind: 'feedback', id, at: '2026-11-01T00:00:00Z', issue: 'x', severity: 'low' })
+  const done = (id) => ({ kind: 'feedback-resolved', id, at: '2026-11-01T01:00:00Z', resolvedBy: 'owner' })
+  // 顺序敏感：resolved 写在后面（真实实现就是只追加，永不删原条目）
+  fs.writeFileSync(file, [line(add('a')), line(add('b')), line(done('a')), line(done('b'))].join('\n') + '\n')
+  assert.equal(openFeedbackCount(file), 0, '全部解决 = 灯灭')
+
+  fs.writeFileSync(file, [line(add('a')), line(done('a')), line(add('c'))].join('\n') + '\n')
+  assert.equal(openFeedbackCount(file), 1, '只剩 c 未解决')
+
+  // 坏行与无 id 的行跳过，不影响其它记录
+  fs.writeFileSync(file, ['not json', line({ kind: 'feedback' }), line(add('d')), line(done('d'))].join('\n') + '\n')
+  assert.equal(openFeedbackCount(file), 0)
+
+  fs.rmSync(dir, { recursive: true, force: true })
 })
