@@ -143,6 +143,17 @@ export function list() {
   }).filter(Boolean)
 }
 
+/**
+ * 令牌取法：`--token-env VAR` 优先于 `--token T`。
+ * argv 同机任意进程可读（进程列表、崩溃栈、审计日志），宿主自动放行走环境变量。
+ */
+export function resolveToken(argv, env = process.env) {
+  const ei = argv.indexOf('--token-env')
+  if (ei >= 0) return String(env[argv[ei + 1]] ?? '')
+  const ti = argv.indexOf('--token')
+  return ti >= 0 ? String(argv[ti + 1] ?? '') : ''
+}
+
 if (process.argv[1] && process.argv[1].endsWith('dynamic-approve.mjs')) {
   const [cmd, id] = process.argv.slice(2).filter((a) => !a.startsWith('--'))
   if (cmd === 'list') {
@@ -168,8 +179,7 @@ if (process.argv[1] && process.argv[1].endsWith('dynamic-approve.mjs')) {
     process.exit(0)
   }
   const go = process.argv.includes('--go')
-  const ti = process.argv.indexOf('--token')
-  const token = ti >= 0 ? process.argv[ti + 1] : ''
+  const token = resolveToken(process.argv)
   if (cmd === 'panel') {
     // 服务端持 token 的放行（面板按钮与 auto 模式共用；stdout 永不含 token）
     const r = await approveFromPanel({ id })
@@ -179,7 +189,7 @@ if (process.argv[1] && process.argv[1].endsWith('dynamic-approve.mjs')) {
   }
   const out = cmd === 'approve' ? await approve({ id, token, go })
     : cmd === 'reject' ? reject(id)
-    : { ok: false, error: '用法：list | approve <id> [--token T] [--go] | reject <id>' }
+    : { ok: false, error: '用法：list | approve <id> [--token T | --token-env VAR] [--go] | reject <id>' }
   console.log(JSON.stringify(out, null, 2))
   process.exitCode = out.ok ? 0 : 1
 }
