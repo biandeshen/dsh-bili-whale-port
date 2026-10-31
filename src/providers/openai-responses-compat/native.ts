@@ -121,6 +121,21 @@ export class ResponsesProvider extends OpenAIHttpClient {
  * `GET /models`: ids always. OpenRouter-style catalogs also state per model `name`,
  * `context_length`, `top_provider.max_completion_tokens` and `architecture.input_modalities`.
  */
+interface RawModelRow {
+  id?: unknown; name?: unknown; context_length?: unknown;
+  top_provider?: { max_completion_tokens?: unknown } | null;
+  architecture?: { input_modalities?: unknown } | null;
+}
+
+/** 网关返回的形状不止一种:`{data:[...]}`(OpenAI)与 `{models:[...]}`(部分兼容层)。都不是就回 null。 */
+export function parseModelList(text: string): RawModelRow[] | null {
+  let json: unknown;
+  try { json = JSON.parse(text); } catch { return null; }
+  const o = json as { data?: unknown; models?: unknown };
+  for (const arr of [o?.data, o?.models]) if (Array.isArray(arr)) return arr as RawModelRow[];
+  return null;
+}
+
 export class ModelCatalog {
   private known = new Map<string, number | undefined>();
   constructor(
@@ -128,16 +143,35 @@ export class ModelCatalog {
     private readonly fetchImpl: typeof fetch = fetch,
   ) {}
 
+  /**
+   * 模型列表。网关把 `/models` 挂在哪一档不统一(有的跟着 baseUrl 的 `/v1`,有的挂在根),
+   * 所以按候选逐个试;全部拿不到时给一句能照着做的话,而不是 `GET /models 404:`。
+   */
   async list(): Promise<ListedModel[]> {
     const { baseUrl, headers } = this.endpoint();
-    const res = await this.fetchImpl(`${baseUrl.replace(/\/+$/, '')}/models`, { headers, signal: AbortSignal.timeout(15_000) });
-    if (!res.ok) throw new Error(`GET /models ${res.status}: ${(await res.text()).slice(0, 300)}`);
-    const json = (await res.json()) as {
-      data?: Array<{ id?: unknown; name?: unknown; context_length?: unknown; top_provider?: { max_completion_tokens?: unknown } | null; architecture?: { input_modalities?: unknown } | null }>;
-    };
-    if (!Array.isArray(json.data)) throw new Error('GET /models returned no data array');
+    const root = baseUrl.replace(/\/+$/, '');
+    const candidates = [...new Set([`${root}/models`, root.endsWith('/v1') ? `${root.slice(0, -3)}/models` : `${root}/v1/models`])];
+    const tried: string[] = [];
+    for (const url of candidates) {
+      let res: Response;
+      try {
+        res = await this.fetchImpl(url, { headers, signal: AbortSignal.timeout(15_000) });
+      } catch (err) {
+        tried.push(`${new URL(url).pathname} 连不上(${err instanceof Error ? err.message : String(err)})`);
+        continue;
+      }
+      if (!res.ok) { tried.push(`${new URL(url).pathname} 回 ${res.status}`); continue; }
+      const parsed = parseModelList(await res.text());
+      if (!parsed) { tried.push(`${new URL(url).pathname} 返回的不是模型清单`); continue; }
+      return this.record(parsed);
+    }
+    throw new Error(`这个端点不提供模型列表(${tried.join(';')})。不影响换模型:直接在「模型」里填名字,按「测试连接」验证。`);
+  }
+
+  /** 把一行行原始记录收进 Known 表并排序;形状兼容 `data` 与 `models` 两种。 */
+  private record(rows: RawModelRow[]): ListedModel[] {
     const models: ListedModel[] = [];
-    for (const row of json.data) {
+    for (const row of rows) {
       if (typeof row.id !== 'string') continue;
       const model: ListedModel = { id: row.id };
       if (typeof row.name === 'string' && row.name.trim()) model.displayName = row.name;
