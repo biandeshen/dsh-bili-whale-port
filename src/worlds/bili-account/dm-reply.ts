@@ -11,7 +11,11 @@
  */
 import { toMs } from './dm.ts'
 
-export const DM_REPLY_WINDOW_MS = 7 * 86400_000
+/**
+ * 回信时效窗，默认不限（0）。原来写死 7 天：她刚读到的那封只要游标算错就被判"过期"，
+ * 与"再读又说没新消息"叠成死循环。主人 2026-11-01 判定这档没必要，保留旋钮、默认关掉。
+ */
+export const DM_REPLY_WINDOW_MS = 0
 
 export interface ReplyGateLife {
   lastInboundKey?: string | number | null
@@ -22,12 +26,13 @@ export interface ReplyGateLife {
 export function canReply(
   life: ReplyGateLife | null | undefined,
   nowMs: number = Date.now(),
+  windowMs: number = DM_REPLY_WINDOW_MS,
 ): { ok: boolean; reason: 'ok' | 'no-key' | 'stale' } {
   if (!life?.lastInboundKey) return { ok: false, reason: 'no-key' }
   // toMs：落盘数据里有秒值（B站 原始时间戳），不迁移文件，读的时候归一。
   const at = Math.max(toMs(Number(life.lastDmReadAt ?? 0)), toMs(Number(life.lastInboundAt ?? 0)))
   if (!at || !Number.isFinite(at)) return { ok: false, reason: 'stale' }
-  if (nowMs - at >= DM_REPLY_WINDOW_MS) return { ok: false, reason: 'stale' }
+  if (windowMs > 0 && nowMs - at >= windowMs) return { ok: false, reason: 'stale' }
   return { ok: true, reason: 'ok' }
 }
 

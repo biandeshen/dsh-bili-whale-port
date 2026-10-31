@@ -51,17 +51,18 @@ test('旧 life.json 里已经落盘的秒值不迁移也能开门（读的时候
   fs.rmSync(dir, { recursive: true, force: true })
 })
 
-test('读到 → 隔很久才回复：明确过期，但下一次读要么给同一条、要么刷新窗口，不循环', () => {
+test('读到 → 隔很久才回复：默认不限（主人 11-01 判定 7 天窗没必要）；设了窗口才判过期', () => {
   const t0 = Date.now()
   const life = {}
   readInbox(life, 0, MSG({ tsMs: t0 }), t0)
-  const late = t0 + DM_REPLY_WINDOW_MS + DAY
-  assert.deepEqual(canReply(life, late), { ok: false, reason: 'stale' })
+  const late = t0 + 8 * DAY
+  assert.deepEqual(canReply(life, late), { ok: true, reason: 'ok' }, '默认窗口不限，旧消息也能回')
+  assert.deepEqual(canReply(life, late, 7 * DAY), { ok: false, reason: 'stale' }, '旋钮还在：显式给窗口就会拦')
 
   // 第二次读：这一封已被 ack → 空读。空读刷新上下文，回信之门重开。
   const second = readInbox(life, 1, '{"hit":false}', late + 1000)
   assert.equal(second.parsed.kind, 'empty')
-  assert.equal(canReply(life, late + 1000).ok, true)
+  assert.equal(canReply(life, late + 1000, 7 * DAY).ok, true, '空读刷新了游标')
   assert.equal(dmAutoPlan('我回来了', life, late + 1000).ok, true)
 
   // 第二次读：pending 未 ack 时 dm-await 会重投同一条，靶子跟着换，也不会循环。
@@ -71,14 +72,17 @@ test('读到 → 隔很久才回复：明确过期，但下一次读要么给同
   assert.equal(canReply(life, late + 2000).ok, true)
 })
 
-test('读取失败不刷新窗口（没读到就是没读到）', () => {
+test('读取失败不推进游标（没读到就是没读到）', () => {
   const t0 = Date.now()
   const life = {}
   readInbox(life, 0, MSG({ tsMs: t0 }), t0)
-  const late = t0 + DM_REPLY_WINDOW_MS + DAY
+  const late = t0 + 8 * DAY
+  const before = life.lastDmReadAt
   const r = readInbox(life, 3, '私信历史读取失败，保留游标（code=-352）', late)
   assert.equal(r.parsed.kind, 'error')
-  assert.equal(canReply(life, late).reason, 'stale')
+  assert.equal(life.lastDmReadAt, before, '失败那次不许把游标推到 late')
+  assert.equal(canReply(life, late, DAY).reason, 'stale', '按 1 天窗口算，游标停在 t0 → 过期')
+  assert.equal(canReply(life, late).ok, true, '默认窗口不限 → 仍能回，不会死循环')
 })
 
 test('重复投递的那一封仍是回信靶子（否则她拿到 no-key，而信就在眼前）', () => {

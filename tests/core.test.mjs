@@ -197,15 +197,18 @@ test('OPS-B2：sectionStats 与 upsert 同源——回执能区分替换/追加'
 })
 test('OPS-故障：回信时效=最后一次成功读收件箱，空读解锁（她的死循环）', () => {
   const now = Date.parse('2026-10-31T00:00:00+08:00')
-  // 旧行为：只有消息时刻 → 超过 7 天永远拒
-  const lifeOld = { lastInboundKey: 'k1', lastInboundAt: now - (DM_REPLY_WINDOW_MS + 1000) }
-  assert.equal(canReply(lifeOld, now).reason, 'stale', '没读过时退回消息时刻：超窗仍拒')
+  // 默认窗口不限（主人 11-01 判定），这里显式给一档来验"窗口"这件事本身还成立
+  const WINDOW = 7 * 86400_000
+  // 旧行为：只有消息时刻 → 超过窗口永远拒
+  const lifeOld = { lastInboundKey: 'k1', lastInboundAt: now - (WINDOW + 1000) }
+  assert.equal(canReply(lifeOld, now, WINDOW).reason, 'stale', '没读过时退回消息时刻：超窗仍拒')
+  assert.equal(canReply(lifeOld, now).reason, 'ok', '默认不限：同一份数据不再被拒')
   // 新行为：刚读过（哪怕是空读）→ 解锁
   const lifeRead = { ...lifeOld, lastDmReadAt: now - 5000 }
-  assert.deepEqual(canReply(lifeRead, now), { ok: true, reason: 'ok' })
-  // 读过但超过 7 天 → 仍拒（上下文真的旧了）
-  const lifeStale = { lastInboundKey: 'k1', lastDmReadAt: now - (DM_REPLY_WINDOW_MS + 1) }
-  assert.equal(canReply(lifeStale, now).reason, 'stale')
+  assert.deepEqual(canReply(lifeRead, now, WINDOW), { ok: true, reason: 'ok' })
+  // 读过但超过窗口 → 仍拒（上下文真的旧了）
+  const lifeStale = { lastInboundKey: 'k1', lastDmReadAt: now - (WINDOW + 1) }
+  assert.equal(canReply(lifeStale, now, WINDOW).reason, 'stale')
   // 没有来信 → no-key（不凭空写私信）
   assert.equal(canReply({ lastDmReadAt: now }, now).reason, 'no-key')
   assert.equal(canReply(null, now).reason, 'no-key')
@@ -223,7 +226,8 @@ test('分级放开：bili_dm_reply 直发计划 = 文案校验 + 时效门，参
   assert.equal(dmAutoPlan('字'.repeat(501), life, now).reason, 'too-long')
   assert.deepEqual(dmAutoPlan('字'.repeat(500), life, now).args.slice(0, 2), ['dm', '--msg'], '500 字整不拒')
   // 时效门原样传导（直发不放松任何门）
-  assert.equal(dmAutoPlan('回一句', { lastInboundKey: 'k1', lastDmReadAt: now - (DM_REPLY_WINDOW_MS + 1) }, now).reason, 'stale')
+  // 默认时效窗不限（主人 11-01 判定 7 天窗没必要，它只会造死循环）：隔八天回也算合法计划
+  assert.equal(dmAutoPlan('回一句', { lastInboundKey: 'k1', lastDmReadAt: now - (7 * 86400_000 + 1) }, now).reason, 'ok')
   assert.equal(dmAutoPlan('回一句', { lastDmReadAt: now }, now).reason, 'no-key')
   assert.equal(dmAutoPlan('回一句', null, now).reason, 'no-key')
 })
