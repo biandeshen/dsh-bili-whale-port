@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { BILI_ACCOUNT } from '../src/worlds/bili-account/definition.ts'
+import { BILI_ACCOUNT, exportPolicyNotice } from '../src/worlds/bili-account/definition.ts'
 import { readPolicyLite, policyInWindow, policySet, policyState, autoSentToday, draftForDay, freshAckToken, openFeedbackCount } from '../src/worlds/bili-account/tank.ts'
 
 const decl = BILI_ACCOUNT.create().webUi('zh')
@@ -113,4 +113,25 @@ test('意见箱灯：resolved 行不删原始条目，按同 id 折叠；已解�
   assert.equal(openFeedbackCount(file), 0)
 
   fs.rmSync(dir, { recursive: true, force: true })
+})
+
+// 2026-11-01 01:23：正式配置被人写过一次 draftMode=auto（载荷与测试夹具同源，且本机 7799 免口令）。
+// 从那天起：测试不许碰真配置，auto 生效必须留一条她自己也读得到的痕迹。
+test('auto 的痕迹：措辞由纯函数给；review 不留痕；测试上下文拒绝写真配置', async () => {
+  assert.equal(exportPolicyNotice({ draftMode: 'review' }), null)
+  const n = exportPolicyNotice({ draftMode: 'auto', autoDailyCap: 0, autoWindow: '' })
+  assert.equal(n.heading, '策略变了')
+  assert.match(n.body, /不等主人点头/)
+  assert.match(n.body, /每日上限 不限，时段 不限/)
+  assert.match(n.body, /这不是我改的/)
+  assert.match(exportPolicyNotice({ draftMode: 'auto', autoDailyCap: 2, autoWindow: '10:00-23:00' }).body, /每日上限 2 条，时段 10:00-23:00/)
+  const denied = policySet({ publish: { draftMode: 'auto' } })
+  assert.equal(denied.ok, false, 'node:test 上下文里默认路径必须被拒')
+  assert.match(denied.error, /临时路径/)
+  // 显式临时文件仍然可用
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'policy-guard-'))
+  const file = path.join(dir, 'bili-whale.config.json')
+  fs.writeFileSync(file, JSON.stringify({ home: 'D:/keep-me' }), 'utf8')
+  assert.equal(policySet({ publish: { draftMode: 'review' } }, file).ok, true)
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).home, 'D:/keep-me', '别的键不许丢')
 })

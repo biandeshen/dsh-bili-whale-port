@@ -170,6 +170,22 @@ function diaryTail(n = 2000): string {
 }
 
 /**
+ * 策略切成 auto 时她该看到什么。纯函数，便于不碰真日记文件也能锁住措辞。
+ * 存在的理由：7799 本机免口令，任何本地进程都能 POST 改策略；盲改必须留下她自己也读得到的痕迹。
+ */
+export function exportPolicyNotice(policy: { draftMode?: string; autoDailyCap?: number; autoWindow?: string }): { heading: string; body: string } | null {
+  if (policy?.draftMode !== 'auto') return null
+  const cap = Number(policy.autoDailyCap) > 0 ? `${policy.autoDailyCap} 条` : '不限'
+  const win = String(policy.autoWindow ?? '').trim() || '不限'
+  return {
+    heading: '策略变了',
+    body: `发送策略被切到 auto：从现在起我的草稿不等主人点头就会发出去（每日上限 ${cap}，时段 ${win}）。`
+      + `\n- 这不是我改的，我也改不了：只有这台机器上的进程能这么写。`
+      + `\n- 如果主人没打算让我自动发，去「发送策略」改回人工审核，或者拉 kill。`,
+  }
+}
+
+/**
  * 给她的状态描述，并把这一轮**真的想起来**的记忆写回（accessCount +1、鲜活度上升）。
  * 面板的只读路径不走这里——看她的状态不该改变她的记忆。
  */
@@ -423,7 +439,21 @@ class BiliAccountWorld {
           if (method === 'state') return { ...policyState(), autoSentToday: autoSentToday() }
           if (method === 'set') {
             const r = policySet(args[0])
-            if (r.ok) causal({ kind: 'policy-change', policy: r.policy, atMs: Date.now() })
+            if (r.ok) {
+              causal({ kind: 'policy-change', policy: r.policy, atMs: Date.now() })
+              // 7799 是本机免口令端口：任何本地进程都能 POST 这里，一次盲写就把她从"要我审"变成"她自己发"。
+              // 所以 auto 一旦生效必须写进她自己的日记（主人和 her 都看得见），不能只留一条 causal。
+              if (r.policy?.draftMode === 'auto') {
+                const note = exportPolicyNotice(r.policy)
+                if (note) {
+                  try {
+                    const day = dayKey(Date.now())
+                    const cur = fs.existsSync(PRIVATE_DIARY) ? fs.readFileSync(PRIVATE_DIARY, 'utf8') : ''
+                    fs.writeFileSync(PRIVATE_DIARY, upsertDiarySection(cur, { book: 'private', heading: note.heading, body: note.body, date: day }))
+                  } catch {}
+                }
+              }
+            }
             return r
           }
           throw new Error('unknown method ' + method)

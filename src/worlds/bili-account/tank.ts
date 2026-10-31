@@ -131,6 +131,9 @@ export function policyState(file = CONFIG_FILE): { policy: any; file: string; ex
 
 export function policySet(patch: any, file = CONFIG_FILE): { ok: boolean; policy?: any; error?: string } {
   if (!patch || typeof patch !== 'object') return { ok: false, error: '缺策略对象' }
+  // 测试上下文里禁止写真配置：2026-11-01 01:23 正式配置出现过一次没人承认的 draftMode=auto 写入
+  // （7799 免口令 + 测试能碰到生产路径）。要测就显式传临时文件，否则宁可红。
+  if (file === CONFIG_FILE && process.env.NODE_TEST_CONTEXT) return { ok: false, error: '测试里必须显式传临时路径，不许写正式配置' }
   const cfg = readJson(file) ?? {}
   const next = {
     ...cfg,
