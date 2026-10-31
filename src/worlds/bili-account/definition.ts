@@ -2,6 +2,7 @@
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describeTools, type WorldDefinition } from '../../world.ts'
 import { canDraft, draftRefusal, canApplyWatched, watchedRefusal, violationNotice, diaryFresh, diaryRefusal } from './gates.ts'
 import { upsertDiarySection, sectionStats, diaryDefaultHeader } from './diary.ts'
@@ -23,6 +24,7 @@ import {
 import { decideAction, restRecoveryDelta, actionCost, nextCheckDelay, dayKey, MIN_GAP_MS } from '../../../persona-core/src/rhythm.ts'
 
 const ROOT = process.env.BILI_WHALE_ROOT || 'E:/WorkSpace_Qoder/dsh-bili-whale'
+const ENV_PROMPT_FILE = fileURLToPath(new URL('./ENV_PROMPT.md', import.meta.url))
 const BILI = path.join(ROOT, 'tools', 'bili.mjs')
 // home 优先级与 dsh `tools/lib/paths.mjs:resolveWhaleHome` 一致（WHALE_HOME → DSH_HOME → ~/.dsh）；
 // 少一档就会和 dsh 子进程读不到同一片数据。
@@ -461,6 +463,14 @@ class BiliAccountWorld {
         }
         throw new Error('unknown panel ' + panel)
       },
+      promptDocs: [{
+        key: 'worlds.bili-account.envPrompt',
+        title: t('她此刻的身心状态', 'Her state this turn'),
+        description: t('每一轮由系统读给她自己的心情、成因、七个状态条、今天发生过的事和想起来的旧事；改这份模板不改她的数据。', 'Renders her own mood, causes, fields, today and recalls each turn. Editing this template does not touch her data.'),
+        path: ENV_PROMPT_FILE,
+        role: 'envPrompt',
+        vars: [{ name: 'bili.state', description: t('系统现算的状态读数文本', 'Rendered state text') }],
+      }],
     }
   }
 
@@ -642,7 +652,15 @@ class BiliAccountWorld {
   }
 
   async stop(): Promise<void> { try { clearTimeout(this.dailyTimer) } catch {}; this.host = null }
-  envPromptVars(): Record<string, string> | null { return null }
+  /**
+   * 每一轮拼系统前缀时给她读自己的身心状态（含这一轮想起来的旧事，并按"回想"写回记忆）。
+   * 之前这里返回 null：控制台对话里的那个她不知道鱼缸里的她心情如何、记得什么——同一个 bot 两套人。
+   */
+  envPromptVars(): Record<string, string> | null {
+    try {
+      return { 'bili.state': statePrompt(loadState(FIELDS_FILE), { queryText: diaryTail(), seed: dayKey(Date.now()) }) }
+    } catch { return null }
+  }
 
   tools() {
     const mk = (decl: any, handler: (args: any) => Promise<string>) => ({ ...decl, handler })
