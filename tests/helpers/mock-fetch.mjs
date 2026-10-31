@@ -24,6 +24,13 @@ globalThis.fetch = async (url, opts = {}) => {
   if (String(url).includes('/nav')) data={code:0,data:{isLogin:true,mid:111,uname:'test-account',wbi_img:{img_url:'https://i.example/7cd084941338484aae1ad9425b84077c.png',sub_url:'https://i.example/4932caff0ff746eab6f01bf08b70ac45.png'}}}
   else if(String(url).includes('/x/relation'))data={code:0,data:{attribute:6}}
   else if(String(url).includes('/send_msg'))data={code:0,data:{}}
+  else if(String(url).includes('web-dynamic/v1/feed/space')&&process.env.TEST_SPACE_FILE){
+    // dynamic recent 的夹具：{ pages: { "<offset>": {items,offset,has_more} } }
+    const fx=JSON.parse(fs.readFileSync(process.env.TEST_SPACE_FILE,'utf8'))
+    const key=new URL(String(url)).searchParams.get('offset')??''
+    if(fx.pages[key]===undefined)throw Error('TEST_SPACE_FILE 没有 offset='+key+' 这页')
+    data={code:(fx.pages[key].__code ?? 0),data:fx.pages[key]}
+  }
   else throw Error('Network blocked by test: '+url)
   return new Response(JSON.stringify(data), {status:200})
 }

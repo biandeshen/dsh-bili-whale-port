@@ -60,6 +60,15 @@ async function whoami() {
   return d.data.mid
 }
 
+/** whoami 的安静版：--json 时 stdout 只能是 JSON。 */
+async function whoamiQuiet() {
+  const d = await (await fetch('https://api.bilibili.com/x/web-interface/nav', {
+    headers: { 'user-agent': UA, referer: 'https://www.bilibili.com/', cookie: cookieHeader },
+  })).json()
+  if (d.code !== 0) { console.error(`登录态无效: code=${d.code} ${d.message}`); process.exit(4) }
+  return d.data.mid
+}
+
 async function list(mid) {
   const u = `https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/space_history?host_uid=${mid}&offset_dynamic_id=0&need_top=0`
   let d
@@ -85,6 +94,67 @@ if (mode === 'list') {
   const mid = await whoami()
   await list(mid)
   process.exit(0)
+}
+
+// recent —— 按自然日期查她自己发过的动态（2026-10-31 普查后补：space_history 老接口常回 HTML，
+// 发布链路需要一个可靠的复核入口；数据源换 polymer feed/space，与 check 同一套 wbi 签名）
+if (mode === 'recent') {
+  await runRecent().catch((e) => {
+    if (e?.name === 'TrafficError' || /请求已暂停/.test(String(e?.message ?? e))) {
+      console.error('⏸ ' + e.message + '（查最新动态这类读取也被风控闸统一管——到点前别重试）')
+      process.exit(5)
+    }
+    throw e
+  })
+  process.exitCode = 0
+}
+
+async function runRecent() {
+  const day = String(args.get('date') ?? new Date().toLocaleDateString('sv-SE'))
+  const cap = Math.max(1, Math.min(50, Number(args.get('n') ?? 10) || 10))
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) { console.error('recent 的 --date 要形如 2026-10-31'); process.exit(2) }
+  const mid = args.has('json') ? await whoamiQuiet() : await whoami()
+  const rows = []
+  let offset = ''
+  let stop = false
+  for (let page = 0; page < 10 && !stop; page += 1) {
+    const qs = await wbi({ host_mid: String(mid), timezone_offset: -480, offset })
+    const r = await fetch(`https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/space?${qs}`, {
+      headers: { 'user-agent': UA, referer: REF, cookie: cookieHeader },
+    })
+    let d
+    try { d = await r.json() } catch { console.error('✗ feed/space 返回的不是 JSON（风控/打码）——过几分钟再试'); process.exit(6) }
+    if (d.code !== 0) { console.error(`✗ feed/space code=${d.code} ${d.message ?? d.msg ?? ''}`); process.exit(6) }
+    const items = d.data?.items ?? []
+    if (!items.length) break
+    for (const it of items) {
+      const t = Number(it.pub_time ?? 0)
+      if (!t) continue
+      const localDate = new Date(t * 1000).toLocaleDateString('sv-SE')
+      if (localDate < day) { stop = true; break }  // 流是按时间倒序的：翻过那天就停
+      if (localDate !== day) continue
+      rows.push({
+        dyn_id: String(it.id_str ?? it.id ?? ''),
+        at: new Date(t * 1000).toISOString(),
+        local: new Date(t * 1000).toLocaleString('zh-CN', { hour12: false }),
+        type: String(it.dynamic_type ?? ''),
+        text: String(it.modules?.module_dynamic?.desc?.text ?? '').replace(/\s+/g, ' ').slice(0, 80),
+      })
+      if (rows.length >= cap) { stop = true; break }
+    }
+    if (stop) break
+    if (!d.data?.offset || d.data?.has_more === false) break
+    offset = String(d.data.offset)
+  }
+  if (args.has('json')) {
+    console.log(JSON.stringify({ ok: true, day, mid: Number(mid), count: rows.length, items: rows }, null, 2))
+  } else if (!rows.length) {
+    console.log(`  ${day} 没有查到她发的动态（发布失败/还没发/就是没有这一天）`)
+  } else {
+    console.log(`=== ${day} 她发过的动态（${rows.length} 条）===`)
+    for (const x of rows) console.log(`  dyn_id=${x.dyn_id}  ${x.local}  [${x.type}] ${x.text}`)
+    console.log('  复核单条: node bili.mjs dynamic check --id <dyn_id>')
+  }
 }
 
 if (mode === 'post') {
@@ -148,7 +218,7 @@ if (mode === 'rm') {
   process.exit(0)
 }
 
-if (!['list', 'post', 'check', 'rm'].includes(mode)) {
-  console.error('用法: list | post --text "..." --dry|--go | rm --id <dyn_id> --dry|--go')
+if (!['list', 'post', 'check', 'rm', 'recent'].includes(mode)) {
+  console.error('用法: list | recent [--date YYYY-MM-DD] [--n 10] [--json] | post --text "..." --dry|--go | rm --id <dyn_id> --dry|--go')
   process.exit(2)
 }

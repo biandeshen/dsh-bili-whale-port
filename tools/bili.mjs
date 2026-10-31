@@ -45,7 +45,7 @@ const map = {
   comment: ['commands/comment.mjs', '发一条视频评论；带 --root/--parent 就是二级回复'],
   'reply-draft': ['commands/reply-draft.mjs', '待审回复（B 档：发前审核）：add 进队列 / list / drop / take'],
   'comment-del': ['commands/comment-del.mjs', '删除自己发的一条评论（x/v2/reply/del，只能删自己的）'],
-  dynamic: ['commands/dynamic.mjs', '动态：post / rm / check'],
+  dynamic: ['commands/dynamic.mjs', '动态：recent [--date 今天] [--json] 按日期复核她发过的 / post / rm / check'],
   'dynamic-image': ['commands/dynamic-image.mjs', '发图文动态（上传图片 + 可带 @节点）'],
   'dynamic-edit': ['commands/edit-dynamic.mjs', '编辑已存在的动态（文字/图片都能改，id 不变、评论与点赞保留）：<dyn_id> <文本文件> [--go]'],
   feedback: ['commands/feedback.mjs', '她的意见箱：add --issue "..." [--severity high] [--self] [--note ...] / list [--json] [--all] / resolve <id> [--by whale|owner]（本地文件，不联网）'],
