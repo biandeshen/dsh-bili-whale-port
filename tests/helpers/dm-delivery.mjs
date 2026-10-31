@@ -20,7 +20,7 @@ const sched = startScheduler({ controller: { create: async () => {}, prompt: asy
   attempts.push(p.requestId)
   if (fail) throw Error('host temporarily unavailable')
   delivered.push(p)
-} } }, { dshHome: process.env.DSH_HOME, cwd: process.env.HOME, biliMjs: fileURLToPath(new URL('../../tools/bili.mjs', import.meta.url)) })
+} } }, { whaleHome: process.env.WHALE_HOME || process.env.DSH_HOME, cwd: process.env.HOME, biliMjs: fileURLToPath(new URL('../../tools/bili.mjs', import.meta.url)) })
 try {
   await sched.dmTick()
   const pending = JSON.parse(fs.readFileSync(stateFile))

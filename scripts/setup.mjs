@@ -11,7 +11,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { spawn, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { DSH_HOME as WHALE_HOME } from '../tools/lib/paths.mjs'
+import { whaleHome as WHALE_HOME } from '../tools/lib/paths.mjs'
 import { DEFAULTS } from '../core/api/support.js'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')

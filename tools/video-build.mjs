@@ -9,7 +9,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { DSH_HOME } from './lib/paths.mjs'
+import { whaleHome } from './lib/paths.mjs'
 import { mediaConfig } from './media/config.mjs'
 import { resolveBgm } from './media/bgm.mjs'
 import { ttsPlan, synthesize, describeTts } from './media/tts.mjs'
@@ -32,7 +32,7 @@ const mimoModel = String(arg('model', cfg.tts.model))
 const bgmArg = String(arg('bgm', cfg.bgm.default))
 const bgmVolume = Math.max(0, Math.min(0.6, Number(arg('bgm-volume', cfg.bgm.volume)) || cfg.bgm.volume))
 const planOnly = argv.includes('--plan')
-const outDir = path.join(DSH_HOME, 'bili-whale', 'media', '_smoke')
+const outDir = path.join(whaleHome, 'bili-whale', 'media', '_smoke')
 fs.mkdirSync(outDir, { recursive: true })
 
 if (!['auto', 'mimo', 'edge', 'none'].includes(tts)) { console.error('--tts 只支持 auto|mimo|edge|none'); process.exit(2) }
@@ -55,8 +55,8 @@ const cleanup = () => {
 }
 process.on('exit', cleanup)
 
-const localBin = path.join(DSH_HOME, 'bili-whale', 'bin')
-const localTools = path.join(DSH_HOME, 'bili-whale', 'tools', 'venv', 'Scripts')
+const localBin = path.join(whaleHome, 'bili-whale', 'bin')
+const localTools = path.join(whaleHome, 'bili-whale', 'tools', 'venv', 'Scripts')
 const scfg = studioConfig({ localBinDir: localBin })
 const { ffmpeg, ffprobe } = resolveTools(scfg)
 if (!ffmpeg) { console.error('找不到 ffmpeg'); process.exit(2) }

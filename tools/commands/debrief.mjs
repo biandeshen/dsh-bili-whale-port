@@ -20,7 +20,7 @@ import zlib from 'node:zlib'
 import { execFileSync } from '../lib/capture.mjs'
 import { fileURLToPath } from 'node:url'
 import { config } from '../lib/config.mjs'
-import { dshPath } from '../lib/paths.mjs'
+import { whalePath } from '../lib/paths.mjs'
 import { NODE_EXE } from '../lib/nodebin.mjs'   // 2026-10-21：别用 process.execPath（Electron 里它是主程序 ✗）
 
 
@@ -74,7 +74,7 @@ const wbi = (params) => {
     .map((k) => `${encodeURIComponent(k)}=${encodeURIComponent(String(k === 'wts' ? wts : params[k]).replace(/[!'()*]/g, ''))}`).join('&')
   return `${q}&w_rid=${crypto.createHash('md5').update(q + mixin).digest('hex')}`
 }
-const shots = dshPath('shots')
+const shots = whalePath('shots')
 fs.mkdirSync(path.join(shots, 'covers'), { recursive: true })
 fs.mkdirSync(path.join(shots, 'subs'), { recursive: true })
 

@@ -6,7 +6,7 @@ import fs from 'node:fs'
 import { execFile } from 'node:child_process'
 import { RISK_DEFAULTS } from '../../tools/lib/traffic.mjs'
 import { nodeEnv } from '../node-runtime.js'
-import { DSH_HOME } from '../../tools/lib/paths.mjs'
+import { whaleHome } from '../../tools/lib/paths.mjs'
 
 export const clone = (o) => JSON.parse(JSON.stringify(o))
 export const merge = (base, over) => {
@@ -29,7 +29,7 @@ export const DEFAULTS = {
     minGapMin: 10, maxVideos: 5,
   },
   preferences: {
-    like: ['DSH/AI 工具与插件', '鬼畜与怀旧向剪辑', '猫咪', 'Live2D/模型', 'B站生态八卦'],
+    like: ['AI 工具与插件', '鬼畜与怀旧向剪辑', '猫咪', 'Live2D/模型', 'B站生态八卦'],
     dislike: ['带货', '擦边', '标题党', '纯搬运'],
     keywords: [],
   },
@@ -57,7 +57,7 @@ export function makeExecNode(nodeExeGetter) {
       cb?.(new Error(msg), '', msg)
       return null
     }
-    return execFile(NODE_EXE, args, { ...options, env: { ...nodeEnv(DSH_HOME), ...options?.env } }, cb)
+    return execFile(NODE_EXE, args, { ...options, env: { ...nodeEnv(whaleHome), ...options?.env } }, cb)
   }
 }
 

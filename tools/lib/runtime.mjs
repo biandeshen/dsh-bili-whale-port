@@ -15,16 +15,18 @@ export function probeRuntime(file, env) {
   } catch { return false }
   finally { if (dir) fs.rmSync(dir, { recursive: true, force: true }) }
 }
-export function resolveRuntime(dshHome, options = {}) {
+export function resolveRuntime(whaleHome, options = {}) {
   const env = options.env ?? process.env, platform = options.platform ?? process.platform
   const home = options.home ?? (env.USERPROFILE || env.HOME || os.homedir())
   const electron = options.electron ?? Boolean(process.versions.electron)
   const current = options.execPath ?? process.execPath
   const probe = options.probe ?? probeRuntime
   const bin = platform === 'win32' ? 'node.exe' : 'node'
-  // WHALE_NODE：非 DSH 宿主（OpenCode/panel/Termux）的规范覆盖；DSH_NODE 原样生效。
+  // 覆盖变量的优先级：WHALE_NODE（规范）→ DSH_NODE（旧名，仍生效）→ 桌面应用注入的运行时指针（旧宿主遗留）。
   const cands = [env.WHALE_NODE, env.DSH_NODE, env.DSH_DESKTOP_NODE_EXECUTABLE]
-  for (const root of new Set([path.join(dshHome, 'dsh-runtimes'), path.join(home, '.dsh', 'dsh-runtimes')])) {
+  // `dsh-runtimes/` 是旧桌面应用往 home 里投放自带 node 的目录名（磁盘事实，不是我们的变量名）：
+  // 装了它的机器仍要能扫到那个运行时，所以这一档保留。
+  for (const root of new Set([path.join(whaleHome, 'dsh-runtimes'), path.join(home, '.dsh', 'dsh-runtimes')])) {
     try { for (const d of fs.readdirSync(root)) cands.push(path.join(root, d, 'dependencies', 'node', 'bin', bin)) } catch {}
   }
   const sep = platform === 'win32' ? ';' : ':'
@@ -39,5 +41,5 @@ export function resolveRuntime(dshHome, options = {}) {
     const nodeEnv = { ...env, ELECTRON_RUN_AS_NODE: '1' }
     if (probe(current, nodeEnv)) return { file: current, env: nodeEnv }
   }
-  throw Error('[bili-whale] 找不到可执行脚本的 node 运行时，请设置 DSH_NODE 为真实 node 的绝对路径')
+  throw Error('[bili-whale] 找不到可执行脚本的 node 运行时，请设置 WHALE_NODE 为真实 node 的绝对路径')
 }

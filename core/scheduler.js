@@ -9,9 +9,9 @@ import { pollDelay } from '../tools/lib/poll-policy.mjs'
  * 是"你戳一下她动一下" ✗。主人明确要求：**计划要她自己执行，改配置要立刻生效** ✓。
  *
  * 做法（不需要任何外部 CLI）：
- *   · 插件宿主**常驻在 DSH 里** → 自己每 60 秒 tick 一次 ✓
+ *   · 常驻进程（whale-daemon / 面板）自己每 60 秒 tick 一次 ✓
  *   · tick 与 `bili.mjs night plan` 共用同一个计划引擎，持久化绝对时间与窗口记录
- *   · 到点了 → 用宿主注入的 **`controller.prompt({ sessionId, mode:'queue', content })`**（AgentSessionPort）
+ *   · 到点了 → 用宿主提供的 **`controller.prompt({ sessionId, mode:'queue', content })`**（AgentSessionPort）
  *     往她自己的专用会话里塞一个"你醒了"的回合 ✓ → agent 真的醒来干活 ✓
  *   · 醒来后立刻标记 `woke` → 下一次 tick 自动排下一趟（多窗口 × 多次 ✓）
  *   · 只有作息修改才清除计划；历史计数保留，修改其它设置不会重新抽签
@@ -110,9 +110,9 @@ function diaryPushLines() {
 // 2026-10-22：share.via 也得由调用方传进来（同 maxVideos 的理由 ✗ 模块级函数够不到 cfg）
 //   动机：主人明明设了 via=comment，她还是走私信 ✗
 //   原因：提示里只写「先看 share.via」却没给便宜的读法，而旁边 notify.type=dm 容易带偏 ✓
-export function wakePrompt(st, personaText, maxVideos = 5, shareVia = 'dm', host = 'dsh') {
-  // 阶段 2 端口化：DSH 用 `node bili.mjs …`；OpenCode 用 MCP 工具 `bili …`（同一套命令名）。
-  //   「AGENTS.md 流程」在非 DSH 宿主可能不存在 → 明确降级为"按下方步骤"。
+export function wakePrompt(st, personaText, maxVideos = 5, shareVia = 'dm', host = 'cli') {
+  // 阶段 2 端口化：命令行宿主用 `node bili.mjs …`；OpenCode 用 MCP 工具 `bili …`（同一套命令名）。
+  //   「AGENTS.md 流程」在非命令行宿主可能不存在 → 明确降级为"按下方步骤"。
   const RAW = [
     // 2026-10-21 修：这个函数在模块级，够不到关闭体里的 personaLine() ✗
     //   → 最主要的「你醒了」提示一直没带过她的人设 ✗（所以换了人设她还是老样子）
@@ -136,7 +136,7 @@ export function wakePrompt(st, personaText, maxVideos = 5, shareVia = 'dm', host
     ...silenceLines(),
     '按 AGENTS.md 的「看的那晚」流程走一遍（不要等我说话，直接做）：',
     '1) `node bili.mjs deps` —— 红着就报备我、只做读、不对外发',
-    '2) 读运行目录（WHALE_HOME；DSH 下即 DSH_HOME）的 whale-diary.md 与 whale-diary-private.md（缺失则首次写入时创建）',
+    '2) 读运行目录（WHALE_HOME，旧机器上叫 DSH_HOME）的 whale-diary.md 与 whale-diary-private.md（缺失则首次写入时创建）',
     '3) feed 选题（≤' + maxVideos + ' 条） → 每条 `debrief --no-frames --top 3 --comments 3 --bucket 60`；排序看「偏好命中+弹幕密度」不看播放量',
     '4) 挑 1 条深读（`debrief --no-frames --top 3 --comments 3 --bucket 60`；验收期不抽帧）',
     '4.5) 想留着的 → `fav <BV> --reason "..." --dry` → `--go`（自动进待审队列，主人在面板放行后才收）；判据缺一不收：三个月后还想点开 / 说得出为什么（≥6字）/ 同类 ≥2 条要 --better。一天 ≤3 条、同视频 30 天一次、不占额度；看完就完的不收',
@@ -163,20 +163,20 @@ export function wakePrompt(st, personaText, maxVideos = 5, shareVia = 'dm', host
  * 阶段 2 端口化：不再收宿主 ctx，只收 AgentSessionPort ——
  *   controller { create({sessionId,cwd}), prompt(request,signal) }
  *   isBusy?    () => false|'cooldown'|'still-working'（宿主可提供；缺省回落到会话文件 mtime 探测）
- * dsh/opencode/codebuddy 各自实现该端口；核心调度与监听逻辑宿主无关。
+ * 各宿主（面板 / whale-daemon / OpenCode）各自实现该端口；核心调度与监听逻辑宿主无关。
  */
 export function startScheduler({controller, isBusy: hostIsBusy}, opts) {
   const {
-    dshHome,
+    whaleHome,
     biliMjs,          // 指向 tools/bili.mjs（绝对路径）
     cwd,              // 她那个会话的工作目录
     sessionId = 'bili-whale',
-    host = 'dsh',        // 'dsh' | 'opencode'：唤醒提示词里的命令形态（node bili.mjs ↔ bili 工具）
+    host = 'cli',        // 'cli' | 'opencode'：唤醒提示词里的命令形态（node bili.mjs ↔ bili 工具）
     log = () => {},
   } = opts
 
-  const STATE = path.join(dshHome, 'whale-night.json')
-  const CFG_FILE_REF = process.env.BILI_WHALE_CONFIG || path.join(dshHome, 'bili-whale.config.json')     // 监听循环每次重读（改配置立刻生效 ✓）
+  const STATE = path.join(whaleHome, 'whale-night.json')
+  const CFG_FILE_REF = process.env.BILI_WHALE_CONFIG || path.join(whaleHome, 'bili-whale.config.json')     // 监听循环每次重读（改配置立刻生效 ✓）
   const CRED_REF = credentialsPath
   const readState = () => { try { return JSON.parse(fs.readFileSync(STATE, 'utf8')) } catch { return null } }
   // 2026-10-22：tick() 里拿不到别处闭包的 cfg ✗（实测 ReferenceError: cfg is not defined）
@@ -190,15 +190,15 @@ export function startScheduler({controller, isBusy: hostIsBusy}, opts) {
     fs.renameSync(temp, STATE)
   }
 
-  // ⚠️ 2026-10-18 大坑：插件跑在 DSH 的 **Electron** 里，`process.execPath` = DeepSeek Harness.exe ✗
+  // ⚠️ 2026-10-18 大坑：常驻进程可能跑在 **Electron** 里，`process.execPath` = 主程序 exe ✗
   //   用主程序跑脚本时，B站 的 `gethistory` 返回**空数组**（nav 之类却正常 ✗）→ 直播间永远"听不见" ✗
   //   实测对照：真 node.exe 5 秒命中；主程序 25 秒 0 行 ✗
-  //   → 必须找到 **真正的 node.exe**（DSH 自带的运行时）✓
-  const NODE_EXE = resolveNodeRuntime(dshHome) // Fail before registering timers.
-  const NODE_ENV = nodeEnv(dshHome)   // 真 node 不需要 ELECTRON_RUN_AS_NODE ✓
+  //   → 必须找到 **真正的 node.exe**（桌面应用自带的运行时）✓
+  const NODE_EXE = resolveNodeRuntime(whaleHome) // Fail before registering timers.
+  const NODE_ENV = nodeEnv(whaleHome)   // 真 node 不需要 ELECTRON_RUN_AS_NODE ✓
 
   const runBili = (args) => new Promise((resolve) => {
-    if (!NODE_EXE) return resolve({ ok: false, out: '', err: '未找到可用的 node 运行时（设置 DSH_NODE）' })
+    if (!NODE_EXE) return resolve({ ok: false, out: '', err: '未找到可用的 node 运行时（设置 WHALE_NODE）' })
     execFile(NODE_EXE, [biliMjs, ...args], { timeout: 120_000, windowsHide: true, env: NODE_ENV }, (err, stdout, stderr) => {
       // 2026-10-24：把退出码也带出去 ✗ —— 因为 dm-await 用退出码表达三种结果：
       //   0 = 命中 / 1 = 没命中（正常）/ 3 = 出错 ✗
@@ -218,7 +218,7 @@ export function startScheduler({controller, isBusy: hostIsBusy}, opts) {
   //   → 后来那个窗口的提示会把她上一趟的活顶掉（实测：只会在最晚那条里干活）
   //   这里按【会话文件 mtime】判断她是不是还在动；再加一道硬冷却兜底
   function findSessionFile() {
-    const root = path.join(dshHome, 'sessions')
+    const root = path.join(whaleHome, 'sessions')
     const stack = [root]
     let best = null
     let guard = 0
@@ -273,7 +273,7 @@ export function startScheduler({controller, isBusy: hostIsBusy}, opts) {
     wakingAt = Date.now()
     wakingWarned = false
     try {
-      const st = makePlan(readNightConfig(dshHome), readState() ?? {})
+      const st = makePlan(readNightConfig(whaleHome), readState() ?? {})
       writeState(st)
       if (st.action === 'done' || Date.now() < st.atMs) return
       if (stopped) return
@@ -308,7 +308,7 @@ export function startScheduler({controller, isBusy: hostIsBusy}, opts) {
   // ── 全天监听（2026-10-18 加）：插件自己轮询收件箱，有人找她就叫醒她 ────────────────
   // 为什么放这里：`listen.allDay` 只控制"守多久" ✓，但**没人启动 listener** ✗ —— 跟生物钟当初的病一样。
   // 现在插件每 listen.commentIntervalSec 秒看一眼「回复我的 / @我的」；有新东西就 prompt 她一次。
-  const LSTATE = path.join(dshHome, LISTEN_STATE)
+  const LSTATE = path.join(whaleHome, LISTEN_STATE)
   const readL = () => { try { return JSON.parse(fs.readFileSync(LSTATE, 'utf8')) } catch { return null } }
   const writeL = (o) => { try { fs.mkdirSync(path.dirname(LSTATE), { recursive: true }); fs.writeFileSync(LSTATE, JSON.stringify(o, null, 2) + '\n') } catch {} }
   const inWindow = cfg => isInWindow(cfg?.night ?? {})
@@ -358,7 +358,7 @@ export function startScheduler({controller, isBusy: hostIsBusy}, opts) {
 
 
   const personaLine = () => '' // Added at delivery time, after session selection.
-  const delivery = createSessionDelivery({controller,dshHome,cwd,sessionId,config:readCfgNow,persona:personaBlock,isBusy:sheIsBusy,log,onSession:id=>{ if(activeSessionId!==id) { activeSessionId=id; sessionFileCache=null } }})
+  const delivery = createSessionDelivery({controller,whaleHome,cwd,sessionId,config:readCfgNow,persona:personaBlock,isBusy:sheIsBusy,log,onSession:id=>{ if(activeSessionId!==id) { activeSessionId=id; sessionFileCache=null } }})
 
     async function dmTick() {
     // A timeout is not proof of failed delivery. Keep single-flight ownership

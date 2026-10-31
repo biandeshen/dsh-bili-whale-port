@@ -3,11 +3,11 @@ import fs from 'node:fs'
 import path from 'node:path'
 import net from 'node:net'
 import { spawn } from 'node:child_process'
+import { whaleHome } from '../tools/lib/paths.mjs'
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..')
-const HOME = process.env.WHALE_HOME || path.join(process.env.USERPROFILE || process.env.HOME || '.', '.dsh')
 const BASE = (() => { const n = Number(process.env.PANEL_PORT || 8447); return Number.isInteger(n) && n > 0 && n < 65536 ? n : 8447 })()
-const tokenFile = path.join(HOME, 'panel.token')
+const tokenFile = path.join(whaleHome, 'panel.token')
 const readToken = () => { try { return fs.readFileSync(tokenFile, 'utf8').trim() } catch { return '' } }
 
 const free = (port) => new Promise((res) => {
@@ -39,7 +39,7 @@ for (let port = BASE; port < BASE + 10; port++) {
     console.log(`[whale] ${port} 被其他程序占用，尝试 ${port + 1}`)
     continue
   }
-  fs.mkdirSync(HOME, { recursive: true })
+  fs.mkdirSync(whaleHome, { recursive: true })
   console.log(`[whale] 启动面板于 127.0.0.1:${port}`)
   const child = spawn(process.execPath, [path.join(ROOT, 'panel', 'server.js'), '--port', String(port)], {
     env: { ...process.env, PANEL_PORT: String(port) }, stdio: 'inherit',

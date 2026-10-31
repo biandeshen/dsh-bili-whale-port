@@ -8,17 +8,15 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
+import { whaleHome, isDefaultWhaleHome, LEGACY_DRAFTS } from '../tools/lib/paths.mjs'
 
 const CORTICO = process.env.CORTICO_ROOT || 'E:/WorkSpace_Qoder/Cortico'
 const DEFAULT_SESSION = path.join(CORTICO, 'deployments', 'mybot', 'data', 'session-main.jsonl')
-const LEGACY_DRAFTS = 'D:/AI/养鱼/drafts'
-const USERPROFILE = process.env.USERPROFILE || process.env.HOME || ''
-const DSH_HOME = process.env.WHALE_HOME || process.env.DSH_HOME || path.join(USERPROFILE, '.dsh')
 
 const logicalDay = (iso) => new Date(Date.parse(iso)).toLocaleDateString('sv-SE') // 自然日（2026-10-31 拍板）
 function draftPath(day) {
-  const isDefault = path.resolve(DSH_HOME).toLowerCase() === path.resolve(USERPROFILE, '.dsh').toLowerCase()
-  const dir = process.env.WHALE_DRAFTS || (isDefault && fs.existsSync(LEGACY_DRAFTS) ? LEGACY_DRAFTS : path.join(DSH_HOME, 'bili-whale', 'drafts'))
+  // 与冻结的验收脚本同一套优先级：env 覆盖 → 「家仍是默认落点」且旧目录存在 → whale home
+  const dir = process.env.WHALE_DRAFTS || (isDefaultWhaleHome() && fs.existsSync(LEGACY_DRAFTS) ? LEGACY_DRAFTS : path.join(whaleHome, 'bili-whale', 'drafts'))
   return path.join(dir, day + '.json')
 }
 function readDraft(day) {

@@ -16,7 +16,7 @@ import path from 'node:path'
 //   `export { configPath } from './paths.mjs'` 只是再导出，不会创建本地绑定 →
 //   下面 config() 里的 fs.readFileSync(configPath) 会拿到 undefined → 抛错 → 被 catch 吞掉
 //   → 静默退回默认值（self / owner / quota / preferences 全部失效）✗ 实测踩到
-import { dshPath, configPath } from './paths.mjs'
+import { configPath } from './paths.mjs'
 
 
 const HOME = process.env.USERPROFILE || process.env.HOME || '.'

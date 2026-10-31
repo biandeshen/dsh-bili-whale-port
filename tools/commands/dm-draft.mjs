@@ -7,7 +7,7 @@
  *
  * 审批不在本脚本：scripts/dm-approve.mjs list / approve <id> --token … --go
  */
-import { DSH_HOME, dshPath } from '../lib/paths.mjs'
+import { whaleHome, whalePath } from '../lib/paths.mjs'
 import { addDraft, attachAck, loadDrafts } from '../lib/dm-drafts.mjs'
 import * as ack from '../../scripts/ack.mjs'
 
@@ -21,7 +21,7 @@ for (let i = 1; i < argv.length; i += 1) {
     else { opt[argv[i].slice(2)] = v; i += 1 }
   } else if (!opt._a) opt._a = argv[i]
 }
-const FILE = dshPath('bili-whale', 'control', 'dm-drafts.json')
+const FILE = whalePath('bili-whale', 'control', 'dm-drafts.json')
 
 if (cmd === 'list') {
   const db = loadDrafts(FILE)
@@ -41,7 +41,7 @@ if (cmd === 'add') {
   const first = addDraft(FILE, { text, inboundKey, who: opt.who, src: opt.src })
   if (!first.ok) { console.error('[dm-draft] ' + first.error); process.exit(2) }
   try {
-    const it = ack.enqueue(DSH_HOME, {
+    const it = ack.enqueue(whaleHome, {
       kind: 'dm',
       draftId: first.item.id,
       textHash: first.item.textHash,

@@ -11,13 +11,13 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { DSH_HOME } from '../paths.mjs'
+import { whaleHome } from '../paths.mjs'
 
 /** 默认候选文件（按优先级；每次现算，setHomes/env 后跟着走）。 */
 export function defaultCandidates() {
   return [
     path.join(os.homedir(), '.local', 'share', 'mimocode', 'auth.json'),
-    path.join(DSH_HOME, 'bili-whale', 'credentials', 'mimo.json'),
+    path.join(whaleHome, 'bili-whale', 'credentials', 'mimo.json'),
   ]
 }
 

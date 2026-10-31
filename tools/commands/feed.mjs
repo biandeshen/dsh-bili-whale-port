@@ -13,7 +13,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { config } from '../lib/config.mjs'
 import crypto from 'node:crypto'
-import { dshPath, draftsDir } from '../lib/paths.mjs'
+import { whalePath, draftsDir } from '../lib/paths.mjs'
 
 
 const argv = process.argv.slice(2)
@@ -25,12 +25,12 @@ const N = Number(opt.n ?? 6)
 const PER = Number(opt.per ?? 2)
 // 2026-10-22 调（主人问「feed 是不是筛得太严」）：不是严 ✗ 是池子太小 ✗
 //   实测同一时刻：pool=30 → 只出 3 条且全是碎屑 ✗
-//                 pool=60 → 出满 5 条，两条 DSH/AI 相关 + 两条猫咪 + 一条大肥鱼 ✓
+//                 pool=60 → 出满 5 条，两条 AI 工具相关 + 两条猫咪 + 一条大肥鱼 ✓
 //   代价：每个关键词多抓几条（搜索请求数不变 ✓ 只是每页多取几条 ✓）
 const POOL = Number(opt.pool ?? 60)
 
 const HOME = (process.env.USERPROFILE || process.env.HOME || '/')
-const diary = dshPath('whale-diary.md')
+const diary = whalePath('whale-diary.md')
 // 2026-10-18：审计表挪到 `~/.bili-ai/` ✓（原来写死作者机器路径 ✗ 换机器就写不进去，静默失效 ✗）
 const audit = path.join(HOME, '.bili-ai', 'commented-videos.md')
 
@@ -306,9 +306,8 @@ console.log('\n看完跑：node bili.mjs debrief <BV>   → 然后把"想法"写
 //   D-31 吵不清的原因之一：只有"她最后看了什么"，没有"平台给了她什么"。
 //   快照只写本地、只读字段（无 cookie/凭据），供 day-report / 复盘查"是不是碎屑"。
 try {
-  const whaleHome = process.env.WHALE_HOME || path.join(HOME, '.dsh')
   const day = new Date(Date.now()).toLocaleDateString('sv-SE') // 自然日
-  const dir = path.join(whaleHome, 'bili-whale', 'feed')
+  const dir = whalePath('bili-whale', 'feed')
   fs.mkdirSync(dir, { recursive: true })
   const rows = [
     ...uniq.map((x, i) => snapshotRow(x, { keep: true, why: keepCandidate(x).why }, i + 1)),

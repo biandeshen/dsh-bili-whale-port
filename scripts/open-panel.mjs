@@ -2,10 +2,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
+import { whaleHome } from '../tools/lib/paths.mjs'
 
-const home = process.env.WHALE_HOME || path.join(process.env.USERPROFILE || process.env.HOME || '.', '.dsh')
+const file = path.join(whaleHome, 'panel.token')
 const port = process.env.PANEL_PORT || '8447'
-const file = path.join(home, 'panel.token')
 const deadline = Date.now() + 20000
 while (Date.now() < deadline) {
   try {

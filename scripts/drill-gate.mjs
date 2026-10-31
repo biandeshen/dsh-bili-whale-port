@@ -121,7 +121,7 @@ check('kick 点名昨日违规', /上一轮.*debrief/.test(notice), notice)
 check('无违规时点名为空', gates.violationNotice([]) === '')
 
 // —— 场景 8：生产审批必须带一次性 token
-process.env.DSH_HOME = home
+process.env.WHALE_HOME = home
 const draftDir = path.join(tmp, 'drafts')
 fs.mkdirSync(draftDir, { recursive: true })
 process.env.WHALE_DRAFTS = draftDir

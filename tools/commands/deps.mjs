@@ -1,5 +1,5 @@
 import { guardedFetch as fetch, trafficGuard } from '../lib/traffic.mjs'
-import { dshPath } from '../lib/paths.mjs'
+import { whalePath } from '../lib/paths.mjs'
 // 依赖体检（2026-10-17 加）：装完之后让 agent 自己跑一次，确认"能不能用"
 //
 // 用法：
@@ -78,10 +78,10 @@ try {
     name: 'node 运行时',
     ok: real,
     detail: real ? NODE_EXE : ('这个不是 node：' + NODE_EXE + '（会静默返回空输出）'),
-    fix: '设置环境变量 DSH_NODE 指向 node 可执行文件的绝对路径，然后重启 DSH',
+    fix: '设置环境变量 WHALE_NODE 指向 node 可执行文件的绝对路径，然后重启常驻进程（面板 / whale-daemon）',
   })
 } catch (e) {
-  items.push({ name: 'node 运行时', ok: false, detail: '检查失败：' + String(e?.message ?? e).slice(0, 80), fix: '设置 DSH_NODE' })
+  items.push({ name: 'node 运行时', ok: false, detail: '检查失败：' + String(e?.message ?? e).slice(0, 80), fix: '设置 WHALE_NODE' })
 }
 
 items.push({ name: '数据目录可写', ok: dirOk, detail: path.join(HOME, '.bili-ai'), fix: '检查该目录权限' })
@@ -105,10 +105,10 @@ try {
 //   ⚠️ deps.mjs 是独立进程，读不到插件内存里的 SCHED_STATUS
 //   → 只能从【配置 + 状态文件】推断 ✓
 try {
-  // 2026-10-23 修（issue #27，@Schumchanvi 报的）：自定义 DSH_HOME 时这里读错目录 ✗
+  // 2026-10-23 修（issue #27，@Schumchanvi 报的）：自定义 whale home 时这里读错目录 ✗
   //   以前写死 path.join(HOME, '.dsh', ...) ✗ → 体检误报「配置里没有任何作息窗口」✗
-  const cfgPath = process.env.BILI_WHALE_CONFIG || dshPath('bili-whale.config.json')
-  const statePath = dshPath('whale-night.json')
+  const cfgPath = process.env.BILI_WHALE_CONFIG || whalePath('bili-whale.config.json')
+  const statePath = whalePath('whale-night.json')
   const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'))
   const night = cfg.night ?? {}
   const windows = Array.isArray(night.windows) ? night.windows : []
@@ -135,7 +135,7 @@ try {
       } else if (atMs < now - 15 * 60000) {
         ok = false
         detail = `计划 ${st.atText ?? ''} 已经过去 ${Math.abs(mins)} 分钟还没执行 → 调度器可能没在跑 ✗`
-        fix = '重启 DSH；起来后看设置页「依赖体检」里调度器那行'
+        fix = '重启常驻进程（面板 / whale-daemon）；起来后看设置页「依赖体检」里调度器那行'
       } else {
         detail = `每 60 秒 tick · 下次 ${st.atText ?? new Date(atMs).toLocaleString('zh-CN')}${mins > 0 ? `（${mins} 分钟后）` : '（马上）'} · 今日已醒 ${woke}/${maxW}`
       }

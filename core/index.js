@@ -14,7 +14,7 @@ import { guardedFetch } from '../tools/lib/traffic.mjs'
 import { startScheduler } from './scheduler.js'
 import { resolveWorkDir } from './work-dir.js'
 import { resolveNodeRuntime, nodeEnv } from './node-runtime.js'
-import { HOME, DSH_HOME, configPath, credentialsPath } from '../tools/lib/paths.mjs'
+import { HOME, whaleHome, configPath, credentialsPath } from '../tools/lib/paths.mjs'
 import { makeRoutes } from './api/routes.js'
 import { makeExecNode } from './api/support.js'
 
@@ -22,11 +22,11 @@ import { makeExecNode } from './api/support.js'
 let SCHED_STATUS = { ok: false, reason: '未初始化', at: null }
 
 // 真 node 路径（Electron 的 process.execPath 是 Harness.exe ✗ 跑不了 node 脚本）；
-// home 解析统一走 paths.mjs（WHALE_HOME 优先，DSH_HOME 兼容）。解析失败不静默回退，
+// home 解析统一走 paths.mjs（WHALE_HOME → 旧名 DSH_HOME → ~/.dsh）。解析失败不静默回退，
 // 原因记在 globalThis.__biliWhaleNodeError，由依赖体检显示真因。
 let NODE_EXE = null
 try {
-  NODE_EXE = resolveNodeRuntime(DSH_HOME)
+  NODE_EXE = resolveNodeRuntime(whaleHome)
 } catch (e) {
   globalThis.__biliWhaleNodeError = String(e?.message ?? e)
 }
@@ -35,7 +35,7 @@ const execNode = makeExecNode(() => NODE_EXE)
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const TOOLS_ROOT = path.join(HERE, '..')
 // 2026-10-21 修 Issue #6：她的会话工作目录必须是专用小目录，不能用用户主目录 ✗
-const WORK_DIR = path.join(DSH_HOME, 'whale-work')
+const WORK_DIR = path.join(whaleHome, 'whale-work')
 
 export default {
   name: 'dsh-bili-whale',
@@ -92,7 +92,7 @@ export default {
       credFile: credentialsPath,
       toolsRoot: TOOLS_ROOT,
       home: HOME,
-      whaleHome: DSH_HOME,
+      whaleHome,
       getSchedStatus: () => SCHED_STATUS,
       execNode,
       fetch: guardedFetch,
@@ -126,7 +126,7 @@ export default {
       } else {
         const biliMjs = userCfg.toolsPath || path.join(TOOLS_ROOT, 'tools', 'bili.mjs')
         sched = startScheduler({ controller: ctx.sessionController }, {
-          dshHome: DSH_HOME,
+          whaleHome,
           biliMjs,
           cwd: resolveWorkDir(userCfg.home, WORK_DIR),
           sessionId: 'bili-whale',

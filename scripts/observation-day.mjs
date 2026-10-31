@@ -9,12 +9,12 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { DSH_HOME } from '../tools/lib/paths.mjs'
+import { whaleHome } from '../tools/lib/paths.mjs'
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..')
-const CONTROL = path.join(DSH_HOME, 'bili-whale', 'control')
-const DAYS = path.join(DSH_HOME, 'bili-whale', 'days')
-const CAUSAL = path.join(DSH_HOME, 'bili-whale', 'causal.jsonl')
+const CONTROL = path.join(whaleHome, 'bili-whale', 'control')
+const DAYS = path.join(whaleHome, 'bili-whale', 'days')
+const CAUSAL = path.join(whaleHome, 'bili-whale', 'causal.jsonl')
 const CFG = path.join(CONTROL, 'observation.json')
 const argv = process.argv.slice(2)
 const arg = (k, d) => { const i = argv.indexOf('--' + k); return i >= 0 ? argv[i + 1] : d }

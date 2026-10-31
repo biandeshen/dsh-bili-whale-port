@@ -4,7 +4,7 @@
  *   node panel/server.js [--port 8441]
  *
  * 复用 core/api/routes.js 的 9 条路由（宿主无关），外面套 panel 自己的栅栏：
- *   只绑 127.0.0.1 + Bearer/token fail-closed（取代 DSH requestRejection）。
+ *   只绑 127.0.0.1 + Bearer/token fail-closed。
  * 新增三条：/api/vitals（HUD 聚合，补 traffic 余量缺口）、/api/timeline、/api/diary。
  * 生物钟：面板进程自带 startScheduler（controller 默认 OpenCode 端口实现，
  *   设 PANEL_SCHED（默认关）=1 可关，交给 pm2 的 whale-daemon 跑）。
@@ -13,7 +13,7 @@ import http from 'node:http'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { HOME, DSH_HOME as WHALE_HOME, configPath, credentialsPath } from '../tools/lib/paths.mjs'
+import { HOME, whaleHome, configPath, credentialsPath } from '../tools/lib/paths.mjs'
 import { guardedFetch, trafficGuard } from '../tools/lib/traffic.mjs'
 import { makeRoutes } from '../core/api/routes.js'
 import { makeExecNode } from '../core/api/support.js'
@@ -34,7 +34,7 @@ const rawPort = pi >= 0 ? process.argv[pi + 1] : (process.env.PANEL_PORT || 8447
 const PORT = (() => { const n = Number(rawPort); return Number.isInteger(n) && n >= 1 && n <= 65535 ? n : 8447 })()
 
 let NODE_EXE = null
-try { NODE_EXE = resolveNodeRuntime(WHALE_HOME) } catch (e) { globalThis.__biliWhaleNodeError = String(e?.message ?? e) }
+try { NODE_EXE = resolveNodeRuntime(whaleHome) } catch (e) { globalThis.__biliWhaleNodeError = String(e?.message ?? e) }
 const execNode = makeExecNode(() => NODE_EXE)
 
 let schedStatus = { ok: false, reason: '未启动（面板默认只做管理端；时钟由 whale-daemon 负责，PANEL_SCHED=1 可内置）', at: null }
@@ -44,9 +44,9 @@ if (process.env.PANEL_SCHED === '1') {
     let userCfg = {}
     try { userCfg = JSON.parse(fs.readFileSync(configPath, 'utf8')) } catch {}
     sched = startScheduler({ controller: createOpenCodeController() }, {
-      dshHome: WHALE_HOME,
+      whaleHome,
       biliMjs: userCfg.toolsPath || path.join(ROOT, 'tools', 'bili.mjs'),
-      cwd: userCfg.home || path.join(WHALE_HOME, 'whale-work'),
+      cwd: userCfg.home || path.join(whaleHome, 'whale-work'),
       sessionId: 'bili-whale',
       host: 'opencode',
       log: (m) => { try { console.log(m) } catch {} },
@@ -59,20 +59,20 @@ if (process.env.PANEL_SCHED === '1') {
 
 const { routes } = makeRoutes({
   cfgFile: configPath, credFile: credentialsPath, toolsRoot: ROOT,
-  home: HOME, whaleHome: WHALE_HOME,
+  home: HOME, whaleHome,
   getSchedStatus: () => schedStatus, execNode, fetch: guardedFetch,
   onConfigSaved: (changed) => { try { sched?.invalidate(changed) } catch {} },
 })
 
-const { token } = loadToken(WHALE_HOME)
+const { token } = loadToken(whaleHome)
 const extra = {
   '/api/timeline': (req, res) => {
     const u = new URL(req.url, 'http://x')
-    json(res, 200, timeline(WHALE_HOME, { cursor: u.searchParams.get('cursor') || 0, limit: u.searchParams.get('limit') || 50 }))
+    json(res, 200, timeline(whaleHome, { cursor: u.searchParams.get('cursor') || 0, limit: u.searchParams.get('limit') || 50 }))
   },
-  '/api/diary': (req, res) => json(res, 200, diary(WHALE_HOME)),
+  '/api/diary': (req, res) => json(res, 200, diary(whaleHome)),
   // M1a：动态/回信草稿只读列表（无 token；放行走 CLI）
-  '/api/drafts': (req, res) => json(res, 200, collectDrafts({ whaleHome: WHALE_HOME })),
+  '/api/drafts': (req, res) => json(res, 200, collectDrafts({ whaleHome })),
   // 放行入口（2026-10-31 主人要）：浏览器只发 {id,action}，token 全程在服务端（M1e：永远不进响应/浏览器）
   // 她的意见箱（本地 jsonl，只读列表 + 主人侧 resolve）
   '/api/feedback': (req, res) => json(res, 200, listFeedback()),
@@ -106,9 +106,9 @@ const extra = {
     json(res, 200, { ok: r.ok, status: r.status ?? null, error: r.error ?? null, dynId: r.dynId ?? null, outTail: r.outTail ?? '' })
   },
   '/api/avatar': (req, res) => {
-    try { const b = fs.readFileSync(path.join(WHALE_HOME, 'avatar.png')); res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'max-age=60' }); res.end(b) } catch { json(res, 404, { ok: false, error: '未设置头像：放一张 png 到 ' + path.join(WHALE_HOME, 'avatar.png') }) }
+    try { const b = fs.readFileSync(path.join(whaleHome, 'avatar.png')); res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'max-age=60' }); res.end(b) } catch { json(res, 404, { ok: false, error: '未设置头像：放一张 png 到 ' + path.join(whaleHome, 'avatar.png') }) }
   },
-  '/api/vitals': (req, res) => json(res, 200, vitals({ whaleHome: WHALE_HOME, home: HOME, traffic: trafficGuard(), schedStatusGetter: () => schedStatus })),
+  '/api/vitals': (req, res) => json(res, 200, vitals({ whaleHome, home: HOME, traffic: trafficGuard(), schedStatusGetter: () => schedStatus })),
 }
 
 function json(res, code, obj) {
@@ -128,7 +128,7 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/' || pathname === '/index.html') {
     if (!authorized(req, token).ok && !/t=/.test(req.url)) {
       res.writeHead(401, { 'Content-Type': 'text/plain; charset=utf-8' })
-      res.end('whale-panel 需要访问令牌：第一次请用 http://127.0.0.1:' + PORT + '/?t=<见 panel.token>' + ' 打开（token 也在 ' + path.join(WHALE_HOME, 'panel.token') + '）')
+      res.end('whale-panel 需要访问令牌：第一次请用 http://127.0.0.1:' + PORT + '/?t=<见 panel.token>' + ' 打开（token 也在 ' + path.join(whaleHome, 'panel.token') + '）')
       return
     }
     const a = authorized(req, token)
@@ -167,7 +167,7 @@ server.on('error', (e) => {
   process.exit(2)
 })
 server.listen(PORT, '127.0.0.1', () => {
-  console.log(`[whale-panel] http://127.0.0.1:${PORT}/  （已带 token 自动打开；token 存 ${path.join(WHALE_HOME, 'panel.token')}，勿外传/勿截屏）`)
-  console.log(`[whale-panel] home=${WHALE_HOME} · 生物钟=${schedStatus.ok ? '✓ ' + schedStatus.reason : '✗ ' + schedStatus.reason}`)
+  console.log(`[whale-panel] http://127.0.0.1:${PORT}/  （已带 token 自动打开；token 存 ${path.join(whaleHome, 'panel.token')}，勿外传/勿截屏）`)
+  console.log(`[whale-panel] home=${whaleHome} · 生物钟=${schedStatus.ok ? '✓ ' + schedStatus.reason : '✗ ' + schedStatus.reason}`)
 })
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { try { sched?.stop() } catch {}; server.close(); setTimeout(() => process.exit(0), 200).unref() })

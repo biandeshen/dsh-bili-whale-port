@@ -16,7 +16,7 @@ import crypto from 'node:crypto'
 import { guardedFetch as fetch } from './traffic.mjs'
 import { config } from './config.mjs'
 import { gate, record } from './quota-gate.mjs'
-import { DSH_HOME } from './paths.mjs'
+import { whaleHome } from './paths.mjs'
 import { appendCausal } from './causal.mjs'
 
 const HOME = process.env.USERPROFILE || process.env.HOME || '.'
@@ -97,7 +97,7 @@ export async function sendOwnerDm({ text, share = false, shareTarget = '', dry =
   const push = (...ls) => { out.lines.push(...ls); for (const l of ls) (l.startsWith('✗') || l.startsWith('⚠') ? console.error : console.log)(l) }
   // 出站与拦下都进因果账本（K4-1「私信有来有回」的分子/分母）：只记身份、日期、长度，
   // 正文与凭据（SESSDATA/bili_jct/dev_id）一律不写。dry 一条都不写——预检不是事件。
-  const causal = (event) => (dry ? false : appendCausal(DSH_HOME, { toMid: OWNER, day: today(), atMs: Date.now(), ...event }))
+  const causal = (event) => (dry ? false : appendCausal(whaleHome, { toMid: OWNER, day: today(), atMs: Date.now(), ...event }))
   const blocked = (reason, extra = {}) => causal({ kind: 'dm-blocked', reason, ...extra })
   const cfg = config()
   const OWNER = String(cfg.owner?.mid ?? '').trim()
