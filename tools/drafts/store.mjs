@@ -6,6 +6,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
+import { appendCausal } from '../lib/causal.mjs'
 
 /** @returns {{file: string, draft: object}|null} */
 export function loadDraftById(draftsDir, id) {
@@ -54,18 +55,13 @@ export function audit(draftsDir, entry) {
  * 只写事件，不改场值——场值归 World（唯一事实源）管，这里不越权。
  */
 export function recordDraftResult(whaleHome, draft, result) {
-  try {
-    const file = path.join(whaleHome, 'bili-whale', 'causal.jsonl')
-    fs.mkdirSync(path.dirname(file), { recursive: true })
-    fs.appendFileSync(file, JSON.stringify({
-      at: new Date().toISOString(),
-      kind: 'draft-result',
-      draftId: draft.id,
-      date: draft.date,
-      result,
-      textHash: crypto.createHash('sha1').update(String(draft.text ?? '')).digest('hex').slice(0, 12),
-    }) + String.fromCharCode(10))
-  } catch {}
+  appendCausal(whaleHome, {
+    kind: 'draft-result',
+    draftId: draft.id,
+    date: draft.date,
+    result,
+    textHash: crypto.createHash('sha1').update(String(draft.text ?? '')).digest('hex').slice(0, 12),
+  })
 }
 
 export function markUsed(image) {

@@ -16,6 +16,8 @@ import crypto from 'node:crypto'
 import { guardedFetch as fetch } from './traffic.mjs'
 import { config } from './config.mjs'
 import { gate, record } from './quota-gate.mjs'
+import { DSH_HOME } from './paths.mjs'
+import { appendCausal } from './causal.mjs'
 
 const HOME = process.env.USERPROFILE || process.env.HOME || '.'
 const QUOTA = path.join(HOME, '.bili-ai', 'dm-quota.json')
@@ -93,6 +95,10 @@ export function relationLines(rel, meInfo) {
 export async function sendOwnerDm({ text, share = false, shareTarget = '', dry = false } = {}) {
   const out = { ok: false, exit: 2, reason: 'usage', lines: [] }
   const push = (...ls) => { out.lines.push(...ls); for (const l of ls) (l.startsWith('✗') || l.startsWith('⚠') ? console.error : console.log)(l) }
+  // 出站与拦下都进因果账本（K4-1「私信有来有回」的分子/分母）：只记身份、日期、长度，
+  // 正文与凭据（SESSDATA/bili_jct/dev_id）一律不写。dry 一条都不写——预检不是事件。
+  const causal = (event) => (dry ? false : appendCausal(DSH_HOME, { toMid: OWNER, day: today(), atMs: Date.now(), ...event }))
+  const blocked = (reason, extra = {}) => causal({ kind: 'dm-blocked', reason, ...extra })
   const cfg = config()
   const OWNER = String(cfg.owner?.mid ?? '').trim()
   const OWNER_NAME = String(cfg.owner?.name ?? '主人')
@@ -107,7 +113,7 @@ export async function sendOwnerDm({ text, share = false, shareTarget = '', dry =
   const { cred, H, explainCode } = ctx
 
   const meInfo = await me(H)
-  if (!meInfo) { push('✗ 未登录（cookie 失效 ✗）'); return { ...out, exit: 3, reason: 'not-login' } }
+  if (!meInfo) { push('✗ 未登录（cookie 失效 ✗）'); blocked('not-login'); return { ...out, exit: 3, reason: 'not-login' } }
   if (String(meInfo.mid) === OWNER) {
     push(
       '✗ 不能给自己发私信（owner.mid 就是 cookie 这个号）',
@@ -118,9 +124,10 @@ export async function sendOwnerDm({ text, share = false, shareTarget = '', dry =
   }
 
   const rel = await relation(H, OWNER)
-  if (!rel.ok) { push(`✗ ${rel.why}`); return { ...out, exit: 3, reason: 'relation-probe' } }
+  if (!rel.ok) { push(`✗ ${rel.why}`); blocked('relation-probe'); return { ...out, exit: 3, reason: 'relation-probe' } }
   if (REQUIRE_MUTUAL && rel.attribute !== 6) {
     push(`✗ 未互关（attribute=${rel.attribute}）—— 私信通道要求双方互相关注 ✓`, ...relationLines(rel, meInfo))
+    blocked('not-mutual', { attribute: rel.attribute })
     return { ...out, exit: 4, reason: 'not-mutual' }
   }
 
@@ -128,6 +135,7 @@ export async function sendOwnerDm({ text, share = false, shareTarget = '', dry =
   const used = q.date === today() ? Number(q.count ?? 0) : 0
   if (ONE_TARGET_PER_DAY && q.date === today() && q.mid && String(q.mid) !== OWNER) {
     push(`✗ 今天已经锁定给 mid ${q.mid} 了 —— 一天只能锁定 1 个收信人（防刷量 ✗）`)
+    blocked('target-locked', { lockedMid: String(q.mid) })
     return { ...out, exit: 4, reason: 'target-locked' }
   }
 
@@ -139,6 +147,7 @@ export async function sendOwnerDm({ text, share = false, shareTarget = '', dry =
     const target = shareTarget || `dm:${OWNER}`
     if (!gate({ type: 'dm', target, auto: true, share: true })) {
       push('✗ 分享额度不允许（见上面的 [限额闸] 输出）')
+      blocked('share-quota')
       return { ...out, exit: 4, reason: 'share-quota' }
     }
   }
@@ -164,14 +173,17 @@ export async function sendOwnerDm({ text, share = false, shareTarget = '', dry =
   } catch (e) {
     const msg = String(e?.message ?? e)
     push('  ✗ 发送异常：' + msg)
+    blocked('throw', { transient: /冷却|TRAFFIC_PAUSED|请稍后/.test(msg) || e?.name === 'TrafficError' })
     return { ...out, exit: 1, reason: 'throw', transient: /冷却|TRAFFIC_PAUSED|请稍后/.test(msg) || e?.name === 'TrafficError' }
   }
   if (r.code === 0) {
     saveQ({ date: today(), count: used + 1, mid: OWNER, at: new Date().toISOString() })
     if (share) record({ type: 'dm', target: shareTarget || `dm:${OWNER}`, note: MSG.slice(0, 40), auto: true, share: true })
+    causal({ kind: 'dm-out', charLen: MSG.length })
     push(`  ✓ 已发送（HTTP ${r.http}）${share ? ' · 已记入分享额度 ✓' : ' · 推送不占额度 ✓'}`)
     return { ok: true, exit: 0, reason: 'sent', lines: out.lines, http: r.http, code: r.code }
   }
   push(`  ✗ 发送失败：HTTP ${r.http} ${explainCode(r.code)}${r.message ? `（B站原文：${r.message}）` : ''}`)
+  blocked('send-failed', { http: r.http, code: r.code })
   return { ...out, exit: 1, reason: 'send-failed', http: r.http, code: r.code }
 }
