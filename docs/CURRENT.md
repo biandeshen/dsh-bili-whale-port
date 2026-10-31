@@ -20,6 +20,13 @@
   - **14 天观测窗从 11-02 00:00 起算**，今天记为接入日（判据与理由见 [evidence/G3B-DECISION-2026-11-01.md](./evidence/G3B-DECISION-2026-11-01.md)）。
   - **一个踩过的验证坑**：hash 路由改 `?v=2` 不会重载 SPA，页签看着还是旧的 6 块；必须 `location.reload()` 再看。
 
+- **2026-11-01 03:10 第三批合 live（第 12 次重启，pid 265020 起）：配置全量可见 + 她标 high 的两条。**
+  - **全部配置只读总览**：策略页签里新增折叠区，实测 **58 个叶子键**（其中 **17 项在 dsh 的 DEFAULTS 里没声明**），逐项标「页面可改 / 改后要重启 / 未声明默认值」，标题带配置文件绝对路径。规格那一步数出来的是"页面上只能看见 6 项"，现在 58 项全见。真实浏览器验证：58 行、分组名是中文（含把 `clock`/`night` 标成"插件时代遗留，待查实"）。门禁：Cortico mjs **67/67**、persona-core 90/90、`tsc` 与 `tsc -p tsconfig.web.json` 干净；`pnpm build:web` 已随停服重建。
+  - **私信回信死循环（她标 high）根因**：B站 给的是 10 位**秒**时间戳，`life.json.lastInboundAt` 原样存秒，`canReply` 拿它跟 `Date.now()` 毫秒比 7 天窗口 → 回落那一档等于"1970 年，永远过期"。修法在平台边界归一成毫秒（不迁移存量文件），窗口取 `max(lastDmReadAt, lastInboundAt)`，游标推进收进单一入口；新增 `tests/dm-reply.test.mjs` 覆盖"读到→立刻回→可直发"与"隔 8 天→过期→再读→门重开"。
+  - **她不再被替着说"喜欢"（她标 high，带 BREAKING CHANGE）**：`watchedVideo` 原来无条件给 mood/curiosity/stimulation 正加成 + 成因文本写死「看完喜欢的视频」。现在 `verdict` 三值 `keep/drop/unclear`，**只有 keep 拿正向场值**，不传按 unclear、非法值拒绝、回执写明结论。
+  - **市场索引**：根因是加速器对本机 GitHub 域名换签证书（链上签发者 `Steamcommunity302 - 2026 ECC Root`）；代理与加 CA 三种组合实测都不通，**唯一通的是公开镜像**。索引源改为 raw → jsDelivr → gh-proxy 顺序回落（不放宽证书校验），`extensions/market-index.json` 于重启时写入 31,753 字节即证据；`/api/extensions/search` 仍 `registry.npmjs.org ECONNRESET`（待办 #47）。
+  - **待主人拍板**：回信窗口 7 天是否合适；`keep/drop/unclear` 三值命名；`drop/unclear` 不再补 stimulation 可能让她更难起身（长期观察）；`home` 目录是否随改名一起迁；通知默认不推还是开本机 Toast；fork 要不要挂 upstream；"只对 GitHub 走代理、B站 与网关绝不出境"是否接受（接受需导出 Clash 根证书）。
+
 - **2026-11-01 01:23 事故（已闭合，必须记账）**：正式配置 `publish.draftMode` 被写成 `auto`。载荷含 `autoDailyCap=-9`（与仓内唯一一处测试夹具同源），而 7799 是本机免口令端口——任何本地进程 POST `panels/policy/set` 就能把她从"要我审"改成"她自己发"。**未造成发布**（`autoSentToday=0`、causal 无 `auto-publish`、当天她还没出稿）。处置：01:26 改回 `review`；Cortico `92b41f1` 加了两条——auto 生效必须往私人日记写一节「策略变了」（`exportPolicyNotice`），以及 node:test 上下文里 `policySet` 拒绝写默认配置文件（宁可红也不写生产）。当天重启计数因此到 **6 次**。完整记录与证据：`days/2026-11-01/incident.md`。
   - 未查明：写入者。线索两条——(1) 01:23–01:24 期间 `npm run gates` 正在跑（含 Cortico 测试），日志里 01:24:15 出现"已接管无法读取或已失效的实例锁"（曾第二个实例）；(2) `-9` 只出现在测试夹具。**诚实结论**：这是一次同机写入，nonce/口令类办法都挡不住同机进程，真正的修法是给写接口加认证（安全席 F-17，已提 P0）。今晚不做"假修法"。
 - **观测窗仍按 11-02 00:00 起算**；11-01 全天记为接入日（合并 + 事故 + 2 次重启），不计入 K1 的 14 天。
