@@ -5,7 +5,19 @@
 
 ## 现在到哪了
 
-- **2026-10-31 晚：发布失败真因定位 + `dynamic recent` 上线（`d481d89`）。** 11:49Z 三次面板放行的实际失败原因是 **B站对 polymer 动态端点回 HTTP 412 风控页**（feed/space 实测同样回 HTML；traffic 闸自动进入暂停）——不是代码问题，除 reporting bug（已修）。新增复核入口：`node tools/bili.mjs dynamic recent --date YYYY-MM-DD [--json]`（时间倒序翻页、翻过目标日即停、412/code≠0 明确报错、TrafficError 不再甩裸 stack）。测试 270/270。**重试放行请等 412 风控窗口过去（约 20:55 本地后），先 `dynamic recent --date 当天` 确认没有半发的动态再点。**
+- **2026-11-01 01:35「接入日」：两条 dev 线合 live，第 5 次重启，7 块面板齐。** Cortico `e7d5873` + dsh `8a31cc1`；停 bot → `pnpm build:web`（23 产物）→ 重启（pid 243296，health 全绿）。真实浏览器实测：页签 7 个，`发送策略` 里 4 个下拉 + 上限 + 时段全部渲染且读到现行值 `草稿=review · 点赞=self · 收藏=self · 回信=direct`（**没替主人打开 auto**）。门：dsh **311/311（58 文件）**、Cortico mjs **133/133（15 文件）**、vitest **5062 passed/269 文件（跑在合并前的 `dev/policy` 树上）**、consumers 全有生产调用、验收哈希一致。
+  - 这轮把红队第一条"产物与人格局零耦合"真正闭上：`composeDraft` 现在吃 `voice.pace/today/hour/state` 与记忆 slot，**同一段日记 10 个状态变体产出的正文归一化后两两不同**（`tests/contract/voice-state-coupling.test.mjs`，全走真函数无 mock）；坏值 12 组退回基线且不拒稿。旧 voice 文件（没这些字段）照常出稿。
+  - 《作品名》取位收到一个口径：嵌套/未闭合书名号不再产生 `《《原神》…` 与 `《…高效补》` 残片，`**` 星号不再漏进正文（现存 `dyn-20261031-9f8a2a` 是修复前写的，稿面仍有 `《《`，不回填）。
+  - 记忆闭环（Cortico `de5e122`）：召回会写回（accessCount/鲜活度）、flashbulb 只认"第一次"、她的笔记不再默认标成"主人说的"、`failed/cooldown` 也进记忆。
+  - 令牌不进 argv（`--token-env`）；意见箱计数按 dsh 折叠规则（`70f58f1`，原先已解决项会永久点亮未解决灯）；home 认 `DSH_HOME`。
+  - **14 天观测窗从 11-02 00:00 起算**，今天记为接入日（判据与理由见 [evidence/G3B-DECISION-2026-11-01.md](./evidence/G3B-DECISION-2026-11-01.md)）。
+  - **一个踩过的验证坑**：hash 路由改 `?v=2` 不会重载 SPA，页签看着还是旧的 6 块；必须 `location.reload()` 再看。
+
+- **2026-11-01 01:23 事故（已闭合，必须记账）**：正式配置 `publish.draftMode` 被写成 `auto`。载荷含 `autoDailyCap=-9`（与仓内唯一一处测试夹具同源），而 7799 是本机免口令端口——任何本地进程 POST `panels/policy/set` 就能把她从"要我审"改成"她自己发"。**未造成发布**（`autoSentToday=0`、causal 无 `auto-publish`、当天她还没出稿）。处置：01:26 改回 `review`；Cortico `92b41f1` 加了两条——auto 生效必须往私人日记写一节「策略变了」（`exportPolicyNotice`），以及 node:test 上下文里 `policySet` 拒绝写默认配置文件（宁可红也不写生产）。当天重启计数因此到 **6 次**。完整记录与证据：`days/2026-11-01/incident.md`。
+  - 未查明：写入者。线索两条——(1) 01:23–01:24 期间 `npm run gates` 正在跑（含 Cortico 测试），日志里 01:24:15 出现"已接管无法读取或已失效的实例锁"（曾第二个实例）；(2) `-9` 只出现在测试夹具。**诚实结论**：这是一次同机写入，nonce/口令类办法都挡不住同机进程，真正的修法是给写接口加认证（安全席 F-17，已提 P0）。今晚不做"假修法"。
+- **观测窗仍按 11-02 00:00 起算**；11-01 全天记为接入日（合并 + 事故 + 2 次重启），不计入 K1 的 14 天。
+
+- **2026-10-31 晚：发布失败真因定位 + `dynamic recent` 上线（`d481d89`）。** 11:49Z 三次面板放行的实际失败原因是 **B站对 polymer 动态端点回 HTTP 412 风控页**（feed/space 实测同样回 HTML；traffic 闸自动进入暂停）——不是代码问题，除 reporting bug（已修）。新增复核入口：`node tools/bili.mjs dynamic recent --date YYYY-MM-DD [--json]`（时间倒序翻页、翻过目标日即停、412/code≠0 明确报错、TrafficError 不再甩裸 stack）。测试 270/270。**重试放行请等 412 风控窗口过去（约 20:55 本地后），先 `dynamic recent --date 当天` 确认没有半发的动态再点。** 11:49Z 三次面板放行的实际失败原因是 **B站对 polymer 动态端点回 HTTP 412 风控页**（feed/space 实测同样回 HTML；traffic 闸自动进入暂停）——不是代码问题，除 reporting bug（已修）。新增复核入口：`node tools/bili.mjs dynamic recent --date YYYY-MM-DD [--json]`（时间倒序翻页、翻过目标日即停、412/code≠0 明确报错、TrafficError 不再甩裸 stack）。测试 270/270。**重试放行请等 412 风控窗口过去（约 20:55 本地后），先 `dynamic recent --date 当天` 确认没有半发的动态再点。**
 
 - **2026-10-31 晚普查**：13 个 World 工具装配齐（浏览器工具表逐个数过）；读/dry 全真跑通过；kill 关、风控无暂停。**主人 11:49Z 三次面板放行全部失败**：10-29 是本地写间隔 cooldown、10-28/10-31 发布步被网络/风控拒——失败原因当时被 publisher 的 caught 吞了（`59f0e4e` 已修+回归测试+重启生效；三条草稿 failed/cooldown 均可重试；10-31 只完成了传图、发布未成功，无半发动态）。npm **273/273**（2026-10-31 23:50 复跑；此前记的 267 是普查当时的数，后续提交只增）。
   - **词表回流的分支口径（2026-10-31 自查纠正）**：普查时 live 抽出的 230 条是散文滑窗碎词，属 live 的 n-gram 行为；词组级重写（`dc26a93`）只在 `dev/publisher`，**live 未换**——换它要重启，会把观测前的第 5 次重启坐实。所以"她连报三次的词表没在帮我"这条在 live 上**仍未修**，观察项 #27 的前提是先把 `dc26a93` 合到 live。见 [team-2026-11-01/TEAM-DIGEST-2026-11-01.md](./team-2026-11-01/TEAM-DIGEST-2026-11-01.md) 第 25 行的分支标注。
