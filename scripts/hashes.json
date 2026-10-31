@@ -1,5 +1,5 @@
 {
-  "frozenAt": "2026-10-30T18:00:52.632Z",
+  "frozenAt": "2026-10-31T00:30:17.297Z",
   "files": {
     "scripts/day-report.mjs": "a74ac7fe9c78333f8525208cc4cf490920ffc37eaf08d55953cd05e581827701",
     "scripts/day-snapshot.mjs": "6daf4e09d067a9b4d84f276c350959fe7dac4509a57e879558b3a978e843a9c3",
@@ -12,7 +12,7 @@
     "scripts/goal-audit.mjs": "d4b6eb2a17fc82d14bfff4ff6316af948d122da24fdb8b5a1d4de4ba44145a8c",
     "scripts/c2-offline.mjs": "4e9a46acf4cafca61fec7ed956c35663d5750ebdb29b911bb6224276fec7b517",
     "scripts/observation-status.mjs": "a9b18dda56d5c807d72b7de4c434db6ed6981ddac6fb7d2cfeb8a1391553ad0c",
-    "tests/contract/voice.test.mjs": "49fa357f2d65ba89e78ab46b9bba6955b545fdd6be546effa8bc1096fcc99cfd"
+    "tests/contract/voice.test.mjs": "305cfc090ea38f972eedb2d08c4aac4bbcebb83294f69ce23d742f96b3f22ec4"
   },
   "missing": []
 }

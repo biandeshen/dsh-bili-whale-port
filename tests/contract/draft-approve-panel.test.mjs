@@ -21,10 +21,10 @@ const img = path.join(DRAFTS, 'daily-01.png') // markUsed 写同目录 used-imag
 const fakeRunner = () => ({ status: 0, stdout: 'dyn_id=555', stderr: '' })
 const writeDraft = (d) => fs.writeFileSync(path.join(DRAFTS, d.date + '.json'), JSON.stringify(d))
 
-test('面板放行：无可用令牌 → 自动按当前正文重新入队，再放行；响应无 token', () => {
+test('面板放行：无可用令牌 → 自动按当前正文重新入队，再放行；响应无 token', async () => {
   const d = { id: 'dyn-20261101-aaa', date: '2026-11-01', status: 'pending', image: img, text: '正文A', textHash: sha1('正文A'), ackId: 'ack-dead-beef' }
   writeDraft(d)
-  const r = approveFromPanel({ id: d.id, runner: fakeRunner })
+  const r = await approveFromPanel({ id: d.id, runner: fakeRunner })
   assert.equal(r.ok, true)
   assert.equal(r.dynId, '555')
   const onDisk = JSON.parse(fs.readFileSync(path.join(DRAFTS, '2026-11-01.json'), 'utf8'))
@@ -37,33 +37,33 @@ test('面板放行：无可用令牌 → 自动按当前正文重新入队，再
   assert.ok(!JSON.stringify(r).includes(pend.token), '响应里绝不含 token')
 })
 
-test('面板放行：有效绑定令牌直接用，不重复入队', () => {
+test('面板放行：有效绑定令牌直接用，不重复入队', async () => {
   const d = { id: 'dyn-20261101-bbb', date: '2026-11-01', status: 'pending', image: img, text: '正文B', textHash: sha1('正文B') }
   const it = ack.enqueue(WHALE, { draftId: d.id, date: d.date, textHash: d.textHash })
   d.ackId = it.id
   writeDraft(d)
-  const r = approveFromPanel({ id: d.id, runner: fakeRunner })
+  const r = await approveFromPanel({ id: d.id, runner: fakeRunner })
   assert.equal(r.ok, true)
   const onDisk = JSON.parse(fs.readFileSync(path.join(DRAFTS, '2026-11-01.json'), 'utf8'))
   assert.equal(onDisk.ackId, it.id, '原令牌未换')
 })
 
-test('面板放行：已 sent 的拒放，且不新建令牌', () => {
+test('面板放行：已 sent 的拒放，且不新建令牌', async () => {
   const d = { id: 'dyn-20261101-ccc', date: '2026-11-01', status: 'sent', image: img, text: '正文C' }
   writeDraft(d)
   const before = ack.listPending(WHALE).length
-  const r = approveFromPanel({ id: d.id, runner: fakeRunner })
+  const r = await approveFromPanel({ id: d.id, runner: fakeRunner })
   assert.equal(r.ok, false)
   assert.match(r.error, /已处理过/)
   assert.equal(ack.listPending(WHALE).length, before, '不新建令牌')
 })
 
-test('面板放行：入队后正文被改过 → 按当前正文重新绑定（展示=执行）', () => {
+test('面板放行：入队后正文被改过 → 按当前正文重新绑定（展示=执行）', async () => {
   const d = { id: 'dyn-20261101-ddd', date: '2026-11-01', status: 'pending', image: img, text: '正文D改过', textHash: sha1('正文D改过') }
   const it = ack.enqueue(WHALE, { draftId: d.id, date: d.date, textHash: sha1('正文D旧') })
   d.ackId = it.id
   writeDraft(d)
-  const r = approveFromPanel({ id: d.id, runner: fakeRunner })
+  const r = await approveFromPanel({ id: d.id, runner: fakeRunner })
   assert.equal(r.ok, true)
   const onDisk = JSON.parse(fs.readFileSync(path.join(DRAFTS, '2026-11-01.json'), 'utf8'))
   assert.notEqual(onDisk.ackId, it.id, '旧绑定作废换新令牌')

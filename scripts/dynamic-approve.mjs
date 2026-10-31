@@ -6,65 +6,31 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
-import { spawnSync } from 'node:child_process'
 import { DSH_HOME as WHALE_HOME, draftsDir } from '../tools/lib/paths.mjs'
 import * as ack from './ack.mjs'
+import { loadDraftById, saveDraftFile, audit as auditDraft, recordDraftResult as recordResult, markUsed as markImgUsed } from '../tools/drafts/store.mjs'
+// M2：审批只认 publisher（发布实现的唯一入口）；runner 保留为测试注入（映射成 publisher 形状）
+import { postImageDynamic } from '../tools/drafts/publishers/bilibili-dynamic.mjs'
 
 // M1a 收口：与 draft-dynamic 同一个来源（paths.draftsDir），不再是本地一份 legacy 判断
 const DRAFTS = draftsDir()
 const CONTROL = path.join(WHALE_HOME, 'bili-whale', 'control')
 const KILL = path.join(CONTROL, 'kill')
-const AUDIT = path.join(DRAFTS, 'audit.jsonl')
-const BILI = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..', 'tools', 'bili.mjs')
 
-function load(id) {
-  if (!id) return null
-  const files = fs.existsSync(DRAFTS) ? fs.readdirSync(DRAFTS).filter((f) => f.endsWith('.json')) : []
-  for (const f of files) {
-    const p = path.join(DRAFTS, f)
-    try {
-      const d = JSON.parse(fs.readFileSync(p, 'utf8'))
-      if (d.id === id || f === id + '.json') return { file: p, draft: d }
-    } catch {}
-  }
-  return null
-}
-function save(file, draft) {
-  const tmp = file + '.' + process.pid + '.' + crypto.randomBytes(3).toString('hex') + '.tmp'
-  fs.writeFileSync(tmp, JSON.stringify(draft, null, 2) + String.fromCharCode(10), 'utf8')
-  fs.renameSync(tmp, file)
-}
-function audit(entry) { fs.mkdirSync(DRAFTS, { recursive: true }); fs.appendFileSync(AUDIT, JSON.stringify({ at: new Date().toISOString(), ...entry }) + String.fromCharCode(10)) }
+const load = (id) => loadDraftById(DRAFTS, id)
+const save = (file, draft) => saveDraftFile(file, draft)
+const audit = (entry) => auditDraft(DRAFTS, entry)
+const recordDraftResult = (draft, result) => recordResult(WHALE_HOME, draft, result)
+const markUsed = (image) => markImgUsed(image)
 
-/**
- * 把审批结果写进她自己的因果链：她下次醒来会由代码结算成 draftApproved/draftRejected。
- * 只写事件，不改场值——场值归 World（唯一事实源）管，这里不越权。
- */
-function recordDraftResult(draft, result) {
-  try {
-    const file = path.join(WHALE_HOME, 'bili-whale', 'causal.jsonl')
-    fs.mkdirSync(path.dirname(file), { recursive: true })
-    fs.appendFileSync(file, JSON.stringify({
-      at: new Date().toISOString(),
-      kind: 'draft-result',
-      draftId: draft.id,
-      date: draft.date,
-      result,
-      textHash: crypto.createHash('sha1').update(String(draft.text ?? '')).digest('hex').slice(0, 12),
-    }) + String.fromCharCode(10))
-  } catch {}
-}
-function markUsed(image) {
-  try {
-    const f = path.join(path.dirname(image), 'used-images.json')
-    const cur = JSON.parse(fs.readFileSync(f, 'utf8'))
-    cur.used = [...new Set([...(cur.used || []), path.basename(image)])]
-    cur.updatedAt = new Date().toISOString()
-    fs.writeFileSync(f, JSON.stringify(cur, null, 2) + String.fromCharCode(10))
-  } catch {}
+/** 测试用 runner（旧 spawn 契约：argv → {status, stdout, stderr}）适配成 publisher 形状。 */
+const fromRunner = (run) => ({ image, text, go }) => {
+  const r = run(['dynamic-image', '--image', image, '--text', text, go ? '--go' : '--dry'])
+  const out = String(r.stdout ?? '') + String(r.stderr ?? '')
+  return { exit: r.status ?? -1, ok: r.status === 0, dynId: (out.match(/dyn_id=(\S+)/) || [])[1] || null, transient: /冷却|TRAFFIC_PAUSED|请稍后/.test(out), out }
 }
 
-export function approve({ id, token, go = false, runner } = {}) {
+export async function approve({ id, token, go = false, runner, publisher } = {}) {
   const hit = load(id)
   if (!hit) return { ok: false, error: '找不到草稿 ' + id }
   const d = hit.draft
@@ -96,13 +62,12 @@ export function approve({ id, token, go = false, runner } = {}) {
     d.sendingAt = new Date().toISOString()
     save(hit.file, d)
   }
-  const args = ['dynamic-image', '--image', d.image, '--text', d.text, go ? '--go' : '--dry']
-  const run = runner || ((a) => spawnSync(process.execPath, [BILI, ...a], { encoding: 'utf8', timeout: 300000, env: { ...process.env, BILI_SEND: go ? '1' : '0' } }))
+  const exec = publisher || (runner ? fromRunner(runner) : postImageDynamic)
   let r
-  try { r = run(args) } catch (e) { r = { status: -1, stdout: '', stderr: String(e?.message ?? e) } }
-  const out = String(r.stdout ?? '') + String(r.stderr ?? '')
-  const ok = (r.status === 0) && (go ? /dyn_id=\S+/.test(out) : true)
-  const transient = !ok && /冷却|TRAFFIC_PAUSED|请稍后/.test(out)
+  try { r = await exec({ image: d.image, text: d.text, go }) } catch (e) { r = { exit: -1, ok: false, dynId: null, transient: false, out: String(e?.message ?? e) } }
+  const out = String(r.out ?? '')
+  const ok = (r.exit === 0) && (go ? !!r.dynId : true)
+  const transient = !ok && (r.transient === true || /冷却|TRAFFIC_PAUSED|请稍后/.test(out))
   d.status = ok ? (go ? 'sent' : 'dry-run') : (transient ? 'cooldown' : 'failed')
   d.result = { ok, at: new Date().toISOString(), mode: go ? 'go' : 'dry', out: out.slice(-800) }
   save(hit.file, d)
@@ -114,7 +79,7 @@ export function approve({ id, token, go = false, runner } = {}) {
   if (go && ok) markUsed(d.image)
   // 只有真正发出去/明确被拒才回写因果；dry 与冷却不算审批结果
   if (go && ok) recordDraftResult(d, 'sent')
-  audit({ id: d.id, action: go ? 'send' : 'dry-run', result: ok ? d.status : 'failed', exit: r.status ?? null, outHash: crypto.createHash('sha1').update(out).digest('hex') })
+  audit({ id: d.id, action: go ? 'send' : 'dry-run', result: ok ? d.status : 'failed', exit: r.exit ?? null, outHash: crypto.createHash('sha1').update(out).digest('hex') })
   return { ok, status: d.status, out: out.slice(-800) }
 }
 
@@ -126,7 +91,7 @@ export function approve({ id, token, go = false, runner } = {}) {
  * kill / 一次性 / status 拦截全部沿用 approve()，本函数只是保证“有可用且绑定当前正文的令牌”。
  * @returns {{ok:boolean, status?:string, error?:string, dynId?:string|null, outTail?:string}} 不含 token
  */
-export function approveFromPanel({ id, runner } = {}) {
+export async function approveFromPanel({ id, runner, publisher } = {}) {
   const hit = load(id)
   if (!hit) return { ok: false, error: '找不到草稿 ' + id }
   const d = hit.draft
@@ -147,7 +112,7 @@ export function approveFromPanel({ id, runner } = {}) {
     save(hit.file, d)
     token = it.token
   }
-  const r = approve({ id, token, go: true, runner })
+  const r = await approve({ id, token, go: true, runner, publisher })
   const out = String(r.out ?? '')
   return {
     ok: r.ok,
@@ -205,7 +170,7 @@ if (process.argv[1] && process.argv[1].endsWith('dynamic-approve.mjs')) {
   const go = process.argv.includes('--go')
   const ti = process.argv.indexOf('--token')
   const token = ti >= 0 ? process.argv[ti + 1] : ''
-  const out = cmd === 'approve' ? approve({ id, token, go })
+  const out = cmd === 'approve' ? await approve({ id, token, go })
     : cmd === 'reject' ? reject(id)
     : { ok: false, error: '用法：list | approve <id> [--token T] [--go] | reject <id>' }
   console.log(JSON.stringify(out, null, 2))

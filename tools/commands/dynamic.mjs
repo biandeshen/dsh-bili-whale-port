@@ -11,6 +11,7 @@ import crypto from 'node:crypto'
 // 2026-10-21 修（外部审计）：下面 --go 路径里调了 gate()，但从来没导入过 ✗
 //   一跑到那儿就是 ReferenceError（danmaku.mjs 早就踩过同一个坑，这次补齐三条）
 import { gate } from '../lib/quota-gate.mjs'
+import { postTextDynamic } from '../drafts/publishers/bilibili-dynamic.mjs'
 
 const argv = process.argv.slice(2)
 const mode = argv[0]
@@ -82,40 +83,12 @@ if (mode === 'list') {
 if (mode === 'post') {
   if (!text) { console.error('post 需要 --text'); process.exit(2) }
   if (!isDry && !isGo) { console.error('必须显式 --dry 或 --go'); process.exit(2) }
-  console.log('=== 登录态 ===')
-  const mid = await whoami()
-  const body = JSON.stringify({
-    dyn_req: {
-      content: { contents: [{ raw_text: text, type: 1, biz_id: '' }] },
-      scene: 1,
-      meta: { app_meta: { from: 'create.dynamic.web', mobi_app: 'web' } },
-    },
-  })
-  const qs = await wbi({ csrf: String(cred.bili_jct) })
-  const url = `https://api.bilibili.com/x/dynamic/feed/create/dyn?${qs}`
-  console.log('\n=== 将要发布 ===')
-  console.log(`  POST ${url.replace(encodeURIComponent(String(cred.bili_jct)), '***csrf***').slice(0, 120)}…`)
-  console.log(`  content-type: application/json    cookie: SESSDATA=***; bili_jct=***; buvid3=***`)
-  console.log(`  正文(${text.length} 字): ${text}`)
-  console.log(`  报文: ${body}`)
-  if (isDry) { console.log('\n[dry] 未发布。'); process.exit(0) }
-// P0-5（Kimi 评审 #5）：写通道也要过限额闸；不通过就停手
-if (!gate({ type: 'dynamic', target: 'dynamic', auto: process.argv.includes('--auto') })) { console.error('拒绝：限额闸不通过（额度/白名单）'); process.exit(2) }
-  const r = await fetch(url, {
-    method: 'POST',
-    headers: { 'user-agent': UA, referer: REF, origin: 'https://t.bilibili.com', 'content-type': 'application/json', cookie: cookieHeader },
-    body,
-  })
-  const out = await r.json()
-  console.log(`\n[go] HTTP ${r.status}  code=${out.code} message=${out.message ?? ''}`)
-  if (out.code === 0) {
-    const id = out.data?.dyn_id_str ?? out.data?.dyn_id
-    console.log(`  ✅ 已发布  dyn_id=${id}`)
-    console.log(`  https://t.bilibili.com/${id}`)
-  } else {
-    console.log(`  errmsg: ${out.data?.errmsg ?? '-'}`)
-  }
-  process.exit(0)
+  // M2：发帖实现收口到 publishers/bilibili-dynamic.mjs（与 dynamic-image、审批同一条链）
+  const r = await postTextDynamic({ text, go: isGo })
+  console.log(r.out)
+  // 不 process.exit：keep-alive socket 未关时强退会在 Windows 触发 libuv 断言（退出码 127）；
+  // 落 exitCode 后让脚本自然收尾，下面的用法兜底只对未知 mode 生效
+  process.exitCode = r.exit
 }
 
 if (mode === 'check') {
@@ -168,5 +141,7 @@ if (mode === 'rm') {
   process.exit(0)
 }
 
-console.error('用法: list | post --text "..." --dry|--go | rm --id <dyn_id> --dry|--go')
-process.exit(2)
+if (!['list', 'post', 'check', 'rm'].includes(mode)) {
+  console.error('用法: list | post --text "..." --dry|--go | rm --id <dyn_id> --dry|--go')
+  process.exit(2)
+}

@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url'
 import { composeDraft, assertVoice, VOICE_REQUIRED, buildText } from '../../scripts/draft-dynamic.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
-const SCHEMA = JSON.parse(fs.readFileSync(path.join(HERE, '../../scripts/voice.schema.json'), 'utf8'))
+// M2：schema 随文案层迁到 tools/drafts/；上面的 import 仍走 draft-dynamic（re-export 回归）
+const SCHEMA = JSON.parse(fs.readFileSync(path.join(HERE, '../../tools/drafts/voice.schema.json'), 'utf8'))
 
 const diary = [
   '## 2026-10-29',

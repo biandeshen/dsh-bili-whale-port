@@ -103,38 +103,38 @@ test('findDuplicateText：和别的日期一字不差就拒稿（旧日记复用
   assert.equal(findDuplicateText(drafts, { date: '2026-10-27', text: '新的一句' }), null)
 })
 
-test('approve dry 不消耗审批；重复 dry 允许；go 后拒绝', () => {
+test('approve dry 不消耗审批；重复 dry 允许；go 后拒绝', async () => {
   const d = makeDraft({ date: '2026-10-26', diaryText: diary, image: 'D:/x.png', text: buildText(diary) })
   const token = attachAck(d)
   fs.writeFileSync(path.join(DRAFTS, '2026-10-26.json'), JSON.stringify(d))
   const calls = []
   const runner = (a) => { calls.push(a); return { status: 0, stdout: 'dry ok' } }
-  const r1 = approve({ id: d.id, go: false, runner })
+  const r1 = await approve({ id: d.id, go: false, runner })
   assert.equal(r1.ok, true); assert.equal(r1.status, 'dry-run')
-  const r2 = approve({ id: d.id, go: false, runner })
+  const r2 = await approve({ id: d.id, go: false, runner })
   assert.equal(r2.ok, true)
-  const r3 = approve({ id: d.id, go: true, token, runner: () => ({ status: 0, stdout: 'dyn_id=1 ok' }) })
+  const r3 = await approve({ id: d.id, go: true, token, runner: () => ({ status: 0, stdout: 'dyn_id=1 ok' }) })
   assert.equal(r3.ok, true); assert.equal(r3.status, 'sent')
-  const r4 = approve({ id: d.id, go: true, token, runner })
+  const r4 = await approve({ id: d.id, go: true, token, runner })
   assert.equal(r4.ok, false)
 })
 
-test('成功判定必须有 dyn_id：只出现 dynamic 字样不算发出去', () => {
+test('成功判定必须有 dyn_id：只出现 dynamic 字样不算发出去', async () => {
   const d = makeDraft({ date: '2026-10-29', diaryText: diary, image: 'D:/x.png', text: 'y' })
   const token = attachAck(d)
   fs.writeFileSync(path.join(DRAFTS, '2026-10-29.json'), JSON.stringify(d))
-  const r = approve({ id: d.id, go: true, token, runner: () => ({ status: 0, stdout: 'dynamic interface ok but nothing posted' }) })
+  const r = await approve({ id: d.id, go: true, token, runner: () => ({ status: 0, stdout: 'dynamic interface ok but nothing posted' }) })
   assert.equal(r.ok, false)
   assert.equal(r.status, 'failed')
 })
 
-test('go 发送前落 sending；已 sending 的草稿拒绝自动重放', () => {
+test('go 发送前落 sending；已 sending 的草稿拒绝自动重放', async () => {
   const d = makeDraft({ date: '2026-10-30', diaryText: diary, image: 'D:/x.png', text: 'z' })
   const token = attachAck(d)
   const file = path.join(DRAFTS, '2026-10-30.json')
   fs.writeFileSync(file, JSON.stringify(d))
   let seen = null
-  const r = approve({
+  const r = await approve({
     id: d.id, go: true, token,
     runner: () => { seen = JSON.parse(fs.readFileSync(file, 'utf8')).status; return { status: 0, stdout: 'dyn_id=1 ok' } },
   })
@@ -145,7 +145,7 @@ test('go 发送前落 sending；已 sending 的草稿拒绝自动重放', () => 
   const stuck = makeDraft({ date: '2026-10-31', diaryText: diary, image: 'D:/x.png', text: 'stuck' })
   stuck.status = 'sending'
   fs.writeFileSync(path.join(DRAFTS, '2026-10-31.json'), JSON.stringify(stuck))
-  const r2 = approve({ id: stuck.id, go: true, runner: () => { throw new Error('must not run') } })
+  const r2 = await approve({ id: stuck.id, go: true, runner: () => { throw new Error('must not run') } })
   assert.equal(r2.ok, false)
   assert.match(r2.error, /sending|中断/)
 })
@@ -158,36 +158,36 @@ test('标题截断不留半个括号：不会出现「（39:55…》」', () => 
   assert.equal(clipTitle('短标题', 24), '短标题')
 })
 
-test('kill switch 阻断 approve', () => {
+test('kill switch 阻断 approve', async () => {
   const d = makeDraft({ date: '2026-10-27', diaryText: diary, image: 'D:/x.png', text: 'x' })
   fs.writeFileSync(path.join(DRAFTS, '2026-10-27.json'), JSON.stringify(d))
   const kill = path.join(process.env.DSH_HOME || path.join(process.env.USERPROFILE, '.dsh'), 'bili-whale', 'control', 'kill')
   // 用真实 WHALE_HOME 路径做只读判断；测试环境无 DSH_HOME 时跳过
   if (!process.env.DSH_HOME) return
   fs.mkdirSync(path.dirname(kill), { recursive: true }); fs.writeFileSync(kill, '1')
-  const r = approve({ id: d.id, go: true, runner: () => ({ status: 0, stdout: '' }) })
+  const r = await approve({ id: d.id, go: true, runner: () => ({ status: 0, stdout: '' }) })
   fs.rmSync(kill, { force: true })
   assert.equal(r.ok, false)
 })
 
-test('reject 后不能再 approve', () => {
+test('reject 后不能再 approve', async () => {
   const d = makeDraft({ date: '2026-10-28', diaryText: diary, image: 'D:/x.png', text: 'x' })
   fs.writeFileSync(path.join(DRAFTS, '2026-10-28.json'), JSON.stringify(d))
   assert.equal(reject(d.id).ok, true)
-  const r = approve({ id: d.id, go: true, runner: () => ({ status: 0, stdout: '' }) })
+  const r = await approve({ id: d.id, go: true, runner: () => ({ status: 0, stdout: '' }) })
   assert.equal(r.ok, false)
   assert.ok(list().some((x) => x.id === d.id && x.status === 'rejected'))
 })
 
-test('冷却失败退回一次性令牌：同一个 token 可以重试', () => {
+test('冷却失败退回一次性令牌：同一个 token 可以重试', async () => {
   const d = makeDraft({ date: '2026-10-30', diaryText: diary, image: 'D:/y.png', text: '冷却重试' })
   const token = attachAck(d)
   fs.writeFileSync(path.join(DRAFTS, '2026-10-30.json'), JSON.stringify(d))
-  const cool = approve({ id: d.id, go: true, token, runner: () => ({ status: 1, stdout: '写操作冷却中，请稍后' }) })
+  const cool = await approve({ id: d.id, go: true, token, runner: () => ({ status: 1, stdout: '写操作冷却中，请稍后' }) })
   assert.equal(cool.ok, false); assert.equal(cool.status, 'cooldown')
-  const retry = approve({ id: d.id, go: true, token, runner: () => ({ status: 0, stdout: 'dyn_id=9 ok' }) })
+  const retry = await approve({ id: d.id, go: true, token, runner: () => ({ status: 0, stdout: 'dyn_id=9 ok' }) })
   assert.equal(retry.ok, true); assert.equal(retry.status, 'sent')
-  const again = approve({ id: d.id, go: true, token, runner: () => ({ status: 0, stdout: 'dyn_id=10' }) })
+  const again = await approve({ id: d.id, go: true, token, runner: () => ({ status: 0, stdout: 'dyn_id=10' }) })
   assert.equal(again.ok, false)
 })
 
@@ -197,20 +197,20 @@ test('only go 成功才标记图片已用；dry 不标记', async () => {  const
   const d = makeDraft({ date: '2026-10-29', image: img, text: 't' })
   const token = attachAck(d)
   fs.writeFileSync(path.join(DRAFTS, '2026-10-29.json'), JSON.stringify(d))
-  approve({ id: d.id, go: false, runner: () => ({ status: 0, stdout: 'dry' }) })
+  await approve({ id: d.id, go: false, runner: () => ({ status: 0, stdout: 'dry' }) })
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(imgDir, 'used-images.json'), 'utf8')).used, [])
-  approve({ id: d.id, go: true, token, runner: () => ({ status: 0, stdout: 'dyn_id=1' }) })
+  await approve({ id: d.id, go: true, token, runner: () => ({ status: 0, stdout: 'dyn_id=1' }) })
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(imgDir, 'used-images.json'), 'utf8')).used, ['daily-99.png'])
 })
 
-test('发送失败不锁死草稿：failed 可重试，且不消耗图片', () => {
+test('发送失败不锁死草稿：failed 可重试，且不消耗图片', async () => {
   const d = makeDraft({ date: '2026-10-23', image: 'D:/z.png', text: '重试用例' })
   const token = attachAck(d)
   fs.writeFileSync(path.join(DRAFTS, '2026-10-23.json'), JSON.stringify(d))
-  const fail = approve({ id: d.id, go: true, token, runner: () => ({ status: 1, stdout: '', stderr: '网络断了' }) })
+  const fail = await approve({ id: d.id, go: true, token, runner: () => ({ status: 1, stdout: '', stderr: '网络断了' }) })
   assert.equal(fail.ok, false); assert.equal(fail.status, 'failed')
   // 旧实现把 failed 列进 blocked → 这条草稿永远发不出去
-  const retry = approve({ id: d.id, go: true, token, runner: () => ({ status: 0, stdout: 'dyn_id=9 ok' }) })
+  const retry = await approve({ id: d.id, go: true, token, runner: () => ({ status: 0, stdout: 'dyn_id=9 ok' }) })
   assert.equal(retry.ok, true); assert.equal(retry.status, 'sent')
 })
 
@@ -222,7 +222,7 @@ test('审批结果写进因果，醒来可由代码结算（不靠模型自觉�
   const sent = makeDraft({ date: '2026-10-22', image: 'D:/s.png', text: '要发的' })
   const sentTok = attachAck(sent)
   fs.writeFileSync(path.join(DRAFTS, '2026-10-22.json'), JSON.stringify(sent))
-  approve({ id: sent.id, go: true, token: sentTok, runner: () => ({ status: 0, stdout: 'dyn_id=7 ok' }) })
+  await approve({ id: sent.id, go: true, token: sentTok, runner: () => ({ status: 0, stdout: 'dyn_id=7 ok' }) })
   const rejected = makeDraft({ date: '2026-10-21', image: 'D:/r.png', text: '被拒的' })
   fs.writeFileSync(path.join(DRAFTS, '2026-10-21.json'), JSON.stringify(rejected))
   reject(rejected.id)
@@ -232,6 +232,6 @@ test('审批结果写进因果，醒来可由代码结算（不靠模型自觉�
   // dry 不算审批结果
   const dryDraft = makeDraft({ date: '2026-10-20', image: 'D:/d.png', text: '只看不发' })
   fs.writeFileSync(path.join(DRAFTS, '2026-10-20.json'), JSON.stringify(dryDraft))
-  approve({ id: dryDraft.id, go: false, runner: () => ({ status: 0, stdout: 'dry ok' }) })
+  await approve({ id: dryDraft.id, go: false, runner: () => ({ status: 0, stdout: 'dry ok' }) })
   assert.equal(readResults().length, before + 2)
 })

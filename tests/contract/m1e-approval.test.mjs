@@ -88,14 +88,14 @@ test('M1e：referer 只允许 bilibili.com', () => {
 
 // ── ② 动态草稿：令牌绑定 draftId + 正文哈希 ────────────────────────────────
 
-test('M1e：入队后改稿 → go 拒发，且不烧掉令牌', () => {
+test('M1e：入队后改稿 → go 拒发，且不烧掉令牌', async () => {
   const d = makeDraft({ date: '2026-10-31', diaryText: 'x', image: 'D:/x1.png', text: '入队时的正文' })
   const it = enqueue(d)
   const file = path.join(DRAFTS, '2026-10-31.json')
   const tampered = JSON.parse(fs.readFileSync(file, 'utf8'))
   tampered.text = '入队后被改的正文'
   fs.writeFileSync(file, JSON.stringify(tampered))
-  const r = approve({ id: d.id, token: it.token, go: true, runner: fakeRun })
+  const r = await approve({ id: d.id, token: it.token, go: true, runner: fakeRun })
   assert.equal(r.ok, false)
   assert.match(r.error, /入队后被改过/)
   // 拒在 ack.approve 之前 → 令牌未消耗，可查证
@@ -104,20 +104,20 @@ test('M1e：入队后改稿 → go 拒发，且不烧掉令牌', () => {
   assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).status, 'pending')
 })
 
-test('M1e：令牌 draftId 与草稿不匹配 → 拒发', () => {
+test('M1e：令牌 draftId 与草稿不匹配 → 拒发', async () => {
   const d = makeDraft({ date: '2026-11-01', diaryText: 'x', image: 'D:/x2.png', text: '另一个草稿' })
   const it = ack.enqueue(WHALE, { draftId: 'not-this-draft', date: d.date, textHash: d.textHash })
   d.ackId = it.id
   fs.writeFileSync(path.join(DRAFTS, '2026-11-01.json'), JSON.stringify(d))
-  const r = approve({ id: d.id, token: it.token, go: true, runner: fakeRun })
+  const r = await approve({ id: d.id, token: it.token, go: true, runner: fakeRun })
   assert.equal(r.ok, false)
   assert.match(r.error, /令牌与草稿不匹配/)
 })
 
-test('M1e：未改动的稿 + 正确 token → 正常放行（绑定不误伤正常流）', () => {
+test('M1e：未改动的稿 + 正确 token → 正常放行（绑定不误伤正常流）', async () => {
   const d = makeDraft({ date: '2026-11-02', diaryText: 'x', image: 'D:/x3.png', text: '原样未改' })
   const it = enqueue(d)
-  const r = approve({ id: d.id, token: it.token, go: true, runner: fakeRun })
+  const r = await approve({ id: d.id, token: it.token, go: true, runner: fakeRun })
   assert.equal(r.ok, true)
   assert.equal(r.status, 'sent')
 })

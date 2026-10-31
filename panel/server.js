@@ -102,7 +102,7 @@ const extra = {
       json(res, 400, { ok: false, error: '暂只支持动态草稿放行（回信稿等 dm 死循环修复上线后接入）' })
       return
     }
-    const r = approveFromPanel({ id })
+    const r = await approveFromPanel({ id })
     json(res, 200, { ok: r.ok, status: r.status ?? null, error: r.error ?? null, dynId: r.dynId ?? null, outTail: r.outTail ?? '' })
   },
   '/api/avatar': (req, res) => {
