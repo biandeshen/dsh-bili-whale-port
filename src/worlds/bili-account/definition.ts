@@ -17,7 +17,7 @@ import type { Language } from '../../core/language.ts'
 import {
   warmConsole, consoleReady, tankLocal, killOn, lastTickAt, pendingDraftCount, openFeedbackCount,
   timelineState, diaryState, draftsState, draftAction, feedbackResolve, feedbackListSafe, vitalsState, avatarBinary, trafficStatus,
-  policyState, policySet, policyInWindow, autoSentToday, draftAckToken,
+  policyState, policySet, policyInWindow, autoSentToday, draftForDay, freshAckToken,
 } from './tank.ts'
 import { decideAction, restRecoveryDelta, actionCost, nextCheckDelay, dayKey, MIN_GAP_MS } from '../../../persona-core/src/rhythm.ts'
 
@@ -729,29 +729,32 @@ class BiliAccountWorld {
         }
         const args = [...(a?.force ? ['--force'] : []), '--drafts', DRAFTS_DIR, '--voice', voiceFile]
         const r = await runNodeAsync(path.join(ROOT, 'scripts', 'draft-dynamic.mjs'), args, 90000)
-        // 发送策略 auto：同一条 publisher（dynamic-approve panel），kill/防双发/额度全走原链路；
-        // 每一次自动发布都写因果，主人随时能在鱼缸页看到「这条是 auto 发的」。
-        const draftId = (r.out.match(/"id":\s*"(dyn-[^"]+)"/) ?? [])[1]
-        if (r.status === 0 && draftId) {
+        // 发送策略 auto：与人工点同一份审批语义（严格一次性令牌 + draftId/正文哈希绑定 + 防双发）。
+        // draftId 取磁盘事实源 `<day>.json`，不从工具 stdout 抠 —— 她写的文本不该能指向别的草稿。
+        if (r.status === 0) {
           const pol = policyState().policy
           if (pol.draftMode === 'auto') {
+            const today0 = dayKey(Date.now())
+            const draft = draftForDay(today0)
+            if (!draft) return r.out + '\n（策略：auto 找不到今天的草稿文件——转人工）'
             if (!policyInWindow(new Date(), pol.autoWindow)) {
               return r.out + `\n（策略：当前在 autoWindow ${pol.autoWindow} 之外——草稿留给人工放行）`
             }
-            if (pol.autoDailyCap > 0 && autoSentToday() >= pol.autoDailyCap) {
+            // 上限把失败尝试也算上：否则一直失败可以无限重试绕过 autoDailyCap
+            if (pol.autoDailyCap > 0 && autoSentToday({ attempts: true }) >= pol.autoDailyCap) {
               return r.out + `\n（策略：今天 auto 已达上限 ${pol.autoDailyCap} 条——后续草稿留给人工放行）`
             }
-            // 安全席 P0（2026-10-31）：auto **不许自己造令牌**——只用出稿时入队的那一张，
-            // 缺失/过期/已用就退回人工。否则"一次性令牌 + draftId/正文哈希绑定"在无人点击时也成立。
-            const token = draftAckToken(draftId)
+            // auto **不许自己造令牌**：只用出稿时入队的那一张，缺失/过期/已用一律转人工
+            const token = freshAckToken(draft)
             if (!token) {
-              causal({ kind: 'auto-publish', draftId, ok: false, reason: 'no-fresh-token', atMs: Date.now() })
+              causal({ kind: 'auto-publish', draftId: draft.id, ok: false, reason: 'no-fresh-token', atMs: Date.now() })
               return r.out + '\n（策略：auto 要求草稿的一次性令牌仍有效——这条转人工放行）'
             }
-            const pub = await runNodeAsync(path.join(ROOT, 'scripts', 'dynamic-approve.mjs'), ['approve', draftId, '--token', token, '--go'], 300000)
+            const pub = await runNodeAsync(path.join(ROOT, 'scripts', 'dynamic-approve.mjs'), ['approve', draft.id, '--token', token, '--go'], 300000)
             const okPub = pub.status === 0 && /"ok":\s*true/.test(pub.out)
-            causal({ kind: 'auto-publish', draftId, ok: okPub, atMs: Date.now(), out: pub.out.split(token).join('***').slice(-400) })
-            return r.out + `\n（auto 发布${okPub ? '成功 ✓' : '失败——转人工，原因见下'}）\n` + pub.out.split(token).join('***').slice(-600)
+            // 令牌值绝不落盘：causal 与回执都打码
+            causal({ kind: 'auto-publish', draftId: draft.id, ok: okPub, atMs: Date.now(), out: pub.out.split(token).join('***').slice(-400) })
+            return r.out + `\n（auto 发布${okPub ? '成功 ✓' : '失败——已记 auto 额度，转人工，原因见下'}）\n` + pub.out.split(token).join('***').slice(-600)
           }
         }
         return r.out

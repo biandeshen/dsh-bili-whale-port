@@ -168,25 +168,45 @@ const hm2 = (s: string) => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(s).trim
  * **不铸造、不续期** —— 缺失/过期/已用/不匹配一律 null，auto 退回人工放行。
  * 令牌值只在本进程内使用，绝不写进 causal、面板响应或日志。
  */
-export function draftAckToken(draftId: string, whaleHome = WHALE, draftsDir = DRAFTS_DIR): string | null {
+/**
+ * 草稿自带且仍有效的一次性令牌（出稿时 draft-dynamic 就入队了）。只给 auto 用：
+ * **不铸造、不续期** —— 缺失/过期/已用/绑定不符一律 null，auto 退回人工。
+ * 令牌值只在本进程内使用，绝不写进 causal、面板响应或日志。
+ */
+export function freshAckToken(draft: { id: string; ackId: string } | null, whaleHome = WHALE): string | null {
   try {
-    const hit = fs.readdirSync(draftsDir).filter((f: string) => f.endsWith('.json')).map((f: string) => readJson(path.join(draftsDir, f))).find((d: any) => d?.id === draftId)
-    const ackId = String((hit as any)?.ackId ?? '')
+    const ackId = String(draft?.ackId ?? '')
     if (!ackId) return null
     const pend = readJson(path.join(whaleHome, 'bili-whale', 'control', 'pending', ackId + '.json')) as any
     if (!pend?.token || pend.used || Number(pend.expiresAt ?? 0) <= Date.now()) return null
-    if (String(pend.payload?.draftId ?? '') !== String(draftId)) return null
+    if (String(pend.payload?.draftId ?? '') !== String(draft?.id ?? '')) return null
     return String(pend.token)
   } catch { return null }
 }
 
-/** 今天已经 auto 发过几条（因果链 kind='auto-publish' 且 ok）。 */
-export function autoSentToday(file = CAUSAL_FILE, day = new Date().toLocaleDateString('sv-SE')): number {
+/**
+ * 今天这一份草稿（磁盘事实源 `<day>.json`）。auto 用它拿 draftId，
+ * 不从工具 stdout 正则抠 id —— 她写进日记/稿子里的文本不该能指向别的草稿（安全席 P1）。
+ */
+export function draftForDay(day: string, draftsDir = DRAFTS_DIR): { id: string; textHash: string; ackId: string; status: string } | null {
+  try {
+    const d = readJson(path.join(draftsDir, day + '.json')) as any
+    if (!d?.id) return null
+    return { id: String(d.id), textHash: String(d.textHash ?? ''), ackId: String(d.ackId ?? ''), status: String(d.status ?? '') }
+  } catch { return null }
+}
+
+/**
+ * 今天已经 auto 发过几条。attempts=true 把**失败尝试**也计入：
+ * 否则"失败不占额度"会让 autoDailyCap 被反复失败绕过（安全席 P1）。
+ */
+export function autoSentToday(opts: { attempts?: boolean; file?: string; day?: string } = {}): number {
+  const { attempts = false, file = CAUSAL_FILE, day = new Date().toLocaleDateString('sv-SE') } = opts
   try {
     return fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).reduce((n, l) => {
       try {
         const e = JSON.parse(l)
-        if (e?.kind === 'auto-publish' && e?.ok && String(e?.at ?? '').slice(0, 10) === day) return n + 1
+        if (e?.kind === 'auto-publish' && String(e?.at ?? '').slice(0, 10) === day && (attempts || e?.ok)) return n + 1
       } catch {}
       return n
     }, 0)

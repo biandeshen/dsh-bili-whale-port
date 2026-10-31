@@ -5,7 +5,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { BILI_ACCOUNT } from '../src/worlds/bili-account/definition.ts'
-import { readPolicyLite, policyInWindow, policySet, policyState, autoSentToday, draftAckToken } from '../src/worlds/bili-account/tank.ts'
+import { readPolicyLite, policyInWindow, policySet, policyState, autoSentToday, draftForDay, freshAckToken } from '../src/worlds/bili-account/tank.ts'
 
 const decl = BILI_ACCOUNT.create().webUi('zh')
 
@@ -68,24 +68,29 @@ test('policyInWindow + autoSentToday：时段含始不含终/跨午夜；只数�
     JSON.stringify({ kind: 'auto-publish', ok: false, at: '2026-10-31T02:00:00.000Z' }),
     JSON.stringify({ kind: 'auto-publish', ok: true, at: '2026-10-30T02:00:00.000Z' }),
   ].join('\n') + '\n')
-  assert.equal(autoSentToday(f, '2026-10-31'), 1)
-  assert.equal(autoSentToday(path.join(dir, 'missing.jsonl')), 0, '没账本 = 0，不抛')
+  assert.equal(autoSentToday({ file: f, day: '2026-10-31' }), 1, '只数成功的')
+  assert.equal(autoSentToday({ file: f, day: '2026-10-31', attempts: true }), 2, '算上失败尝试才能堵住绕上限')
+  assert.equal(autoSentToday({ file: path.join(dir, 'missing.jsonl') }), 0, '没账本 = 0，不抛')
 })
 
-test('draftAckToken：只认草稿自带且仍有效的那一张，绝不铸造', () => {
+test('freshAckToken + draftForDay：只认草稿自带且仍有效的令牌，绝不铸造', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ack-'))
   const whale = path.join(dir, 'whale')
   const drafts = path.join(dir, 'drafts')
   const pend = path.join(whale, 'bili-whale', 'control', 'pending')
   fs.mkdirSync(drafts, { recursive: true }); fs.mkdirSync(pend, { recursive: true })
-  const future = Date.now() + 3600_000
-  const mk = (id, ackId, extra = {}) => {
-    fs.writeFileSync(path.join(drafts, id + '.json'), JSON.stringify({ id, ackId }))
-    fs.writeFileSync(path.join(pend, ackId + '.json'), JSON.stringify({ token: 'tk-' + ackId, used: false, expiresAt: future, payload: { draftId: id }, ...extra }))
+  // 草稿文件名就是日期（<day>.json 是事实源），draftForDay 只认这一天
+  const mk = (day, id, ackId, extra = {}) => {
+    fs.writeFileSync(path.join(drafts, day + '.json'), JSON.stringify({ id, date: day, ackId, status: 'pending' }))
+    fs.writeFileSync(path.join(pend, ackId + '.json'), JSON.stringify({ token: 'tk-' + ackId, used: false, expiresAt: Date.now() + 3600_000, payload: { draftId: id }, ...extra }))
   }
-  mk('dyn-a', 'ack-a'); assert.equal(draftAckToken('dyn-a', whale, drafts), 'tk-ack-a', '有效令牌才给')
-  mk('dyn-b', 'ack-b', { used: true }); assert.equal(draftAckToken('dyn-b', whale, drafts), null, '已用过 = 没有')
-  mk('dyn-c', 'ack-c', { expiresAt: Date.now() - 1 }); assert.equal(draftAckToken('dyn-c', whale, drafts), null, '过期 = 没有')
-  mk('dyn-d', 'ack-d', { payload: { draftId: 'other' } }); assert.equal(draftAckToken('dyn-d', whale, drafts), null, '绑定不符 = 没有')
-  assert.equal(draftAckToken('dyn-nope', whale, drafts), null, '没这条草稿 = 没有，不新建')
+  mk('2026-10-31', 'dyn-20261031-aaa', 'ack-a')
+  assert.equal(freshAckToken(draftForDay('2026-10-31', drafts), whale), 'tk-ack-a', '有效令牌才给')
+  mk('2026-11-01', 'dyn-20261101-bbb', 'ack-b', { used: true })
+  assert.equal(freshAckToken(draftForDay('2026-11-01', drafts), whale), null, '已用过 = 没有')
+  mk('2026-11-02', 'dyn-20261102-ccc', 'ack-c', { expiresAt: Date.now() - 1 })
+  assert.equal(freshAckToken(draftForDay('2026-11-02', drafts), whale), null, '过期 = 没有')
+  mk('2026-11-03', 'dyn-20261103-ddd', 'ack-d', { payload: { draftId: 'other' } })
+  assert.equal(freshAckToken(draftForDay('2026-11-03', drafts), whale), null, '绑定不符 = 没有')
+  assert.equal(draftForDay('2026-11-04', drafts), null, '没那天的草稿文件 = null，不去别的草稿兜底')
 })
