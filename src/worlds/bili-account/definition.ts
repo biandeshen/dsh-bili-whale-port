@@ -17,6 +17,7 @@ import type { Language } from '../../core/language.ts'
 import {
   warmConsole, consoleReady, tankLocal, killOn, lastTickAt, pendingDraftCount, openFeedbackCount,
   timelineState, diaryState, draftsState, draftAction, feedbackResolve, feedbackListSafe, vitalsState, avatarBinary, trafficStatus,
+  policyState, policySet, policyInWindow, autoSentToday,
 } from './tank.ts'
 import { decideAction, restRecoveryDelta, actionCost, nextCheckDelay, dayKey, MIN_GAP_MS } from '../../../persona-core/src/rhythm.ts'
 
@@ -360,6 +361,7 @@ class BiliAccountWorld {
         { id: 'timeline', title: t('她的一天', 'Her day'), description: t('因果链事件（只读）', 'Causal events (read-only)'), getMethods: ['state'] },
         { id: 'diary', title: t('日记', 'Diary'), description: t('公开与私人两本', 'Public and private books'), getMethods: ['state'] },
         { id: 'feedback', title: t('意见箱', 'Issues'), description: t('她报的问题与处理', 'Her reported issues'), getMethods: ['state'] },
+        { id: 'policy', title: t('发送策略', 'Send policy'), description: t('草稿人工/自动、档位收回、护栏', 'Draft review/auto, tier switches, guardrails'), getMethods: ['state'] },
         { id: 'vitals', title: t('体征', 'Vitals'), description: t('风控额度与今日计数', 'Traffic budget and today counts'), getMethods: ['state'] },
       ],
       invoke: async (panel, method, args) => {
@@ -393,6 +395,15 @@ class BiliAccountWorld {
         }
         if (panel === 'vitals') {
           if (method === 'state') return vitalsState()
+          throw new Error('unknown method ' + method)
+        }
+        if (panel === 'policy') {
+          if (method === 'state') return { ...policyState(), autoSentToday: autoSentToday() }
+          if (method === 'set') {
+            const r = policySet(args[0])
+            if (r.ok) causal({ kind: 'policy-change', policy: r.policy, atMs: Date.now() })
+            return r
+          }
           throw new Error('unknown method ' + method)
         }
         throw new Error('unknown panel ' + panel)
@@ -718,6 +729,24 @@ class BiliAccountWorld {
         }
         const args = [...(a?.force ? ['--force'] : []), '--drafts', DRAFTS_DIR, '--voice', voiceFile]
         const r = await runNodeAsync(path.join(ROOT, 'scripts', 'draft-dynamic.mjs'), args, 90000)
+        // 发送策略 auto：同一条 publisher（dynamic-approve panel），kill/防双发/额度全走原链路；
+        // 每一次自动发布都写因果，主人随时能在鱼缸页看到「这条是 auto 发的」。
+        const draftId = (r.out.match(/"id":\s*"(dyn-[^"]+)"/) ?? [])[1]
+        if (r.status === 0 && draftId) {
+          const pol = policyState().policy
+          if (pol.draftMode === 'auto') {
+            if (!policyInWindow(new Date(), pol.autoWindow)) {
+              return r.out + `\n（策略：当前在 autoWindow ${pol.autoWindow} 之外——草稿留给人工放行）`
+            }
+            if (pol.autoDailyCap > 0 && autoSentToday() >= pol.autoDailyCap) {
+              return r.out + `\n（策略：今天 auto 已达上限 ${pol.autoDailyCap} 条——后续草稿留给人工放行）`
+            }
+            const pub = await runNodeAsync(path.join(ROOT, 'scripts', 'dynamic-approve.mjs'), ['panel', draftId], 300000)
+            const okPub = pub.status === 0 && /"ok":\s*true/.test(pub.out)
+            causal({ kind: 'auto-publish', draftId, ok: okPub, atMs: Date.now(), out: pub.out.slice(-400) })
+            return r.out + `\n（auto 发布${okPub ? '成功 ✓' : '失败——转人工，原因见下'}）\n` + pub.out.slice(-600)
+          }
+        }
         return r.out
       }),
       mk(DECLS[7], async (a) => {
@@ -798,7 +827,9 @@ class BiliAccountWorld {
             : '上下文过期：先 bili_dm_read 刷一下收件箱（刷完 7 天内都能回）'
           return `[dm_reply] ${why}`
         }
-        const sent = await runAsync(plan.args, 180000)
+        const sent = policyState().policy.dmReply === 'queue'
+          ? { status: 9, out: '（策略：回信档位=queue，不直发）' }
+          : await runAsync(plan.args, 180000)
         if (sent.status === 0 && sent.out.includes('已发送')) {
           causal({ kind: 'dm-auto-sent', inboundKey: key, chars: text.length, atMs: Date.now() })
           return '[dm_reply] 回信已直接发出（给主人的私信免人工审批，仍过风控/冷却/互关检查）。\n' + sent.out

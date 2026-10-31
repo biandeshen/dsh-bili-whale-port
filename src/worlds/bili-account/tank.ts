@@ -108,6 +108,74 @@ export function tankLocal() {
 
 export function killOn(): boolean { return fs.existsSync(KILL_FILE) }
 
+// ── 发送策略（单一事实源 = dsh 的 bili-whale.config.json，主人 2026-10-31 拍板） ──
+const CONFIG_FILE = process.env.BILI_WHALE_CONFIG || path.join(WHALE, 'bili-whale.config.json')
+
+export function policyState(file = CONFIG_FILE): { policy: any; file: string; exists: boolean } {
+  const cfg = readJson(file) ?? {}
+  return { policy: readPolicyLite(cfg), file, exists: fs.existsSync(file) }
+}
+
+export function policySet(patch: any, file = CONFIG_FILE): { ok: boolean; policy?: any; error?: string } {
+  if (!patch || typeof patch !== 'object') return { ok: false, error: '缺策略对象' }
+  const cfg = readJson(file) ?? {}
+  const next = {
+    ...cfg,
+    publish: { ...(cfg.publish ?? {}), ...pick(patch.publish ?? {}, ['draftMode', 'autoDailyCap', 'autoWindow']) },
+    permissions: { ...(cfg.permissions ?? {}), ...pick(patch.permissions ?? {}, ['like', 'fav', 'dmReply']) },
+  }
+  // 读回时统一收敛（readPolicy 语义）：写进去的必须先合法
+  const normalized = readPolicyLite(next)
+  next.publish = { draftMode: normalized.draftMode, autoDailyCap: normalized.autoDailyCap, autoWindow: normalized.autoWindow }
+  next.permissions = { like: normalized.like, fav: normalized.fav, dmReply: normalized.dmReply }
+  try {
+    const tmp = file + '.' + process.pid + '.tmp'
+    fs.writeFileSync(tmp, JSON.stringify(next, null, 2) + '\n', 'utf8')
+    fs.renameSync(tmp, file)
+    return { ok: true, policy: normalized }
+  } catch (e: any) { return { ok: false, error: String(e?.message ?? e) } }
+}
+
+const pick = (o: any, keys: string[]) => Object.fromEntries(keys.filter((k) => o?.[k] !== undefined).map((k) => [k, o[k]]))
+
+/** 与 dsh tools/lib/publish-policy.mjs 的 readPolicy 同语义（TS 侧一份小镜像，值语义在此测试锁）。 */
+export function readPolicyLite(cfg: any) {
+  const p = cfg?.publish ?? {}
+  const t = cfg?.permissions ?? {}
+  return {
+    draftMode: p.draftMode === 'auto' ? 'auto' : 'review',
+    autoDailyCap: Math.max(0, Number(p.autoDailyCap ?? 0) || 0),
+    autoWindow: typeof p.autoWindow === 'string' ? p.autoWindow.trim() : '',
+    like: t.like === 'review' ? 'review' : 'self',
+    fav: t.fav === 'review' ? 'review' : 'self',
+    dmReply: t.dmReply === 'queue' ? 'queue' : 'direct',
+  }
+}
+
+/** 时段判断（与 dsh 侧同规则：空/非法=不限，支持跨午夜）。 */
+export function policyInWindow(now: Date, spec: string): boolean {
+  const m = /^(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})$/.exec(String(spec ?? '').trim())
+  if (!spec || !m) return true
+  const a = hm2(m[1]); const b = hm2(m[2])
+  if (a === null || b === null) return true
+  const cur = now.getHours() * 60 + now.getMinutes()
+  return a <= b ? (cur >= a && cur < b) : (cur >= a || cur < b)
+}
+const hm2 = (s: string) => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(s).trim()); return m ? Number(m[1]) * 60 + Number(m[2]) : null }
+
+/** 今天已经 auto 发过几条（因果链 kind='auto-publish' 且 ok）。 */
+export function autoSentToday(file = CAUSAL_FILE, day = new Date().toLocaleDateString('sv-SE')): number {
+  try {
+    return fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).reduce((n, l) => {
+      try {
+        const e = JSON.parse(l)
+        if (e?.kind === 'auto-publish' && e?.ok && String(e?.at ?? '').slice(0, 10) === day) return n + 1
+      } catch {}
+      return n
+    }, 0)
+  } catch { return 0 }
+}
+
 export function feedbackListSafe(): { ok: boolean; items?: any[]; error?: string } {
   if (!mods.feedback) return { ok: false, error: 'feedback 模块未预热' }
   try {

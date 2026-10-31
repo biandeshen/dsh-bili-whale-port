@@ -317,6 +317,59 @@ function mountVitals(ctx: WebUiPanelContext): void {
   ctx.interval(poll, POLL_MS);
 }
 
+// ── 发送策略：审核/自动、护栏、档位收回（红线常驻提示：kill 压过配置、auto 全留痕） ──
+interface PolicyState {
+  ok?: boolean;
+  policy?: { draftMode: 'review' | 'auto'; autoDailyCap: number; autoWindow: string; like: 'self' | 'review'; fav: 'self' | 'review'; dmReply: 'direct' | 'queue' };
+  file?: string; exists?: boolean; autoSentToday?: number; error?: string;
+}
+function mountPolicy(ctx: WebUiPanelContext): void {
+  const { ui, root } = ctx;
+  const card = ui.sheet({ title: '发送策略', en: 'send policy', desc: '默认全人工；auto 要你显式打开。kill 永远压过这里的一切设置。' });
+  root.appendChild(card.el);
+  const err = ui.msgline();
+  const selMode = ui.select({ options: [{ value: 'review', label: '草稿：人工审核（默认）' }, { value: 'auto', label: '草稿：自动发送（auto）' }] });
+  const inpCap = ui.input({ type: 'number', placeholder: '0 = 不限' });
+  const inpWin = ui.input({ type: 'text', placeholder: '如 10:00-23:00；空 = 不限' });
+  const selLike = ui.select({ options: [{ value: 'self', label: '点赞：她自己发' }, { value: 'review', label: '点赞：收回，等我审' }] });
+  const selFav = ui.select({ options: [{ value: 'self', label: '收藏：她自己发' }, { value: 'review', label: '收藏：收回，等我审' }] });
+  const selDm = ui.select({ options: [{ value: 'direct', label: '回主人私信：直发' }, { value: 'queue', label: '回信：收回，走草稿队列' }] });
+  const status = ui.h('div', 'sh-desc');
+  const save = ui.button('保存策略', {
+    variant: 'primary',
+    onClick: () => {
+      const patch = {
+        publish: { draftMode: selMode.value, autoDailyCap: Number(inpCap.value || 0), autoWindow: inpWin.value.trim() },
+        permissions: { like: selLike.value, fav: selFav.value, dmReply: selDm.value },
+      };
+      void ctx.invoke<{ ok?: boolean; error?: string }>('set', [patch])
+        .then((r) => { ui.toast(r?.ok ? '策略已保存' : r?.error ?? '保存失败', r?.ok ? 'ok' : 'bad'); if (r?.ok) poll(); })
+        .catch((e) => ui.toast(errText(e), 'bad'));
+    },
+  });
+  const acts = ui.actions(); acts.append(save);
+  card.body.append(err, status,
+    ui.field('草稿发送', selMode),
+    ui.field('auto 每日上限（0=不限）', inpCap),
+    ui.field('auto 时段（空=不限）', inpWin),
+    ui.field('点赞档位', selLike),
+    ui.field('收藏档位', selFav),
+    ui.field('回信档位', selDm),
+    acts);
+
+  const draw = (st: PolicyState): void => {
+    err.hidden = true;
+    if (!st?.policy) { err.textContent = '策略读不到：' + (st?.error ?? st?.file ?? '?'); err.hidden = false; return; }
+    const p = st.policy;
+    status.textContent = `现行：草稿=${p.draftMode}${p.draftMode === 'auto' ? `（今日已 auto ${st.autoSentToday ?? 0} 条，上限 ${p.autoDailyCap || '不限'}，时段 ${p.autoWindow || '不限'}）` : ''} · 点赞=${p.like} · 收藏=${p.fav} · 回信=${p.dmReply}`;
+    selMode.value = p.draftMode; inpCap.value = String(p.autoDailyCap); inpWin.value = p.autoWindow;
+    selLike.value = p.like; selFav.value = p.fav; selDm.value = p.dmReply;
+  };
+  const poll = (): void => { void ctx.invoke<PolicyState>('state').then(draw).catch((e) => { err.textContent = errText(e); err.hidden = false; }); };
+  poll();
+  ctx.interval(poll, POLL_MS * 3);
+}
+
 // ── 面板注册（框架按 webUi() 声明的 id 挂载） ───────────────────────────────
 const STYLE = `
 .tank-hero{display:flex;gap:16px;align-items:center;margin:4px 0 12px}
@@ -353,6 +406,7 @@ export default {
     timeline: { mount(ctx: WebUiPanelContext) { ensureStyle(ctx.root); mountTimeline(ctx); } },
     diary: { mount(ctx: WebUiPanelContext) { ensureStyle(ctx.root); mountDiary(ctx); } },
     feedback: { mount(ctx: WebUiPanelContext) { ensureStyle(ctx.root); mountFeedback(ctx); } },
+    policy: { mount(ctx: WebUiPanelContext) { ensureStyle(ctx.root); mountPolicy(ctx); } },
     vitals: { mount(ctx: WebUiPanelContext) { ensureStyle(ctx.root); mountVitals(ctx); } },
   },
 } satisfies WebUiClientBundle;
