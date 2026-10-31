@@ -18,25 +18,8 @@ import crypto from 'node:crypto'
 import { config } from '../lib/config.mjs'
 import { validateShare } from '../lib/share-policy.mjs'
 import { gate, record } from '../lib/quota-gate.mjs'
+import { sendOwnerDm } from '../lib/dm-send-core.mjs'
 
-// 稳定的设备 ID：只生成一次，之后永远复用 ✓
-//   · 存在 ~/.bili-ai/dev_id（0600）
-//   · 写坏了/删了会自动重建（重建等于"换了台设备"，但只发生一次 ✓）
-function stableDevId() {
-  const HOME = process.env.USERPROFILE || process.env.HOME || '.'
-  const file = path.join(HOME, '.bili-ai', 'dev_id')
-  try {
-    const v = fs.readFileSync(file, 'utf8').trim()
-    if (/^WEB-[0-9A-F-]{20,}$/i.test(v)) return v
-  } catch {}
-  const v = 'WEB-' + crypto.randomUUID().toUpperCase()
-  try {
-    fs.mkdirSync(path.dirname(file), { recursive: true })
-    fs.writeFileSync(file, v + '\n')
-    try { fs.chmodSync(file, 0o600) } catch {}
-  } catch (e) { throw new Error('无法保存私信设备 ID，已停止发送：' + e.message) }
-  return v
-}
 
 
 const argv = process.argv.slice(2)
@@ -134,30 +117,6 @@ function relationLines(rel, meInfo) {
   return lines
 }
 
-async function send(toMid, text) {
-  const body = new URLSearchParams()
-  body.set('msg[sender_uid]', String((await me()).mid))
-  body.set('msg[receiver_id]', String(toMid))
-  body.set('msg[receiver_type]', '1')
-  body.set('msg[msg_type]', '1')
-  body.set('msg[msg_status]', '0')
-  body.set('msg[timestamp]', String(Math.floor(Date.now() / 1000)))
-  // 2026-10-22 修（她自己发现的，很准）：
-  //   以前每发一条私信就随机一个新 dev_id ✗ → 风控看到的是
-  //   「同一个人在不同设备之间高频切换」→ 小号私信容易被封控 ✗
-  //   真浏览器里这个值是【固定的】✓ 所以这里也生成一次、存起来、永久复用。
-  //   位置：~/.bili-ai/dev_id（和凭据放一起，换机器时跟着拷 ✓）
-  body.set('msg[dev_id]', stableDevId())
-  body.set('msg[content]', JSON.stringify({ content: text }))
-  body.set('csrf', String(cred.bili_jct))
-  const r = await fetch('https://api.vc.bilibili.com/web_im/v1/web_im/send_msg', {
-    method: 'POST',
-    headers: { ...H, 'content-type': 'application/x-www-form-urlencoded' },
-    body: body.toString(),
-  })
-  const j = await r.json().catch(() => ({}))
-  return { http: r.status, code: j.code, message: j.message, data: j.data }
-}
 
 if (STATUS) {
   const q = loadQ()
@@ -176,53 +135,7 @@ if (STATUS) {
 
 if (!MSG) { console.error('用法: node dm.mjs --msg "…" [--share --target BV…] --dry|--go   |   --status'); process.exit(2) }
 
-// ── 闸门（写死，不接受参数覆盖）──────────────────────────────────────
-if (!OWNER) { console.error('✗ 配置里 owner.mid 为空 —— 私信只发给主人，没配就不发'); process.exit(2) }
-if (MSG.length > 300) { console.error(`✗ 私信太长（${MSG.length} > 300 字），退化成刷屏了 ✗`); process.exit(2) }
-
-const meInfo = await me()
-if (String(meInfo.mid) === ONLY_TO) {
-  // 2026-10-23 修（issue #22）：只报「不能给自己发私信」没有出路 ✗
-  console.error('✗ 不能给自己发私信（owner.mid 就是 cookie 这个号）');
-  console.error('  私信通道需要【第二个 B 站号】：设 owner.mid 为另一个号，且双方手动互关');
-  console.error('  只有一个号时：分享方式选「评论区 @」，推送选桌面通知 / Webhook / 自定义命令 ✓');
-  process.exit(2)
-}
-
-const rel = await relation(ONLY_TO)
-if (!rel.ok) { console.error(`✗ ${rel.why}`); process.exit(3) }
-if (REQUIRE_MUTUAL && rel.attribute !== 6) {
-  console.error(`✗ 未互关（attribute=${rel.attribute}）—— 私信通道要求双方互相关注 ✓`)
-  for (const line of relationLines(rel, meInfo)) console.error(line)
-  process.exit(4)
-}
-
-const q = loadQ()
-const used = q.date === today() ? Number(q.count ?? 0) : 0
-// ① 一天只锁定 1 个收信人（条数不限 ✓）：如果今天已经发给过别人 → 拒
-if (ONE_TARGET_PER_DAY && q.date === today() && q.mid && String(q.mid) !== ONLY_TO) {
-  console.error(`✗ 今天已经锁定给 mid ${q.mid} 了 —— 一天只能锁定 1 个收信人（防刷量 ✗）`)
-  process.exit(4)
-}
-
-console.log(`[dm] ${meInfo.uname} → ${OWNER_NAME}（mid ${ONLY_TO}）`)
-console.log(`  正文 ${MSG.length} 字：${MSG.slice(0, 80)}${MSG.length > 80 ? '…' : ''}`)
-console.log(`  互关 ✓  ·  今天第 ${used + 1} 条（条数不限 ✓ 锁定给 ${OWNER_NAME} ✓）`)
-
+// ── 闸门与发送全部在 tools/lib/dm-send-core.mjs（与 dm-approve 共用一份实现） ──
 if (!GO && !DRY) { console.error('✗ 必须给 --dry 或 --go'); process.exit(2) }
-
-// ④ 分享型先过闸（日上限 / 同一视频 7 天一次 / 评分卡 …由 quota 统一管 ✓）
-if (SHARE) {
-  const ok = gate({ type: 'dm', target: SHARE_TARGET, auto: true, share: true })
-  if (!ok) { console.error('✗ 分享额度不允许（见上面的 [限额闸] 输出）'); process.exit(4) }
-}
-if (DRY) { console.log('  [dry] 预检通过，未发送 ✓ 正式发送时会重新检查额度'); process.exit(0) }
-const r = await send(ONLY_TO, MSG)
-if (r.code === 0) {
-  saveQ({ date: today(), count: used + 1, mid: ONLY_TO, at: new Date().toISOString() })
-  if (SHARE) record({ type: 'dm', target: SHARE_TARGET, note: MSG.slice(0, 40), auto: true, share: true })
-  console.log(`  ✓ 已发送（HTTP ${r.http}）${SHARE ? ' · 已记入分享额度 ✓' : ' · 推送不占额度 ✓'}`)
-  process.exit(0)
-}
-console.error(`  ✗ 发送失败：HTTP ${r.http} ${explainCode(r.code)}${r.message ? `（B站原文：${r.message}）` : ''}`)
-process.exit(1)
+const r = await sendOwnerDm({ text: MSG, share: SHARE, shareTarget: SHARE ? SHARE_TARGET : '', dry: DRY })
+process.exit(r.exit)

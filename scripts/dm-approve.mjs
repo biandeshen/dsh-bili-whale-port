@@ -8,16 +8,15 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
-import { spawnSync } from 'node:child_process'
 import { DSH_HOME as WHALE_HOME } from '../tools/lib/paths.mjs'
 import { loadDrafts, findDraft, setStatus, textHash } from '../tools/lib/dm-drafts.mjs'
 import * as ack from './ack.mjs'
+import { sendOwnerDm } from '../tools/lib/dm-send-core.mjs'
 
 const FILE = path.join(WHALE_HOME, 'bili-whale', 'control', 'dm-drafts.json')
 const KILL = path.join(WHALE_HOME, 'bili-whale', 'control', 'kill')
 const CAUSAL = path.join(WHALE_HOME, 'bili-whale', 'causal.jsonl')
 const AUDIT = path.join(WHALE_HOME, 'bili-whale', 'control', 'dm-approve-audit.jsonl')
-const BILI = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..', 'tools', 'bili.mjs')
 
 function audit(entry) {
   try {
@@ -40,7 +39,7 @@ function recordSent(draft) {
   } catch {}
 }
 
-export function approve({ id, token, go = false, runner } = {}) {
+export async function approve({ id, token, go = false, runner } = {}) {
   const d = findDraft(FILE, id)
   if (!d) return { ok: false, error: '找不到回信草稿 ' + id }
   if (['sent', 'rejected'].includes(d.status)) return { ok: false, error: '草稿已处理过：' + d.status }
@@ -59,18 +58,30 @@ export function approve({ id, token, go = false, runner } = {}) {
   }
 
   audit({ id: d.id, action: 'approve', mode: go ? 'go' : 'dry', textHash: d.textHash })
-  const args = ['dm', '--msg', d.text, go ? '--go' : '--dry']
-  const run = runner || ((a) => spawnSync(process.execPath, [BILI, ...a], { encoding: 'utf8', timeout: 180000 }))
-  let r
-  try { r = run(args) } catch (e) { r = { status: -1, stdout: '', stderr: String(e?.message ?? e) } }
-  const out = String(r.stdout ?? '') + String(r.stderr ?? '')
-  const ok = r.status === 0 && (go ? /已发送|code=0|成功/i.test(out) : true)
-  const transient = !ok && /冷却|TRAFFIC_PAUSED|请稍后|频繁/.test(out)
+  // 默认走 dm-send-core（与 dm.mjs 同一份闸门+发送+记账实现，不再 spawn 自己再解析 stdout）；
+  // runner 仍保留为测试注入点（旧 argv 契约：{status, stdout, stderr}）
+  let res
+  try {
+    if (runner) {
+      const raw = runner(['dm', '--msg', d.text, go ? '--go' : '--dry'])
+      const out = String(raw?.stdout ?? '') + String(raw?.stderr ?? '')
+      res = {
+        ok: raw?.status === 0 && (go ? /已发送|code=0|成功/i.test(out) : true),
+        exit: raw?.status ?? -1, out,
+        transient: /冷却|TRAFFIC_PAUSED|请稍后|频繁/.test(out),
+      }
+    } else {
+      const r = await sendOwnerDm({ text: d.text, share: !!d.share, shareTarget: d.shareTarget ?? '', dry: !go })
+      res = { ok: r.ok, exit: r.exit, out: (r.lines ?? []).join('\n'), transient: r.transient === true }
+    }
+  } catch (e) { res = { ok: false, exit: -1, out: String(e?.message ?? e), transient: false } }
+  const { ok, out } = res
+  const transient = !ok && (res.transient || /冷却|TRAFFIC_PAUSED|请稍后|频繁/.test(out))
   const status = ok ? (go ? 'sent' : 'dry-run') : (transient ? 'cooldown' : 'failed')
   setStatus(FILE, d.id, status, { result: { ok, at: new Date().toISOString(), mode: go ? 'go' : 'dry', out: out.slice(-800) } })
   if (go && !ok) { try { ack.release(WHALE_HOME, d.ackId) } catch {} }
   if (go && ok) recordSent(d)
-  audit({ id: d.id, action: go ? 'send' : 'dry-run', result: status, exit: r.status ?? null, outHash: crypto.createHash('sha1').update(out).digest('hex') })
+  audit({ id: d.id, action: go ? 'send' : 'dry-run', result: status, exit: res.exit ?? null, outHash: crypto.createHash('sha1').update(out).digest('hex') })
   return { ok, status, out: out.slice(-800) }
 }
 
@@ -124,7 +135,7 @@ if (isMain) {
   if (cmd === 'approve') {
     const id = argv[1]
     if (!id) { console.error('用法: node scripts/dm-approve.mjs approve <id> [--token <token>] [--go]'); process.exit(2) }
-    const r = approve({ id, token: arg('token'), go })
+    const r = await approve({ id, token: arg('token'), go })
     console.log(r.ok ? `✓ ${r.status}` : `✗ ${r.error || r.status || '失败'}`)
     if (r.out) console.log(r.out)
     process.exit(r.ok ? 0 : 1)
