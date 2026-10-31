@@ -368,7 +368,7 @@ class BiliAccountWorld {
           if (method === 'avatar') {
             const a = avatarBinary()
             if (!a) throw new Error('还没放头像（把 png 放到 whale home 根下的 avatar.png）')
-            return a
+            return { $binary: a }
           }
           throw new Error('unknown method ' + method)
         }
