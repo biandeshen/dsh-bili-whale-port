@@ -171,6 +171,9 @@ const GROUP_LABEL: Record<string, string> = {
   owner: '主人', self: '她自己', preferences: '口味词表', quota: '额度上限', risk: '风控节奏',
   persona: '人设与轮次', publish: '发送策略', permissions: '权限档位', notify: '通知',
   media: '配音与视频', session: '会话', feeds: '信息流', tools: '工具路径',
+  toolsPath: '工具路径', home: '数据目录', night: '夜间行为（插件时代遗留，待查实）',
+  clock: '时钟（插件时代遗留，待查实）', diary: '日记', listen: '监听与直播', share: '自动分享',
+  sessionRotateDays: '会话轮换天数', personaOncePerSession: '人设每轮注入一次',
 }
 /** 这些键 Cortico 只在启动时读一次，改完必须重启才生效（页面上要说清，别让人改了以为没生效）。 */
 const RESTART_KEYS = new Set(['owner.displayName', 'owner.name', 'owner.mid', 'self.name', 'self.mid', 'home', 'toolsPath'])

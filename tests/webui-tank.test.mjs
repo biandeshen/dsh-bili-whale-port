@@ -139,6 +139,7 @@ test('settingsOverview：摊平、分组，并标出页面可改/要不要重启
   assert.equal(find('notify.type').declared, false, '默认值里没写的要标出来，不许假装都声明了')
   assert.equal(o.undeclared, 11)
   assert.equal(find('preferences.keywords').value.join(' · '), '雨声', '数组值给可读文本')
+  assert.equal(settingsOverview({ clock: { enabled: false } }, {}).groups[0].label, '时钟（插件时代遗留，待查实）', '遗留分组要标出来，不能露英文原名')
 })
 
 test('settingsState：读真配置文件，字段齐全且带文件位置（只读，不写盘）', () => {
