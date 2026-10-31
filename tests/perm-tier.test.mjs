@@ -11,13 +11,16 @@ import { fileURLToPath } from 'node:url'
 const toolsDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'tools')
 const src = (p) => fs.readFileSync(path.join(toolsDir, p), 'utf8')
 
-test('自发档：fav / like 不进 go-gate（判据与本地账仍在）', () => {
+test('自发档：like/fav 默认直发，入队只可能来自 publish-policy 的档位收回', () => {
+  for (const [f, key] of [['commands/fav.mjs', 'fav'], ['commands/like.mjs', 'like']]) {
+    const s = src(f)
+    assert.ok(s.includes('tierQueues(') && s.includes(`readPolicy(`), `${f} 的入队必须包在 tierQueues(readPolicy(...)) 里`)
+    // 收回开关只能由配置翻开：默认值在 publish-policy 测试里锁死为 'self'
+    assert.ok(!/shouldGate\(/.test(s), `${f} 不得恢复"见 --go 就拦"的旧 go-gate 无条件语义`)
+  }
   const fav = src('commands/fav.mjs')
-  assert.ok(!fav.includes('go-gate.mjs'), 'fav 是自发档，不得再 import go-gate')
   assert.ok(fav.includes('checkRules'), 'fav 的五判据不能被顺手删')
-  const like = src('commands/like.mjs')
-  assert.ok(!like.includes('go-gate.mjs'), 'like 是自发档，不得 import go-gate')
-  assert.ok(like.includes('30 * DAY'), 'like 要保留 30 天去重（B站接口是 toggle，重复点会取消赞）')
+  assert.ok(src('commands/like.mjs').includes('30 * DAY'), 'like 要保留 30 天去重（B站接口是 toggle，重复点会取消赞）')
 })
 
 test('公开表达档：comment / danmaku 仍必须过 go-gate（人工放行保留）', () => {

@@ -170,6 +170,13 @@ if (process.argv[1] && process.argv[1].endsWith('dynamic-approve.mjs')) {
   const go = process.argv.includes('--go')
   const ti = process.argv.indexOf('--token')
   const token = ti >= 0 ? process.argv[ti + 1] : ''
+  if (cmd === 'panel') {
+    // 服务端持 token 的放行（面板按钮与 auto 模式共用；stdout 永不含 token）
+    const r = await approveFromPanel({ id })
+    console.log(JSON.stringify(r, null, 2))
+    process.exitCode = r.ok ? 0 : 1
+    process.exit(r.ok ? 0 : 1)
+  }
   const out = cmd === 'approve' ? await approve({ id, token, go })
     : cmd === 'reject' ? reject(id)
     : { ok: false, error: '用法：list | approve <id> [--token T] [--go] | reject <id>' }

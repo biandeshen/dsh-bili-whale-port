@@ -44,6 +44,13 @@ for (let i = 0; i < argv.length; i += 1) {
   } else positional.push(argv[i])
 }
 // 2026-10-31 分级放开（主人拍板）：收藏属自发档——五判据 + 额度仍然强制，不再进 go-gate 待审队列
+// 档位收回：config.permissions.fav='review' 时恢复人工放行（publish-policy，默认不收回）
+import { readPolicy, tierQueues } from '../lib/publish-policy.mjs'
+import { queueGo } from '../lib/go-gate.mjs'
+if (opt.go && tierQueues(readPolicy(cfg).fav)) {
+  queueGo({ argv: ['fav', ...argv.filter((a) => a !== '--go')], kind: '收藏', bvid: positional[0] ?? '', oid: positional[0] ?? '', message: opt.reason ?? '', src: positional[0] ?? '' })
+  process.exit(0)
+}
 const DRY = !!opt.dry
 const GO = !!opt.go
 const DAY = 86400000
