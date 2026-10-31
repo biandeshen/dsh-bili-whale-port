@@ -380,17 +380,35 @@ export function applyRecall(s: PersonaState, ids: string[]): PersonaState {
   return { ...s, memories: s.memories.map((m) => (hit.has(m.id) ? recallMemory(m) : m)) }
 }
 
-/** 选片避重：近 7 天看过的 BV / UP，供 feed 标注与提示。 */
-export function recentWatch(s: PersonaState, days = 7): { bvs: string[]; ups: string[] } {
+/** 选片避重：近 7 天看过的 BV / UP（含每个 UP 看过几条，供 annotateFeed 数"同 UP 第 N 条"）。 */
+export function recentWatch(s: PersonaState, days = 7): { bvs: string[]; ups: string[]; upCounts: Record<string, number> } {
   return watchedFromMemories(s.memories, Date.now(), days)
 }
 
 /** 从 feed 输出里找出它推荐的 BV，给近 7 天看过的打标。 */
-export function annotateFeed(out: string, recent: { bvs: string[]; ups: string[] }): string {
+/**
+ * feed 候选的行内标注：把她已经立过的规矩直接落到候选上，省得她每轮自己再数一遍。
+ *  - 近 7 天看过的 BV → `[近 7 天看过]`
+ *  - 时长 <10 分钟 → `[短于10分钟：跳过]`（她 10-31 的线）；<20 分钟 → `[短于20分钟：降级]`
+ *  - 同一个 UP 近 7 天看过 N 条 → `[同UP第N+1条：不深读]`（她 10-30 的线）
+ */
+export function annotateFeed(
+  out: string,
+  recent: { bvs: string[]; ups: string[]; upCounts?: Record<string, number> },
+): string {
   const seen = new Set(recent.bvs)
+  const counts = recent.upCounts ?? {}
   const lines = String(out ?? '').split(/\r?\n/).map((line) => {
+    const marks: string[] = []
     const bv = (line.match(/\bBV[0-9A-Za-z]{8,}\b/) || [])[0]
-    return bv && seen.has(bv) ? line + '  [近 7 天看过]' : line
+    if (bv && seen.has(bv)) marks.push('近 7 天看过')
+    const sec = Number((line.match(/(\d+)\s*s\b/) || [])[1] ?? NaN)
+    if (Number.isFinite(sec) && sec > 0 && sec < 600) marks.push('短于10分钟：跳过')
+    else if (Number.isFinite(sec) && sec >= 600 && sec < 1200) marks.push('短于20分钟：降级')
+    const up = (line.match(/@(\S+)/) || [])[1]
+    const n = up ? Number(counts[up] ?? 0) : 0
+    if (n > 0) marks.push(`同UP第${n + 1}条：不深读`)
+    return marks.length ? line + marks.map((m) => `  [${m}]`).join('') : line
   })
   const parts: string[] = []
   if (recent.bvs.length) parts.push(`近 7 天看过 ${recent.bvs.length} 条`)

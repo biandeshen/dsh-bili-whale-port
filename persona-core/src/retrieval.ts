@@ -191,17 +191,21 @@ export function watchedFromMemories(
   memories: Memory[],
   now = Date.now(),
   days = 7,
-): { bvs: string[]; ups: string[] } {
+): { bvs: string[]; ups: string[]; upCounts: Record<string, number> } {
   const cut = now - days * DAY_MS
   const bvs = new Set<string>()
-  const ups = new Set<string>()
+  const upCounts: Record<string, number> = {}
   for (const m of memories ?? []) {
     const t = msOf(m.createdAt)
     if (!Number.isFinite(t) || t < cut) continue
     const content = String(m.content ?? '')
     for (const bv of content.matchAll(/\bBV[0-9A-Za-z]{8,}\b/g)) bvs.add(bv[0])
     const up = content.match(/（([^）]{1,40})）\s*——/) ?? content.match(/\(([^)]{1,40})\)\s*——/)
-    if (up) ups.add(up[1].trim())
+    if (up) {
+      const name = up[1].trim()
+      // 同 UP 第几条：她 10-30 立的规矩是"第 N 条不深读"，光给名单数不出 N
+      upCounts[name] = (upCounts[name] ?? 0) + 1
+    }
   }
-  return { bvs: [...bvs], ups: [...ups] }
+  return { bvs: [...bvs], ups: Object.keys(upCounts), upCounts }
 }
