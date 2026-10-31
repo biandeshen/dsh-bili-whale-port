@@ -1,0 +1,201 @@
+// owner: Cortico/src/worlds/bili-account/definition.ts + dsh-bili-whale/tools/bili.mjs
+// 与 docs/ARCHITECTURE-2026-11.md 同源；渲染：dot -Tsvg architecture.dot -o architecture.svg
+// 分层容器 = 进程/仓库边界；实线 = 现有代码路径（标 file:line）；虚线 = 未接线/退役。
+digraph "xiaoyu_arch_2026_11" {
+  rankdir = TB;
+  splines = true;
+  nodesep = 0.28;
+  ranksep = 0.55;
+  fontname = "Microsoft YaHei";
+  labelloc = t;
+  fontsize = 20;
+  label = "小鱼 · 架构 2026-11（每条边都实读到 file:line；虚线=未接线/退役）\nCortico fork（人格宿主）× dsh-bili-whale（B 站渠道 CLI）× ~/.dsh / ~/.bili-ai（运行态）";
+
+  node [shape = box, style = "rounded,filled", fontname = "Microsoft YaHei", fontsize = 11, color = "#7a8b9a", fillcolor = "#eef3f7"];
+  edge [fontname = "Consolas", fontsize = 9, color = "#4a5a68", fontcolor = "#26323c"];
+
+  // ── Cortico 宿主 ───────────────────────────────────────────────
+  subgraph cluster_cortico {
+    label = "Cortico 宿主 · 1 个 node 进程 · 只监听 7799（WebUI）";
+    style = "rounded,filled";
+    fillcolor = "#f7fbff";
+    color = "#3d6b8f";
+    fontsize = 13;
+
+    subgraph cluster_core {
+      label = "Core src/core/（无语义：不认识场值、不认识 B 站）";
+      style = "rounded,dashed";
+      color = "#9aa7b2";
+      fontsize = 11;
+      core_events [label = "core/ 事件存储 + 会话 + run 循环\ncore.pushEvent"];
+      core_webui  [label = "src/web/server.ts  :7799\nweb/auth.ts:2 密码为空即全放行"];
+    }
+
+    subgraph cluster_persona {
+      label = "Persona bots/cormini/persona/";
+      style = "rounded,dashed";
+      color = "#9aa7b2";
+      fontsize = 11;
+      per_assembly [label = "persona.ts 提示词装配\n（grep 实测：0 处引用 describeState）"];
+      per_hb       [label = "heartbeat.ts:50\n空拍指数退避 ≤8×"];
+      per_memory   [label = "memory.ts + workspaceGit.ts\nMemory 层（她写的文件）"];
+    }
+
+    subgraph cluster_pcore {
+      label = "persona-core/src/ 平台无关纯函数（人格算法只在这里）";
+      style = "rounded,dashed";
+      color = "#9aa7b2";
+      fontsize = 11;
+      pc_rhythm [label = "rhythm.ts\ndecideAction / nextCheckDelay / dayKey"];
+      pc_bus    [label = "effect-bus.ts + decay.ts + budget.ts"];
+      pc_chain  [label = "causal-chain.ts recordFieldChangeL0"];
+      pc_mem    [label = "memory.ts + retrieval.ts\n衰减 · 按眼下事召回"];
+      pc_emo    [label = "emotion.ts / emotion-projection.ts"];
+      pc_voice  [label = "voice-brief.ts buildVoiceBrief"];
+      pc_naming [label = "naming.ts ownerName"];
+    }
+
+    subgraph cluster_world {
+      label = "World src/worlds/bili-account/（只做编排与边界消毒）";
+      style = "rounded,dashed";
+      color = "#9aa7b2";
+      fontsize = 11;
+      w_def  [label = "definition.ts\n13 个 bili_* 工具 :299-313\nlifeTick :496 · 首拍 :625 · 自续 :620\nspawn runNodeAsync :279（kill 即退 :277）", fillcolor = "#dceefb"];
+      w_adp  [label = "personaAdapter.ts\napplyEffects :203 · saveState :180\ndescribeStateWithTrace :325"];
+      w_gate [label = "gates.ts canDraft/diaryFresh\nround.json 12h 失效 :56,97"];
+      w_diar [label = "diary.ts upsertDiarySection"];
+      w_tank [label = "tank.ts 数据面\ndraftAction · policySet :135\n动态 import dsh :51（跨仓耦合⑥）"];
+      w_ui   [label = "webui/client.ts\n「小鱼 · 鱼缸」7 块页签"];
+    }
+  }
+
+  // ── dsh CLI ───────────────────────────────────────────────────
+  subgraph cluster_dsh {
+    label = "dsh-bili-whale · 每次工具调用 fork 1–2 层子进程";
+    style = "rounded,filled";
+    fillcolor = "#fbf7f2";
+    color = "#8a6a3d";
+    fontsize = 13;
+
+    d_entry [label = "tools/bili.mjs\n命令表 :10-55 · spawnSync :80", fillcolor = "#f6e6c8"];
+    d_feed  [label = "commands/feed.mjs\nconfig 偏好 :38 · 日记「爱看」兜底 :42-44"];
+    d_deb   [label = "commands/debrief.mjs\n字幕/弹幕/热评（bili.mjs:25）"];
+    d_dia   [label = "commands/diary.mjs · feedback.mjs · dm.mjs:88,101 互关"];
+    d_draft [label = "scripts/draft-dynamic.mjs\ncomposeDraft :67 · 落盘 :84 · 令牌入队 :86"];
+    d_comp  [label = "tools/drafts/compose.mjs\nassertVoice :184-190 · buildText :134 降级"];
+    d_store [label = "tools/drafts/store.mjs\nwriteNewDraft :40 · draft-result :57"];
+    d_appr  [label = "scripts/dynamic-approve.mjs\nkill :44 · draftId+textHash 绑定 :46-54\nsending 防双发 :40,60 · token-env :150"];
+    d_pub   [label = "tools/drafts/publishers/\nbilibili-dynamic.mjs（发布唯一入口）"];
+    d_pol   [label = "tools/lib/publish-policy.mjs\n档位单一事实源 :14-21"];
+    d_kill  [label = "tools/lib/kill.mjs:18,20\nisKillOn"];
+    d_trf   [label = "tools/lib/traffic.mjs\nguarded 写通道：kill :100\n预算 :8 · 预约/幂等 :106-127 · 412 熔断 :156-169", fillcolor = "#f6d9d3"];
+    d_api   [label = "tools/lib/bili-api.mjs\n缓存退避 :162 · HTTP 412/429 :168"];
+    d_go    [label = "tools/lib/go-gate.mjs\nqueueGo :17 → pending-replies.json:10\n+ go-rebuild.mjs（argv 模型可写）"];
+    d_media [label = "tools/video-build.mjs:15 + tools/media/{tts,bgm,video}\nvendor/dsh-autocut · vendor/dsh-video-studio\n（无调用方 · 断点⑤）", shape = box, color = "#b0a090", fontcolor = "#8a7a68"];
+    d_panel [label = "panel/server.js（8447/8448 已退役）\n代码留作 tank 的模块来源", color = "#b0a090", fontcolor = "#8a7a68"];
+  }
+
+  // ── 运行态 ────────────────────────────────────────────────────
+  subgraph cluster_state {
+    label = "运行态 · 两套 home（出入 #6）";
+    style = "rounded,filled";
+    fillcolor = "#f4f6f2";
+    color = "#4d6b4f";
+    fontsize = 13;
+
+    s_cfg   [label = "~/.dsh/bili-whale.config.json\npaths.mjs:28（BILI_WHALE_CONFIG 可改）\nrisk · publish · permissions · preferences · owner.displayName", shape = cylinder];
+    s_fields [label = "~/.dsh/bili-whale/fields.json\nschemaVersion 5 · 7 场值 · chain/memories 200\n原子写 + .bak + .corrupt-*", shape = cylinder, fillcolor = "#dcefd8"];
+    s_causal [label = "~/.dsh/bili-whale/causal.jsonl\nappend-only（causal.mjs:21 / definition.ts:126）\n红线：不落正文与 token", shape = cylinder, fillcolor = "#dcefd8"];
+    s_ctl   [label = "~/.dsh/bili-whale/control/\nkill · round.json · life.json · queue.json\nvoice-<day>.json · draft-result.json · dm-applied.json · feedback.jsonl", shape = cylinder];
+    s_drafts [label = "草稿目录\nWHALE_DRAFTS → D:/AI/养鱼/drafts → ~/.dsh/.../drafts\npaths.mjs:55-59（World 另写一份 :165）", shape = cylinder];
+    s_diary [label = "~/.dsh/whale-diary.md + whale-diary-private.md\n（在 home 根，不在 bili-whale/ 子目录）", shape = cylinder];
+    s_days  [label = "~/.dsh/bili-whale/days/<日期>/ 证据包\n+ incident.md", shape = cylinder];
+    s_ba    [label = "~/.bili-ai/（按 OS 用户，不随 whale home 漂移）\ntraffic-state.json + .lock · pending-replies.json · credentials.json", shape = cylinder, fillcolor = "#f3e2c8"];
+  }
+
+  // ── 外部通道 ──────────────────────────────────────────────────
+  subgraph cluster_ext {
+    label = "外部通道";
+    style = "rounded,filled";
+    fillcolor = "#fdfdfd";
+    color = "#666666";
+    fontsize = 13;
+    x_ofm  [label = "OFM 网关\n127.0.0.1:18910/v1\n（模型：部署事实，不入架构）"];
+    x_bili [label = "api.bilibili.com / m.bilibili.com\n动态写端点当前回 412"];
+    x_comf [label = "本机 ComfyUI 生图\n代码 0 引用（未实现）", color = "#b0a090", fontcolor = "#8a7a68"];
+  }
+
+  // ── 主要数据流（wake → feed → debrief → diary → draft → 审批 → 发布 → 结算）──
+  x_ofm    -> per_assembly  [label = "Responses API"];
+  core_events -> per_assembly;
+  per_assembly -> core_events [label = "会话/工具调用"];
+  per_hb   -> w_def         [label = "基线间隔"];
+  w_def    -> core_events   [label = "definition.ts:330 pushEvent bili.action_due"];
+  w_def    -> pc_rhythm     [label = ":538 decideAction（3–7 分钟 + 日上限 + 体力闸）"];
+  w_def    -> w_adp         [label = ":681 bili_mood_read / :719 mood_apply（sanitizeEffects :113）"];
+  w_adp    -> pc_bus        [label = "EffectBus + budget"];
+  w_adp    -> pc_chain;
+  w_adp    -> pc_mem        [label = "remember/applyRecall :272,:377"];
+  w_adp    -> pc_emo        [label = "readMood"];
+  w_adp    -> s_fields      [label = "saveState :180（原子 + .bak）"];
+  s_fields -> w_adp         [label = "loadState :111"];
+  w_def    -> d_entry       [label = ":279 spawn(tools/bili.mjs)", penwidth = 1.6];
+  d_entry  -> d_feed;
+  d_entry  -> d_deb;
+  d_entry  -> d_dia;
+  d_feed   -> d_deb         [label = "[NEXT] 立刻 debrief（definition.ts:660）"];
+  w_def    -> d_feed        [label = ":653 bili_feed"];
+  w_def    -> d_deb         [label = ":665 bili_debrief ≤240s"];
+  w_def    -> d_draft       [label = ":787 bili_draft_dynamic（--drafts/--voice）"];
+  w_def    -> pc_voice      [label = ":769 buildVoiceBrief"];
+  pc_voice -> s_ctl         [label = ":777 voice-<day>.json"];
+  d_draft  -> d_comp        [label = "compose.mjs:18-20 re-export"];
+  d_comp   -> d_store       [label = "writeNewDraft"];
+  d_store  -> s_drafts      [label = "<day>.json + .md"];
+  d_draft  -> s_ctl         [label = ":86 ack.enqueue 一次性令牌"];
+  w_def    -> w_gate        [label = "出稿前纪律闸 :755,760（违规写 causal）"];
+  w_def    -> w_diar        [label = ":842 upsertDiarySection"];
+  w_diar   -> s_diary       [label = ":844-846 原子写"];
+  s_diary  -> d_feed        [label = ":33 读「爱看」（耦合，应删·断点③）"];
+  s_diary  -> w_adp         [label = "diaryTail :169 → 召回情境"];
+  s_cfg    -> d_feed;
+  s_cfg    -> d_pol;
+  d_pol    -> w_def         [label = "policyState（同读一份配置）"];
+  d_appr   -> d_pub         [label = ":65 publisher 唯一入口"];
+  d_pub    -> d_trf         [label = "guardedFetch（traffic.mjs:202）"];
+  d_api    -> d_trf         [label = "所有 B 站请求走闸"];
+  d_trf    -> x_bili        [label = "唯一写咽喉", penwidth = 1.8];
+  d_trf    -> s_ba          [label = "traffic-state.json 预算/幂等/熔断"];
+  d_go     -> s_ba          [label = "pending-replies.json"];
+  d_go     -> d_appr        [label = "面板放行后重建 argv"];
+  w_tank   -> d_appr        [label = "approveFromPanel（token 不出服务端）"];
+  w_tank   -> s_fields      [label = ":20 只读（读不改记忆）"];
+  w_tank   -> s_causal;
+  w_tank   -> d_trf         [label = ":51 动态 import dsh 模块（跨仓耦合⑥）", style = bold];
+  w_ui     -> w_tank        [label = "7799 世界页 panels/*"];
+  core_webui -> w_ui;
+  w_tank   -> s_cfg         [label = "policySet :135（本机免口令 · 断点④）", color = "#b03a2e", fontcolor = "#b03a2e"];
+  d_feed   -> s_drafts      [label = "查重/避重", style = dotted];
+
+  // 结算回环：审批结果 → 账本 → 场值
+  d_appr   -> d_store       [label = ":71-81 status + recordDraftResult"];
+  d_store  -> s_causal      [label = "kind:draft-result", penwidth = 1.6];
+  w_def    -> s_causal      [label = "causal() :126（watched/diary/action/inbound/auto-publish）"];
+  s_causal -> w_def         [label = ":522 consumeDraftResults（游标 control/draft-result.json）", penwidth = 1.8, color = "#2e6b3e", fontcolor = "#2e6b3e"];
+  w_def    -> w_adp         [label = "draftApproved/draftRejected → applyEffects", color = "#2e6b3e", fontcolor = "#2e6b3e"];
+
+  // kill：一处文件切断所有写
+  s_ctl    -> d_trf         [label = "control/kill 存在 → 写全停 :100", style = bold, color = "#b03a2e", fontcolor = "#b03a2e"];
+  s_ctl    -> d_appr        [label = "kill :44"];
+  s_ctl    -> w_def         [label = "spawn 前即退 :277"];
+
+  // 未接线 / 退役
+  d_media  -> d_entry       [label = "命令表无此项（未接线）", style = dotted, color = "#b0a090", fontcolor = "#8a7a68"];
+  d_media  -> x_comf        [label = "无引用", style = dotted, color = "#b0a090"];
+  d_panel  -> w_tank        [label = "端口退役，模块被复用", style = dotted, color = "#b0a090"];
+  d_deb    -> x_bili        [label = "只读，不过写闸", style = dotted];
+
+  { rank = same; w_def; d_entry; }
+  { rank = same; d_appr; d_pub; d_trf; }
+  { rank = same; s_fields; s_causal; s_ctl; }
+}

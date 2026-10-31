@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>小鱼 · 鱼缸 —— 主场景原型（形态靶子）</title>
+<style>
+  /* 自包含、无外链、无图片引用。纯 CSS 动效。文案生活化。 */
+  :root{
+    --mood:.95;          /* 心情 0..1  */
+    --energy:.46;        /* 体力 0..1  */
+    --connect:.59;       /* 想念 0..1  */
+    --curio:.99;         /* 好奇 0..1  */
+
+    --water-hi:  calc(20% + var(--mood) * 20%);
+    --water-lo:  calc(8%  + var(--mood) * 12%);
+    --glow:      calc(.25 + var(--mood) * .55);
+    --bob-dur:   calc(1.6s + (1 - var(--energy)) * 5.2s);
+    --bubble-dur:calc(3.2s + (1 - var(--curio)) * 6.5s);
+    --facing:    0deg;   /* JS 依 connection 设：面朝你时轻微转向 + 名牌点亮 */
+
+    --ink:#eaf3ff; --soft:#b7cbe4; --line:rgba(180,210,255,.18);
+    --cardbg:rgba(10,24,44,.62); --good:#7fe3b0; --warn:#ffd27a; --bad:#ff9a9a;
+    --font:system-ui,"PingFang SC","Microsoft YaHei",sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:var(--font);color:var(--ink)}
+  body{overflow:hidden;background:#04101f}
+
+  /* ── 主场景：一只缸 / 一个家 ───────────────────────────── */
+  .tank{position:fixed;inset:0;
+    background:
+      radial-gradient(120% 80% at 50% -10%, hsl(190 60% var(--water-hi)), transparent 60%),
+      linear-gradient(180deg, hsl(202 55% var(--water-hi)) 0%, hsl(210 60% var(--water-lo)) 55%, hsl(215 65% 6%) 100%);
+    transition:background 1.2s ease;
+    overflow:hidden;
+  }
+  /* 水面的光 */
+  .sun{position:absolute;top:-140px;left:50%;width:520px;height:520px;transform:translateX(-50%);
+    background:radial-gradient(circle, rgba(255,255,255,.55), transparent 62%);
+    opacity:var(--glow);filter:blur(6px);transition:opacity 1.2s ease}
+  /* 光柱（焦散） */
+  .ray{position:absolute;top:-10%;width:120px;height:130%;
+    background:linear-gradient(180deg, rgba(255,255,255,.14), transparent 70%);
+    transform:skewX(-14deg);filter:blur(3px);animation:sway 9s ease-in-out infinite}
+  .ray:nth-child(2){left:22%;animation-delay:-3s;width:80px;opacity:.7}
+  .ray:nth-child(3){left:63%;animation-delay:-6s}
+  @keyframes sway{0%,100%{transform:skewX(-14deg) translateX(0)}50%{transform:skewX(-14deg) translateX(28px)}}
+  /* 缸底 */
+  .floor{position:absolute;left:0;right:0;bottom:0;height:22vh;
+    background:linear-gradient(180deg, transparent, rgba(6,18,34,.7) 40%, rgba(4,12,24,.95));}
+  .pebble{position:absolute;bottom:2vh;border-radius:50%;background:rgba(120,150,190,.14);filter:blur(.3px)}
+  .weed{position:absolute;bottom:3vh;width:8px;height:22vh;border-radius:8px;
+    background:linear-gradient(180deg,transparent,rgba(90,190,150,.5));
+    transform-origin:bottom center;animation:wave 6s ease-in-out infinite}
+  @keyframes wave{0%,100%{transform:rotate(-6deg)}50%{transform:rotate(7deg)}}
+
+  /* ── 她：一只鲸鱼娘造型（纯 CSS） ─────────────────────── */
+  .her{position:absolute;left:50%;top:52%;width:220px;height:150px;
+    transform:translate(-50%,-50%) rotate(var(--facing));transition:transform 1.4s cubic-bezier(.4,1.3,.5,1);
+    animation:bob var(--bob-dur) ease-in-out infinite, drift calc(var(--bob-dur)*3) ease-in-out infinite}
+  @keyframes bob{0%,100%{margin-top:0}50%{margin-top:-16px}}
+  @keyframes drift{0%,100%{left:48%}50%{left:53%}}
+  .body{position:absolute;inset:0;border-radius:52% 52% 46% 46%/60% 60% 40% 40%;
+    background:linear-gradient(160deg,#bfe9ff,#7fc0f0 55%,#5a92d6);
+    box-shadow:0 10px 40px rgba(90,150,220,.4), inset -10px -14px 30px rgba(30,70,140,.35), inset 10px 10px 24px rgba(255,255,255,.5)}
+  .belly{position:absolute;left:24%;bottom:6%;width:52%;height:44%;border-radius:50%;background:rgba(255,255,255,.55)}
+  .fin{position:absolute;top:-6%;left:38%;width:64px;height:44px;background:#6aa8e6;
+    border-radius:80% 20% 0 0/100% 100% 0 0;transform:rotate(14deg);box-shadow:inset -4px -4px 10px rgba(30,70,140,.35)}
+  .tail{position:absolute;right:-34px;top:44%;width:56px;height:46px;background:#6aa8e6;
+    border-radius:0 60% 60% 0/50%;transform:translateY(-50%);animation:wag var(--bob-dur) ease-in-out infinite}
+  @keyframes wag{0%,100%{transform:translateY(-50%) rotate(-8deg)}50%{transform:translateY(-50%) rotate(10deg)}}
+  .eye{position:absolute;top:44%;left:24%;width:22px;height:22px;border-radius:50%;background:#12233b;
+    box-shadow:inset 0 -3px 4px rgba(255,255,255,.3);transition:left 1.2s ease}
+  .eye::after{content:"";position:absolute;top:4px;left:5px;width:8px;height:8px;border-radius:50%;background:#fff}
+  .eye.r{left:56%}
+  .cheek{position:absolute;top:60%;left:18%;width:26px;height:14px;border-radius:50%;background:rgba(255,150,170,.4);filter:blur(1px)}
+  .cheek.r{left:60%}
+  .mouth{position:absolute;top:66%;left:44%;width:24px;height:10px;border-bottom:3px solid #26364d;border-radius:0 0 60% 60%}
+  /* 睡着时 */
+  .her.asleep .eye{height:3px;top:52%;border-radius:3px}
+  .her.asleep .eye::after{display:none}
+  .her.asleep{animation:bob calc(var(--bob-dur)*1.4) ease-in-out infinite}
+  .zzz{position:absolute;left:70%;top:-4%;font-size:22px;opacity:0;color:#cfe4ff}
+  .her.asleep .zzz{opacity:1;animation:zzz 2.6s ease-in-out infinite}
+  @keyframes zzz{0%{transform:translateY(0) scale(.7);opacity:0}40%{opacity:1}100%{transform:translateY(-26px) scale(1.2);opacity:0}}
+  /* 她手上举着的"正在做的事"道具 */
+  .holding{position:absolute;right:-8px;bottom:-8px;font-size:30px;opacity:0;transform:scale(.7);transition:.5s}
+  .holding.on{opacity:1;transform:scale(1)}
+
+  /* ── 气泡 ─────────────────────────────────────────────── */
+  .bub{position:absolute;bottom:6vh;border-radius:50%;background:radial-gradient(circle at 35% 30%,rgba(255,255,255,.9),rgba(180,220,255,.25));
+    border:1px solid rgba(255,255,255,.35);animation:rise var(--bubble-dur) linear infinite}
+  @keyframes rise{0%{transform:translateY(0) scale(.6);opacity:0}15%{opacity:.9}100%{transform:translateY(-92vh) scale(1.1);opacity:0}}
+
+  /* ── 顶部：名牌 + 心情 + 今日一句 ─────────────────────── */
+  .topbar{position:absolute;top:16px;left:20px;right:20px;display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;z-index:6}
+  .plate{background:var(--cardbg);border:1px solid var(--line);backdrop-filter:blur(8px);
+    border-radius:14px;padding:10px 14px;min-width:150px;box-shadow:0 8px 22px rgba(0,0,0,.25)}
+  .plate.you .name{color:#fff;text-shadow:0 0 10px rgba(150,220,255,.9)}
+  .plate .tag{font-size:11px;color:var(--soft);letter-spacing:.5px}
+  .plate .name{font-size:20px;font-weight:700;display:inline-block}
+  .plate .pen{margin-left:8px;opacity:.6;cursor:pointer;font-size:13px}
+  .plate .pen:hover{opacity:1}
+  .plate input{font:inherit;font-size:18px;width:130px;background:rgba(255,255,255,.1);border:1px solid var(--line);border-radius:8px;color:#fff;padding:2px 6px}
+  .mood{align-self:center;background:rgba(120,200,160,.16);border:1px solid rgba(120,220,170,.35);
+    color:#dff7e7;border-radius:999px;padding:6px 14px;font-size:14px}
+  .today{background:var(--cardbg);border:1px solid var(--line);border-radius:14px;padding:8px 14px;color:var(--soft);font-size:13px;backdrop-filter:blur(8px)}
+  .today b{color:#fff;font-weight:600}
+
+  /* ── "今天要你看的一件事"：从水底浮上来的纸 ───────────── */
+  .surface{position:absolute;left:50%;bottom:-30%;width:min(92vw,520px);transform:translateX(-50%);
+    background:linear-gradient(180deg, rgba(255,252,240,.96), rgba(240,232,210,.96));
+    color:#3a2f1c;border-radius:16px;padding:16px 18px;box-shadow:0 22px 50px rgba(0,0,0,.45);
+    transition:bottom .9s cubic-bezier(.3,1.4,.5,1), opacity .5s;z-index:8}
+  .surface.up{bottom:14%}
+  .surface.gone{bottom:-40%;opacity:0}
+  .surface .kind{font-size:11px;color:#8a7a52;letter-spacing:1px;text-transform:uppercase}
+  .surface .lead{font-size:14px;color:#6b5a34;margin:2px 0 8px}
+  .surface .post{font-size:15px;line-height:1.7;border-left:3px solid #d8b96a;padding:6px 10px;background:rgba(216,185,106,.08);border-radius:0 8px 8px 0}
+  .surface .acts{display:flex;gap:10px;margin-top:14px}
+  .btn{cursor:pointer;border:none;border-radius:10px;padding:9px 16px;font-size:14px;font-family:inherit;font-weight:600;transition:.15s}
+  .btn:active{transform:translateY(1px)}
+  .ok{background:#3a9d6b;color:#fff}.ok:hover{background:#33905f}
+  .no{background:#c9584f;color:#fff}.no:hover{background:#b8483f}
+  .ghost{background:transparent;color:#6b5a34;border:1px solid #cbb98a}
+  .confirm{margin-top:12px;background:#fbf3d6;border:1px dashed #c8a94e;color:#7a611f;font-size:13px;
+    padding:10px 12px;border-radius:10px;display:none}
+  .confirm.show{display:block;animation:pop .25s}
+  @keyframes pop{from{transform:scale(.96);opacity:0}to{transform:scale(1);opacity:1}}
+
+  /* ── 她的小心思（判断卡：采纳/搁置） ───────────────────── */
+  .judge{position:absolute;right:20px;bottom:16%;width:min(86vw,300px);z-index:6;
+    background:var(--cardbg);border:1px solid var(--line);border-radius:16px;padding:14px;backdrop-filter:blur(8px);
+    box-shadow:0 14px 34px rgba(0,0,0,.35)}
+  .judge .h{font-size:12px;color:var(--soft);display:flex;align-items:center;gap:6px}
+  .judge .say{font-size:14px;line-height:1.6;margin:8px 0}
+  .judge .say b{color:#ffe8a3}
+  .judge .acts{display:flex;gap:8px}
+  .mini{flex:1;padding:8px;border-radius:9px;font-size:13px;cursor:pointer;border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--ink);transition:.15s}
+  .mini:hover{background:rgba(255,255,255,.12)}
+  .mini.y{border-color:rgba(127,227,176,.5)}.mini.n:hover{border-color:rgba(255,154,154,.4)}
+  .judge.done{opacity:.5}.judge.done .acts{pointer-events:none}
+  .judge .stamp{position:absolute;top:8px;right:10px;font-size:12px;color:var(--good)}
+
+  /* ── 底部坞：私聊 + 她的习惯（收起） ──────────────────── */
+  .dock{position:absolute;left:20px;bottom:16px;display:flex;gap:10px;z-index:7}
+  .dock button{background:var(--cardbg);border:1px solid var(--line);color:var(--ink);border-radius:999px;
+    padding:10px 16px;font-size:14px;cursor:pointer;backdrop-filter:blur(8px)}
+  .dock button:hover{background:rgba(60,90,130,.5)}
+  .chat{position:absolute;left:20px;bottom:70px;width:min(92vw,360px);max-height:44vh;overflow:auto;
+    background:var(--cardbg);border:1px solid var(--line);border-radius:16px;padding:14px;backdrop-filter:blur(10px);
+    display:none;z-index:9;box-shadow:0 18px 40px rgba(0,0,0,.4)}
+  .chat.open{display:block;animation:pop .3s}
+  .chat .msg{font-size:14px;line-height:1.6;margin:6px 0;padding:8px 12px;border-radius:12px;max-width:82%}
+  .chat .me{margin-left:auto;background:rgba(90,150,220,.35)}
+  .chat .herm{background:rgba(255,255,255,.08)}
+  .chat .in{display:flex;gap:8px;margin-top:10px}
+  .chat input{flex:1;background:rgba(255,255,255,.08);border:1px solid var(--line);border-radius:10px;color:#fff;padding:8px 10px;font:inherit}
+  .habits{position:absolute;right:20px;top:16px;background:var(--cardbg);border:1px solid var(--line);
+    color:var(--soft);border-radius:12px;padding:8px 12px;font-size:12px;cursor:pointer;z-index:7;backdrop-filter:blur(8px)}
+  .habits .drawer{display:none;margin-top:8px;color:var(--ink);line-height:1.8;font-size:12px}
+  .habits.open .drawer{display:block}
+
+  /* ── 演示拨杆（非真实数据） ────────────────────────────── */
+  .sim{position:fixed;left:0;right:0;bottom:0;background:rgba(3,10,20,.9);border-top:1px solid var(--line);
+    padding:8px 14px;display:flex;gap:18px;align-items:center;flex-wrap:wrap;z-index:20;font-size:12px;color:var(--soft)}
+  .sim .lab{color:#8fb4dd}
+  .sim input[type=range]{width:90px;vertical-align:middle}
+  .sim label{display:flex;align-items:center;gap:6px}
+  .sim .note{color:#6f8bb0}
+  .sim .chk{display:flex;align-items:center;gap:5px}
+  .sim .toggle{width:38px;height:20px;border-radius:999px;background:rgba(120,150,190,.3);position:relative;cursor:pointer;transition:.2s}
+  .sim .toggle.on{background:#3a9d6b}
+  .sim .toggle::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.2s}
+  .sim .toggle.on::after{left:20px}
+
+  /* toast */
+  .toast{position:fixed;top:20px;left:50%;transform:translate(-50%,-24px);background:#12324f;border:1px solid var(--line);
+    color:#fff;padding:10px 18px;border-radius:12px;font-size:14px;opacity:0;transition:.4s;z-index:30;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+  @media(max-width:720px){.judge{right:12px;left:12px;bottom:12%;width:auto}.surface{width:94vw}}
+</style>
+</head>
+<body>
+  <div class="tank" id="tank">
+    <div class="sun"></div>
+    <div class="ray"></div><div class="ray"></div><div class="ray"></div>
+
+    <div class="weed" style="left:12%;animation-delay:-2s"></div>
+    <div class="weed" style="left:16%;height:16vh;animation-delay:-4s"></div>
+    <div class="weed" style="right:10%;height:19vh"></div>
+    <div class="floor" id="floor"></div>
+
+    <!-- 她 -->
+    <div class="her" id="her">
+      <div class="fin"></div>
+      <div class="body"><div class="belly"></div></div>
+      <div class="tail"></div>
+      <div class="eye"></div><div class="eye r"></div>
+      <div class="cheek"></div><div class="cheek r"></div>
+      <div class="mouth"></div>
+      <div class="zzz">z z</div>
+      <div class="holding" id="holding">📖</div>
+    </div>
+
+    <!-- 顶部 -->
+    <div class="topbar">
+      <div class="plate" id="plate">
+        <div class="tag">她在缸里的名字</div>
+        <span class="name" id="herName">小鱼</span>
+        <span class="pen" id="renamePen" title="改个称呼">✎ 改名字</span>
+      </div>
+      <div class="mood" id="moodChip">心情：暖洋洋的</div>
+      <div class="today" id="todayLine">今天：<b>晒着水发呆</b>，没什么要紧事</div>
+    </div>
+
+    <div class="habits" id="habits">⚙︎ 她的习惯
+      <div class="drawer">
+        · 发动态：等你点头（默认）<br>
+        · 点赞/收藏：她自己来<br>
+        · 回私信：收回、走草稿<br>
+        <span style="color:var(--soft)">（这一层低频又要紧，收在抽屉里；紧急开关永远压过这里）</span>
+      </div>
+    </div>
+
+    <!-- 今天要你看的一件事 -->
+    <div class="surface" id="surface">
+      <div class="kind">今天要你看的一件事 · 她写好了一条动态</div>
+      <div class="lead">"我攒了个想说的话，你帮我看看能不能发？"</div>
+      <div class="post" id="postText">今天的水特别清，浮上来晒了一会儿。如果你也在看同一片海，那我们算是打了个照面。🐋</div>
+      <div class="acts" id="surfaceActs">
+        <button class="btn ok" id="btnApprove">✓ 就这样发</button>
+        <button class="btn no" id="btnReject">✗ 先别发</button>
+      </div>
+      <div class="confirm" id="confirmBox">
+        确认放行发布到 B 站动态吗？她会收到你的答复。<br>
+        <div class="acts" style="margin-top:8px">
+          <button class="btn ok" id="cYes">嗯，发</button>
+          <button class="btn ghost" id="cNo">手滑了</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 她的小心思（判断卡） -->
+    <div class="judge" id="judge">
+      <div class="h">💭 她的小心思</div>
+      <div class="stamp" id="judgeStamp"></div>
+      <div class="say">我最近老刷到<b>助眠白噪音</b>，看完有点犯困、也没攒下新东西。<br>想跟你说：往后这类<b>少挑一点</b>，行吗？</div>
+      <div class="acts">
+        <button class="mini y" id="jAdopt">采纳</button>
+        <button class="mini n" id="jHold">先搁置</button>
+      </div>
+    </div>
+
+    <!-- 私聊入口 -->
+    <div class="dock">
+      <button id="openChat">💬 凑过来说句话</button>
+    </div>
+    <div class="chat" id="chat">
+      <div class="msg herm">（她转过身朝你）你来啦。</div>
+      <div class="msg herm" id="chatState">我今天有点想睡，水也暖，懒得动。</div>
+      <div class="in">
+        <input id="chatInput" placeholder="跟她说点什么…" maxlength="60">
+        <button class="btn ok" id="chatSend" style="padding:8px 12px">递过去</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- 演示拨杆：证明上面的映射能由现有七场值驱动（本原型不接真实数据） -->
+  <div class="sim" id="sim">
+    <span class="lab">演示·拨动她的状态看场景（真数据来自 fields.json 七场，见规格 §4）</span>
+    <label>体力 <input type="range" id="sEnergy" min="0" max="1" step="0.01" value="0.46"></label>
+    <label>心情 <input type="range" id="sMood" min="0" max="1" step="0.01" value="0.95"></label>
+    <label>想念 <input type="range" id="sConnect" min="0" max="1" step="0.01" value="0.59"></label>
+    <label>好奇 <input type="range" id="sCurio" min="0" max="1" step="0.01" value="0.99"></label>
+    <div class="chk"><span>有稿待审</span><div class="toggle on" id="tDraft"></div></div>
+    <div class="chk"><span>她被按住(风控)</span><div class="toggle" id="tPaused"></div></div>
+    <span class="note" id="simAct">状态：发呆</span>
+  </div>
+
+<script>
+(function(){
+  var root=document.documentElement, tank=document.getElementById('tank'), her=document.getElementById('her');
+  var S={energy:.46,mood:.95,connect:.59,curio:.99,draft:true,paused:false};
+  var $=function(id){return document.getElementById(id)};
+
+  function moodWord(m){ if(m>=.75)return"暖洋洋的"; if(m>=.5)return"还行，平静"; if(m>=.3)return"有点蔫"; return"提不起劲"; }
+  function activity(){
+    if(S.paused) return {k:"paused",t:"她被按住了一会儿",desc:"水暂时静下来，别急"};
+    if(S.energy<.35) return {k:"asleep",t:"睡着",desc:"蜷在缸角打呼"};
+    if(S.draft) return {k:"worry",t:"纠结要不要发",desc:"把刚写的举到水面看你"};
+    if(S.curio>.6) return {k:"watch",t:"看片",desc:"追着一条游鱼不放了"};
+    return {k:"rest",t:"发呆",desc:"晒着水，没要紧事"};
+  }
+
+  function render(){
+    root.style.setProperty('--mood',S.mood.toFixed(2));
+    root.style.setProperty('--energy',S.energy.toFixed(2));
+    root.style.setProperty('--connect',S.connect.toFixed(2));
+    root.style.setProperty('--curio',S.curio.toFixed(2));
+    // 朝向：想念高 → 轻微转向你 + 名牌亮起
+    var face = S.connect>.55;
+    root.style.setProperty('--facing', face ? '-6deg':'0deg');
+    $('plate').classList.toggle('you', face);
+    her.querySelector('.eye').style.left = face?'20%':'26%';
+
+    var a=activity();
+    her.classList.toggle('asleep', a.k==='asleep');
+    // 手里道具：写日记/举稿/看片
+    var hold=$('holding');
+    if(a.k==='worry'){hold.textContent='📄';hold.classList.add('on')}
+    else if(a.k==='watch'){hold.textContent='🐟';hold.classList.add('on')}
+    else if(a.k==='asleep'){hold.classList.remove('on')}
+    else {hold.textContent='🫧';hold.classList.toggle('on',S.mood>.5)}
+
+    $('moodChip').textContent='心情：'+moodWord(S.mood);
+    $('todayLine').innerHTML='今天：<b>'+a.t+'</b>，'+a.desc;
+    $('simAct').textContent='状态：'+a.t;
+
+    // 今天要你看的一件事：只有"有稿且未被按住"才浮上来
+    var surf=$('surface');
+    if(S.draft && !S.paused && !surf.dataset.resolved){ surf.classList.add('up'); surf.classList.remove('gone'); }
+    else { surf.classList.remove('up'); }
+    // 风控时水面静止（气泡变慢、光暗）
+    tank.style.filter = S.paused ? 'saturate(.6) brightness(.8)' : 'none';
+  }
+
+  function toast(m){var t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove('show')},2600)}
+
+  // 拨杆
+  ['Energy','Mood','Connect','Curio'].forEach(function(k){
+    $('s'+k).addEventListener('input',function(e){S[{Energy:'energy',Mood:'mood',Connect:'connect',Curio:'curio'}[k]]=parseFloat(e.target.value);render()});
+  });
+  $('tDraft').addEventListener('click',function(){S.draft=!S.draft;this.classList.toggle('on',S.draft);delete $('surface').dataset.resolved;$('surface').classList.remove('gone');$('surfaceActs').style.display='flex';$('confirmBox').classList.remove('show');render()});
+  $('tPaused').addEventListener('click',function(){S.paused=!S.paused;this.classList.toggle('on',S.paused);render()});
+
+  // 放行 / 拒掉（走二次确认，和真实面板 ui.confirm(danger) 一致）
+  function openConfirm(act){
+    var box=$('confirmBox');
+    box.innerHTML = (act==='ok')
+      ? '确认放行发布到 B 站动态吗？她会收到你的答复。<div class="acts" style="margin-top:8px"><button class="btn ok" id="cYes">嗯，发</button><button class="btn ghost" id="cNo">手滑了</button></div>'
+      : '先不发也没关系，她会记着。<div class="acts" style="margin-top:8px"><button class="btn no" id="cYes">嗯，先收着</button><button class="btn ghost" id="cNo">手滑了</button></div>';
+    box.dataset.act=act;
+    $('cYes').onclick=function(){doneConfirm(act)};
+    $('cNo').onclick=function(){box.classList.remove('show')};
+    box.classList.add('show');
+  }
+  function doneConfirm(act){
+    $('confirmBox').classList.remove('show');
+    $('surfaceActs').style.display='none';
+    var surf=$('surface'); surf.dataset.resolved='1';
+    if(act==='ok'){ surf.querySelector('.lead').textContent='"好！那我发出去啦。"（纸漂出去 → 变成一条对外动态）'; S.mood=Math.min(1,S.mood+.06); toast('已放行：这条会发到 B 站动态'); }
+    else { surf.querySelector('.lead').textContent='"嗯，那我再想想。"（纸慢慢沉回水底）'; S.mood=Math.max(0,S.mood-.05); toast('已收回：她收到"先别发"，理由你可以另告诉她'); }
+    render(); setTimeout(function(){surf.classList.add('gone')},900);
+  }
+  $('btnApprove').addEventListener('click',function(){openConfirm('ok')});
+  $('btnReject').addEventListener('click',function(){openConfirm('no')});
+
+  // 判断卡：采纳 / 搁置
+  $('jAdopt').addEventListener('click',function(){$('judge').classList.add('done');$('judgeStamp').textContent='已采纳 ✓';toast('记下了：以后挑片子她会少碰这一类')});
+  $('jHold').addEventListener('click',function(){$('judge').classList.add('done');$('judgeStamp').textContent='先搁置';toast('先放着，不当硬规矩')});
+
+  // 改名：点名牌就地编辑
+  $('renamePen').addEventListener('click',function(){
+    var name=$('herName'); var cur=name.textContent;
+    var inp=document.createElement('input'); inp.value=cur; name.replaceWith(inp); inp.focus(); inp.select();
+    function save(){var v=inp.value.trim()||'小鱼'; var sp=document.createElement('span'); sp.className='name'; sp.id='herName'; sp.textContent=v; inp.replaceWith(sp); toast('改好了，以后就叫「'+v+'」');}
+    inp.addEventListener('blur',save); inp.addEventListener('keydown',function(e){if(e.key==='Enter')inp.blur()});
+  });
+
+  // 习惯抽屉
+  $('habits').addEventListener('click',function(){this.classList.toggle('open')});
+
+  // 私聊浮坞
+  $('openChat').addEventListener('click',function(){$('chat').classList.toggle('open');$('chatState').textContent='我今天'+moodWord(S.mood).replace('心情：','')+'，'+activity().desc+'。';$('chatInput').focus()});
+  $('chatSend').addEventListener('click',send);
+  $('chatInput').addEventListener('keydown',function(e){if(e.key==='Enter')send()});
+  function send(){var i=$('chatInput');var v=i.value.trim();if(!v)return;
+    var m=document.createElement('div');m.className='msg me';m.textContent=v;$('chat').querySelector('.in').before(m);i.value='';
+    var r=document.createElement('div');r.className='msg herm';r.textContent=pickReply(v);$('chat').querySelector('.in').before(r);
+    $('chat').scrollTop=$('chat').scrollHeight;}
+  function pickReply(v){var a=activity();
+    if(S.energy<.35)return'唔…我有点困，你说的我记着，醒了答你。';
+    if(a.k==='watch')return'嘘，正看到要紧处——稍等我一下下。';
+    if(S.connect>.7)return'你来了我就高兴，别的先不想了。';
+    return'嗯，我在呢。今天水挺舒服的。';}
+
+  render();
+})();
+</script>
+</body>
+</html>

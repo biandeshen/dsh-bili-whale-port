@@ -34,15 +34,16 @@ const diary = dshPath('whale-diary.md')
 // 2026-10-18：审计表挪到 `~/.bili-ai/` ✓（原来写死作者机器路径 ✗ 换机器就写不进去，静默失效 ✗）
 const audit = path.join(HOME, '.bili-ai', 'commented-videos.md')
 
-// ── 偏好与"看过"名单：都从日记里读 ──
+// ── 偏好：统一配置首选，日记「爱看」只在配置为空时兜底；"看过"名单来自日记与已看账本 ──
 let prefs = [...(config().preferences?.like ?? [])]   // 偏好来自统一配置（首选）
+let prefsFrom = '统一配置'
 let dislike = [...(config().preferences?.dislike ?? [])]
 let seen = new Set()
 try {
   const text = fs.readFileSync(diary, 'utf8')
   const m = text.match(/^-\s*\*\*爱看\*\*：(.+)$/m)
   // 兼容旧写法：日记里若仍写着「爱看」，只在配置没给偏好时兜底（日记应回归纯叙事）
-  if (m && !prefs.length) prefs = m[1].split(/[·、,，]/).map((s) => s.trim()).filter(Boolean)
+  if (m && !prefs.length) { prefs = m[1].split(/[·、,，]/).map((s) => s.trim()).filter(Boolean); prefsFrom = '日记兜底' }
   for (const bv of text.matchAll(/\bBV[0-9A-Za-z]{10}\b/g)) seen.add(bv[0])
 } catch { console.log('（读不到日记，用默认偏好）') }
 try {
@@ -285,7 +286,7 @@ for (const x of uniq) {
   diversified.push(x)
 }
 
-console.log(`偏好（来自日记）: ${prefs.join(' · ')}`)
+console.log(`偏好（来自${prefsFrom}）: ${prefs.join(' · ')}`)
 console.log(`反馈回流: 被赞 ${likedEvents.length} 条 · 她收藏 ${favItems.length} 条 · 已发稿 ${sentDrafts.length} 条 → 学会 ${learnedTokens.length} 个主题词`)
 console.log(`已看过/已评论过（已排除）: ${seen.size} 个 BV`)
 console.log(`候选池: ${pool.length} 条 → 去重去已看后 ${uniq.length} 条（质量下限丢掉 ${dropped.length} 条 · dislike 拦下 ${droppedDislike.length} 条）\n`)
