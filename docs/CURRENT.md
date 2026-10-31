@@ -5,7 +5,7 @@
 
 ## 现在到哪了
 
-- **2026-10-31 凌晨：控制中心聚合（代码完成，待激活）。** 主人「为啥多个控制中心」的裁决：dsh 独立面板（8447/8448）六块能力搬进 Cortico WebUI 的 `world:bili-account` 页「小鱼 · 鱼缸」（数据面复用 dsh 模块，浏览器面板在 `src/worlds/bili-account/webui/client.ts`）。Cortico 分支 `dev/webui-tank`（`e6783b2`，已推 `biandeshen/Cortico-local` 私有仓）；typecheck 双零错、vitest 5062 绿、页契约 3/3。**激活步骤（停 bot 窗口）**：`pnpm build:web` → 重启 World → 走查页面；之后旧 8447/8448 面板退役。**Cortico 私有仓已建**：`biandeshen/Cortico-local`（master + 7 dev 分支全推；公开的 `biandeshen/Cortico` 是另一段历史，没碰）。
+- **2026-10-31 12:30：控制中心已聚合上线。** 「小鱼 · 鱼缸」世界页在 WebUI 激活：`http://127.0.0.1:7799/#/provider/world%3Abili-account`——鱼缸（头像/心情/六场值）、待审稿（✓放行/✗拒掉，二次确认）、她的一天、日记双本、意见箱、体征六块页签。真实浏览器逐块走查通过（鱼缸/待审稿/体征含真实数据）。流程：停 bot → `pnpm build:web` → 重启（pid 185072，health 全绿）。Cortico `e6783b2` 已并 master 并推 `biandeshen/Cortico-local`。**8448 临时面板已退役；旧 8447 面板是提权进程杀不掉，等主人手动关掉后整个 dsh panel 即可归档**（数据面已被世界页复用，panel 代码保留作 CLI/数据模块来源）。
 
 - **2026-10-31 凌晨：M2 草稿链拆分合 live（`3d501e1`）。** `tools/drafts/{compose,store,publishers/bilibili-dynamic}` 三层落地：发布实现唯一化、审批 async 直调 publisher（token/kill/绑定全保留）、dynamic-image/post 变薄壳；顺手修了 CLI 强退的 libuv 断言（exit 127）。npm **266/266**、drill 34/34。**面板：旧 8447 进程提权杀不掉，新代码面板并行 8448（token `~/.dsh/panel.token`）**，旧进程停用后回 8447。
 
