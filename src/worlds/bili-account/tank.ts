@@ -32,6 +32,8 @@ type Mods = {
   feedback?: { listFeedback: () => any; resolveFeedback: (id: string, by: string) => any }
   approve?: { approveFromPanel: (o: any) => Promise<any>; reject: (id: string) => any }
   traffic?: { trafficGuard: () => any }
+  /** dsh 的统一配置层，只为「全部配置」页签取 DEFAULTS（哪些键是声明过的）。缺它不降级报错，只标"未声明"。 */
+  cfg?: { DEFAULTS: any; configPath?: string }
 }
 const mods: Mods = {}
 let warming: Promise<void> | null = null
@@ -49,6 +51,7 @@ async function warm(): Promise<void> {
       load('feedback', 'panel/feedback.mjs'),
       load('approve', 'scripts/dynamic-approve.mjs'),
       load('traffic', 'tools/lib/traffic.mjs'),
+      load('cfg', 'tools/lib/config.mjs'),
     ])
   })()
   return warming
@@ -161,6 +164,55 @@ const pick = (o: any, keys: string[]) => Object.fromEntries(keys.filter((k) => o
  */
 export function ownerNameFromConfig(file = CONFIG_FILE): string {
   return String(readJson(file)?.owner?.displayName ?? '').trim()
+}
+
+// ── 全部配置（只读总览）：主人要求"每一项都看得见"，不是去翻 JSON 文件 ──────────
+const GROUP_LABEL: Record<string, string> = {
+  owner: '主人', self: '她自己', preferences: '口味词表', quota: '额度上限', risk: '风控节奏',
+  persona: '人设与轮次', publish: '发送策略', permissions: '权限档位', notify: '通知',
+  media: '配音与视频', session: '会话', feeds: '信息流', tools: '工具路径',
+}
+/** 这些键 Cortico 只在启动时读一次，改完必须重启才生效（页面上要说清，别让人改了以为没生效）。 */
+const RESTART_KEYS = new Set(['owner.displayName', 'owner.name', 'owner.mid', 'self.name', 'self.mid', 'home', 'toolsPath'])
+/** 页签里已经能直接改的六项。 */
+const EDITABLE_KEYS = new Set(['publish.draftMode', 'publish.autoDailyCap', 'publish.autoWindow', 'permissions.like', 'permissions.fav', 'permissions.dmReply'])
+
+export interface SettingsItem { key: string; value: unknown; group: string; editable: boolean; needsRestart: boolean; declared: boolean }
+
+const hasPath = (o: any, path: string) => path.split('.').reduce((acc: any, k) => (acc && typeof acc === 'object' ? acc[k] : undefined), o) !== undefined
+
+/**
+ * 摊平成一行一项，并标出三项读者最关心的事实：页面上能不能改、要不要重启、dsh 的 DEFAULTS 里有没有声明。
+ * `declared:false` 不是错误——它表示这个键只存在于用户的 JSON 里，框架默认值没写它（规格里的 P0 项）。
+ */
+export function settingsOverview(user: any, declared: any): { total: number; undeclared: number; groups: { group: string; label: string; items: SettingsItem[] }[] } {
+  const items: SettingsItem[] = []
+  const walk = (o: any, prefix: string) => {
+    for (const [k, v] of Object.entries(o ?? {})) {
+      const key = prefix ? `${prefix}.${k}` : k
+      if (v && typeof v === 'object' && !Array.isArray(v)) { walk(v, key); continue }
+      const group = key.split('.')[0]
+      items.push({ key, value: v, group, editable: EDITABLE_KEYS.has(key), needsRestart: RESTART_KEYS.has(key), declared: hasPath(declared, key) })
+    }
+  }
+  walk(user, '')
+  const byGroup = new Map<string, SettingsItem[]>()
+  for (const it of items) {
+    const arr = byGroup.get(it.group) ?? []
+    arr.push(it)
+    byGroup.set(it.group, arr)
+  }
+  return {
+    total: items.length,
+    undeclared: items.filter((i) => !i.declared).length,
+    groups: [...byGroup.entries()].map(([group, groupItems]) => ({ group, label: GROUP_LABEL[group] ?? group, items: groupItems })),
+  }
+}
+
+/** 数据面：配置文件 + dsh 的 DEFAULTS。config 模块没预热时按"未声明"标注，不假称已声明。 */
+export function settingsState(): { ok: boolean; file: string; total: number; undeclared: number; groups: { group: string; label: string; items: SettingsItem[] }[] } {
+  const user = readJson(CONFIG_FILE) ?? {}
+  return { ok: true, file: CONFIG_FILE, ...settingsOverview(user, mods.cfg?.DEFAULTS ?? {}) }
 }
 
 /** 与 dsh tools/lib/publish-policy.mjs 的 readPolicy 同语义（TS 侧一份小镜像，值语义在此测试锁）。 */

@@ -20,7 +20,7 @@ import type { Language } from '../../core/language.ts'
 import {
   warmConsole, consoleReady, tankLocal, killOn, lastTickAt, pendingDraftCount, openFeedbackCount,
   timelineState, diaryState, draftsState, draftAction, feedbackResolve, feedbackListSafe, vitalsState, avatarBinary, trafficStatus,
-  policyState, policySet, policyInWindow, autoSentToday, draftForDay, freshAckToken, ownerNameFromConfig,
+  policyState, policySet, policyInWindow, autoSentToday, draftForDay, freshAckToken, ownerNameFromConfig, settingsState,
 } from './tank.ts'
 import { decideAction, restRecoveryDelta, actionCost, nextCheckDelay, dayKey, MIN_GAP_MS } from '../../../persona-core/src/rhythm.ts'
 
@@ -440,7 +440,7 @@ class BiliAccountWorld {
           throw new Error('unknown method ' + method)
         }
         if (panel === 'policy') {
-          if (method === 'state') return { ...policyState(), autoSentToday: autoSentToday() }
+          if (method === 'state') return { ...policyState(), autoSentToday: autoSentToday(), settings: settingsState() }
           if (method === 'set') {
             const r = policySet(args[0])
             if (r.ok) {

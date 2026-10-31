@@ -5,7 +5,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { BILI_ACCOUNT, exportPolicyNotice } from '../src/worlds/bili-account/definition.ts'
-import { readPolicyLite, policyInWindow, policySet, policyState, autoSentToday, draftForDay, freshAckToken, openFeedbackCount } from '../src/worlds/bili-account/tank.ts'
+import { readPolicyLite, policyInWindow, policySet, policyState, autoSentToday, draftForDay, freshAckToken, openFeedbackCount, settingsOverview, settingsState } from '../src/worlds/bili-account/tank.ts'
 
 const decl = BILI_ACCOUNT.create().webUi('zh')
 
@@ -117,6 +117,42 @@ test('意见箱灯：resolved 行不删原始条目，按同 id 折叠；已解�
 
 // 2026-11-01 01:23：正式配置被人写过一次 draftMode=auto（载荷与测试夹具同源，且本机 7799 免口令）。
 // 从那天起：测试不许碰真配置，auto 生效必须留一条她自己也读得到的痕迹。
+// 全部配置总览（主人的硬要求：每一项都看得见，不是去翻 JSON）
+test('settingsOverview：摊平、分组，并标出页面可改/要不要重启/有没有声明默认值', () => {
+  const user = {
+    owner: { mid: '233643544', name: '主人', displayName: '鱼片' },
+    self: { mid: '497080562', name: '恐怖深海鱼' },
+    preferences: { like: ['助眠/ASMR'], dislike: ['带货'], keywords: ['雨声'] },
+    risk: { writeHourly: 12, writeGapSec: 120 },
+    publish: { draftMode: 'review', autoDailyCap: 0, autoWindow: '' },
+    permissions: { like: 'self' },
+    notify: { type: 'none' },
+  }
+  const declared = { owner: { mid: '', name: '' }, risk: { writeHourly: 12 }, self: { mid: '' } }
+  const o = settingsOverview(user, declared)
+  assert.equal(o.total, 15, '嵌套对象摊平到叶子；数组算一项')
+  assert.equal(o.groups.length, 7)
+  const find = (k) => o.groups.flatMap((g) => g.items).find((i) => i.key === k)
+  assert.equal(find('publish.draftMode').editable, true)
+  assert.equal(find('owner.displayName').needsRestart, true, 'Cortico 只在启动时读称呼，页面上必须说明')
+  assert.equal(find('risk.writeHourly').declared, true)
+  assert.equal(find('notify.type').declared, false, '默认值里没写的要标出来，不许假装都声明了')
+  assert.equal(o.undeclared, 11)
+  assert.equal(find('preferences.keywords').value.join(' · '), '雨声', '数组值给可读文本')
+})
+
+test('settingsState：读真配置文件，字段齐全且带文件位置（只读，不写盘）', () => {
+  const s = settingsState()
+  assert.equal(s.ok, true)
+  assert.match(s.file, /bili-whale\.config\.json$/)
+  assert.ok(s.total >= 1, '配置文件至少有一项')
+  for (const g of s.groups) for (const it of g.items) {
+    assert.equal(typeof it.key, 'string')
+    assert.equal(typeof it.editable, 'boolean')
+    assert.equal(typeof it.declared, 'boolean')
+  }
+})
+
 test('auto 的痕迹：措辞由纯函数给；review 不留痕；测试上下文拒绝写真配置', async () => {
   assert.equal(exportPolicyNotice({ draftMode: 'review' }), null)
   const n = exportPolicyNotice({ draftMode: 'auto', autoDailyCap: 0, autoWindow: '' })

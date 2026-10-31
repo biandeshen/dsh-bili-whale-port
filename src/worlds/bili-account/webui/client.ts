@@ -322,10 +322,14 @@ interface PolicyState {
   ok?: boolean;
   policy?: { draftMode: 'review' | 'auto'; autoDailyCap: number; autoWindow: string; like: 'self' | 'review'; fav: 'self' | 'review'; dmReply: 'direct' | 'queue' };
   file?: string; exists?: boolean; autoSentToday?: number; error?: string;
+  settings?: {
+    ok: boolean; file: string; total: number; undeclared: number;
+    groups: { group: string; label: string; items: { key: string; value: unknown; group: string; editable: boolean; needsRestart: boolean; declared: boolean }[] }[];
+  };
 }
 function mountPolicy(ctx: WebUiPanelContext): void {
   const { ui, root } = ctx;
-  const card = ui.sheet({ title: '发送策略', en: 'send policy', desc: '默认全人工；auto 要你显式打开。kill 永远压过这里的一切设置。' });
+  const card = ui.sheet({ title: '发送策略与全部配置', en: 'send policy', desc: '默认全人工；auto 要你显式打开。kill 永远压过这里的一切设置。下方是配置文件里的每一项,只读,标明谁能改、要不要重启。' });
   root.appendChild(card.el);
   const err = ui.msgline();
   const selMode = ui.select({ options: [{ value: 'review', label: '草稿：人工审核（默认）' }, { value: 'auto', label: '草稿：自动发送（auto）' }] });
@@ -357,6 +361,49 @@ function mountPolicy(ctx: WebUiPanelContext): void {
     ui.field('回信档位', selDm),
     acts);
 
+  // 全部配置(只读):要的是"每一项都看得见",不是让主人去翻 JSON 文件。
+  const ov = document.createElement('details');
+  ov.className = 'sh-ov';
+  const ovSum = document.createElement('summary');
+  const ovBody = document.createElement('div');
+  ov.append(ovSum, ovBody);
+  card.body.append(ov);
+
+  const renderOverview = (s: any): void => {
+    ovBody.textContent = '';
+    if (!s?.groups) { ov.hidden = true; return; }
+    ov.hidden = false;
+    ovSum.textContent = `全部配置 ${s.total} 项(其中 ${s.undeclared} 项在 dsh 默认值里没声明) · ${s.file}`;
+    for (const g of s.groups) {
+      const h = document.createElement('div');
+      h.className = 'sh-ov-g';
+      h.textContent = g.label;
+      ovBody.appendChild(h);
+      for (const it of g.items) {
+        const row = document.createElement('div');
+        row.className = 'sh-ov-row';
+        const k = document.createElement('span');
+        k.className = 'sh-ov-k';
+        k.textContent = it.key;
+        const v = document.createElement('span');
+        v.className = 'sh-ov-v';
+        v.textContent = Array.isArray(it.value) ? it.value.join(' · ') : String(it.value);
+        row.append(k, v);
+        const tags: string[] = [];
+        if (it.editable) tags.push('页面可改');
+        if (it.needsRestart) tags.push('改后要重启');
+        if (!it.declared) tags.push('未声明默认值');
+        if (tags.length) {
+          const t = document.createElement('span');
+          t.className = 'sh-ov-tag';
+          t.textContent = tags.join(' / ');
+          row.appendChild(t);
+        }
+        ovBody.appendChild(row);
+      }
+    }
+  };
+
   const draw = (st: PolicyState): void => {
     err.hidden = true;
     if (!st?.policy) { err.textContent = '策略读不到：' + (st?.error ?? st?.file ?? '?'); err.hidden = false; return; }
@@ -364,6 +411,7 @@ function mountPolicy(ctx: WebUiPanelContext): void {
     status.textContent = `现行：草稿=${p.draftMode}${p.draftMode === 'auto' ? `（今日已 auto ${st.autoSentToday ?? 0} 条，上限 ${p.autoDailyCap || '不限'}，时段 ${p.autoWindow || '不限'}）` : ''} · 点赞=${p.like} · 收藏=${p.fav} · 回信=${p.dmReply}`;
     selMode.value = p.draftMode; inpCap.value = String(p.autoDailyCap); inpWin.value = p.autoWindow;
     selLike.value = p.like; selFav.value = p.fav; selDm.value = p.dmReply;
+    renderOverview(st.settings);
   };
   const poll = (): void => { void ctx.invoke<PolicyState>('state').then(draw).catch((e) => { err.textContent = errText(e); err.hidden = false; }); };
   poll();
@@ -389,6 +437,13 @@ const STYLE = `
 .fb-issue{line-height:1.6}
 .fb-meta{font-size:12px;opacity:.65;margin-top:2px}
 .diary-pre{max-height:260px;overflow:auto;font-size:13px;line-height:1.7;white-space:pre-wrap;background:transparent;border:none;padding:4px 0}
+.sh-ov{margin-top:12px}
+.sh-ov>summary{cursor:pointer;font-size:13px;opacity:.85}
+.sh-ov-g{font-weight:600;margin:9px 0 2px;font-size:13px}
+.sh-ov-row{display:flex;gap:10px;align-items:baseline;font-size:12px;border-bottom:1px dashed var(--line, rgba(128,128,128,.3));padding:2px 0}
+.sh-ov-k{opacity:.7;min-width:200px;flex:none}
+.sh-ov-v{flex:1;word-break:break-all}
+.sh-ov-tag{opacity:.6;font-size:11px;flex:none}
 `;
 
 function ensureStyle(root: HTMLElement): void {
