@@ -234,12 +234,12 @@ function latestDraftFeedback(state: any): string {  try {
 }
 
 /** 异步执行，避免长任务（debrief 最长 240s）阻塞 Cortico 事件循环。 */
-const runNodeAsync = (script: string, args: string[], timeout = 180000): Promise<{ status: number; out: string }> => {
+const runNodeAsync = (script: string, args: string[], timeout = 180000, extraEnv: Record<string, string> = {}): Promise<{ status: number; out: string }> => {
   if (fs.existsSync(killPath)) return Promise.resolve({ status: -2, out: '[blocked] kill switch is on' })
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [script, ...args], {
       windowsHide: true,
-      env: { ...process.env, WHALE_HOME: WHALE },
+      env: { ...process.env, WHALE_HOME: WHALE, ...extraEnv },
     })
     let out = ''
     let done = false
@@ -750,11 +750,18 @@ class BiliAccountWorld {
               causal({ kind: 'auto-publish', draftId: draft.id, ok: false, reason: 'no-fresh-token', atMs: Date.now() })
               return r.out + '\n（策略：auto 要求草稿的一次性令牌仍有效——这条转人工放行）'
             }
-            const pub = await runNodeAsync(path.join(ROOT, 'scripts', 'dynamic-approve.mjs'), ['approve', draft.id, '--token', token, '--go'], 300000)
+            // 令牌走环境变量，不进 argv（进程列表/崩溃栈同机可读）
+            const pub = await runNodeAsync(
+              path.join(ROOT, 'scripts', 'dynamic-approve.mjs'),
+              ['approve', draft.id, '--token-env', 'CORTICO_ACK_TOKEN', '--go'],
+              300000,
+              { CORTICO_ACK_TOKEN: token },
+            )
             const okPub = pub.status === 0 && /"ok":\s*true/.test(pub.out)
-            // 令牌值绝不落盘：causal 与回执都打码
-            causal({ kind: 'auto-publish', draftId: draft.id, ok: okPub, atMs: Date.now(), out: pub.out.split(token).join('***').slice(-400) })
-            return r.out + `\n（auto 发布${okPub ? '成功 ✓' : '失败——已记 auto 额度，转人工，原因见下'}）\n` + pub.out.split(token).join('***').slice(-600)
+            const mask = (s: string) => s.split(token).join('***')
+            // 令牌值绝不落盘：causal 与整条回执都打码（含 draft-dynamic 那段）
+            causal({ kind: 'auto-publish', draftId: draft.id, ok: okPub, atMs: Date.now(), out: mask(pub.out).slice(-400) })
+            return mask(r.out) + `\n（auto 发布${okPub ? '成功 ✓' : '失败——已记 auto 额度，转人工，原因见下'}）\n` + mask(pub.out).slice(-600)
           }
         }
         return r.out
