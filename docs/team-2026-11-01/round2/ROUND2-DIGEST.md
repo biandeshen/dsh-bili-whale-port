@@ -18,7 +18,7 @@
 |---|---|---|---|---|
 | 1 | 挑刺②：`全套 34/34 绿`口径越界，dev/policy 实为 30/32 红 | **成立** | `git merge-base --is-ancestor 2f0aee4 HEAD` → NOT ancestor；全量跑出 `causal-ledger` 红（断言旧 04:00 日界，代码已是 00:00） | `8b29fd2` cherry-pick 后 38/38；本文件第三节把数字全部标分支 |
 | 2 | 挑刺②：`安全席 P0 已修`里"无人点击也能发"没修 | **成立**（且是我自己表述过头） | 令牌是出稿时系统自入队那张 → `draftMode==='auto'` 时零点击 | 不改判据；文档改口径：P0 修的是"再铸造"，兜底是默认 `review`。写进 §五 |
-| 3 | 挑刺②：`attempts` 上限 + `draftForDay` 只在未提交工作树 | **成立** | devils 写文档时 `git status` = 2 个 ` M` | `8ac5ce5` 已提交（我比它早 8 分钟，其文档未更新），现工作树干净 |
+| 3 | 挑刺②：`attempts` 上限 + `draftForDay` 只在未提交工作树 | **成立**（写入时如此） | 该席 `git status` 看到 2 个 ` M` | `8ac5ce5` 在它文档定稿前 8 分钟已提交；现在 `Cortico-dev` 工作树干净 |
 | 4 | 挑刺②：令牌走 argv、回执只遮一段 | **成立** | `spawn(process.execPath, [... '--token', token])` 明文进进程参数 | `a230a28` + `eef637c`：`CORTICO_ACK_TOKEN` 环境变量 + `--token-env`，打码覆盖整条回执 |
 | 5 | 挑刺②：`dynamic-approve.mjs:163` 明文 token 分支 | **不成立** | 该行条件是 `showTok && id === d.id`，即必须显式 `list --show-token <草稿id>`；默认走 164 的隐藏版 | 记录为误判，不改动 |
 | 6 | 挑刺②：`tierQueues` 只有文本断言 | **成立** | `perm-tier.test.mjs:17` 是 `s.includes('tierQueues(')` | 新增 `tests/perm-tier-cli.test.mjs`：真跑 `like.mjs` 子进程 + 网络打桩，self 档断言发出 `/archive/like` 且本地账 +1，review 档断言**零请求**只入队（2/2 绿） |
