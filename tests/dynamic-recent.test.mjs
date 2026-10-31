@@ -15,21 +15,26 @@ const home = fs.mkdtempSync(path.join(os.tmpdir(), 'recent-home-'))
 fs.mkdirSync(path.join(home, '.bili-ai'), { recursive: true })
 fs.writeFileSync(path.join(home, '.bili-ai', 'credentials.json'), JSON.stringify({ sessdata: 's'.repeat(32), bili_jct: 'j'.repeat(32), buvid3: 'b' }))
 
-// 用本地正午造 pub_time，任何时区的机器上 localDate 都落在想要的那天
+// 真实响应形状：epoch 秒在 modules.module_author.pub_ts；pub_time 是「昨天 17:07」这类显示串
 const noon = (d) => Math.floor(new Date(`2026-${d}T12:00:00`).getTime() / 1000)
+const item = (id, d, extraS, type, text) => ({
+  id_str: id,
+  dynamic_type: type,
+  modules: { module_author: { pub_ts: noon(d) + extraS, pub_time: '昨天 17:07' }, module_dynamic: { desc: { text } } },
+})
 const FIX = {
   pages: {
     '': {
       items: [
-        { id_str: '3001', pub_time: noon('10-30') + 3 * 3600, dynamic_type: 'DRAW', modules: { module_dynamic: { desc: { text: '今晚看的是《雨》。 晚风' } } } },
-        { id_str: '3002', pub_time: noon('10-30'), dynamic_type: 'COMMON', modules: { module_dynamic: { desc: { text: '第二条\n换行要压平' } } } },
-        { id_str: '2901', pub_time: noon('10-29'), dynamic_type: 'DRAW', modules: { module_dynamic: { desc: { text: '昨天的' } } } },
+        item('3001', '10-30', 3 * 3600, 'DRAW', '今晚看的是《雨》。 晚风'),
+        item('3002', '10-30', 0, 'COMMON', '第二条\n换行要压平'),
+        item('2901', '10-29', 0, 'DRAW', '昨天的'),
       ],
       offset: 'p1',
       has_more: true,
     },
     p1: {
-      items: [{ id_str: '2701', pub_time: noon('10-27'), dynamic_type: 'DRAW', modules: { module_dynamic: { desc: { text: '更早' } } } }],
+      items: [item('2701', '10-27', 0, 'DRAW', '更早')],
       offset: 'p2',
       has_more: true,
     },

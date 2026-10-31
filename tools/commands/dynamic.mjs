@@ -128,7 +128,8 @@ async function runRecent() {
     const items = d.data?.items ?? []
     if (!items.length) break
     for (const it of items) {
-      const t = Number(it.pub_time ?? 0)
+      // 真实响应：pub_time 是"昨天 17:07"这类显示串，epoch 秒在 module_author.pub_ts
+      const t = Number(it.modules?.module_author?.pub_ts ?? (String(it.pub_time ?? '').match(/^\d+$/) ? it.pub_time : 0) ?? 0)
       if (!t) continue
       const localDate = new Date(t * 1000).toLocaleDateString('sv-SE')
       if (localDate < day) { stop = true; break }  // 流是按时间倒序的：翻过那天就停
@@ -137,7 +138,7 @@ async function runRecent() {
         dyn_id: String(it.id_str ?? it.id ?? ''),
         at: new Date(t * 1000).toISOString(),
         local: new Date(t * 1000).toLocaleString('zh-CN', { hour12: false }),
-        type: String(it.dynamic_type ?? ''),
+        type: String(it.dynamic_type ?? it.type ?? ''),
         text: String(it.modules?.module_dynamic?.desc?.text ?? '').replace(/\s+/g, ' ').slice(0, 80),
       })
       if (rows.length >= cap) { stop = true; break }
