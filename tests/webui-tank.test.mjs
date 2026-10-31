@@ -5,7 +5,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { BILI_ACCOUNT } from '../src/worlds/bili-account/definition.ts'
-import { readPolicyLite, policyInWindow, policySet, policyState, autoSentToday } from '../src/worlds/bili-account/tank.ts'
+import { readPolicyLite, policyInWindow, policySet, policyState, autoSentToday, draftAckToken } from '../src/worlds/bili-account/tank.ts'
 
 const decl = BILI_ACCOUNT.create().webUi('zh')
 
@@ -70,4 +70,22 @@ test('policyInWindow + autoSentToday：时段含始不含终/跨午夜；只数�
   ].join('\n') + '\n')
   assert.equal(autoSentToday(f, '2026-10-31'), 1)
   assert.equal(autoSentToday(path.join(dir, 'missing.jsonl')), 0, '没账本 = 0，不抛')
+})
+
+test('draftAckToken：只认草稿自带且仍有效的那一张，绝不铸造', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ack-'))
+  const whale = path.join(dir, 'whale')
+  const drafts = path.join(dir, 'drafts')
+  const pend = path.join(whale, 'bili-whale', 'control', 'pending')
+  fs.mkdirSync(drafts, { recursive: true }); fs.mkdirSync(pend, { recursive: true })
+  const future = Date.now() + 3600_000
+  const mk = (id, ackId, extra = {}) => {
+    fs.writeFileSync(path.join(drafts, id + '.json'), JSON.stringify({ id, ackId }))
+    fs.writeFileSync(path.join(pend, ackId + '.json'), JSON.stringify({ token: 'tk-' + ackId, used: false, expiresAt: future, payload: { draftId: id }, ...extra }))
+  }
+  mk('dyn-a', 'ack-a'); assert.equal(draftAckToken('dyn-a', whale, drafts), 'tk-ack-a', '有效令牌才给')
+  mk('dyn-b', 'ack-b', { used: true }); assert.equal(draftAckToken('dyn-b', whale, drafts), null, '已用过 = 没有')
+  mk('dyn-c', 'ack-c', { expiresAt: Date.now() - 1 }); assert.equal(draftAckToken('dyn-c', whale, drafts), null, '过期 = 没有')
+  mk('dyn-d', 'ack-d', { payload: { draftId: 'other' } }); assert.equal(draftAckToken('dyn-d', whale, drafts), null, '绑定不符 = 没有')
+  assert.equal(draftAckToken('dyn-nope', whale, drafts), null, '没这条草稿 = 没有，不新建')
 })

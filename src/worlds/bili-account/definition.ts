@@ -17,7 +17,7 @@ import type { Language } from '../../core/language.ts'
 import {
   warmConsole, consoleReady, tankLocal, killOn, lastTickAt, pendingDraftCount, openFeedbackCount,
   timelineState, diaryState, draftsState, draftAction, feedbackResolve, feedbackListSafe, vitalsState, avatarBinary, trafficStatus,
-  policyState, policySet, policyInWindow, autoSentToday,
+  policyState, policySet, policyInWindow, autoSentToday, draftAckToken,
 } from './tank.ts'
 import { decideAction, restRecoveryDelta, actionCost, nextCheckDelay, dayKey, MIN_GAP_MS } from '../../../persona-core/src/rhythm.ts'
 
@@ -741,10 +741,17 @@ class BiliAccountWorld {
             if (pol.autoDailyCap > 0 && autoSentToday() >= pol.autoDailyCap) {
               return r.out + `\n（策略：今天 auto 已达上限 ${pol.autoDailyCap} 条——后续草稿留给人工放行）`
             }
-            const pub = await runNodeAsync(path.join(ROOT, 'scripts', 'dynamic-approve.mjs'), ['panel', draftId], 300000)
+            // 安全席 P0（2026-10-31）：auto **不许自己造令牌**——只用出稿时入队的那一张，
+            // 缺失/过期/已用就退回人工。否则"一次性令牌 + draftId/正文哈希绑定"在无人点击时也成立。
+            const token = draftAckToken(draftId)
+            if (!token) {
+              causal({ kind: 'auto-publish', draftId, ok: false, reason: 'no-fresh-token', atMs: Date.now() })
+              return r.out + '\n（策略：auto 要求草稿的一次性令牌仍有效——这条转人工放行）'
+            }
+            const pub = await runNodeAsync(path.join(ROOT, 'scripts', 'dynamic-approve.mjs'), ['approve', draftId, '--token', token, '--go'], 300000)
             const okPub = pub.status === 0 && /"ok":\s*true/.test(pub.out)
-            causal({ kind: 'auto-publish', draftId, ok: okPub, atMs: Date.now(), out: pub.out.slice(-400) })
-            return r.out + `\n（auto 发布${okPub ? '成功 ✓' : '失败——转人工，原因见下'}）\n` + pub.out.slice(-600)
+            causal({ kind: 'auto-publish', draftId, ok: okPub, atMs: Date.now(), out: pub.out.split(token).join('***').slice(-400) })
+            return r.out + `\n（auto 发布${okPub ? '成功 ✓' : '失败——转人工，原因见下'}）\n` + pub.out.split(token).join('***').slice(-600)
           }
         }
         return r.out

@@ -163,6 +163,23 @@ export function policyInWindow(now: Date, spec: string): boolean {
 }
 const hm2 = (s: string) => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(s).trim()); return m ? Number(m[1]) * 60 + Number(m[2]) : null }
 
+/**
+ * 草稿自带的一次性令牌（出稿时 draft-dynamic 就入队了）。只给 auto 分支用：
+ * **不铸造、不续期** —— 缺失/过期/已用/不匹配一律 null，auto 退回人工放行。
+ * 令牌值只在本进程内使用，绝不写进 causal、面板响应或日志。
+ */
+export function draftAckToken(draftId: string, whaleHome = WHALE, draftsDir = DRAFTS_DIR): string | null {
+  try {
+    const hit = fs.readdirSync(draftsDir).filter((f: string) => f.endsWith('.json')).map((f: string) => readJson(path.join(draftsDir, f))).find((d: any) => d?.id === draftId)
+    const ackId = String((hit as any)?.ackId ?? '')
+    if (!ackId) return null
+    const pend = readJson(path.join(whaleHome, 'bili-whale', 'control', 'pending', ackId + '.json')) as any
+    if (!pend?.token || pend.used || Number(pend.expiresAt ?? 0) <= Date.now()) return null
+    if (String(pend.payload?.draftId ?? '') !== String(draftId)) return null
+    return String(pend.token)
+  } catch { return null }
+}
+
 /** 今天已经 auto 发过几条（因果链 kind='auto-publish' 且 ok）。 */
 export function autoSentToday(file = CAUSAL_FILE, day = new Date().toLocaleDateString('sv-SE')): number {
   try {
