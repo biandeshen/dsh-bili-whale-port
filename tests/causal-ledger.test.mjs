@@ -9,24 +9,25 @@ import { countCausalActions } from '../src/worlds/bili-account/definition.ts'
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'causal-ledger-'))
 
-test('只数 kind=action 且落在该逻辑日（04:00 日界）的记录', () => {
+test('只数 kind=action 且落在该自然日（00:00 日界，2026-10-31 主人拍板）的记录', () => {
   const dir = tmp()
   const file = path.join(dir, 'causal.jsonl')
   const day = '2026-10-28'
   const at = (iso) => Date.parse(iso)
   const lines = [
-    // 10-28 白天与 10-29 凌晨都属于逻辑日 10-28
+    // 自然日：10-28 的区间是 00:00–24:00，跨到 10-29 零点之后就算第二天
     { kind: 'action', actionKind: 'restless', atMs: at('2026-10-28T10:00:00+08:00') },
     { kind: 'watched', bvid: 'BV1xx', atMs: at('2026-10-28T10:05:00+08:00') },
-    { kind: 'action', actionKind: 'explore', atMs: at('2026-10-29T02:21:00+08:00') },
-    // 10-29 04:00 之后属于下一日，不能算进来
+    { kind: 'action', actionKind: 'restless', atMs: at('2026-10-28T23:59:00+08:00') },
+    // 以下两条已属 10-29，不能算进 10-28（旧的 04:00 口径会把 02:21 算进来）
+    { kind: 'action', actionKind: 'explore', atMs: at('2026-10-29T00:00:00+08:00') },
     { kind: 'action', actionKind: 'rest', atMs: at('2026-10-29T05:00:00+08:00') },
     { kind: 'draft-result', result: 'sent', atMs: at('2026-10-28T11:00:00+08:00') },
   ]
   fs.writeFileSync(file, lines.map((x) => JSON.stringify(x)).join('\n') + '\n')
   const got = countCausalActions(file, day)
   assert.equal(got.count, 2)
-  assert.equal(got.lastAt, at('2026-10-29T02:21:00+08:00'))
+  assert.equal(got.lastAt, at('2026-10-28T23:59:00+08:00'))
 })
 
 test('坏行与缺 atMs 的行跳过，不影响其它记录', () => {
