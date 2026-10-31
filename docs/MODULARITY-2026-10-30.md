@@ -156,9 +156,11 @@ scripts/lib/drafts/
 - 新测试：TTS 回退顺序、BGM selector、secret 不出现在 stdout、缺 key fail-closed；日记重复 heading/跨日/书名截断。
 - **可观测门**：面板“她的一天”能读到当天 `causal.jsonl` 的 action/diary/draft 事件；有 pending 动态草稿时 bubble 不再说“没事”；只读，不新增自动发布。
 
-### M2
-- 抽 `drafts/compose|store|publishers`；`dynamic-approve` 改调 publisher
-- 门：`approve dry` 不消耗审批、`go` 后拒绝重复、token 不变；day-report/G3b 判据零变化
+### M2 ✅ 已合 live（2026-10-31，`3d501e1`）
+- 抽 `tools/drafts/{compose,store}.mjs`；`draft-dynamic` 只剩参数与流程（compose 函数 re-export 保旧 import 路径）；`voice.schema.json` 随文案层迁 `tools/drafts/`（hashes 重冻，判据未变）。
+- `tools/drafts/publishers/bilibili-dynamic.mjs`：图文/纯文动态的**唯一发布实现**（结构化返回 dynId/transient，冷却归 cooldown）；`dynamic-image`/`dynamic post` 变薄壳；`dynamic-approve` 转 async 直调 publisher（runner 保留为测试注入）。
+- 门：`approve dry` 不消耗审批、`go` 后拒绝重复、token/kill/textHash/argv 重建不变；day-report/G3b 判据零变化（hashes 重冻只因 voice.test 的 schema 路径修正）；npm 266/266、drill 34/34。
+- **运维注意**：旧 8447 面板进程是提权起的杀不掉，新代码面板并行跑在 **8448**（token `~/.dsh/panel.token`）；旧进程停掉后应回到 8447。
 
 ### M3
 - `avatar/manifest.json` + `/api/avatar` provider；先接 MIT 素材，CC BY-NC-SA 只做可选皮肤并署名

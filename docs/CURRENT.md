@@ -5,6 +5,8 @@
 
 ## 现在到哪了
 
+- **2026-10-31 凌晨：M2 草稿链拆分合 live（`3d501e1`）。** `tools/drafts/{compose,store,publishers/bilibili-dynamic}` 三层落地：发布实现唯一化、审批 async 直调 publisher（token/kill/绑定全保留）、dynamic-image/post 变薄壳；顺手修了 CLI 强退的 libuv 断言（exit 127）。npm **266/266**、drill 34/34。**面板：旧 8447 进程提权杀不掉，新代码面板并行 8448（token `~/.dsh/panel.token`）**，旧进程停用后回 8447。
+
 - **2026-10-31 凌晨：M1c 媒体层拆分合 live（`ae023a5`）。** `video-build.mjs` 变薄壳；`tools/media/{tts,bgm,video/studio,config}.mjs` 各司其职，BGM 有了 `assets/bgm/catalog.json`，换 TTS/渲染 provider 不动 CLI。门：npm **263/263**（+8 媒体测试）+ 真实闸 `--tts mimo --bgm quiet-room --plan`（茉莉 1.6s）通过。M1 子阶段只剩「观测后重冻 4 个验收脚本 + wake-audit/c2-window 内联 legacy」。
 
 - **2026-10-31 凌晨：Drive v2 模拟对比完成（只比数，live rhythm 未动）。** 三变体（现状骰子 / 概率×3 / 紧急度累积+create/social 驱动）7天×5种子：骰子不是密度主闸（提概率仅 +16%）；v2 零空日、间隔尾巴最短、五种行动全部出现（social 改盈余式定义后 2 次/7天）。采纳与否待拍板。`docs/DRIVE-V2-SIM-2026-10-31.md`。
