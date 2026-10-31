@@ -5,6 +5,8 @@
 
 ## 现在到哪了
 
+- **2026-10-31 晚：发布失败真因定位 + `dynamic recent` 上线（`d481d89`）。** 11:49Z 三次面板放行的实际失败原因是 **B站对 polymer 动态端点回 HTTP 412 风控页**（feed/space 实测同样回 HTML；traffic 闸自动进入暂停）——不是代码问题，除 reporting bug（已修）。新增复核入口：`node tools/bili.mjs dynamic recent --date YYYY-MM-DD [--json]`（时间倒序翻页、翻过目标日即停、412/code≠0 明确报错、TrafficError 不再甩裸 stack）。测试 270/270。**重试放行请等 412 风控窗口过去（约 20:55 本地后），先 `dynamic recent --date 当天` 确认没有半发的动态再点。**
+
 - **2026-10-31 晚普查**：13 个 World 工具装配齐（浏览器工具表逐个数过）；读/dry 全真跑通过（feed 可见词表回流已学会 230 词）；kill 关、风控无暂停。**主人 11:49Z 三次面板放行全部失败**：10-29 是本地写间隔 cooldown、10-28/10-31 发布步被网络/风控拒——失败原因当时被 publisher 的 caught 吞了（`59f0e4e` 已修+回归测试+重启生效；三条草稿 failed/cooldown 均可重试；10-31 只完成了传图、发布未成功，无半发动态）。npm 267/267。
 
 - **2026-10-31 12:30：控制中心已聚合上线。** 「小鱼 · 鱼缸」世界页在 WebUI 激活：`http://127.0.0.1:7799/#/provider/world%3Abili-account`——鱼缸（头像/心情/六场值）、待审稿（✓放行/✗拒掉，二次确认）、她的一天、日记双本、意见箱、体征六块页签。真实浏览器逐块走查通过（鱼缸/待审稿/体征含真实数据）。流程：停 bot → `pnpm build:web` → 重启（pid 185072，health 全绿）。Cortico `e6783b2` 已并 master 并推 `biandeshen/Cortico-local`。**8448 临时面板已退役；旧 8447 面板是提权进程杀不掉，等主人手动关掉后整个 dsh panel 即可归档**（数据面已被世界页复用，panel 代码保留作 CLI/数据模块来源）。
