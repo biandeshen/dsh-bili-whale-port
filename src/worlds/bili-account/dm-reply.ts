@@ -1,22 +1,22 @@
 /**
- * 回信时效门 —— 修她 2026-10-31 报的死循环：
- *   「回信草稿写了两次，都被拒『上一封已经过去太久了，先 dm_read 看看有没有新的』；
- *    再读又说没有新私信 —— 草稿卡在队列外，入不了队。」
+ * 回信时效门 —— 唯一事实源是 `life.json` 里的这三个字段，且都是毫秒：
+ *   lastDmReadAt   最后一次成功读到收件箱的时刻（空读也算读到；读取失败不刷新）
+ *   lastInboundKey 她当前要回的那一封的 key
+ *   lastInboundAt  那一封送达的时刻
+ * 窗口取两者较新的一次：回信靠的是"上下文还新鲜"，不是"信本身还不旧"——
+ * 信躺了 8 天但她刚读过收件箱，上下文就在手边；7 天没碰过收件箱才不硬回。
  *
- * 根因：旧门按 **消息发出时刻 lastInboundAt** 算 7 天窗口，而空读收件箱不会刷新任何时间戳
- * → 只要那封信超过 7 天，dm_read 永远只能回“没有新”，她永远重置不了时效。
- *
- * 新语义（2026-10-31）：时效 = 她**最后一次成功读收件箱**的时刻（上下文新鲜度）。
- * 读一次刷新一次——「先 bili_dm_read」从此真的有用；从未读过则退回消息时刻（旧行为兜底）。
- * 窗口仍是 7 天：上下文超过一周没碰过就不硬回。
+ * `control/dm-applied.json` 的 keys 只记"这封的效果已经加过了"，不参与能否回信判定；
+ * 判定只看这里，两处各自推进会互相把对方作废（读信推进游标、门判过期）。
  */
+import { toMs } from './dm.ts'
 
 export const DM_REPLY_WINDOW_MS = 7 * 86400_000
 
 export interface ReplyGateLife {
-  lastInboundKey?: unknown
-  lastDmReadAt?: unknown
-  lastInboundAt?: unknown
+  lastInboundKey?: string | number | null
+  lastDmReadAt?: number | string | null
+  lastInboundAt?: number | string | null
 }
 
 export function canReply(
@@ -24,10 +24,31 @@ export function canReply(
   nowMs: number = Date.now(),
 ): { ok: boolean; reason: 'ok' | 'no-key' | 'stale' } {
   if (!life?.lastInboundKey) return { ok: false, reason: 'no-key' }
-  const at = Number(life.lastDmReadAt ?? 0) || Number(life.lastInboundAt ?? 0)
+  // toMs：落盘数据里有秒值（B站 原始时间戳），不迁移文件，读的时候归一。
+  const at = Math.max(toMs(Number(life.lastDmReadAt ?? 0)), toMs(Number(life.lastInboundAt ?? 0)))
   if (!at || !Number.isFinite(at)) return { ok: false, reason: 'stale' }
   if (nowMs - at >= DM_REPLY_WINDOW_MS) return { ok: false, reason: 'stale' }
   return { ok: true, reason: 'ok' }
+}
+
+/** 成功读了一次收件箱（命中或空都算）。调用方负责落盘。 */
+export function noteInboxRead(life: ReplyGateLife, atMs: number = Date.now()): void {
+  life.lastDmReadAt = atMs
+}
+
+/**
+ * 记下"这一封"：它既是回信的靶子，也证明她此刻读过收件箱。
+ * 重复投递（效果已加过、只补确认）的那一封同样要记——否则 key 停在旧值，
+ * 她会拿到"最近没有他的新消息"，而那封信其实刚读出来。
+ */
+export function noteInbound(
+  life: ReplyGateLife,
+  msg: { key: string; ts: number },
+  atMs: number = Date.now(),
+): void {
+  life.lastInboundKey = msg.key
+  life.lastInboundAt = msg.ts > 0 ? toMs(msg.ts) : atMs
+  life.lastDmReadAt = atMs
 }
 
 export const DM_REPLY_MAX_CHARS = 500
@@ -39,7 +60,7 @@ export interface DmAutoPlan {
   args: string[]
 }
 
-/** 回信直发计划（2026-10-31 分级放开）：给主人的私信免人工审批，文案校验+时效门与草稿模式相同。 */
+/** 回信直发计划：给主人的私信免人工审批，文案校验与时效门和草稿模式相同。 */
 export function dmAutoPlan(
   text: string,
   life: ReplyGateLife | null | undefined,

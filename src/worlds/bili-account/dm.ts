@@ -3,12 +3,21 @@
  *   0 = 有消息（stdout 最后一行 JSON）/ 1 = 正常空 / 2 = 输入问题 / 3 = 读取失败。
  * 关键规则：**读取失败不能被当成"没人写信"**（ARCHITECTURE §2.3 不变量 4 / 裁决 18），
  * 否则关系机会误判为被冷落。
+ *
+ * 时间戳在这个边界上统一成毫秒：B站 给的是秒，而本地一切 `*At` 都是毫秒。
  */
+
+/** 秒或毫秒 → 毫秒（10 位是秒；13 位是毫秒，两者不会混）。 */
+export function toMs(ts: number): number {
+  return Number.isFinite(ts) && ts > 0 && ts < 1e11 ? Math.round(ts * 1000) : ts
+}
+
 export interface DmMessage {
   hit: true
   mid: string
   name: string
   text: string
+  /** 毫秒 */
   ts: number
   key: string
   receipt: string
@@ -37,7 +46,7 @@ export function parseDmPeek(status: number, out: string): DmPeek {
       mid: String(raw.mid ?? ''),
       name: String(raw.name ?? '主人'),
       text: raw.text,
-      ts: Number(raw.ts ?? 0),
+      ts: toMs(Number(raw.ts ?? 0)),
       key: raw.key,
       receipt: raw.receipt,
     },

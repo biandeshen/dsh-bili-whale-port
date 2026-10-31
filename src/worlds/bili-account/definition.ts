@@ -13,7 +13,7 @@ import { pickActivities, ACTIVITY_LABELS } from '../../../persona-core/src/life-
 import { ownerName, setOwnerName } from '../../../persona-core/src/naming.ts'
 import { readQueue, writeQueue, newTask, dueTasks, markDelivered, markAttempt, prune, expireStale, type QueueTask } from './task-queue.ts'
 import { parseDmPeek } from './dm.ts'
-import { dmAutoPlan } from './dm-reply.ts'
+import { dmAutoPlan, noteInboxRead, noteInbound } from './dm-reply.ts'
 import type { WorldWebUiDecl } from '../../core/types.ts'
 import type { Language } from '../../core/language.ts'
 import {
@@ -870,23 +870,21 @@ class BiliAccountWorld {
         const r = await runAsync(['dm-await', '--json', '--peek'], 60000)
         if (r.status === -2) return r.out
         const parsed = parseDmPeek(r.status, r.out)
-        // 回信时效刷新（2026-10-31 死循环修复）：成功读收件箱（空读也算读到）就记时间；
-        // 读取失败不刷——没读到就是没读到。刷的是回信窗口，不加任何效果。
-        const touchInbox = () => {
-          if (this.life) { this.life.lastDmReadAt = Date.now(); writeLifeFile(this.life) }
-        }
-        if (parsed.kind === 'empty') { touchInbox(); return '[dm] 没有新私信' }
+        // 时效只由 dm-reply.ts 的这两个函数推进：读一次刷一次，读取失败不刷。
+        const touchInbox = () => { if (this.life) { noteInboxRead(this.life); writeLifeFile(this.life) } }
+        if (parsed.kind === 'empty') { touchInbox(); return '[dm] 没有新私信（收件箱刚读过，回信窗口已刷新）' }
         if (parsed.kind === 'error') {
           causal({ kind: 'dm-read-failed', detail: parsed.detail, atMs: Date.now() })
           return '[dm] 读取失败（不要当成没人写信）：' + parsed.detail
         }
-        touchInbox()
         const msg = parsed.message
         // 已加过效果但上次 ack 没成功：只补确认，不重复加 connection
         if (readAppliedDmKeys().includes(msg.key)) {
+          if (this.life) { noteInbound(this.life, msg); writeLifeFile(this.life) }
           await runAsync(['dm-await', '--ack', msg.receipt], 30000)
-          return '[dm] 这条之前已经处理过（补确认，不重复加效果）'
+          return '[dm] 这条之前已经处理过（补确认，不重复加效果）；回信的靶子还是它。'
         }
+        touchInbox()
         const before = loadState(FIELDS_FILE)
         let after = applyEffects(before, PRESETS.inbound.effects, PRESETS.inbound.description, {
           source: 'inbound',
@@ -896,10 +894,9 @@ class BiliAccountWorld {
         saveState(FIELDS_FILE, after)
         writeAppliedDmKeys([...readAppliedDmKeys(), msg.key])
         if (this.life) {
-          this.life.lastContactAt = Number(msg.ts) || Date.now()
+          this.life.lastContactAt = msg.ts || Date.now()
           // 记下"这封"的 key：回信草稿只能对着他刚说的话写，不能凭空发
-          this.life.lastInboundKey = msg.key
-          this.life.lastInboundAt = Number(msg.ts) || Date.now()
+          noteInbound(this.life, msg)
           writeLifeFile(this.life)
         }
         const ack = await runAsync(['dm-await', '--ack', msg.receipt], 30000)
@@ -915,7 +912,7 @@ class BiliAccountWorld {
           const why = plan.reason === 'empty' ? '正文是空的'
             : plan.reason === 'too-long' ? '太长（>500 字），砍短一点'
             : plan.reason === 'no-key' ? '最近没有他的新消息（先 bili_dm_read）；不凭空写私信'
-            : '上下文过期：先 bili_dm_read 刷一下收件箱（刷完 7 天内都能回）'
+            : '上下文过期（7 天没读过收件箱）：先 bili_dm_read——空读也刷新窗口，读完这一封仍然能回'
           return `[dm_reply] ${why}`
         }
         const sent = policyState().policy.dmReply === 'queue'
