@@ -6,6 +6,7 @@ import type { AtomicFields, CausalEvent, Memory } from './types.js'
 import { readMood, latestCauseSource } from './emotion.js'
 import { recallMemories } from './retrieval.js'
 import { dayKey } from './rhythm.js'
+import { ownerName } from './naming.js'
 
 export interface VoiceMemory {
   id: string
@@ -93,7 +94,7 @@ export function buildVoiceBrief(
     },
     relation,
     memories,
-    banned: relation === 'cold_war' ? ['鱼片', '主人'] : [],
+    banned: relation === 'cold_war' ? [ownerName(), '主人'] : [],
     stance: relation === 'cold_war'
       ? { share: false, because: '冷战里不想让外人看见我们的事' }
       : { share: s.fields.mood > -0.6, because: s.fields.mood > -0.6 ? '这一轮有想说的' : '心情太低，不想说话' },

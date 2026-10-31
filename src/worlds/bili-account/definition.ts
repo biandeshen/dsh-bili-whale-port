@@ -4,11 +4,12 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { describeTools, type WorldDefinition } from '../../world.ts'
 import { canDraft, draftRefusal, canApplyWatched, watchedRefusal, violationNotice, diaryFresh, diaryRefusal } from './gates.ts'
-import { upsertDiarySection, sectionStats, DIARY_DEFAULT_HEADER } from './diary.ts'
+import { upsertDiarySection, sectionStats, diaryDefaultHeader } from './diary.ts'
 import { loadState, saveState, applyEffects, remember, rememberFirst, describeStateWithTrace, applyRecall, recentWatch, annotateFeed, PRESETS } from './personaAdapter.ts'
 import type { PresetEffect } from './personaAdapter.ts'
 import { buildVoiceBrief } from '../../../persona-core/src/voice-brief.ts'
 import { pickActivities, ACTIVITY_LABELS } from '../../../persona-core/src/life-activities.ts'
+import { ownerName, setOwnerName } from '../../../persona-core/src/naming.ts'
 import { readQueue, writeQueue, newTask, dueTasks, markDelivered, markAttempt, prune, expireStale, type QueueTask } from './task-queue.ts'
 import { parseDmPeek } from './dm.ts'
 import { dmAutoPlan } from './dm-reply.ts'
@@ -17,7 +18,7 @@ import type { Language } from '../../core/language.ts'
 import {
   warmConsole, consoleReady, tankLocal, killOn, lastTickAt, pendingDraftCount, openFeedbackCount,
   timelineState, diaryState, draftsState, draftAction, feedbackResolve, feedbackListSafe, vitalsState, avatarBinary, trafficStatus,
-  policyState, policySet, policyInWindow, autoSentToday, draftForDay, freshAckToken,
+  policyState, policySet, policyInWindow, autoSentToday, draftForDay, freshAckToken, ownerNameFromConfig,
 } from './tank.ts'
 import { decideAction, restRecoveryDelta, actionCost, nextCheckDelay, dayKey, MIN_GAP_MS } from '../../../persona-core/src/rhythm.ts'
 
@@ -465,6 +466,8 @@ class BiliAccountWorld {
 
   async start(host: any): Promise<void> {
     this.host = host
+    // 称呼只有一个来源（配置 owner.displayName）：情绪独白、禁称表、日记抬头、私信草稿都跟着它
+    setOwnerName(ownerNameFromConfig())
     void warmConsole()   // 世界页数据面的 dsh 模块预热（不阻塞启动；未好时灯显 loading）
     this.queue = expireStale(readQueue(QUEUE_FILE), Date.now())
     if (this.queue.some((t) => t.status === 'dead')) { try { writeQueue(QUEUE_FILE, this.queue) } catch {} }
@@ -581,7 +584,7 @@ class BiliAccountWorld {
             '起因：' + decision.reason + '。',
             ...(decision.kind === 'connect' ? ['他可能留了话——先 bili_dm_read 看一眼。'] : []),
             recentLine,
-            '看完还有余力，可以再挑一件小事：\n' + activities.map((x) => `- [${x.type}] ${x.label}：${x.description}`).join('\n'),
+            '看完还有余力，可以再挑一件小事：\n' + activities.map((x) => `- [${x.type}] ${x.label.split('{{owner}}').join(ownerName())}：${x.description.split('{{owner}}').join(ownerName())}`).join('\n'),
             '挑好了，在 bili_mood_apply 里带上 activity=<id>，让我记下来。',
             todayDraft,
             feedback,
@@ -832,7 +835,7 @@ class BiliAccountWorld {
         const file = book === 'public' ? PUBLIC_DIARY : PRIVATE_DIARY
         let cur = ''
         try { cur = fs.readFileSync(file, 'utf8') } catch {}
-        if (!cur) cur = DIARY_DEFAULT_HEADER[book as 'public' | 'private']
+        if (!cur) cur = diaryDefaultHeader(book as 'public' | 'private')
         const date = dayKey(Date.now())
         // OPS B2（2026-10-30）：替换/追加必须在回执里说死——判定与 upsert 同源（sectionStats），不猜
         const prev = sectionStats(cur, date, heading, book as 'public' | 'private')
@@ -905,7 +908,7 @@ class BiliAccountWorld {
           return '[dm_reply] 回信已直接发出（给主人的私信免人工审批，仍过风控/冷却/互关检查）。\n' + sent.out
         }
         // 直发被拒（互关断了 / 风控 / 发送失败）→ 退回草稿队列，主人可在面板放行
-        const r = await runAsync(['dm-draft', 'add', '--text', text, '--inbound', key, '--who', '鱼片'], 30000)
+        const r = await runAsync(['dm-draft', 'add', '--text', text, '--inbound', key, '--who', ownerName()], 30000)
         if (r.status === 0) causal({ kind: 'dm-draft', inboundKey: key, chars: text.length, fallback: true, atMs: Date.now() })
         const why = (sent.out || `exit ${sent.status}`).trim().split('\n').slice(-2).join(' ').slice(0, 200)
         return `[dm_reply] 直发没成功（${why}）——已退回草稿队列，主人可在面板放行。\n` + r.out

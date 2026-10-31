@@ -154,6 +154,15 @@ export function policySet(patch: any, file = CONFIG_FILE): { ok: boolean; policy
 
 const pick = (o: any, keys: string[]) => Object.fromEntries(keys.filter((k) => o?.[k] !== undefined).map((k) => [k, o[k]]))
 
+/**
+ * 主人让她怎么称呼自己：只认 `owner.displayName`。
+ * 不回落 `owner.name`——那字段是角色标签（现值"主人"），拿它当昵称会在下次启动时改掉她的口吻。
+ * 没配就沿用代码里的默认称呼。
+ */
+export function ownerNameFromConfig(file = CONFIG_FILE): string {
+  return String(readJson(file)?.owner?.displayName ?? '').trim()
+}
+
 /** 与 dsh tools/lib/publish-policy.mjs 的 readPolicy 同语义（TS 侧一份小镜像，值语义在此测试锁）。 */
 export function readPolicyLite(cfg: any) {
   const p = cfg?.publish ?? {}

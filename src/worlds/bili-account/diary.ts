@@ -1,4 +1,5 @@
 /** 两本日记的写入：按日期块、按小节"有则替换、无则追加"，纯函数。 */
+import { ownerName } from '../../../persona-core/src/naming.ts'
 
 export type DiaryBook = 'public' | 'private'
 
@@ -9,9 +10,9 @@ export interface DiarySectionInput {
   date: string
 }
 
-export const DIARY_DEFAULT_HEADER: Record<DiaryBook, string> = {
-  public: '# 鲸鱼日记 · 给鱼片\n\n',
-  private: '# 私人日记 · 偏好校准\n\n',
+/** 日记本的空文件抬头。公开本的收件人是主人，称呼跟着配置走（`persona-core/src/naming.ts`）。 */
+export function diaryDefaultHeader(book: DiaryBook): string {
+  return book === 'public' ? `# 鲸鱼日记 · 给${ownerName()}\n\n` : '# 私人日记 · 偏好校准\n\n'
 }
 
 const isDateHeading = (l: string) => /^##\s+\d{4}-\d{2}-\d{2}(?:\D|$)/.test(l)

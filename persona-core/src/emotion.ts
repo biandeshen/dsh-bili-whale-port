@@ -11,6 +11,7 @@
 import type { AtomicFields, CausalEvent } from './types.js'
 import { DEFAULT_ATOMIC_FIELDS } from './types.js'
 import { fieldDistance, projectEmotion, type EmotionScore } from './emotion-projection.js'
+import { ownerName } from './naming.js'
 
 export interface MoodState {
   fields: AtomicFields
@@ -92,15 +93,15 @@ function referenceFields(history?: AtomicFields[]): AtomicFields {
 
 function innerFor(cause: string | null, f: AtomicFields): string {
   switch (cause) {
-    case 'trafficPaused': return '刚才被平台拦了一下，我得收着点，别给鱼片惹麻烦。'
-    case 'draftRejected': return '鱼片没让她发那条……是不是我挑得不好。'
+    case 'trafficPaused': return `刚才被平台拦了一下，我得收着点，别给${ownerName()}惹麻烦。`
+    case 'draftRejected': return `${ownerName()}没让她发那条……是不是我挑得不好。`
     case 'masterSilentDay':
       return f.connection < 0.35
-        ? '鱼片好几天没说话了，我照写日记，但不吵他。'
+        ? `${ownerName()}好几天没说话了，我照写日记，但不吵他。`
         : '今天没人说话，各忙各的，也正常。'
     case 'masterReplied':
     case 'draftApproved':
-      return f.connection < 0.55 ? '鱼片回我了……才、才没有一直等。' : '鱼片在，今天就挺好。'
+      return f.connection < 0.55 ? `${ownerName()}回我了……才、才没有一直等。` : `${ownerName()}在，今天就挺好。`
     case 'watchedVideo':
       return f.mood >= 0.2 ? '这条真不错，记下来，明天还想看类似的。' : '看是看了，但没太看进去。'
     case 'action':
