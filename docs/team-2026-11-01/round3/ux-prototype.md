@@ -199,3 +199,13 @@
 - 策略/改名：`PolicyState.policy.*`、`invoke('set',[patch])`、`ownerNameFromConfig`。
 - 判断卡：`preferences.judgments`（round2 `judgment-loop-design.md`）。
 - 延迟：`POLL_MS=20s`（前端轮询）。
+
+---
+
+## 协调方补记（2026-11-01 02:50）
+
+本规格的 C/D 阶段里"把 console 那个失忆的她接上鱼缸状态"这一条**已经做完并实测**：
+`Cortico/src/worlds/bili-account/ENV_PROMPT.md` + `definition.ts` 的 `envPromptVars()`（框架自带的 envPrompt 通道），
+master `f8af14c`，第 8 次重启后在 `#/live` 真对话验证——她能报出自己此刻的心情（困、有点闷）、成因（412 暂停到期未清）
+和今天做过的五条事。所以 C/D 阶段现在只剩判断卡与通知两件；改名的落点是 `bili-whale.config.json` 的 `owner.displayName`
+（规格 §"改名入口"请按这个字段写，别再指向代码常量）。
