@@ -179,6 +179,13 @@ interface UpdateResultView {
   errors: Array<{ name: string; error: string }>;
 }
 
+/** npm 源的常用候选：官方 + 两个国内镜像（npmmirror 本机实测 200，能搜到 cortico-world-* 包）。 */
+const REGISTRY_CHOICES = [
+  'https://registry.npmjs.org',
+  'https://registry.npmmirror.com',
+  'https://mirrors.cloud.tencent.com/npm/',
+];
+
 /** `/api/extensions/registry` 的回应:.npmrc 的 registry 行,与 pnpm 实际用的源或读不出它的原因。 */
 interface RegistryView {
   configured: string | null;
@@ -1535,8 +1542,13 @@ export function mountExtensions(ctx: FeatureContext): void {
     const registryBar = ui.rowbar(); registryBar.classList.add('extension-toolbar');
     const registryField = registryInput = ui.input({ value: registryDraft ?? registrySetting?.configured ?? '', placeholder: registrySetting?.registry ?? '', onInput: value => { registryDraft = value; } });
     registryField.setAttribute('aria-label', S.registryLabel);
+    // 可选列表：手打整条 URL 太费劲，也给不出这台机器上真能通的源。选项只有地址、没有文案，
+    // 所以不必往 8 份语言文件里加词；填进去仍可保存（datalist 不锁死输入）。
+    const registryChoices = ui.h('datalist'); registryChoices.id = 'registry-choices';
+    for (const url of REGISTRY_CHOICES) { const o = document.createElement('option'); o.value = url; registryChoices.append(o); }
+    registryField.setAttribute('list', registryChoices.id);
     const saveRegistryButton = ui.button(S.registrySave, { onClick: async () => { const lock = ui.disable(saveRegistryButton); try { await saveRegistry(registryField.value); } finally { lock.dispose(); } } });
-    registryBar.append(registryField, saveRegistryButton);
+    registryBar.append(registryField, saveRegistryButton, registryChoices);
     messageNodes.registry = ui.msgline(S.registryHelp); messageNodes.registry.setAttribute('role', 'status');
     const registryPanel = ui.h('div', 'extension-registry'); registryPanel.id = 'extension-registry'; registryPanel.hidden = !registryOpen;
     registryPanel.append(registryBar, messageNodes.registry);
