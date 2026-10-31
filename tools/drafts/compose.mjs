@@ -31,14 +31,23 @@ export function stripBold(s) {
     .replace(/\*\*/g, '')
 }
 
-/** 退回到最后一个未闭合的开括号之前（含它自己）。 */
+/** 退回到最后一个未闭合的开括号之前；反复退，直到没有未闭合的开括号（`（（（` 不会只退掉一个）。 */
 function retreatUnclosed(s) {
   let out = String(s)
-  for (const [open, close] of OPEN_PAIRS) {
-    const i = out.lastIndexOf(open)
-    if (i >= 0 && !out.slice(i + open.length).includes(close)) out = out.slice(0, i)
+  for (let guard = 0; guard < 8; guard += 1) {
+    let earliest = -1
+    for (const [open, close] of OPEN_PAIRS) {
+      for (let i = out.indexOf(open); i >= 0; i = out.indexOf(open, i + open.length)) {
+        if (!out.slice(i + open.length).includes(close)) {
+          if (earliest < 0 || i < earliest) earliest = i
+          break
+        }
+      }
+    }
+    if (earliest < 0) break
+    out = out.slice(0, earliest).trimEnd()
   }
-  return out.trimEnd()
+  return out
 }
 
 function clip(s, max) {
@@ -52,7 +61,8 @@ function clip(s, max) {
   if (cut >= 0) return stripBold(head.slice(0, cut + 1))
   let out = head.trimEnd()
   while (out && '，、；：'.includes(out[out.length - 1])) out = out.slice(0, -1)
-  return out ? stripBold(out) + '…' : ''
+  const tail = stripBold(out)
+  return tail ? tail.slice(0, Math.max(1, max - 1)) + '…' : ''
 }
 
 /** 把日记按 `## YYYY-MM-DD` 切天；只取当天那段，避免旧文案被重复拿来出稿。 */
@@ -74,7 +84,7 @@ export function dayBlocks(diaryText) {
 export function clipTitle(title, max = 24) {
   const s = stripBold(flattenBookMarks(String(title ?? '').trim()))
   if (!s || s.length <= max) return s
-  let cut = retreatUnclosed(s.slice(0, max).trimEnd())
+  let cut = retreatUnclosed(s.slice(0, Math.max(1, max - 1)).trimEnd())
   cut = cut.replace(/[、，,：:；;（(【\[《<〈「『]+$/, '').trimEnd()
   return cut ? stripBold(cut) + '…' : ''
 }
@@ -201,11 +211,10 @@ const MOOD_TAIL = {
 /** 记忆里的可引用片段：看过的取片名（走与正文同一个 shortTitle 口径），主人说过的取原话开头。 */
 export function snippetOf(text, from = 'npc') {
   const s = String(text ?? '').replace(/\s+/g, ' ').trim()
-  if (from === 'npc') {
-    const t = s.match(/看过《([^》]+)》/)
-    if (t) return shortTitle(t[1], 30, { splitAlways: true })
-  }
-  return s.slice(0, 16)
+  const t = s.match(/《([^》]+)》/)
+  if (from === 'npc' && t) return shortTitle(t[1], 30, { splitAlways: true })
+  // 认不出成对书名号（半截《、原话引用）时走同一条清洗：星号与散落的《》都不许进正文
+  return shortTitle(s, 16)
 }
 
 // ---- voiceBrief 新增的可选状态通道：缺字段 = 退回旧行为，绝不因此拒稿 ----
