@@ -19,6 +19,18 @@ const NODE = process.platform === 'win32' ? 'C:/Program Files/nodejs/node.exe' :
 fs.mkdirSync(CONTROL, { recursive: true })
 
 const alive = (pid) => { try { process.kill(pid, 0); return true } catch { return false } }
+/**
+ * 本机装了 SteamCommunity 302：它用 hosts 把 GitHub 系域名指到 127.0.0.1:443，并用自己的根证书签发
+ * （根证书已在 Windows 信任库里）。Node 默认不读系统证书库，所以扩展市场与 npm 会报
+ * UNABLE_TO_GET_ISSUER_CERT_LOCALLY —— 挂代理也解决不了（代理没开时 hosts 仍然生效）。
+ * `--use-system-ca` 让 Node 读系统信任库，用不用 Clash 都能出网；该参数是 Node 22.15/23 起才有。
+ */
+function systemCaFlags(version = process.versions.node) {
+  const [major, minor] = String(version).split('.').map(Number)
+  return major >= 24 || (major === 23) || (major === 22 && minor >= 15) ? ['--use-system-ca'] : []
+}
+if (process.argv.includes('--print-flags')) { console.log(systemCaFlags().join(' ')); process.exit(0) }
+const CA_FLAGS = systemCaFlags()
 const health = async (ms = 1500) => {
   try { const r = await fetch('http://127.0.0.1:7799/', { signal: AbortSignal.timeout(ms) }); return r.ok } catch { return false }
 }
@@ -53,8 +65,10 @@ if (!proxyUp) {
 
 // Cortico
 const fd = fs.openSync(LOG_FILE, 'a')
-const child = spawn(NODE, [path.join(CORTICO, 'bin', 'cortico.mjs'), 'mybot', '--port=7799'], {
-  cwd: CORTICO, detached: true, stdio: ['ignore', fd, fd], env: { ...process.env },
+const child = spawn(NODE, [...CA_FLAGS, path.join(CORTICO, 'bin', 'cortico.mjs'), 'mybot', '--port=7799'], {
+  cwd: CORTICO, detached: true, stdio: ['ignore', fd, fd],
+  // 传给子进程：扩展安装走 pnpm（另一个 node 进程），它也要读系统证书库
+  env: { ...process.env, NODE_OPTIONS: [process.env.NODE_OPTIONS, ...CA_FLAGS].filter(Boolean).join(' ').trim() },
 })
 child.unref()
 fs.writeFileSync(PID_FILE, String(child.pid) + '\n')
