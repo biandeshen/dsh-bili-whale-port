@@ -5,7 +5,7 @@ import path from 'node:path'
 import { describeTools, type WorldDefinition } from '../../world.ts'
 import { canDraft, draftRefusal, canApplyWatched, watchedRefusal, violationNotice, diaryFresh, diaryRefusal } from './gates.ts'
 import { upsertDiarySection, sectionStats, DIARY_DEFAULT_HEADER } from './diary.ts'
-import { loadState, saveState, applyEffects, remember, describeState, recentWatch, annotateFeed, PRESETS } from './personaAdapter.ts'
+import { loadState, saveState, applyEffects, remember, rememberFirst, describeStateWithTrace, applyRecall, recentWatch, annotateFeed, PRESETS } from './personaAdapter.ts'
 import type { PresetEffect } from './personaAdapter.ts'
 import { buildVoiceBrief } from '../../../persona-core/src/voice-brief.ts'
 import { pickActivities, ACTIVITY_LABELS } from '../../../persona-core/src/life-activities.ts'
@@ -167,6 +167,16 @@ function diaryTail(n = 2000): string {
   try { return fs.readFileSync(PUBLIC_DIARY, 'utf8').slice(-n) } catch { return '' }
 }
 
+/**
+ * 给她的状态描述，并把这一轮**真的想起来**的记忆写回（accessCount +1、鲜活度上升）。
+ * 面板的只读路径不走这里——看她的状态不该改变她的记忆。
+ */
+function statePrompt(state: any, opts: { queryText?: string; seed?: string } = {}): string {
+  const { text, recalledIds } = describeStateWithTrace(state, 5, opts)
+  if (recalledIds.length) saveState(FIELDS_FILE, applyRecall(state, recalledIds))
+  return text
+}
+
 /** 今天是否已经出过草稿（多醒几轮时不重复出稿）。 */
 function todayDraftLine(): string {
   try {
@@ -203,10 +213,20 @@ export function consumeDraftResults(state: any, entries: any[], cursor: number):
   if (!fresh.length) return { state, consumedAt: cursor, applied: [] }
   let next = state
   const applied: string[] = []
+  const RESULT_LINE: Record<string, string> = {
+    sent: '主人把我那条草稿发出去了',
+    rejected: '主人没让发那条草稿',
+    failed: '那条草稿想发没发出去（网络/风控），不是主人拒的',
+    cooldown: '那条草稿还在本地冷却，暂时发不了',
+  }
   for (const e of fresh) {
     // 一次审批只影响一次心情；同一批里取最近一条，避免积压的旧稿一次性灌爆场值
     const preset = e.result === 'sent' ? 'draftApproved' : e.result === 'rejected' ? 'draftRejected' : null
     if (preset) applied.push(preset)
+    // 四种结果都进记忆：以前 failed/cooldown 等于没发生，她既记不住"发不出去"，也不会去查原因。
+    // 只有第一次点亮 flashbulb，之后同类结果是重复刺激，不该一直"刻在心里"。
+    const line = RESULT_LINE[String(e.result)]
+    if (line) next = rememberFirst(next, `${line}（${e.draftId ?? ''}）`, `draft-${e.result}`, { sender: 'npc', intensity: 0.6, source: 'npc_self' })
   }
   const last = applied[applied.length - 1]
   if (last) {
@@ -262,7 +282,7 @@ const DECLS = [
   { name: 'bili_feed', description: 'Fetch candidate videos from the feed (read-only).', tags: ['read'], parameters: { type: 'object', properties: { n: { type: 'number', description: 'How many candidates (1-6)' } }, additionalProperties: false } },
   { name: 'bili_debrief', description: 'Understand one video via subtitles, danmaku, comments (read-only).', tags: ['read'], parameters: { type: 'object', properties: { bvid: { type: 'string' } }, required: ['bvid'], additionalProperties: false } },
   { name: 'bili_diary_read', description: 'Read the two diary files (read-only).', tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
-  { name: 'bili_mood_read', description: "Read Xiaoyu's current emotion (fields + cause + label).", tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'bili_mood_read', description: "Read Xiaoyu's current emotion (fields + cause + label) plus what she recalls. Recalling marks those memories as thought-of-again: they get clearer.", tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'bili_mood_apply', description: 'Apply emotional effects after an event. Optionally record which life activity you picked and a short note.', tags: ['write'], parameters: { type: 'object', properties: { preset: { type: 'string', description: 'watchedVideo | masterReplied | masterSilentDay | draftApproved | draftRejected | trafficPaused' }, custom: { type: 'array', items: { type: 'object', properties: { field: { type: 'string' }, delta: { type: 'number' }, source: { type: 'string' } }, required: ['field', 'delta', 'source'] } }, note: { type: 'string', description: '一句留给自己的话（会写进记忆）' }, activity: { type: 'string', enum: ['rest', 'explore', 'create', 'social', 'reflect', 'exercise', 'consume'], description: '这轮挑的生活活动 id' } }, additionalProperties: false } },
   { name: 'bili_draft_dynamic', description: "Create a dynamic draft from today's diary and an unused image. Never posts.", tags: ['write'], parameters: { type: 'object', properties: { force: { type: 'boolean' } }, additionalProperties: false } },
   { name: 'bili_diary_append', description: "Write a section into one of her diaries (public/private). Policy is FIXED: same day+heading = WHOLE-section replace (receipt says 已替换); a heading not yet present = append as a NEW section (receipt says 已追加). There is no incremental append — rewrite the whole section each time.", tags: ['write'], parameters: { type: 'object', properties: { book: { type: 'string', enum: ['public', 'private'], description: 'public = 给人看的；private = 只给自己看的偏好校准' }, heading: { type: 'string', description: '小节标题，如 看过 / 想说 / 今日指标 / 本轮留下的判断' }, text: { type: 'string', description: '这一节的正文（markdown）' } }, required: ['book', 'heading', 'text'], additionalProperties: false } },
@@ -524,7 +544,7 @@ class BiliAccountWorld {
             : ''
           this.enqueue('action-due', [
             '【你想做点什么】',
-            describeState(after, 5, { seed: today }),
+            statePrompt(after, { seed: today }),
             '',
             '起因：' + decision.reason + '。',
             ...(decision.kind === 'connect' ? ['他可能留了话——先 bili_dm_read 看一眼。'] : []),
@@ -623,7 +643,7 @@ class BiliAccountWorld {
           try { return `## ${f}\n` + fs.readFileSync(path.join(WHALE, f), 'utf8') } catch { return `## ${f}\n(missing)` }
         }).join('\n\n').slice(0, 12000)
       }),
-      mk(DECLS[4], async () => describeState(loadState(FIELDS_FILE), 5, { queryText: diaryTail(), seed: dayKey(Date.now()) })),
+      mk(DECLS[4], async () => statePrompt(loadState(FIELDS_FILE), { queryText: diaryTail(), seed: dayKey(Date.now()) })),
       mk(DECLS[5], async (a) => {
         if (a?.preset === 'watchedVideo' && !canApplyWatched(round.debriefed === true)) {
           causal({ kind: 'discipline-violation', reason: 'watched-without-debrief', atMs: Date.now() })
@@ -647,7 +667,7 @@ class BiliAccountWorld {
             this.life.lastKind = activityId
             writeLifeFile(this.life)
             causal({ kind: 'activity', activity: activityId, atMs: Date.now() })
-            return describeState(loadState(FIELDS_FILE), 5, { queryText: diaryTail(), seed: dayKey(Date.now()) })
+            return statePrompt(loadState(FIELDS_FILE), { queryText: diaryTail(), seed: dayKey(Date.now()) })
               + '\n（已记下这轮活动：' + activityId + '）'
           }
           return '[mood_apply] 需要 preset 或 custom'
@@ -665,11 +685,12 @@ class BiliAccountWorld {
           source: hasCustom ? 'custom' : presetName,
           userJustMessaged: presetName === 'masterReplied',
         })
-        // 这句是她自己留的；强度取当时的刺激量，避免 flashbulb 永远触发不到（D-26）
+        // 这句是她自己留的（source=npc_self）；强度只决定编码强度，不再替她判定"刻在心里"
         if (a?.note) after = remember(after, String(a.note), {
           sender: 'npc',
           intensity: Math.max(0.1, Math.min(1, after.fields.stimulation)),
           tags: [],
+          source: 'npc_self',
         })
         saveState(FIELDS_FILE, after)
         if (presetName === 'masterReplied' && this.life) {
@@ -693,7 +714,7 @@ class BiliAccountWorld {
           chainDelta: after.chain.length - before.chain.length,
           relation: after.npcState.current,
         })
-        return describeState(after, 5, { queryText: diaryTail(), seed: dayKey(Date.now()) })
+        return statePrompt(after, { queryText: diaryTail(), seed: dayKey(Date.now()) })
       }),
       mk(DECLS[6], async (a) => {
         if (!canDraft(round.feedAt ?? 0, round.debriefed === true)) {
@@ -818,7 +839,7 @@ class BiliAccountWorld {
           source: 'inbound',
           userJustMessaged: true,
         })
-        after = remember(after, msg.text.slice(0, 500), { sender: 'player', intensity: 0.7, tags: ['dm'] })
+        after = remember(after, msg.text.slice(0, 500), { sender: 'player', intensity: 0.7, tags: ['dm'], source: 'user_said' })
         saveState(FIELDS_FILE, after)
         writeAppliedDmKeys([...readAppliedDmKeys(), msg.key])
         if (this.life) {

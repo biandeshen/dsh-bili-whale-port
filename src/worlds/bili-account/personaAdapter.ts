@@ -11,7 +11,7 @@ import { EffectBus } from '../../../persona-core/src/effect-bus.ts'
 import type { AtomicFields, CausalEvent, Memory } from '../../../persona-core/src/types.ts'
 import { DEFAULT_ATOMIC_FIELDS } from '../../../persona-core/src/types.ts'
 import { recordFieldChangeL0 } from '../../../persona-core/src/causal-chain.ts'
-import { decayMemory, calculateEncodingStrength } from '../../../persona-core/src/memory.ts'
+import { decayMemory, calculateEncodingStrength, recallMemory } from '../../../persona-core/src/memory.ts'
 import { recallMemories, watchedFromMemories } from '../../../persona-core/src/retrieval.ts'
 import { simulateOfflineTime } from '../../../persona-core/src/decay.ts'
 import { createInitialState, deriveNPCState } from '../../../persona-core/src/npc-state-machine.ts'
@@ -256,11 +256,23 @@ export function applyEvent(s: PersonaState, presetName: string, now = Date.now()
   })
 }
 
-/** 写入一段记忆（对话/观看）；编码强度按刺激量，里程碑自动 flashbulb。 */
-export function remember(s: PersonaState, content: string, opts: { sender?: 'player' | 'npc'; intensity?: number; tags?: string[]; source?: Memory['source'] } = {}): PersonaState {
+export interface RememberOptions {
+  sender?: 'player' | 'npc'
+  intensity?: number
+  tags?: string[]
+  source?: Memory['source']
+  milestone?: boolean
+}
+
+/**
+ * 写入一段记忆。编码强度按刺激量（Yerkes-Dodson），**但 flashbulb 只由里程碑决定**：
+ * 刺激量高的回合天天有，用它点亮"刻在心里"会让一半记忆都变成闪光灯记忆（实测 54%），标签就没信息量了。
+ * `source` 默认 `npc_self`——她自己的笔记不该按"主人说的"存成最高可信、最难淡的一档。
+ */
+export function remember(s: PersonaState, content: string, opts: RememberOptions = {}): PersonaState {
   const intensity = opts.intensity ?? 0.5
   const tags = opts.tags ?? []
-  const milestone = tags.includes('milestone') || intensity > 0.8
+  const milestone = opts.milestone === true || tags.includes('milestone')
   const m: Memory = {
     id: 'mem-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6),
     npcId: 'xiaoyu',
@@ -273,9 +285,23 @@ export function remember(s: PersonaState, content: string, opts: { sender?: 'pla
     createdAt: new Date(),
     encodingStrength: calculateEncodingStrength(intensity),
     flashbulb: milestone,
-    source: opts.source ?? 'user_said',
+    source: opts.source ?? 'npc_self',
   }
   return { ...s, memories: [...s.memories, m] }
+}
+
+/**
+ * 记一件"第一次"：同类事件第一次出现才点亮里程碑，之后的都按普通记忆衰减。
+ * 被拒/被放行/风控暂停这类结果只有第一次真正改变她的行为，其余是重复刺激。
+ */
+export function rememberFirst(
+  s: PersonaState,
+  content: string,
+  tag: string,
+  opts: Omit<RememberOptions, 'milestone'> = {},
+): PersonaState {
+  const first = !s.memories.some((m) => (m.tags ?? []).includes(tag))
+  return remember(s, content, { ...opts, tags: [...(opts.tags ?? []), tag], milestone: first })
 }
 
 const RELATION_LABEL: Record<string, string> = {
@@ -288,11 +314,19 @@ const RELATION_LABEL: Record<string, string> = {
 }
 
 /** 给模型看的状态描述：情绪（含成因）+ 场值 + 关系态 + 最近因果 + 召回的记忆。 */
-export function describeState(
+export function describeState(s: PersonaState, limit = 5, opts: { queryText?: string; seed?: string } = {}): string {
+  return describeStateWithTrace(s, limit, opts).text
+}
+
+/**
+ * 同上，另外带出本轮**真的被想起来**的记忆 id。调用方拿 `applyRecall` 写回，
+ * 否则 `recallMemory` 永远没人调用：记忆只被读，从不因"回想"而变清楚，`accessCount` 恒 0。
+ */
+export function describeStateWithTrace(
   s: PersonaState,
   limit = 5,
   opts: { queryText?: string; seed?: string } = {},
-): string {
+): { text: string; recalledIds: string[] } {
   const f = s.fields
   const pct = (n: number) => Math.round(n * 100)
   const rel = RELATION_LABEL[s.npcState?.current ?? ''] ?? s.npcState?.current ?? 'normal'
@@ -305,14 +339,15 @@ export function describeState(
   const nowMs = Date.now()
   const context = [opts.queryText ?? '', ...recentChain.filter((e) => e.source !== 'decay').map((e) => e.description)]
     .filter(Boolean).join(' ')
-  const mems = recallMemories(s.memories, {
+  const picked = recallMemories(s.memories, {
     now: nowMs,
     k: 3,
     surprises: 1,
     text: context,
     mood: f.mood,
     seed: opts.seed,
-  }).map((r) => {
+  })
+  const mems = picked.map((r) => {
     const who = r.sender === 'player' ? '主人' : '我'
     const head = r.slot === 'surprise' ? '忽然想起' : '记得'
     // 看过的只留片名：B 站标题一长串 Ⅰ 标签，整段塞进提示词只会淹掉别的信息
@@ -322,14 +357,27 @@ export function describeState(
       : r.content.slice(0, 40)
     return `- ${head}｜${who}：${shown}${r.flashbulb ? '（刻在心里）' : ''}`
   })
-  return [
-    `【她现在的情绪】${m.primary}${secondary}（成因：${m.reason}）`,
-    m.inner,
-    `【状态】体力${pct(f.energy)} 刺激${pct(f.stimulation)} 连接${pct(f.connection)} 社交${pct(f.social)} `
-      + `心情${f.mood.toFixed(2)} 好奇${pct(f.curiosity)} 创造${pct(f.creativity)}｜关系：${rel}`,
-    recent.length ? '最近发生：\n' + recent.join('\n') : '最近没什么特别的。',
-    mems.length ? '记得：\n' + mems.join('\n') : '',
-  ].filter(Boolean).join('\n')
+  return {
+    text: [
+      `【她现在的情绪】${m.primary}${secondary}（成因：${m.reason}）`,
+      m.inner,
+      `【状态】体力${pct(f.energy)} 刺激${pct(f.stimulation)} 连接${pct(f.connection)} 社交${pct(f.social)} `
+        + `心情${f.mood.toFixed(2)} 好奇${pct(f.curiosity)} 创造${pct(f.creativity)}｜关系：${rel}`,
+      recent.length ? '最近发生：\n' + recent.join('\n') : '最近没什么特别的。',
+      mems.length ? '记得：\n' + mems.join('\n') : '',
+    ].filter(Boolean).join('\n'),
+    recalledIds: picked.map((r) => r.id),
+  }
+}
+
+/**
+ * 把本轮召回的记忆写回状态：`vividness` 按递减收益上升、`accessCount` +1。
+ * 只有"她自己在过日子"的路径调用；面板等只读查看不能改变她的记忆。
+ */
+export function applyRecall(s: PersonaState, ids: string[]): PersonaState {
+  if (!ids.length) return s
+  const hit = new Set(ids)
+  return { ...s, memories: s.memories.map((m) => (hit.has(m.id) ? recallMemory(m) : m)) }
 }
 
 /** 选片避重：近 7 天看过的 BV / UP，供 feed 标注与提示。 */
