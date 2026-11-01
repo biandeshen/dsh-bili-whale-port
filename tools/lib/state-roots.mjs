@@ -67,7 +67,8 @@ const KINDS = {
   'dm-applied': { owner: 'host' },
 
   // —— 两边都写：必须拿锁，且只追加单行 ——
-  causal: { owner: 'both-with-lock' },
+  // withStateLock/appendLocked 见 tools/lib/state-lock.mjs。
+  causal: { owner: 'both-with-lock', requiresLock: true },
 
   // —— 特殊落点 ——
   credentials: { owner: 'cli', fixedLegacy: true }, // R2：读写都在旧家
@@ -133,6 +134,16 @@ export function assertWriter(kind, who = writer) {
     throw new Error(`${kind} 的写者是 ${spec.owner}，这个进程没说自己是 cli 还是 host（setWriter），拒绝写`)
   }
   throw new Error(`${kind} 只允许 ${spec.owner} 写，当前进程是 ${who}`)
+}
+
+/**
+ * 这一类是不是"两边都写、必须拿锁"。调用方在直接 `appendFileSync` 之前问一次：
+ * 返回 true 就该走 `appendLocked`（tools/lib/state-lock.mjs），别裸写。
+ */
+export function requiresLock(kind) {
+  const spec = KINDS[kind]
+  if (!spec) throw new Error(`state-roots 不认这个状态类：${kind}`)
+  return spec.requiresLock === true
 }
 
 /** 读时是否还在用旧家——用于"每读一次旧家记一条 WARN"（A4.2 第 2 条）。 */

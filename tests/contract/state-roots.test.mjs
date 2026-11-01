@@ -89,3 +89,49 @@ test('退场日：过了 legacyUntil 读列表里不再有旧家，且不静默�
 test('不认识的类当场抛错，不落到某个默认路径', () => {
   assert.throws(() => R.resolve('没这一类'), /state-roots 不认这个状态类/)
 })
+
+// ── both-with-lock：无条件写必须被拒（四红测试的第 4 条）──────────────────
+const L = await import('../../tools/lib/state-lock.mjs')
+
+test('both-with-lock 的文件：拿锁才能写，两个进程并发追加不丢行', async () => {
+  const file = path.join(tmp, 'causal.jsonl')
+  await Promise.all(
+    Array.from({ length: 20 }, (_, i) => L.appendLocked(file, JSON.stringify({ i }))),
+  )
+  const lines = fs.readFileSync(file, 'utf8').trim().split('\n')
+  assert.equal(lines.length, 20, '并发追加一条都不能丢')
+  assert.deepEqual(lines.map((l) => JSON.parse(l).i).sort((a, b) => a - b), Array.from({ length: 20 }, (_, i) => i))
+})
+
+test('锁被活进程持有超时，本次不写（不是硬写）', async () => {
+  const target = path.join(tmp, 'busy.json')
+  const lock = target + '.lock'
+  // 自己持有一个"活着的"锁：pid 是本进程，stale 判定会认为它没死
+  fs.writeFileSync(lock, JSON.stringify({ pid: process.pid, at: Date.now() }))
+  try {
+    await assert.rejects(
+      () => L.withStateLock(target, () => 'never', { timeoutMs: 120 }),
+      /拿不到 .* 的锁/,
+    )
+    assert.equal(fs.existsSync(target), false, '没拿到锁就一次都不该写')
+  } finally {
+    fs.rmSync(lock, { force: true })
+  }
+})
+
+test('崩溃留下的陈旧锁（pid 已死）会被清掉，下一次还能拿', async () => {
+  const target = path.join(tmp, 'stale.json')
+  const lock = target + '.lock'
+  // 一个几乎不可能存在的 pid
+  fs.writeFileSync(lock, JSON.stringify({ pid: 2147483646, at: Date.now() - 60_000 }))
+  const ok = await L.withStateLock(target, () => 'done', { timeoutMs: 500 })
+  assert.equal(ok, 'done', '陈旧锁不该永久堵住下一次')
+  assert.equal(fs.existsSync(lock), false, '跑完要放锁')
+})
+
+test('causal 被标记为必须拿锁；其余不是', () => {
+  assert.equal(R.requiresLock('causal'), true)
+  assert.equal(R.requiresLock('fields'), false)
+  assert.equal(R.requiresLock('traffic-state'), false)
+  // 标记只是"问得到"，真正拦住裸写的守卫在 state-lock 里（见上一条测试）
+})
