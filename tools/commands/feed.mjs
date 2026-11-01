@@ -310,6 +310,22 @@ console.log(`判断卡（已采纳）: avoid ${judgment.avoid.length} 个词 · 
 console.log(`反馈回流: 被赞 ${likedEvents.length} 条 · 她收藏 ${favItems.length} 条 · 已发稿 ${sentDrafts.length} 条 → 学会 ${learnedTokens.length} 个主题词`)
 console.log(`已看过（日记 ${seenDiary.size} + 评论审计 ${seenAudit.size} + 近 7 天观看记录 ${seenWatched.size} → 去重 ${seen.size} 个 BV）：${ALLOW_SEEN ? '--allow-seen 显式放回，行内标 [已看过]' : '默认排除'}`)
 console.log(`候选池: ${pool.length} 条 → ${ALLOW_SEEN ? '去重后' : '去重去已看后'} ${uniq.length} 条（质量下限丢掉 ${dropped.length} 条 · dislike 拦下 ${droppedDislike.length} 条）\n`)
+// 池子里**有什么、各多少**：她要回答"是我不喜欢，还是池子里根本没有"。
+// 只看名字与条数、不含正文——这不是多看内容，是让她知道供给长什么样（f-74c622）。
+{
+  const byKw = new Map()
+  for (const x of uniq) {
+    const k = String(x.kw || '未标注')
+    byKw.set(k, (byKw.get(k) ?? 0) + 1)
+  }
+  const parts = [...byKw.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`)
+  console.log(`池子里的门类（去重后 ${uniq.length} 条）：${parts.length ? parts.join(' · ') : '空'}`)
+  // 她要的那几类特别点名：没有也要说没有，别让她自己去猜"是不是被我筛掉了"。
+  const want = ['ASMR', '人声', '纯音乐', '钢琴', '助眠']
+  const missing = want.filter((w) => !parts.some((p) => p.includes(w)))
+  if (missing.length) console.log(`  其中没出现在池子里的：${missing.join('、')}（是供给没有，不是你不喜欢）`)
+  if (droppedDislike.length) console.log(`  另：被 dislike 拦下 ${droppedDislike.length} 条（这些进了池子但没给你看）`)
+}
 if (droppedDislike.length) console.log(`  dislike 命中样例: ${droppedDislike.slice(0, 3).map((x) => `${x._dislike}←「${String(x.t).slice(0, 20)}」`).join(' · ')}`)
 console.log(`今天可以看这几条（每词最多 ${PER} 条，共 ${N} 条）：`)
 const perKw = {}

@@ -69,7 +69,11 @@ export function appendFeedback({ issue, severity = 'low', selfHandled = false, n
 export function resolveFeedback(id, by = 'owner', file = FILE) {
   const target = String(id ?? '')
   if (!target) return { ok: false, error: '缺 id' }
-  const open = listFeedback(file, { all: true }).items.filter((x) => !x.resolved).map((x) => x.id)
+  // 这里要的是"这条还开着吗"，不是"最近 30 条里有没有它"。
+  // 用默认 limit 会让更早的条目永远结不掉，报错还是"没有这条未解决的"——
+  // 明明看得见却结不了，比报错更难查（f-617735 就是这么卡住的）。
+  const open = listFeedback(file, { all: true, limit: Number.MAX_SAFE_INTEGER })
+    .items.filter((x) => !x.resolved).map((x) => x.id)
   if (!open.includes(target)) return { ok: false, error: '没有这条未解决的：' + target }
   const entry = { kind: 'feedback-resolved', id: target, at: new Date().toISOString(), atMs: Date.now(), resolvedBy: by === 'whale' ? 'whale' : 'owner' }
   fs.appendFileSync(file, JSON.stringify(entry) + '\n')
