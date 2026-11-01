@@ -10,6 +10,28 @@ export class LLMError extends Error {
 }
 
 /**
+ * 流内的 `error` 事件:上游自己报的失败,传输层不再重试。
+ * 沿用上游的导出名与构造函数形状(只收 body),扩展包按名字导入它。
+ */
+export class StreamErrorEvent extends LLMError {
+  constructor(body: string) {
+    super(`Stream error event: ${upstreamText(body)}`, 0, body);
+    this.name = 'StreamErrorEvent';
+  }
+}
+
+/** 上游错误的文字:`error.message` 或 `message`(JSON 体),否则原样;压成一行。 */
+export function upstreamText(body: string): string {
+  let text = body;
+  try {
+    const parsed = JSON.parse(body) as { error?: { message?: unknown }; message?: unknown };
+    const message = parsed.error?.message ?? parsed.message;
+    if (typeof message === 'string') text = message;
+  } catch { /* 不是 JSON:原样返回 */ }
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+/**
  * Whether an upstream rejection says the input exceeded the model's context. Status 0 is an
  * in-stream failure event; 400/413 are the request-rejection codes. The body patterns cover
  * the OpenAI `context_length_exceeded` code, DeepSeek's "maximum context length" message
