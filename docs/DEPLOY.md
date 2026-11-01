@@ -9,7 +9,7 @@
 # 共同前提
 
 ```bash
-npm test                      # 122/122
+node scripts/run-mjs-tests.mjs  # 全量回归：判据是 fail 0（本文 2026-11-01 复跑 321 pass / 0 fail / EXECUTED=60；条数随提交变化）
 node scripts/preflight.mjs    # 节点/凭据/风控/端口/推送/OpenCode
 ```
 
@@ -33,6 +33,8 @@ node scripts/preflight.mjs    # 节点/凭据/风控/端口/推送/OpenCode
 5. 证据：server 会话收到 `prompt_async`；agent 调 `bili` 工具；`node tools/bili.mjs traffic status` 预算扣减。
 
 ## C. 面板
+
+> **先看现行界面**：日常用的是 Cortico WebUI 的「小鱼 · 鱼缸」世界页 `http://127.0.0.1:7799/#/provider/world%3Abili-account`（7 块页签，含待审稿 ✓放行/✗拒掉）。`panel/server.js` 的 8447/8448 端口**已退役**（`docs/CURRENT.md` 2026-10-31 条目、`docs/ARCHITECTURE-2026-11.md` §4），下面是遗留调试路径，只在你确实要单独起它时才做。
 
 1. `node panel/server.js --port 8447`，浏览器打开日志里的 `?t=` 链接（token 也在 `WHALE_HOME/panel.token`）。
 2. 默认只绑 127.0.0.1；远程用 Tailscale **不行**（loopback 校验）→ 用 SSH 隧道：`ssh -L 8447:127.0.0.1:8447 <host>`。

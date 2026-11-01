@@ -122,6 +122,8 @@
 
 ## 8. 与现有文档的出入（10 条）
 
+> 2026-11-01 逐条处置见本节末「§8.1」；文档分工的总仲裁在 [`INDEX.md`](./INDEX.md) §1。
+
 | # | 文档说 | 代码事实 |
 |---|---|---|
 | 1 | `docs/ARCHITECTURE.md:8`（§0）："当前 `buildText()` 只吃日记文本，7 场值/因果/记忆对任何可观测产出零影响" | 已过期。出稿走 `composeDraft(diaryText,{date,voice})`（`scripts/draft-dynamic.mjs:67-69`），voice 缺字段直接拒稿（`tools/drafts/compose.mjs:184-190`），`stance.share=false` 时根本不出稿（`definition.ts:773-775`），审批结果由代码结算回场值（`definition.ts:228`、`:522`）。`buildText` 仍在（`compose.mjs:134`）但只是无 voice 的降级路径（`draft-dynamic.mjs:84` `degraded`） |
@@ -134,6 +136,21 @@
 | 8 | `definition.ts:1` 头注释："所有对外写操作只入队，不发送" | 不符。`bili_dm_reply` 直发（`definition.ts:903-909`，工具说明 `:309` 明写 auto-approved since 2026-10-31）；`bili_like`/`bili_fav` 自发档（`:311-312` + `publish-policy.mjs:18-19`）；`draftMode=auto` 时 `bili_draft_dynamic` 真发（`:790-821`）。头注释需重写（本页不改代码，只记账） |
 | 9 | `personaAdapter.ts:2-4` 头注释："World 只依赖这里的四个函数" | 不符。`definition.ts:8` 一次 import 了 12 个符号（loadState/saveState/applyEffects/remember/rememberFirst/describeStateWithTrace/applyRecall/recentWatch/annotateFeed/PRESETS 及类型） |
 | 10 | `docs/CURRENT.md:32,34`："面板 8447/8448 已退役，代码保留" | 与代码一致，但补一句：`panel/server.js` 仍在且有 173 行、`panel/*.mjs` 被 World 的 `tank.ts` 复用为数据模块来源；退役的是**端口**，不是目录。旧 8447 是提权进程、本机仍杀不掉（`docs/CURRENT.md:34`） |
+
+### 8.1 逐条处置（2026-11-01，文档席）
+
+| # | 处置 | 落在哪 |
+|---|---|---|
+| 1 | **已改**：`docs/ARCHITECTURE.md` §0 那句加删除线 + 现行事实（`composeDraft`/`assertVoice`/结算回场值 + `voice-state-coupling` 复跑读数）；§内另一处 `buildText 只吃日记` 同样标注；`docs/BLUEPRINT.md` §6 引用处标注"断链已闭合"；`docs/ISSUES.md` D-01 由 `OPEN` 改 `FIXED` 并附证据 | 那四个文件 |
+| 2 | **已仲裁**：`docs/INDEX.md` §1 定五份真相源（架构=本页 · 现状=`CURRENT.md` · 产品=`PRODUCT.md` · 判据=`OBSERVATION-PROTOCOL.md`+`evidence/G3B-DECISION-2026-11-01.md` · 版本=`CHANGELOG.md`+`package.json`+tag）。`BLUEPRINT.md:1` 的"唯一真相源"、`CURRENT.md:4` 的"看 BLUEPRINT（唯一真相源）"、`PRODUCT.md:4` 的同一句话**全部就地改掉并互相指认**；BLUEPRINT 保留 50 项清单与改动纪律，架构部分让位给本页 | `INDEX.md` §1/§2 |
+| 3 | **已改**：`BLUEPRINT.md` 分层图 L5 那格改成"未接任何调用方"，与本页 §7⑤ 一致 | `BLUEPRINT.md:29` |
+| 4 | **已更正到台账**：`CURRENT.md` 那条"偏好仍来自解析日记叙事"补了口径——`tools/commands/feed.mjs:38-46` 首选 `config.preferences`（`prefsFrom='统一配置'`），日记「爱看」只在配置为空时兜底（`prefsFrom='日记兜底'`，注释即"兼容旧写法"）；残留的是兜底那半条 = 本页 §7③。11-01 的 `76519ff` 又把来源标进了回执 | 本页 §7③ |
+| 5 | **文档侧无需改**：全仓 grep 无 `tools/go-gate.mjs` 写法（`CLOSEOUT.md:33` 等已是 `tools/lib/go-gate.mjs`）。这是任务书/口头口径问题，纠正记录在此 | 本节 |
+| 6 | **以本页 §5 为准**：运行态分两处（`~/.dsh/bili-whale*` 与 `~/.bili-ai/`）。dsh 侧文档没写过"全在 `.dsh`"，`CURRENT.md` 约定节写的正是"凭据只进 `~/.bili-ai/`"——与代码一致，不改 | 本页 §5 |
+| 7 | **以本页 §5 状态文件清单为准**：三处"待审"不同文件已列名（`control/queue.json` / `~/.bili-ai/pending-replies.json` / 草稿 `status:pending`）。`RUNBOOK.md` §2、`DEPLOY.md` §C 已补"退役的是端口"一段 | 本页 §5 + 那两份手册 |
+| 8 | **不在本席边界内**：改的是 `Cortico/src/worlds/bili-account/definition.ts:1` 的头注释。本席只做文档与版本线，不碰 `E:/WorkSpace_Qoder/Cortico*`；**转交 Cortico 席**：头注释应改成"对外写默认待审；`dm_reply`/`like`/`fav` 是自发档、`draftMode=auto` 时出稿即发"（依据 `definition.ts:903-909`、`:311-312`、`:790-821` 与 `publish-policy.mjs:18-19`） | 待 Cortico 席 |
+| 9 | 同 8：`personaAdapter.ts:2-4` 头注释与 `definition.ts:8` 的 12 个 import 不符，转交 Cortico 席改注释 | 待 Cortico 席 |
+| 10 | **已落到手册**：`RUNBOOK.md` §2 与 `DEPLOY.md` §C 顶部各加"现行界面是 7799 世界页 / 退役的是端口不是目录" | 那两份手册 |
 
 ## 9. 等价 Mermaid（没装 graphviz 时用这份）
 

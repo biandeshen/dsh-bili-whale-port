@@ -1,6 +1,7 @@
 # PR: port — core + OpenCode adapter + whale-panel（含三轮团队评审修复）
 
 > 分支 `port/core-opencode-panel` ← 基于上游 `3e11454`（0.4.6）。范围：把 DSH 专用插件改造成多宿主可插拔结构，并补回独立管理界面。**不含** CodeBuddy adapter 与真机端到端。
+> **时点声明**：本文件是 port 线第一版（`CHANGELOG.md` 的 port-0.1.0，2026-10-25）的评审描述，不再更新；此后到 2026-11-01 的里程碑看根 [`../CHANGELOG.md`](../CHANGELOG.md) 的 port-0.5.0 段，文档分工看 [`INDEX.md`](./INDEX.md)。
 
 ## 变更概要
 
@@ -12,7 +13,7 @@
 | 推送 | `notify` 新增 `ntfy`/`bark`（https/局域网校验），设置页同步 |
 | OpenCode | `whale-daemon`（pm2/`--once`）+ 40 命令 MCP 包装（白名单只进 `tools/bili.mjs`）+ 接入 README |
 | panel | 独立 http 服务，Bearer token fail-closed；`/api/vitals`、`/api/timeline`（游标分页）、`/api/diary` 补三缺口；鱼缸界面 + 鲸鱼娘序列帧（CC BY-NC-SA，见 docs/CREDITS.md） |
-| 测试 | 122 项：110 上游回归 + 调度器快照（10 种子×100 tick）+ 路由契约 + OpenCode 契约 + panel e2e |
+| 测试 | 提交时点 **122 项**（port-0.1.0，2026-10-25 的数）：110 上游回归 + 调度器快照（10 种子×100 tick）+ 路由契约 + OpenCode 契约 + panel e2e。**现状别抄这行**：跑 `node scripts/run-mjs-tests.mjs`（本文 2026-11-01 复跑 321 pass / 0 fail / 60 文件） |
 
 ## 三轮团队评审与修复
 
@@ -31,7 +32,7 @@
 ## 验证
 
 ```
-npm test                        # 122/122
+node scripts/run-mjs-tests.mjs   # 提交时点 122/122；判据是 fail 0，条数随提交变化
 bash scripts/evaluate.sh partial # 语法门 + daemon --once + MCP 握手
 ```
 - DSH：设置页/路由/生物钟与上游逐项核对等价（P2：403/503 少 Cache-Control）

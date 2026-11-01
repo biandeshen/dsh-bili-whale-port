@@ -1,6 +1,7 @@
 # RUNBOOK —— 给 AI 执行的真机部署手册
 
 > 目标读者：接手的 AI/工程师。**每一步先验证再操作**；遇到 `✗` 停下报告，不要猜。
+> 文档从 [`INDEX.md`](./INDEX.md) 进；**门禁数字一律现跑**（本文不拿条数当判据，口径见 `INDEX.md` §3）。
 > 禁止：调大轮询/预算、把 panel 暴露公网、向公开仓库推送、删除 `~/.bili-ai` 或日记。
 > 需要用户操作的点标【人工】；其余可由 AI 执行。
 
@@ -9,15 +10,15 @@
 ```bash
 cd <repo>
 git status -sb                 # 必须无未提交改动；默认分支 port/core-opencode-panel
-npm test                       # 期望 122/122
+node scripts/run-mjs-tests.mjs # 全量回归；判据是 fail 0（本文 2026-11-01 复跑：321 pass / 0 fail / EXECUTED=60，条数随提交变化）
 node scripts/preflight.mjs     # 期望无 ✗；OpenCode 部署加 OPENCODE_WANTED=1
 ```
 
-判据：`git log -1` 含 `feat(deploy)` 或更新；测试非 122 立即停止并报告。
+判据：`git log -1` 含 `feat(deploy)` 或更新；**测试只要出现 `fail ≠ 0` 就立即停止并报告**——不把固定条数当判据（旧手册写死"122"，那是 port-0.1.0（2026-10-25）那一版的数，早已作废）。
 
 ## 1. DSH 部署（需 DSH 桌面端）
 
-1. 【人工】确认 DSH 已安装并能打开；版本对应 0.4.6 宿主能力。
+1. 【人工】确认 DSH 已安装并能打开；版本对应 0.4.6 的宿主能力（`BASELINE.md` 的上游行为冻结基线；包版本另走 port 线，见根 `CHANGELOG.md` 与 `docs/INDEX.md` §4）。
 2. 安装：`dsh plugin --profile desktop add link:<repo 绝对路径>`
 3. 【人工】打开 DSH → 设置 → 养鱼：
    - 点「保存」一次（生成 `~/.dsh/bili-whale.config.json`）
@@ -33,7 +34,9 @@ node scripts/preflight.mjs     # 期望无 ✗；OpenCode 部署加 OPENCODE_WAN
    - scheduler.ok=false → 读 `reason`；多为找不到 node（设 `DSH_NODE` 指向真实 node.exe）。
    - 设置页 404 → `cordis.patch.yml` 的 `name` 必须等于包名 `dsh-bili-whale`。
 
-## 2. whale-panel
+## 2. whale-panel（端口已退役；本节是遗留路径/调试用）
+
+> **现行界面不是它**：「小鱼 · 鱼缸」世界页跑在 Cortico WebUI `http://127.0.0.1:7799/#/provider/world%3Abili-account`（7 块页签），数据面是 World 的 `tank.ts`（`ARCHITECTURE-2026-11.md` §2 WebUI 行、§4），它复用本仓 `tools/lib/*` 作模块来源。退役的是 **8447/8448 这两个端口**，不是 `panel/` 目录（`ARCHITECTURE-2026-11.md` §8 第 10 条）。老号 8447 是提权进程、本机杀不掉（`CURRENT.md` 2026-10-31 凌晨条目）。
 
 ```bash
 node panel/server.js --port 8447
@@ -83,13 +86,15 @@ AI 验证：`curl -s http://127.0.0.1:8447/api/vitals -H "authorization: Bearer 
 
 ```bash
 git log -1 --oneline
-npm test | tail -3
+node scripts/run-mjs-tests.mjs | tail -3   # 看 pass/fail 与 EXECUTED 的文件数
+node scripts/check-hashes.mjs              # 验收脚本哈希：末行须是「一致」
+node scripts/check-consumers.mjs           # 生产调用：末行须是「全部有生产调用」
 node scripts/preflight.mjs --json
 node tools/bili.mjs traffic status
 node tools/commands/whale-night.mjs status
 tail -n 5 "$WHALE_HOME/whale-log.jsonl"
 ```
-期望：测试 122 全过；preflight ok；traffic 有余量；night 有 today 计划；log 有 wake/reply 事件。
+期望：全量 `fail 0`（本文写作时 321 条、60 个测试文件；**数字会随提交变化，别拿条数当判据**）；preflight ok；traffic 有余量；night 有 today 计划；log 有 wake/reply 事件。
 
 ## 6. 故障速查
 

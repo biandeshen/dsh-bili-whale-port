@@ -1,13 +1,17 @@
 # ISSUES —— 问题台账
 
 > v1 · 2026-10-28 · 本文件记录**所有未解决问题、待拍板事项、已知缺陷与环境约束**。
-> 与 `BLUEPRINT.md` §9（历史更正）区分：那里记"写错过的结论"，这里记"还没解决的事"。
+> 与 `BLUEPRINT.md` §9（历史更正）区分：那里记"写错过的结论"，这里记"还没解决的事"。代码现状的真相源是 [`ARCHITECTURE-2026-11.md`](./ARCHITECTURE-2026-11.md)；它 §7「已知断点」与本表冲突时以那里的 `file:line` 为准，并回来改本表状态。
 > 状态词表：`OPEN` 未动 · `DOING` 在做 · `FIXED` 已修有证据 · `BLOCKED` 前提缺失 · `NEED-USER` 待主人拍板 · `DECIDED-NO` 主人明确不做 · `WONTFIX` 判断不该做
 > **任何条目改成 FIXED 必须附证据（命令输出/文件:行号/run id），否则留在 OPEN。**
 
 ## 0. 一句话现状
 
-真实自主唤醒 **1 次**（10-27 15:49:27，`wake: restless`），完整"一天"链条**0 次**；人格状态**未接入产物**；记忆**只写不读且不衰减**；`connection` **只减不增**。前四项是 M0–M3 的全部内容。
+**下面这段是 2026-10-28 的立项时点读数，已被后续实现逐条推翻——留作对照，别当现状读。** 现状按这三处看：未闭合断点 → `ARCHITECTURE-2026-11.md` §7（七条，全部带 `file:line`）；进度与门禁 → `CURRENT.md` 顶部；每条缺陷的当前状态 → 本表状态列。
+
+原文：真实自主唤醒 **1 次**（10-27 15:49:27，`wake: restless`），完整"一天"链条**0 次**；人格状态**未接入产物**；记忆**只写不读且不衰减**；`connection` **只减不增**。前四项是 M0–M3 的全部内容。
+
+今天的复核（逐条给出处）：唤醒已不止一次（`CURRENT.md` 10-29/10-30 条目：10-30 自然 action 11:11、当天草稿 `dyn-20261030-741fdf` 已发出）；人格状态已进产物（本表 D-01 改 FIXED，`tools/drafts/compose.mjs:285` + `tests/contract/voice-state-coupling.test.mjs`）；召回会写回（`ARCHITECTURE-2026-11.md` §3 步 6：`definition.ts:681` → `personaAdapter.ts:377` applyRecall）；`connection` 有入站传感器（同文 §3 私信支路 `definition.ts:873-878`）。**没有**被推翻的是：她的判断仍没有执行通道、feed 偏好仍留日记兜底、7799 写口免口令、视频/直播整条链无调用方。
 
 ---
 
@@ -15,7 +19,7 @@
 
 | ID | 问题 | 证据 | 影响 | 期 | 状态 |
 |---|---|---|---|---|---|
-| D-01 | **人格状态与产物零耦合**：`buildText()` 只吃日记文本，不读 fields/chain/memories/npc/rhythm | 红队1 F1；`scripts/draft-dynamic.mjs:44`；`drafts/2026-10-28.md` 与 `whale-diary.md:123` 逐字相同 | 情绪/主动表达/自我修正在产出路径结构性失效：被拒 100 次，第 101 条一字不变 | M0 | OPEN |
+| D-01 | **人格状态与产物零耦合**：`buildText()` 只吃日记文本，不读 fields/chain/memories/npc/rhythm | 红队1 F1；`scripts/draft-dynamic.mjs:44`；`drafts/2026-10-28.md` 与 `whale-diary.md:123` 逐字相同 | 情绪/主动表达/自我修正在产出路径结构性失效：被拒 100 次，第 101 条一字不变 | M0 | **FIXED（2026-11-01 复核后补记）**：出稿主路径改为 `composeDraft(diaryText, {date, voice})`（`tools/drafts/compose.mjs:285`，调用点 `scripts/draft-dynamic.mjs:67-69`），voice 结构校验在 `compose.mjs:183` `assertVoice`（缺字段拒稿，exit 2），审批结果由代码结算回场值（`Cortico/.../definition.ts:228`、`:522`）。证据：`tests/contract/voice-state-coupling.test.mjs` 2026-11-01 复跑 **12 pass / 0 fail**（同一日记 × 9 个 voice 变体 → 正文归一化后两两不同）；提交 `3827cc4`（voice 的节律/今天/钟点/场值/意外槽接进正文）、`edf828c`（缺 voice 拒稿）。`buildText`（`compose.mjs:134`）仅剩 `--no-voice` 手工降级 |
 | D-02 | **记忆永不衰减**：`applyEffects` 用 `lastAppliedAt` 算天数，而生活循环每 3–7 分钟重置它 → `days>=1` 恒假 | 红队3 F6；`personaAdapter.ts:159-162,191`；实测 90 天后 vividness 仍 0.9 | "记性"不成立，重要的事不会变淡 | M0 | **FIXED**：按真实毫秒折成小数天逐步衰减（`decayMemory(m, days)`），5 分钟一跳也会累积；测试：288 次 5min 结算后 vividness 下降且一天约 0.02 |
 | D-03 | **"记得"永远是最早三条**：`describeState` 按 vividness 排序取 top3，全部 0.9 → 稳定排序 | 红队3 F6；`personaAdapter.ts:335`；50 条记忆实测返回 `["video #1","video #2","video #3"]` | 长期记忆形同虚设 | M0/M4 | **FIXED**：新增 `memorySalience`（鲜活度 0.7 + 30 天新鲜度 0.3），`describeState` 与 `voiceBrief` 共用；同分按 createdAt 新的优先。**M4 追加**：`persona-core/src/retrieval.ts` 确定性召回（关键词 idf 0.40 / 鲜活 0.30 / 情绪 0.15 / 新鲜 0.15 + ≥7 天未被想起的意外槽），`describeState` 以"最近因果 + 公开日记尾部"为情境，`voiceBrief` 以今天日记为情境；草稿对 `score>0.5` 主槽记忆带出处回扣。证据：`retrieval.test.mjs` 7/7；`tests/core.test.mjs` 情境排序 + feed 标注；`voice.test.mjs` A4/A4c/A4e；真实状态预览 `preview-recall.mjs`（雨声记忆 keyword 100%、score 0.965） |
 | D-04 | **`connection` 只减不增 → 必然 `cold_war` 且不可恢复**：8 个工具无任何读私信/互动的；`masterReplied` 唯一来源是模型自己填参数；6 个 preset 中只有它加 connection | 红队3 F5/S2；`definition.ts:199-208`、`personaAdapter.ts:40-48`、`decay.ts:27,37` | 关系机五态实为三态；30 天模拟 `connection=0.00` 是数学必然 | M3 | **FIXED（只读入站）**：新增 `bili_dm_read`（`dm-await --json --peek`），入站 → preset `inbound`（mood +0.06 / connection +0.07 / social +0.02，source=inbound 预算 0.20/天），`userJustMessaged` 建立接触证据；`masterReplied`/`inbound` 只能由传感器触发，模型调用被拒。证据：`tests/dm.test.mjs` 4/4；`adapter.test.mjs`「入站私信」；真实 API 探测 `{"hit":false}` exit 1；世界内调用 `bili_dm_read` → `[dm] 没有新私信`。注：`messages:null` 空信箱曾误判为读取失败，已修 `dm-history.mjs` 并有回归测试 |
@@ -60,6 +64,7 @@
 | D-37 | **C2 只看 arm→now 的耗时**：服务一直跑也会满 8h，verify 可能假通过 | `c2-offline.mjs` 原检查 `hours>=8` + 区间跨 04:00；没有证明中间真的断过 | canary C2 假通过 → G3b 门禁失真 | G3b 前 | **FIXED**：verify 从 `days/<D>/ticks.jsonl` 取最大空窗，要求空窗 ≥8h 且跨 04:00（`tools/lib/offline-gap.mjs`）。测试 `tests/offline-gap.test.mjs` 4/4。证据 `evidence/C2-DECISION-2026-10-29.md` |
 | D-38 | **软步数提醒截断草稿**：`rounds.soft=6` 后插入“做完就 end_turn”，她的流程要 8–10 次工具，第 6 步草稿被当成收尾跳过（10-29 16:44 实测走完 feed/debrief/日记但没有 draft） | `session-main.jsonl` 16:44–16:45；`days/2026-10-29/wake-1643.json` missing=["草稿"]；`persona.ts softCapHint()` | 自然日无稿 → K1/G3b 直接受损 | G3b 前 | **FIXED（已验证）**：soft 提示改为“先按 ORIENTATION 做完，尤其是还没出的草稿，再 end_turn”；2026-10-29 20:51 的重启 turn 中新提示出现后，她立即调用 `bili_draft_dynamic` 生成 `dyn-20261029-8e3377`。未改 rounds.soft/hard。证据 `evidence/D-38-SOFT-CAP-2026-10-29.md` |
 | D-39 | **重启 turn 出稿也能算一天**：G3b/K1 只看草稿字段，重启消息触发的一轮也能补稿，未区分自然 `action_due` | `session-main.jsonl` 20:50–20:52 完整链 + draft；`g3b-check`/`observation-status` 原逻辑 | “零自然行动、仅重启补稿”的日子会混过 G3b/K1 | G3b 前 | **FIXED**：每天必须至少一条 `causal {kind:'action',atMs}`（04:00 日界）；`g3b-check` 的 `draftBound` 与 `observation-status` 的 K1 都加该条件。10-29 有 16:43 action，规则通过。测试 g3b 5/5、observation 6/6。证据 `evidence/D-39-RESTART-DRAFT-2026-10-29.md` |
+| D-40 | **CLI 帮助文案仍说 feed 靠日记「爱看」**：`node tools/bili.mjs help` 里 feed 那行写"照日记里的「爱看」捞候选"，而实现早已首选 `config().preferences.like`、日记只作配置为空时的兜底 | `tools/bili.mjs:28`（帮助行）vs `tools/commands/feed.mjs:38-46`（`prefsFrom`）；2026-11-01 复跑 `node tools/bili.mjs help` 仍是旧文案 | 她读到自己的工具说明会得出"改 config 不生效"，与 `76519ff` 修掉的回执同一类骗法；文档席改不了 `tools/` | 观测后首批 | OPEN（**属 `tools/`，本轮只做文档仲裁与版本线，不改脚本**；改法是那一行文案 + 全量复跑） |
 
 ## 3. 待拍板（NEED-USER）
 

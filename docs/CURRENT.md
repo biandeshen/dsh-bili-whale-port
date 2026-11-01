@@ -1,19 +1,29 @@
-# CURRENT —— 工作恢复入口（移植工程）
+# CURRENT —— 现状真相源（移植工程）
 
-> 惯例借鉴 AMpath：新会话/新机器从这里接上，不用翻聊天记录。
-> **架构与能力清单看 [BLUEPRINT.md](./BLUEPRINT.md)（唯一真相源）**；本文件只记"现在到哪、怎么起来"。
+> **本文件只管一件事：现在到哪了、接下来做什么、怎么起来。** 是五份真相源之一。
+> 其余按问题分：**架构**看 [`ARCHITECTURE-2026-11.md`](./ARCHITECTURE-2026-11.md)（代码里现在成立的事，带 `file:line`）· **产品**看 [`PRODUCT.md`](./PRODUCT.md) · **判据**看 [`OBSERVATION-PROTOCOL.md`](./OBSERVATION-PROTOCOL.md) 与 [`evidence/G3B-DECISION-2026-11-01.md`](./evidence/G3B-DECISION-2026-11-01.md) · **版本与变更**看根 [`../CHANGELOG.md`](../CHANGELOG.md)。全部文档的分类与"谁已经让位"见 [`INDEX.md`](./INDEX.md)。
+> `BLUEPRINT.md` 不再是本文件的上级：它的架构部分已由 `ARCHITECTURE-2026-11.md` 取代（分层名与代码不符，见彼文 §8 第 2 条），保留有效的是 50 项能力坐标与改动纪律。
+>
+> **下面每一条以日期开头的记录是台账，不是现状数字。** 门禁一律现跑：
+>
+> ```bash
+> node scripts/run-mjs-tests.mjs    # 全量；本文 2026-11-01 复跑：321 pass / 0 fail / EXECUTED=60
+> node scripts/check-hashes.mjs     # 验收脚本哈希；复跑得「一致」
+> node scripts/check-consumers.mjs  # 生产调用；复跑得「全部有生产调用」
+> ```
 
 ## 现在到哪了
 
-- **2026-11-01 02:10 第二批缺口合 live（第 7 次重启，pid 247472）。** 全部门禁：dsh **320/320（60 文件）**、Cortico mjs **141/141（17 文件）**、consumers 全有生产调用、验收哈希一致。
+- **2026-11-01 12:24 文档真相源仲裁 + 版本线收口（纯文档，不改码、不重启、不开窗）。** 新增 [`INDEX.md`](./INDEX.md)：五份真相源（架构=本页指的 `ARCHITECTURE-2026-11.md` · 现状=本文件 · 产品=`PRODUCT.md` · 判据=`OBSERVATION-PROTOCOL.md`+`evidence/G3B-DECISION-2026-11-01.md` · 版本=`CHANGELOG.md`+`package.json`+tag），37 个顶层 md 全部登记身份；`BLUEPRINT.md`/`PRODUCT.md`/本文件的"唯一真相源"三处互抢就地改掉并互相指认。数字口径：RUNBOOK/DEPLOY/PR 里 **6 处写死的"122 全过"**改成复跑命令（判据统一成 `fail 0`），`ARCHITECTURE.md` §0 与 `ISSUES.md` §0/D-01 的"人格与产物零耦合"按实测改 FIXED（`tools/drafts/compose.mjs:285`、`scripts/draft-dynamic.mjs:67-69`、`tests/contract/voice-state-coupling.test.mjs` 12 pass/0 fail）。`ARCHITECTURE-2026-11.md` 补 §8.1：十条出入逐条处置（8 条已落文档，2 条是 Cortico 侧代码注释、本席边界外，转交）。版本线：`package.json` **0.4.6 → 0.5.0**、首个附注 tag `port-0.5.0`（本地，不 push；此前 `v0.4.6..HEAD` 之间 **239 次提交无 tag**，`git rev-list v0.4.6..HEAD --count`）。本次复跑：全量 **321 pass / 0 fail / EXECUTED=60**、哈希「一致」、consumers「全部有生产调用」、`observation-status` 仍报**观测尚未开始**。
+- **2026-11-01 02:10 第二批缺口合 live（第 7 次重启，pid 247472）。** 全部门禁：dsh **320/320（60 文件）**（当日稍晚复跑 321/321，60 文件——台账不回填）、Cortico mjs **141/141（17 文件）**、consumers 全有生产调用、验收哈希一致。
   - **按她自己立的规矩改的**：`preferences.like` 删掉「冥想与轻音乐」（她连报七轮"门上写着冥想、屋里是游戏广告"），`dislike` 加 引导冥想/睡眠瑜伽/跟练打卡/吃播/开箱，`keywords` 加雨声；feed 候选行现在由工具直接标 `[短于10分钟：跳过]`、`[短于20分钟：降级]`、`[同UP第N条：不深读]`（以前每轮她自己在日记里数 UP）。
   - **称呼收成一处**：`owner.displayName`（`persona-core/src/naming.ts`）。原先"鱼片"散在情绪独白/禁称表/生活活动/日记抬头/私信 --who 五处；只认 `displayName`，不回落 `owner.name`（那是角色标签"主人"）。改名 = 改这一行 + 重启。
   - **观测仪表**：`npm run ops:day` 一条命令打印进程/端口/今日稿/令牌/tick/三条 K4/kill/风控（退出码 0/1/2，全程离线）；私信真发成功才写 `kind:dm-out`（K4-1 从此能机械统计）；`dynamic recent` 的图片稿取位收进一个函数并带 `dyn_id↔草稿id` 对照。
-  - **还没打通的两处**（主人的"设计不完善"直觉，实测成立）：① 控制台对话页（`#/provider/world%3Aconsole`）跟她说话时**不带她的场值与记忆**——grep `bots/cormini/` 零处引用 `describeState`，"鱼缸里的她"和"跟你说话的她"是两套上下文；② feed 回执里的「偏好」仍来自**解析日记叙事**，不是 config——这正是她报"词表没生效"的字面根因，改了 config 那一行也不会出现在回执上。
+  - **还没打通的两处**（主人的"设计不完善"直觉，实测成立）：① 控制台对话页（`#/provider/world%3Aconsole`）跟她说话时**不带她的场值与记忆**——grep `bots/cormini/` 零处引用 `describeState`，"鱼缸里的她"和"跟你说话的她"是两套上下文；② ~~feed 回执里的「偏好」仍来自**解析日记叙事**，不是 config~~ **（本行 02:10 写的这句已过期，当场就被 `76519ff` 修掉：`feed.mjs:38-46` 一直首选 `config().preferences`，回执现在按真实来源打印「统一配置」或「日记兜底」（`feed.mjs:289`）；残留的是"配置为空时用日记「爱看」兜底"这半条格式耦合，见 `ARCHITECTURE-2026-11.md` §7③）**。
   - 私聊现状：本地即时 = 控制台对话页（口令已启用，不经 B站）；真实世界 = B站 私信她账号（mid 497080562），她下次醒才读（3–7 分钟一轮，且她有权整轮不看），回信直发（`dmReply=direct`，已互关）。
 
 - **2026-11-01 01:35「接入日」：两条 dev 线合 live，第 5 次重启，7 块面板齐。** Cortico `e7d5873` + dsh `8a31cc1`；停 bot → `pnpm build:web`（23 产物）→ 重启（pid 243296，health 全绿）。真实浏览器实测：页签 7 个，`发送策略` 里 4 个下拉 + 上限 + 时段全部渲染且读到现行值 `草稿=review · 点赞=self · 收藏=self · 回信=direct`（**没替主人打开 auto**）。门：dsh **311/311（58 文件）**、Cortico mjs **133/133（15 文件）**、vitest **5062 passed/269 文件（跑在合并前的 `dev/policy` 树上）**、consumers 全有生产调用、验收哈希一致。
-  - 这轮把红队第一条"产物与人格局零耦合"真正闭上：`composeDraft` 现在吃 `voice.pace/today/hour/state` 与记忆 slot，**同一段日记 10 个状态变体产出的正文归一化后两两不同**（`tests/contract/voice-state-coupling.test.mjs`，全走真函数无 mock）；坏值 12 组退回基线且不拒稿。旧 voice 文件（没这些字段）照常出稿。
+  - 这轮把红队第一条"产物与人格局零耦合"真正闭上：`composeDraft` 现在吃 `voice.pace/today/hour/state` 与记忆 slot，**同一段日记 10 个状态变体产出的正文归一化后两两不同**（`tests/contract/voice-state-coupling.test.mjs`，全走真函数无 mock；2026-11-01 复跑该文件 12 pass / 0 fail，`VARIANTS` 现为 9 个含基线——数字按文件现量，别抄本行）；坏值 12 组退回基线且不拒稿。旧 voice 文件（没这些字段）照常出稿。
   - 《作品名》取位收到一个口径：嵌套/未闭合书名号不再产生 `《《原神》…` 与 `《…高效补》` 残片，`**` 星号不再漏进正文（现存 `dyn-20261031-9f8a2a` 是修复前写的，稿面仍有 `《《`，不回填）。
   - 记忆闭环（Cortico `de5e122`）：召回会写回（accessCount/鲜活度）、flashbulb 只认"第一次"、她的笔记不再默认标成"主人说的"、`failed/cooldown` 也进记忆。
   - 令牌不进 argv（`--token-env`）；意见箱计数按 dsh 折叠规则（`70f58f1`，原先已解决项会永久点亮未解决灯）；home 认 `DSH_HOME`。
@@ -100,13 +110,17 @@
 
 ```bash
 cd E:/WorkSpace_Qoder/dsh-bili-whale
-npm test                         # 全量回归
+node scripts/run-mjs-tests.mjs # 全量回归（`npm test` 是同一件事；判据 fail 0，条数随提交变化）
+node scripts/check-hashes.mjs  # 验收脚本哈希须「一致」
+node scripts/check-consumers.mjs  # 生产调用须「全部有生产调用」
 node scripts/preflight.mjs        # 部署预检（凭据/风控/端口/OpenCode）
 bash scripts/evaluate.sh quick   # 快速验收剧本
+npm run ops:day                  # 一天的只读汇总：进程/端口/今日稿/令牌/tick/三条 K4/kill/风控
 # 真机上线按 docs/DEPLOY.md 走；交给 AI 执行用 docs/RUNBOOK.md
-node panel/server.js --port 8447 # 鱼缸面板（浏览器打开启动日志里的 ?t= 地址）
 node adapters/opencode/daemon.js --once   # 时钟冒烟（窗口外应零投递）
-# V1 出片（本地，不投稿）：MiMo TTS + CC0 BGM + 双封面
+# 界面：Cortico WebUI 的「小鱼 · 鱼缸」世界页 http://127.0.0.1:7799/#/provider/world%3Abili-account
+#（panel/server.js 的 8447/8448 已退役，只剩调试用途，见 RUNBOOK §2）
+# V1 出片（本地，不投稿，未接调用方）：MiMo TTS + CC0 BGM + 双封面
 node tools/video-build.mjs --image "D:/AI/养鱼/assets/daily/daily-04-goodnight-a.png" \
   --text $'今晚听雨。\n三十九分钟，没有人说话。\n晚安。' --duration 20
 ```
@@ -125,10 +139,13 @@ core/            scheduler/session-delivery/api（宿主无关）
 core/ports/      temporal（AMpath 移植件）
 adapters/opencode/  daemon.js controller.js mcp-stdio.js（接入见其 README）
 panel/           server.js auth.js data.js views/tank.html
-tools/           40 个 B 站命令 + traffic 风控（未动契约）
+tools/           41 个 B 站命令（数法见下）+ traffic 风控（未动契约）
 tools/video-build.mjs  V1 出片 CLI（MiMo/Edge TTS + CC0 BGM + vendor 渲染/封面）
 assets/bgm/      3 首 CC0 BGM + LICENSE + README（可整包替换）
 vendor/          dsh-video-studio（MIT，6 文件）、dsh-autocut（MIT，lib 15 文件）
 tests/contract/  路由/panel 契约；tests/scheduler-snapshot.test.mjs 行为快照
-docs/            BASELINE.md / TERMUX.md；现状看 CURRENT.md，模块边界看 MODULARITY-2026-10-30.md
+docs/            入口与真相源仲裁看 INDEX.md；现状看本文件；架构看 ARCHITECTURE-2026-11.md
+                 BASELINE.md 的路由表被 tests/contract/routes.test.mjs:54 当断言源，不许随手改
 ```
+
+命令行数以 `node tools/bili.mjs help | grep -cE '^  [a-z]'` 现数（2026-11-01 实测 **41**；旧文档写的 40 是 `like` 落地前的数）。

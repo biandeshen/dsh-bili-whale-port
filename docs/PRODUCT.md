@@ -1,7 +1,7 @@
 # PRODUCT · 小鱼（Cortico 人格体）
 
-> 版本：v0.1（草案，待主人拍板） · 日期：2026-10-27
-> 本文件是产品定义，不是实现说明。**架构与 50 项能力清单见 [BLUEPRINT.md](./BLUEPRINT.md)（唯一真相源）**；实现看 `docs/CORTICO-PATCHES.md` 与 `docs/CORTICO-RUNBOOK.md`。
+> 起稿 2026-10-27（当时标"草案待拍板"）；北极星已随主人拍板长到**六条**（第六条 2026-11-01 加，提交 `d83dc95`）。§8 的四项仍挂着待拍板。
+> 本文件是产品定义，不是实现说明。**本文件是「产品」这一件事的真相源**（文档分工见 [INDEX.md](./INDEX.md) §1）：50 项能力坐标的历史出处在 `BLUEPRINT.md` §3（架构部分已让位给 `ARCHITECTURE-2026-11.md`）；实现看 `docs/CORTICO-PATCHES.md` 与 `docs/CORTICO-RUNBOOK.md`；现在做到哪看 `docs/CURRENT.md`。
 
 ## 0. 一句话
 

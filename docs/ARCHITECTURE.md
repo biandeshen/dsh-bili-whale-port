@@ -1,5 +1,6 @@
-# ARCHITECTURE —— 小鱼系统架构与技术方案
+# ARCHITECTURE —— 小鱼系统架构与技术方案（v1 · 设计意图与 M0–M4 规格）
 
+> **现状类断言已废止**（2026-11-01）：代码里现在怎么跑，看 [`ARCHITECTURE-2026-11.md`](./ARCHITECTURE-2026-11.md)（带 `file:line`），文档分工看 [`INDEX.md`](./INDEX.md)。本文件保留的是 §1 的红队裁决表、§6 的 M0–M4 分期设计与 §9 待拍板——它们是被 `ISSUES.md`/`ROADMAP` 引用的历史依据，不再逐条更新。
 > v1 · 2026-10-28 · 本文件回答「**怎么搭**」。产品意图见 `PRODUCT.md`，能力坐标与决策记录见 `BLUEPRINT.md`，运维见 `CORTICO-RUNBOOK.md`。
 > **修订案：`PLAN-REVIEW-2026-10-28.md`**（四组研讨后的逐条改动，优先于本文件的对应段落）。
 > 依据：五路红队攻击报告（`~/.qoder/tmp/ATTACK/01..05`）+ 四路 AMpath 最新分支调研（`~/.qoder/tmp/AMRESEARCH/01..04`，pin `8465cbb`）+ 本机实测。
@@ -7,7 +8,7 @@
 
 ## 0. 一句话
 
-**先修"人格状态到产物"的断链，再谈扩展。** 当前 `buildText()` 只吃日记文本，所以 7 场值、因果链、记忆、关系机对任何可观测产出零影响——红队称此为"人格内核与对外产物零耦合"。不修这条，其余所有工作都无法被验证。
+**先修"人格状态到产物"的断链，再谈扩展。** ~~当前 `buildText()` 只吃日记文本，所以 7 场值、因果链、记忆、关系机对任何可观测产出零影响——红队称此为"人格内核与对外产物零耦合"。~~ **本句是 2026-10-28 的现状，已过期**：出稿现在走 `composeDraft(diaryText, {date, voice})`（`tools/drafts/compose.mjs:285`，由 `scripts/draft-dynamic.mjs:67-69` 调用），voice 缺字段直接拒稿（`compose.mjs:183` `assertVoice`），审批结果由代码结算回场值（`Cortico/src/worlds/bili-account/definition.ts:228`、`:522`）；`buildText`（`compose.mjs:134`）只剩无 voice 时的降级路径。断链闭合同的证据：`tests/contract/voice-state-coupling.test.mjs`（同一段日记 × `VARIANTS` 的 9 个 voice 变体（含基线）→ 正文归一化后两两不同；`node --test tests/contract/voice-state-coupling.test.mjs` → 12 pass / 0 fail，2026-11-01 复跑）。不修这条，其余所有工作都无法被验证——这一句作为**优先级判断**依然成立。
 
 ## 1. 红队与调研的输入（分歧与裁决）
 
@@ -154,7 +155,7 @@ Cortico/
 ## 3. 输出链路（M0 的核心）
 
 ### 3.1 现状与证据
-- `scripts/draft-dynamic.mjs` 的 `buildText(diaryText, {max, date})` 只吃日记；`drafts/2026-10-28.md` 正文与 `whale-diary.md:123` 逐字相同。
+- `scripts/draft-dynamic.mjs` 的 `buildText(diaryText, {max, date})` 只吃日记；`drafts/2026-10-28.md` 正文与 `whale-diary.md:123` 逐字相同。**（2026-11-01 复核：这条是 M0 立项时的问题描述，现已闭合——出稿主路径是 `composeDraft(diaryText, {date, voice})`，`buildText` 只在 `--no-voice` 降级时被调用；见 `ARCHITECTURE-2026-11.md` §8 第 1 条。）**
 - 后果：被拒稿 100 次，第 101 条文字一字不变；情绪、关系、记忆全部无法影响产出。
 
 ### 3.2 方案（两段式，先保证"可验证"，再谈"好看"）

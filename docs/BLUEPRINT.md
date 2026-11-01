@@ -1,6 +1,10 @@
-# BLUEPRINT —— 小鱼系统蓝图（唯一真相源）
+# BLUEPRINT —— 小鱼系统蓝图（能力清单 + 改动纪律；架构部分已让位）
 
-> 版本 v2 · 2026-10-28 · 本文件是**架构与能力的唯一真相源**。
+> 版本 v2 · 2026-10-28。
+> **本文不再是唯一真相源**（2026-11-01 仲裁，见 [`INDEX.md`](./INDEX.md) §1）：
+> - **架构**（代码里现在怎么跑）→ [`ARCHITECTURE-2026-11.md`](./ARCHITECTURE-2026-11.md)。本文 §1 的 L1–L5 分层与代码不同名（现行是 Core / Persona / persona-core / Memory / World，见彼文 §2 与 §8 第 2 条），且本文自己承认分层有三个版本（`:16-24`）。
+> - **现状**（到哪了、怎么起来）→ [`CURRENT.md`](./CURRENT.md)。本文 §3 的 ✓/◐/✗ 是 **2026-10-28 的坐标快照**，只当清单用，别当进度读。
+> - **仍然有效的是**：§3 的四域 50 项能力清单本身、§5 的唯一判据、以及下面三条改动纪律（坐标必须当天实测、"弃/不做/非目标"必须附主人原话与时间戳）。
 > v1（2026-10-27）被查出多处把"限定条件/待办"写成"已否决"，并冒用主人名义拍板；§9 有完整更正记录。
 >
 > **改动纪律（v2 新增第 3 条）**：
@@ -26,7 +30,7 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ L5 呈现    Cortico WebUI ·（待评估）Coopanion 皮套 · 语音：MiMo TTS 本地已通（未接 L5）│
+│ L5 呈现    Cortico WebUI ·（待评估）Coopanion 皮套 · 语音：MiMo TTS 本地已通，**未接任何调用方**│
 ├──────────────────────────────────────────────────────────────┤
 │ L4 渠道    adapters: bilibili / video / live / qq              │
 │            只做协议、工具、风控与**传感器**，不含人格            │
@@ -186,7 +190,7 @@
 
 ## 6. 下一步（**详细技术方案见 [ARCHITECTURE.md](./ARCHITECTURE.md)**）
 
-v2 原本按"缺哪项会让上层全部失效"排序，但 2026-10-28 五路红队证明：**人格状态根本没接进产物**（`buildText` 只吃日记），所以此前所有排序都在断链上游。改为按 `ARCHITECTURE.md` §6 的 M0–M4：
+v2 原本按"缺哪项会让上层全部失效"排序，但 2026-10-28 五路红队证明：**人格状态根本没接进产物**（`buildText` 只吃日记），所以此前所有排序都在断链上游。改为按 `ARCHITECTURE.md` §6 的 M0–M4：**（2026-11-01 更正：断链已在 M0/M1 闭合，出稿走 `composeDraft(diaryText, {date, voice})`；M0–M4 各期的落地与偏差看 `CURRENT.md`，代码现状看 `ARCHITECTURE-2026-11.md` §3。）**
 
 | 期 | 目标 | 退出条件 |
 |---|---|---|
@@ -204,14 +208,18 @@ v2 原本按"缺哪项会让上层全部失效"排序，但 2026-10-28 五路红
 ## 7. 参考
 
 - 产品定义 `PRODUCT.md` · 立项卡 `E-CORTICO-02-BRIEF.md`（工程化）/ `E-CORTICO-03-BRIEF.md`（P0 活过来）
+- 文档入口与真相源仲裁 `INDEX.md` · 架构现状 `ARCHITECTURE-2026-11.md`
 - 运行手册 `CORTICO-RUNBOOK.md` · Cortico 侧改动 `CORTICO-PATCHES.md` · 行为冻结 `BASELINE.md` · 接续入口 `CURRENT.md`
 - 完整对话转录（证据源，勿截断后当证据用）：`~/.qoder/projects/E--WorkSpace-Qoder/*.jsonl`
 
 ## 8. 验证命令（数字须当天重跑，禁止抄本文件）
 
 ```
-cd E:/WorkSpace_Qoder/dsh-bili-whale && npm run gates     # 2026-10-29：本仓 168/168（26 文件）+ Cortico 100/100（11 文件）+ consumers/hashes
-cd E:/WorkSpace_Qoder/Cortico && node --import tsx ../dsh-bili-whale/scripts/drill-gate.mjs   # 34/34
+node scripts/run-mjs-tests.mjs  # dsh 全量：判据是 fail 0（2026-11-01 复跑 321 pass / 0 fail / EXECUTED=60 文件）
+node scripts/check-hashes.mjs   # 验收脚本哈希：末行须「一致」
+node scripts/check-consumers.mjs   # 生产调用：末行须「全部有生产调用」
+npm run gates         # 全部门禁：dsh 全量 + `--root ../Cortico` 的 Cortico 套件 + consumers + hashes（Cortico 目录由另一席维护，本文件不抄它的条数；2026-10-29 那次的旧数 168/168 + 100/100 已作废）
+cd ../Cortico && node --import tsx ../dsh-bili-whale/scripts/drill-gate.mjs   # 离线门禁演练
 node --import tsx --test persona-core/tests/core.test.mjs persona-core/tests/adapter.test.mjs tests/core.test.mjs
 npm run typecheck      # tsc --noEmit，仅覆盖 Cortico；dsh-bili-whale 是纯 JS 无 TS 工具链
 node --import tsx ../dsh-bili-whale/scripts/smoke-tools.mjs   # 真实只读 CLI
