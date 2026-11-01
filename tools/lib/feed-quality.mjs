@@ -40,6 +40,7 @@ export function snapshotRow(x, decision, rank = null) {
     score: Number(x?._score ?? 0),
     keep: Boolean(decision?.keep),
     why: String(decision?.why ?? ''),
+    seen: Boolean(x?._seen),
     rank,
   }
 }

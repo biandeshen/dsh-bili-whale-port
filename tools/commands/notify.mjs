@@ -1,5 +1,5 @@
 import { guardedFetch as fetch } from '../lib/traffic.mjs'
-import { dshPath } from '../lib/paths.mjs'
+import { whalePath } from '../lib/paths.mjs'
 // 通知分发器 —— 她看完一轮，把摘要送到哪。
 //
 // 2026-10-18 主人重定：方式只有四种（不推送 / 桌面通知 / Webhook / 自定义命令）。
@@ -199,7 +199,7 @@ try {
   } else if (type === 'dm') {
     // 2026-10-19 加：B站私信（专属通道）—— 调 commands/dm.mjs 的发送逻辑
     //   私信自带三道闸（只发主人 / 必须互相关注 / 一天只锁定一个收信人）；失败只提示，不抛 ✗
-    // 2026-10-19：DSH 的 Windows 沙箱禁止捕获子进程输出（管道 → EPERM）——
+    // 2026-10-19：桌面宿主的 Windows 沙箱禁止捕获子进程输出（管道 → EPERM）——
     //   用文件句柄重定向拿输出（不走管道），再原样转贴到 stdout/stderr。
     // 2026-10-21 修（审查 P1-1）：原来这里写死 --go，且没有 DRY 判断 ✗
     //   → notify "…" --dry 在 type=dm 时会【真的发出私信】✗
@@ -223,8 +223,8 @@ try {
   } else if (type === 'stdout') {
     console.log(`[通知] ${title}\n${text}`)
   } else if (type === 'file') {
-    // 2026-10-23 修（issue #27）：日志也要跟 DSH_HOME 走 ✓
-    const p = n.path ?? dshPath('whale-notify.log')
+    // 2026-10-23 修（issue #27）：日志也要跟 whale home 走 ✓
+    const p = n.path ?? whalePath('whale-notify.log')
     if (DRY) { console.log(`[dry] 通知文件：${p}（不写入）`); process.exit(0) }
     fs.mkdirSync(path.dirname(p), { recursive: true })
     fs.appendFileSync(p, JSON.stringify(payload) + '\n')

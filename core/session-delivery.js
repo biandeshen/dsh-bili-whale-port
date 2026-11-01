@@ -3,11 +3,11 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 
 // One queue owns session selection and persona acknowledgement for all channels.
-export function createSessionDelivery({controller,dshHome,cwd,sessionId,config,persona,isBusy=()=>false,now=Date.now,log=()=>{},onSession=()=>{}}) {
-  const file=path.join(dshHome,'whale-session.json')
+export function createSessionDelivery({controller,whaleHome,cwd,sessionId,config,persona,isBusy=()=>false,now=Date.now,log=()=>{},onSession=()=>{}}) {
+  const file=path.join(whaleHome,'whale-session.json')
   let state={id:sessionId,startedAt:now()},ready=false,tail=Promise.resolve(),lastDelivered=0
   // 2026-10-24：进程启动后有没有投递过 —— 用来做「重启后首次必注入人设」
-  //   因为 DSH 的 create() 返回 { sessionId, agentPreset? }，分不出"新建"还是"复用" ✗
+  //   因为宿主的 create() 返回 { sessionId, agentPreset? }，分不出"新建"还是"复用" ✗
   let booted=false
   try {
     const saved=JSON.parse(fs.readFileSync(file,'utf8'))
@@ -17,7 +17,7 @@ export function createSessionDelivery({controller,dshHome,cwd,sessionId,config,p
   onSession(state.id)
   lastDelivered=Number.isFinite(state.deliveredAt)?state.deliveredAt:0
   function save(next) {
-    fs.mkdirSync(dshHome,{recursive:true})
+    fs.mkdirSync(whaleHome,{recursive:true})
     const tmp=file+'.'+crypto.randomUUID()+'.tmp'
     try {fs.writeFileSync(tmp,JSON.stringify(next));fs.renameSync(tmp,file)} finally {fs.rmSync(tmp,{force:true})}
   }
@@ -36,11 +36,11 @@ export function createSessionDelivery({controller,dshHome,cwd,sessionId,config,p
           catch(e) {if(rotating)throw e;log('沿用现有会话；若投递失败将保留重试状态')}
         }
         // 端口契约：create() 可能返回宿主自生成的会话 id（OpenCode POST /session 即如此）。
-        // DSH 返回与传入相同；OpenCode 返回新 id —— 必须采纳，否则 prompt 会打到不存在的会话 ✗
+        //   有的宿主返回与传入相同；有的返回新 id —— 必须采纳，否则 prompt 会打到不存在的会话 ✗
         if(created?.sessionId && String(created.sessionId)!==next.id) next.id=String(created.sessionId)
         // 2026-10-24 修第二版（审查报告第 3 条 + 复审）：
         //   上一版想靠 create() 的返回字段判断"是不是新建会话" ✗
-        //   但 DSH 的 sessionController.create 返回的是 { sessionId, agentPreset? }
+        //   但旧桌面宿主的 sessionController.create 返回的是 { sessionId, agentPreset? }
         //   —— 根本没有 created / fresh 这种布尔 ✗ 那段判断永远为假 ✗
         //   （而且注释写着"拿不到信号就往多注入那边靠"，代码却继续跳过 ✗ 自相矛盾）
         //
@@ -57,7 +57,7 @@ export function createSessionDelivery({controller,dshHome,cwd,sessionId,config,p
         const block=persona(),fingerprint=crypto.createHash('sha256').update(block).digest('hex')
         const include=!once||bootFirst||state.personaHash!==fingerprint
         const reminder=`人设依据：${path.join(process.env.USERPROFILE||process.env.HOME||'.','.bili-ai/persona.md')}；上下文缺失时重读。`
-        const diary=`先读本地日记恢复记忆：${path.join(dshHome,'whale-diary.md')} 和 ${path.join(dshHome,'whale-diary-private.md')}；不要将旧会话未确认事项当成已完成。`
+        const diary=`先读本地日记恢复记忆：${path.join(whaleHome,'whale-diary.md')} 和 ${path.join(whaleHome,'whale-diary-private.md')}；不要将旧会话未确认事项当成已完成。`
         const prefix=[include?block:reminder,...((!state.deliveredAt||bootFirst)?[diary]:[])].filter(Boolean).join('\n')
         const content=[...(request.content??[])]
         if(content[0]?.type==='text')content[0]={...content[0],text:prefix+'\n'+content[0].text}

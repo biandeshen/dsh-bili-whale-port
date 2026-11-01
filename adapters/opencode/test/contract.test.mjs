@@ -44,7 +44,7 @@ test('controller→session-delivery：固定会话 + 人设前缀 + prompt_async
   const cfgFile = path.join(dshHome, 'bili-whale.config.json')
   fs.writeFileSync(cfgFile, JSON.stringify({ sessionRotateDays: 0, personaOncePerSession: false }))
   const delivery = createSessionDelivery({
-    controller, dshHome, cwd: home, sessionId: 'bili-whale', // 故意用占位 id：create 返回宿主真 id 后必须被采纳
+    controller, whaleHome: dshHome, cwd: home, sessionId: 'bili-whale', // 故意用占位 id：create 返回宿主真 id 后必须被采纳
     config: () => JSON.parse(fs.readFileSync(cfgFile, 'utf8')),
     persona: () => '你是小鲸', log: () => {},
   })

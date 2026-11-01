@@ -11,7 +11,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import net from 'node:net'
-import { DSH_HOME as WHALE_HOME, draftsDir } from '../tools/lib/paths.mjs'
+import { whaleHome as WHALE_HOME, draftsDir } from '../tools/lib/paths.mjs'
 import { causalFile } from '../tools/lib/causal.mjs'
 import { isKillOn } from '../tools/lib/kill.mjs'
 import { queueDir } from './ack.mjs'

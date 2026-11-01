@@ -1,10 +1,10 @@
 // Shared planning engine: absolute timestamps and persistent per-window history.
 import fs from 'node:fs'
 import path from 'node:path'
-import { dshPath } from '../lib/paths.mjs'
+import { whalePath } from '../lib/paths.mjs'
 import { readNightConfig } from '../lib/night-config.mjs'
 import { makePlan, completePlan, dayOf } from '../lib/night-plan.mjs'
-const STATE = dshPath('whale-night.json')
+const STATE = whalePath('whale-night.json')
 const load = () => { try { return JSON.parse(fs.readFileSync(STATE, 'utf8')) } catch { return {} } }
 const save = (file, value) => { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, JSON.stringify(value, null, 2) + '\n') }
 const [cmd, ...args] = process.argv.slice(2)
@@ -14,7 +14,7 @@ if (cmd === 'plan') {
   save(STATE, p)
   console.log(JSON.stringify(p, null, 2))
 } else if (cmd === 'mark') {
-  save(dshPath('whale-wake'), { date: dayOf(), at: new Date().toISOString(), by: 'task' })
+  save(whalePath('whale-wake'), { date: dayOf(), at: new Date().toISOString(), by: 'task' })
   console.log('已留唤醒标记')
 } else if (cmd === 'status') {
   console.log(JSON.stringify({ config: readNightConfig(), state: load() }, null, 2))

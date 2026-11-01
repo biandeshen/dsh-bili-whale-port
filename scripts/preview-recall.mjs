@@ -7,9 +7,8 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
+import { whaleHome } from '../tools/lib/paths.mjs'
 
-const HOME = process.env.USERPROFILE || process.env.HOME || ''
-const WHALE = process.env.WHALE_HOME || path.join(HOME, '.dsh')
 const CORTICO = process.env.CORTICO_ROOT || path.resolve(process.cwd())
 const base = 'file:///' + CORTICO.replace(/\\/g, '/')
 
@@ -17,8 +16,8 @@ const { loadState, describeState, recentWatch } = await import(base + '/src/worl
 const { buildVoiceBrief } = await import(base + '/persona-core/src/voice-brief.ts')
 const { dayKey } = await import(base + '/persona-core/src/rhythm.ts')
 
-const state = loadState(path.join(WHALE, 'bili-whale', 'fields.json'))
-const diary = (() => { try { return fs.readFileSync(path.join(WHALE, 'whale-diary.md'), 'utf8') } catch { return '' } })()
+const state = loadState(path.join(whaleHome, 'bili-whale', 'fields.json'))
+const diary = (() => { try { return fs.readFileSync(path.join(whaleHome, 'whale-diary.md'), 'utf8') } catch { return '' } })()
 const tail = diary.slice(-2000)
 const seed = dayKey(Date.now())
 

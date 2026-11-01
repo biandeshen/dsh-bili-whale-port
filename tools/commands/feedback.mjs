@@ -16,11 +16,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
-import { dshPath } from '../lib/paths.mjs'
+import { whalePath } from '../lib/paths.mjs'
 // 日界与快照同源（scripts/day-snapshot.mjs 是唯一实现，不复制第三份）
 import { logicalDay as dayOf } from '../../scripts/day-snapshot.mjs'
 
-const FILE = dshPath('bili-whale', 'control', 'feedback.jsonl')
+const FILE = whalePath('bili-whale', 'control', 'feedback.jsonl')
 
 function readEntries(file = FILE) {
   try {

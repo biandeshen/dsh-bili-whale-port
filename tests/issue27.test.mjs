@@ -13,7 +13,7 @@ function fixture(t,cfg={}) {
   t.after(()=>fs.rmSync(dir,{recursive:true,force:true}))
   let time=10*86400000,block='PERSONA-A',busy=false,fail=false,createFail=false
   const sent=[],created=[]
-  const args={dshHome:dir,cwd:dir,sessionId:'bili-whale',config:()=>cfg,persona:()=>block,now:()=>time,isBusy:()=>busy,
+  const args={whaleHome:dir,cwd:dir,sessionId:'bili-whale',config:()=>cfg,persona:()=>block,now:()=>time,isBusy:()=>busy,
     controller:{async create(r){if(createFail)throw Error('create failed');created.push(r)},async prompt(r){if(fail)throw Error('send failed');sent.push(r)}}}
   const request={content:[{type:'text',text:'TASK'}]}
   return {dir,args,sent,created,request,make:()=>createSessionDelivery(args),advance:n=>time+=n,persona:s=>block=s,busy:b=>busy=b,fail:b=>fail=b,createFail:b=>createFail=b}
@@ -65,7 +65,7 @@ test('tile options do not consume positional output directory; invalid widths re
   assert.equal(watchOptions(['BVtest'],'default').tile,720)
   for(const v of ['','NaN','239','1281','720.5'])assert.throws(()=>watchOptions(['BVtest','--tile='+v],'default'))
 })
-test('custom DSH_HOME is used by deps, notify and selftest without touching default .dsh',t=>{
+test('自定义 whale home（旧名 DSH_HOME）被 deps、notify、selftest 使用，不落到默认 .dsh',t=>{
   const f=fixture(t),dsh=path.join(f.dir,'custom-dsh');fs.mkdirSync(dsh)
   const env={...process.env,USERPROFILE:f.dir,HOME:f.dir,DSH_HOME:dsh,DSH_NODE:process.execPath,BILI_WHALE_CONFIG:'',NODE_OPTIONS:''}
   fs.writeFileSync(path.join(dsh,'bili-whale.config.json'),JSON.stringify({night:{windows:[{start:'20:00',end:'24:00'}]},notify:{type:'file'}}))
@@ -77,6 +77,6 @@ test('custom DSH_HOME is used by deps, notify and selftest without touching defa
   const notice=run('notify','local path test');assert.equal(notice.status,0,notice.stderr)
   assert.match(fs.readFileSync(path.join(dsh,'whale-notify.log'),'utf8'),/local path test/)
   const self=run('selftest');assert.equal(self.error,undefined)
-  assert.ok(self.stdout.split('\n').some(line=>line.includes('目录 DSH_HOME')&&line.includes(dsh)&&line.includes('✓')),self.stdout)
+  assert.ok(self.stdout.split('\n').some(line=>line.includes('目录 whale home')&&line.includes(dsh)&&line.includes('✓')),self.stdout)
   assert.equal(fs.existsSync(path.join(f.dir,'.dsh')),false)
 })

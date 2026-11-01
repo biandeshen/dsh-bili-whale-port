@@ -120,7 +120,7 @@ textarea{width:100%;min-height:260px;font-family:ui-monospace,Menlo,monospace}
   </div>
 
   <div class="pane" id="p3">
-    <div class="card"><h2>养鱼设置（bili-whale.config.json · 与 DSH/daemon 同一份文件）</h2>
+    <div class="card"><h2>养鱼设置（bili-whale.config.json · 面板与常驻进程同一份文件）</h2>
       <textarea id="cfg" spellcheck="false"></textarea>
       <div class="row"><span class="hint">风控预算为写死值，改 risk 段不会绕过闸（值在 tools/lib/traffic.mjs 强制下限）</span></div>
       <div class="row"><button class="act ok" id="save">保存</button><button class="act" id="reload">放弃重载</button><button class="act" id="ntest">发条测试推送</button><span id="saveout"></span></div>
@@ -201,7 +201,7 @@ async function loadAll(){
     +'<button class="act ok" data-fb="'+esc(x.id)+'">✓ 已解决</button></div>').join('')
     :'<span class="hint">她还没提过意见 ✓（她可以用 bili_feedback add 记一条）</span>')
   const wiz=$('wiz');const s1=!!(cfg.config.owner&&cfg.config.owner.mid);const s2=!!(cfg.credentials&&cfg.credentials.hasSess&&cfg.credentials.hasJct);const s3=true
-  if(!(s1&&s2)){wiz.style.display='block';$('wz1').textContent=s1?'✓':'去设置里填';$('wz2').textContent=s2?'✓':'去设置里粘贴';$('wz3').textContent='默认 20:00–24:00 醒 1 次；ntfy/bark 可选';$('wzhint').textContent='都亮 ✓ 后，装 DSH 插件或起 whale-daemon，到窗口她就自己醒（见 docs/RUNBOOK.md）'}else wiz.style.display='none'
+  if(!(s1&&s2)){wiz.style.display='block';$('wz1').textContent=s1?'✓':'去设置里填';$('wz2').textContent=s2?'✓':'去设置里粘贴';$('wz3').textContent='默认 20:00–24:00 醒 1 次；ntfy/bark 可选';$('wzhint').textContent='都亮 ✓ 后，起常驻进程（whale-daemon，或面板带 PANEL_SCHED=1），到窗口她就自己醒（见 docs/RUNBOOK.md）'}else wiz.style.display='none'
   if(!$('cfg').dataset.loaded){$('cfg').value=JSON.stringify(cfg.config,null,2);$('cfg').dataset.loaded='1'}
   if(!$('persona').value){try{const pe=await api('/api/persona');$('persona').value=pe.text??''}catch{}}
 }

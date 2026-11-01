@@ -7,7 +7,14 @@ try {
   const guard=trafficGuard()
   if(command==='status') {
     const s=guard.status()
-    console.log(JSON.stringify({settings:riskSettings(),pausedUntil:s.until??null,reason:s.reason??null,manualAccounts:Object.keys(s.manual??{}).length,accounts:s.accounts??{},pending:Object.entries(s.operations??{}).filter(([,v])=>['unknown','pending'].includes(v.status)).map(([id,v])=>({id,...v})),last:s.last??null},null,2))
+    // 到期自检（f-617735）：until 过期后 blocked() 早就按 until>now 放行，
+    // 但状态回执仍挂着旧时间戳说"暂停中"，分不清"未到期"还是"到期未清除"。
+    // 这里只把口径写清楚（remainingMs / pauseState）；额度与闸门判断不动。
+    const now=Date.now()
+    const until=Number(s.until??0)
+    const active=until>now
+    const expired=until>0&&!active
+    console.log(JSON.stringify({settings:riskSettings(),pausedUntil:s.until??null,paused:active,pauseState:active?'未到期':(expired?'已到期，等待平台侧解除':'从未暂停'),remainingMs:active?until-now:null,reason:s.reason??null,manualAccounts:Object.keys(s.manual??{}).length,accounts:s.accounts??{},pending:Object.entries(s.operations??{}).filter(([,v])=>['unknown','pending'].includes(v.status)).map(([id,v])=>({id,...v})),last:s.last??null},null,2))
   } else if(command==='resume' && args.includes('--go')) {
     const c=JSON.parse(fs.readFileSync(path.join(process.env.USERPROFILE||process.env.HOME,'.bili-ai/credentials.json'),'utf8'))
     await guard.resume({cookie:`SESSDATA=${c.sessdata}`})

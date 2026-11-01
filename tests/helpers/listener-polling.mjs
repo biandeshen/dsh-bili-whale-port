@@ -39,7 +39,7 @@ const save=()=>fs.writeFileSync(process.env.BILI_WHALE_CONFIG,JSON.stringify(cfg
 const {startScheduler}=await import('../../core/scheduler.js')
 const {trafficGuard}=await import('../../tools/lib/traffic.mjs')
 let deliveries=0
-const s=startScheduler({controller:{create:async()=>{},prompt:async()=>{deliveries++}}},{dshHome:dsh,cwd:home,biliMjs:fileURLToPath(new URL('../../tools/bili.mjs',import.meta.url))})
+const s=startScheduler({controller:{create:async()=>{},prompt:async()=>{deliveries++}}},{whaleHome:dsh,cwd:home,biliMjs:fileURLToPath(new URL('../../tools/bili.mjs',import.meta.url))})
 const both=async()=>{await s.dmTick();await s.listenTick()}
 const counts=()=>[dmCalls,commentCalls]
 const delta=(before,expected)=>assert.deepEqual(counts().map((n,i)=>n-before[i]),expected)

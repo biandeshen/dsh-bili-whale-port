@@ -14,7 +14,7 @@ import { apiGet } from '../lib/bili-api.mjs'
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
-import { dshPath } from '../lib/paths.mjs'
+import { whalePath } from '../lib/paths.mjs'
 
 
 const argv = process.argv.slice(2)
@@ -91,7 +91,7 @@ try { body = JSON.parse(rawText).body ?? [] } catch { console.error('字幕不�
 if (!body.length) { console.error('字幕 JSON 里 body 是空的'); process.exit(5) }
 console.log(`字幕行数: ${body.length}   覆盖 ${fmt(body[0].from)} → ${fmt(body.at(-1).to ?? body.at(-1).from)}`)
 
-const outDir = typeof opt.out === 'string' ? opt.out : dshPath('shots', 'subs')
+const outDir = typeof opt.out === 'string' ? opt.out : whalePath('shots', 'subs')
 fs.mkdirSync(outDir, { recursive: true })
 const base = path.join(outDir, `${bvid}-${pick.lan}`)
 fs.writeFileSync(base + '.json', rawText)

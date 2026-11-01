@@ -1,5 +1,5 @@
 /**
- * panel 鉴权 —— 取代 DSH 的 requestRejection（那是宿主专属栅栏）。
+ * panel 鉴权 —— 宿主自带的信任栅栏（requestRejection 之类）在这里换成 Bearer token。
  * 规则：默认只绑 127.0.0.1；每个请求仍需 Bearer token（fail-closed）；
  * token 首启自动生成，存 <WHALE_HOME>/panel.token（0600），面板页用 ?t= 引导一次。
  */

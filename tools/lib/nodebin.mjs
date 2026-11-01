@@ -1,6 +1,6 @@
-import { DSH_HOME } from './paths.mjs'
+import { whaleHome } from './paths.mjs'
 import { resolveRuntime } from './runtime.mjs'
-const runtime = resolveRuntime(DSH_HOME, { allowCurrent: true })
+const runtime = resolveRuntime(whaleHome, { allowCurrent: true })
 export const NODE_EXE = runtime.file
 export const NODE_ENV = runtime.env
 // Also propagate to existing callers which inherit the tool process environment.

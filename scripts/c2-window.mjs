@@ -10,11 +10,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { spawn, spawnSync } from 'node:child_process'
-import { DSH_HOME } from '../tools/lib/paths.mjs'
+import { whaleHome, isDefaultWhaleHome, LEGACY_DRAFTS } from '../tools/lib/paths.mjs'
 import { closeFromLastTick } from './day-snapshot.mjs'
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..')
-const CONTROL = path.join(DSH_HOME, 'bili-whale', 'control')
+const CONTROL = path.join(whaleHome, 'bili-whale', 'control')
 const LOG = path.join(CONTROL, 'c2-window.log')
 const C2 = path.join(CONTROL, 'c2.json')
 const SKIPPED = path.join(CONTROL, 'c2-window-skipped.json')
@@ -25,11 +25,9 @@ const cmd = process.argv[2]
 const dry = process.argv.includes('--dry')
 const logicalDay = (now = Date.now()) => new Date(now).toLocaleDateString('sv-SE') // 自然日
 
-const LEGACY_DRAFTS = 'D:/AI/养鱼/drafts'
 function draftsDir() {
-  const home = process.env.USERPROFILE || process.env.HOME || ''
-  const isDefault = path.resolve(DSH_HOME).toLowerCase() === path.resolve(home, '.dsh').toLowerCase()
-  return process.env.WHALE_DRAFTS || (isDefault && fs.existsSync(LEGACY_DRAFTS) ? LEGACY_DRAFTS : path.join(DSH_HOME, 'bili-whale', 'drafts'))
+  // 与冻结的验收脚本同一套优先级：env 覆盖 → 「家仍是默认落点」且旧目录存在 → whale home
+  return process.env.WHALE_DRAFTS || (isDefaultWhaleHome() && fs.existsSync(LEGACY_DRAFTS) ? LEGACY_DRAFTS : path.join(whaleHome, 'bili-whale', 'drafts'))
 }
 /** 当天有带 diaryHash 的稿，C2 的 day-report 才有基础；没有就别停，停了也过不了。 */
 function validDraftToday(day) {
@@ -171,7 +169,7 @@ if (cmd === 'stop') {
   const corticoPid = pidFrom(CORTICO_PID)
   let lastTickAt = null
   try {
-    const lines = fs.readFileSync(path.join(DSH_HOME, 'bili-whale', 'days', day, 'ticks.jsonl'), 'utf8').trim().split('\n').filter(Boolean)
+    const lines = fs.readFileSync(path.join(whaleHome, 'bili-whale', 'days', day, 'ticks.jsonl'), 'utf8').trim().split('\n').filter(Boolean)
     lastTickAt = JSON.parse(lines[lines.length - 1]).at
   } catch {}
   console.log(JSON.stringify({
@@ -198,8 +196,8 @@ if (cmd === 'stop') {
   const check = spawnSync(NODE, [path.join(ROOT, 'scripts', 'c2-window.mjs'), 'check'], { encoding: 'utf8', timeout: 30000 })
   let parsed = null
   try { parsed = JSON.parse(check.stdout) } catch {}
-  const cf = readJson(path.join(DSH_HOME, 'bili-whale', 'days', '2026-10-29', 'counterfactual.json'))
-  const end = readJson(path.join(DSH_HOME, 'bili-whale', 'days', '2026-10-29', 'state.end.json'))
+  const cf = readJson(path.join(whaleHome, 'bili-whale', 'days', '2026-10-29', 'counterfactual.json'))
+  const end = readJson(path.join(whaleHome, 'bili-whale', 'days', '2026-10-29', 'state.end.json'))
   const out = {
     at: new Date().toISOString(),
     healthExit: health.status,

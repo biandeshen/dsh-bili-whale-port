@@ -12,13 +12,13 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { execFileSync } from '../lib/capture.mjs'
 import { requireFfmpeg } from '../lib/ffmpeg.mjs'
-import { dshPath } from '../lib/paths.mjs'
+import { whalePath } from '../lib/paths.mjs'
 
 
 let FFMPEG
 try { FFMPEG = requireFfmpeg() } catch (e) { console.error(String(e.message)); process.exit(2) }
 let parsed
-try { parsed = watchOptions(process.argv.slice(2), dshPath('shots','video')) } catch(e) { console.error(e.message); process.exit(2) }
+try { parsed = watchOptions(process.argv.slice(2), whalePath('shots','video')) } catch(e) { console.error(e.message); process.exit(2) }
 const {bvid,grid,outDir,tile:TILE} = parsed
 if (!bvid) { console.error('用法: node bili-watch.mjs <BV号> [列x行] [outDir]'); process.exit(2) }
 const [cols, rows] = grid.split('x').map(Number)

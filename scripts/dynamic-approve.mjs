@@ -6,7 +6,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
-import { DSH_HOME as WHALE_HOME, draftsDir } from '../tools/lib/paths.mjs'
+import { whaleHome as WHALE_HOME, draftsDir } from '../tools/lib/paths.mjs'
 import * as ack from './ack.mjs'
 import { loadDraftById, saveDraftFile, audit as auditDraft, recordDraftResult as recordResult, markUsed as markImgUsed } from '../tools/drafts/store.mjs'
 // M2：审批只认 publisher（发布实现的唯一入口）；runner 保留为测试注入（映射成 publisher 形状）

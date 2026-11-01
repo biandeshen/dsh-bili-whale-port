@@ -54,7 +54,7 @@ export function decision(bvid,oid,threshold=AI_SUSPECT_THRESHOLD) {
   threshold=Number(threshold);if(!Number.isFinite(threshold)||threshold<1||threshold>100)threshold=AI_SUSPECT_THRESHOLD
   if(!sample||sample.oid!==String(oid))return {status:'pending',allow:false,reason:'尚无有效样本，请先运行 ai-share sample'}
   if(sample.rows.length<20)return {status:'insufficient',allow:true,n:sample.rows.length,reason:'样本不足 20 条，无法判断；按策略允许分享'}
-  if(!a||a.sampleId!==sample.sampleId)return {status:'pending',allow:false,reason:'样本尚未由 DSH 模型评估'}
+  if(!a||a.sampleId!==sample.sampleId)return {status:'pending',allow:false,reason:'样本尚未由模型评估'}
   const n=a.labels.length, suspected=a.labels.filter(x=>x.label==='suspected').length, unknown=a.labels.filter(x=>x.label==='uncertain').length
   const ratio=suspected/n*100
   if(sample.limit<40 && Math.abs(ratio-threshold)<=10)return {status:'expand',allow:false,n,ratio,reason:'接近阈值，请 sample --more 补充样本后重新判断'}

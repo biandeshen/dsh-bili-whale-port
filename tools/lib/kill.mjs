@@ -12,10 +12,10 @@
  * approve 层（dynamic-approve/dm-approve）保留更友好的提前拦截，两层同源同文件。
  */
 import fs from 'node:fs'
-import { dshPath } from './paths.mjs'
+import { whalePath } from './paths.mjs'
 
 /** kill 文件路径（每次调用现算，setHomes 后跟着走）。 */
-export const killFile = () => dshPath('bili-whale', 'control', 'kill')
+export const killFile = () => whalePath('bili-whale', 'control', 'kill')
 
 export function isKillOn() {
   try { return fs.existsSync(killFile()) } catch { return false }

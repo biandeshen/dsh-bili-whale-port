@@ -9,11 +9,11 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
-import { DSH_HOME } from '../tools/lib/paths.mjs'
+import { whaleHome } from '../tools/lib/paths.mjs'
 
 const LEGACY_FIELDS = ['trust', 'boredom', 'fulfillment']
 const dry = process.argv.includes('--dry')
-const file = path.join(process.env.WHALE_HOME || DSH_HOME, 'bili-whale', 'causal.jsonl')
+const file = path.join(whaleHome, 'bili-whale', 'causal.jsonl')
 
 if (!fs.existsSync(file)) {
   console.log(JSON.stringify({ ok: true, file, rows: 0, migrated: 0, note: 'no causal file' }))

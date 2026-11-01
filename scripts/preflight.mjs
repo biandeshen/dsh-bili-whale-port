@@ -7,7 +7,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import net from 'node:net'
-import { HOME, DSH_HOME as WHALE_HOME, configPath, credentialsPath } from '../tools/lib/paths.mjs'
+import { HOME, whaleHome as WHALE_HOME, configPath, credentialsPath } from '../tools/lib/paths.mjs'
 import { trafficGuard } from '../tools/lib/traffic.mjs'
 
 const JSON_OUT = process.argv.includes('--json')
@@ -72,7 +72,7 @@ try {
   add(r.ok ? 'ok' : 'warn', 'OpenCode server', `HTTP ${r.status} @ ${ocUrl}`)
 } catch {
   if (process.env.OPENCODE_WANTED === '1') add('fail', 'OpenCode server 不可达', `${ocUrl}：先 opencode serve 并设置 OPENCODE_SERVER_PASSWORD`)
-  else add('warn', 'OpenCode server 未连上', `${ocUrl}（仅 DSH/面板部署可忽略；OpenCode 部署请设 OPENCODE_WANTED=1）`)
+  else add('warn', 'OpenCode server 未连上', `${ocUrl}（只跑面板的部署可忽略；OpenCode 部署请设 OPENCODE_WANTED=1）`)
 }
 
 const fails = results.filter(r => r.level === 'fail')

@@ -8,7 +8,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
-import { DSH_HOME as WHALE_HOME } from '../tools/lib/paths.mjs'
+import { whaleHome as WHALE_HOME } from '../tools/lib/paths.mjs'
 import { loadDrafts, findDraft, setStatus, textHash } from '../tools/lib/dm-drafts.mjs'
 import * as ack from './ack.mjs'
 import { sendOwnerDm } from '../tools/lib/dm-send-core.mjs'

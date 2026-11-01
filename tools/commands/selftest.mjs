@@ -10,13 +10,13 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { execFileSync } from '../lib/capture.mjs'
 import { fileURLToPath } from 'node:url'
-import { dshPath } from '../lib/paths.mjs'
+import { whalePath } from '../lib/paths.mjs'
 import { NODE_EXE } from '../lib/nodebin.mjs'   // 2026-10-21：别用 process.execPath（Electron 里它是主程序 ✗）
 
 
 const HOME = (process.env.USERPROFILE || process.env.HOME || '/')
-const DSH = dshPath()
-const CFG = path.join(DSH, 'bili-whale.config.json')
+const WHALE = whalePath()
+const CFG = path.join(WHALE, 'bili-whale.config.json')
 const CRED = path.join(HOME, '.bili-ai', 'credentials.json')
 const OK = '✓'
 const NO = '✗'
@@ -69,11 +69,11 @@ try {
 }
 
 // ④ 数据目录
-// 2026-10-23 修（issue #27）：'.dsh' 那条要看 DSH_HOME ✗ 不能写死 HOME/.dsh
-for (const [label, p] of [['.bili-ai', path.join(HOME, '.bili-ai')], ['DSH_HOME', DSH]]) {
+// 2026-10-23 修（issue #27）：'.dsh' 那条要看 whale home ✗ 不能写死 HOME/.dsh
+for (const [label, p] of [['.bili-ai', path.join(HOME, '.bili-ai')], ['whale home', WHALE]]) {
   line(fs.existsSync(p) ? OK : NO, '目录 ' + label, p)
 }
-const DIARY = path.join(DSH, 'whale-diary.md')
+const DIARY = path.join(WHALE, 'whale-diary.md')
 line(fs.existsSync(DIARY) ? OK : WARN, '日记', fs.existsSync(DIARY) ? '已存在' : '还没建（她第一次醒来会写）')
 
 // ⑤ 依赖体检（直接调现成的 deps，别在这里重复实现 ✗）

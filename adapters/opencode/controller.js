@@ -3,7 +3,7 @@
  *
  * 对应关系（官方 server API：opencode serve，OpenAPI 见 /doc）：
  *   create({sessionId})  → POST /session                 （server 自己生成 id，返回之；
- *                          session-delivery 轮换时传入的 uuid 被忽略，语义同 DSH：
+ *                          session-delivery 轮换时传入的 uuid 被忽略，语义同桌面宿主：
  *                          create() 返回 { sessionId }，分不出新建/复用）
  *   prompt(request)      → POST /session/:id/prompt_async （204 立即返回；她干活不阻塞时钟）
  *   isBusy()             → GET  /session/:id 的 status    （端口可选项；缺省时 core 用冷却兜底）
