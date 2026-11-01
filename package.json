@@ -24,6 +24,8 @@
     "observe:day": "node scripts/observation-day.mjs",
     "ops:day": "node scripts/ops-day.mjs",
     "ops:backup": "node scripts/ops-backup.mjs",
+    "ops:repair-mem": "node scripts/repair-memory-source.mjs",
+    "ops:repair-mem:go": "node scripts/repair-memory-source.mjs --go",
     "observe:start": "node scripts/observation-start.mjs",
     "audit:goal": "node scripts/goal-audit.mjs",
     "c2:arm": "node scripts/c2-offline.mjs arm",
