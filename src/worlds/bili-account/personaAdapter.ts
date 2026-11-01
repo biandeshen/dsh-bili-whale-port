@@ -11,7 +11,7 @@ import { EffectBus } from '../../../persona-core/src/effect-bus.ts'
 import type { AtomicFields, CausalEvent, Memory } from '../../../persona-core/src/types.ts'
 import { DEFAULT_ATOMIC_FIELDS } from '../../../persona-core/src/types.ts'
 import { recordFieldChangeL0 } from '../../../persona-core/src/causal-chain.ts'
-import { decayMemory, calculateEncodingStrength, recallMemory } from '../../../persona-core/src/memory.ts'
+import { decayMemory, calculateEncodingStrength, recallMemory, voidMemories } from '../../../persona-core/src/memory.ts'
 import { recallMemories, watchedFromMemories } from '../../../persona-core/src/retrieval.ts'
 import { simulateOfflineTime } from '../../../persona-core/src/decay.ts'
 import { createInitialState, deriveNPCState } from '../../../persona-core/src/npc-state-machine.ts'
@@ -327,6 +327,24 @@ export function rememberFirst(
 ): PersonaState {
   const first = !s.memories.some((m) => (m.tags ?? []).includes(tag))
   return remember(s, content, { ...opts, tags: [...(opts.tags ?? []), tag], milestone: first })
+}
+
+/**
+ * 她要更正某条记忆时先点名（#55）。先按 id 精确，再按正文片段（包含即算，忽略大小写）。
+ * 返回全部命中，交给调用方决定"一条还是几条"——模糊命中多条时工具会拒绝，不替她猜。
+ */
+export function findMemories(s: PersonaState, sel: { id?: string; match?: string }): Memory[] {
+  const ms = s.memories ?? []
+  if (sel.id) return ms.filter((m) => m.id === sel.id)
+  const q = String(sel.match ?? '').trim().toLowerCase()
+  if (!q) return []
+  return ms.filter((m) => String(m.content ?? '').toLowerCase().includes(q))
+}
+
+/** 盖作废章：原文留着（可复盘"当初为什么这么记"），但不再被召回。没命中就原样返回。 */
+export function voidMemory(s: PersonaState, id: string, reason: string, now = Date.now()): PersonaState {
+  const { memories, voidedIds } = voidMemories(s.memories, [id], reason, now)
+  return voidedIds.length ? { ...s, memories } : s
 }
 
 const RELATION_LABEL: Record<string, string> = {

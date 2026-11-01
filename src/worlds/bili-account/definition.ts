@@ -9,7 +9,7 @@ import { repoRoot } from '../../paths.ts'
 import type { DescribeText, ToolDescribe, WorldWebUiDecl } from '../../core/types.ts'
 import { canDraft, draftRefusal, canApplyWatched, watchedRefusal, violationNotice, diaryFresh, diaryRefusal } from './gates.ts'
 import { upsertDiarySection, sectionStats, diaryDefaultHeader, paginateDiary } from './diary.ts'
-import { loadState, saveState, applyEffects, remember, rememberFirst, describeStateWithTrace, applyRecall, recentWatch, annotateFeed, PRESETS, WATCH_VERDICTS } from './personaAdapter.ts'
+import { loadState, saveState, applyEffects, remember, rememberFirst, describeStateWithTrace, applyRecall, recentWatch, annotateFeed, findMemories, voidMemory, PRESETS, WATCH_VERDICTS } from './personaAdapter.ts'
 import type { WatchVerdict } from './personaAdapter.ts'
 import type { PresetEffect } from './personaAdapter.ts'
 import { buildVoiceBrief } from '../../../persona-core/src/voice-brief.ts'
@@ -426,6 +426,7 @@ const TOOL_SUMMARIES: Record<string, DescribeText> = {
   bili_like: { zh: '给她看完觉得好的视频点赞（自己发，过风控）', en: 'Like a video she enjoyed (self-sent, traffic-guarded).' },
   bili_fav: { zh: '收藏视频（自己发；五条判据+每天 3 条上限，不过就拒）', en: 'Favorite a video (self-sent; five criteria + 3/day cap, refuses on failure).' },
   bili_capabilities: { zh: '看清自己此刻有什么手脚：能调的工具（读/写）、装着的扩展、这份部署的开关（只读，启用与安装归主人）', en: 'List the tools callable now, the installed extensions and this deployment\'s world switches (read-only).' },
+  bili_memory_void: { zh: '更正记忆：写错的那条可以盖作废章（不再被想起，但原文留着可复盘）；只准点名一条', en: 'Void one wrongly-recorded memory (it stops being recalled; text kept for review).' },
 }
 
 const DECLS = [
@@ -443,6 +444,7 @@ const DECLS = [
   { name: 'bili_like', description: "Like a video she actually enjoyed (self-sent since 2026-10-31, still traffic-guarded). A like is a light signal — no cap, but do not like everything.", tags: ['write'], parameters: { type: 'object', properties: { bvid: { type: 'string' }, reason: { type: 'string', description: '为什么赞（一句话，写进偏好账）' } }, required: ['bvid'], additionalProperties: false } },
   { name: 'bili_fav', description: "Add a video to her favorites (self-sent since 2026-10-31). Five criteria still apply and the tool REFUSES when they fail: reason ≥6 chars, ≤3/day, no repeat within 30 days, ≤2 per kind unless better. A refusal is final — do not retry.", tags: ['write'], parameters: { type: 'object', properties: { bvid: { type: 'string' }, reason: { type: 'string', description: '为什么留（≥6 字）' }, better: { type: 'boolean', description: '比同类别已收的明显更好时置 true' } }, required: ['bvid', 'reason'], additionalProperties: false } },
   { name: 'bili_capabilities', description: 'Inventory of her own capabilities right now, one line each: every tool actually callable this turn (name + one-line function + read/write tag), every extension package installed on this machine with its enabled state, and this deployment\'s world switches. Read-only: it changes, enables and installs nothing.', tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'bili_memory_void', description: "Void one memory she now believes was recorded wrongly (local only, never touches Bilibili). The original text stays in her state for later review but stops coming back to mind. She must name ONE memory: an exact id, or a text match that hits exactly one. 0 hits or 2+ hits is REFUSED with the candidate list — never void a pile on a guess, and a refusal is not a bug to retry.", tags: ['write'], parameters: { type: 'object', properties: { id: { type: 'string', description: '记忆 id（从工具上一次给的候选清单里取，最准）' }, match: { type: 'string', description: '正文片段；只有唯一命中才生效' }, reason: { type: 'string', description: '为什么作废（≥6 字，留在条上供她日后复盘）' } }, required: ['reason'], additionalProperties: false } },
 ] as const
 
 /** 自描述与手脚清单共用同一份"给人看的一句话"。 */
@@ -1159,6 +1161,32 @@ class BiliAccountWorld {
         extDir: extensionsDir(this.ctx?.repoRoot ?? repoRoot()),
         configFile: this.ctx ? path.join(this.ctx.botDir, 'config.json') : null,
       })),
+      mk(DECLS[14], async (a) => {
+        // #55：写错的记忆以前只能等它慢慢衰减，期间她照常拿它下结论。
+        // 更正要有通道，但一次只准点一条：模糊命中多条时把候选还给她，绝不批量作废。
+        const reason = String(a?.reason ?? '').trim()
+        if (reason.length < 6) return '[memory_void] 先写清为什么作废（≥6 字）。这个理由会留在条上，是给她自己日后复盘用的，不是删除按钮。'
+        const id = String(a?.id ?? '').trim()
+        const match = String(a?.match ?? '').trim()
+        if (!id && !match) return '[memory_void] 要给我 id 或 match 其中一个 —— 点名才能更正，我不替你猜是哪条。'
+        const before = loadState(FIELDS_FILE)
+        const hits = findMemories(before, { id: id || undefined, match: id ? undefined : match })
+        const alive = hits.filter((m) => m.voided !== true)
+        if (!alive.length) {
+          return hits.length
+            ? `[memory_void] 这几条早就作废了：${hits.map((m) => m.id).join('、')}。不用重复作废。`
+            : `[memory_void] 没点到记忆（${id ? `id=${id}` : `「${match}」`} 一条都没有）。先 bili_mood_read 看她现在记得什么，或把片段换短一点。`
+        }
+        if (alive.length > 1) {
+          const list = alive.slice(0, 6).map((m) => `- ${m.id}：${String(m.content ?? '').replace(/\s+/g, ' ').slice(0, 46)}`).join('\n')
+          return `[memory_void] 「${match || id}」命中 ${alive.length} 条，一次只能作废一条，我不替你选。把要作废的那条 id 填进 id 再调一次：\n${list}${alive.length > 6 ? `\n- （还有 ${alive.length - 6} 条没列出来）` : ''}`
+        }
+        const target = alive[0]
+        const after = voidMemory(before, target.id, reason)
+        saveState(FIELDS_FILE, after)
+        causal({ kind: 'memory-voided', memoryId: target.id, reason, atMs: Date.now() })
+        return `[memory_void] 已作废 ${target.id}：「${String(target.content ?? '').replace(/\s+/g, ' ').slice(0, 60)}」\n理由：${reason}\n从今天起它不会再被想起来；原文仍留在 fields.json（这是更正，不是删除）。要恢复得主人动手——我没有撤销通道。`
+      }),
     ]
   }
 }

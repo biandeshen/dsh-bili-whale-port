@@ -132,3 +132,41 @@ export function getMemoryForPrompt(memory: Memory): string {
 export function isMemoryArchivable(memory: Memory): boolean {
   return memory.vividness < 0.05 && memory.accessCount < 3;
 }
+
+/** 这条记忆还在不在用：作废过的不再被想起，但原文保留（可复盘"当初为什么这么记"）。 */
+export function isVoided(memory: Pick<Memory, 'voided'>): boolean {
+  return memory?.voided === true;
+}
+
+/**
+ * 给记忆盖作废章（#55）。写错的记忆如果只能靠衰减慢慢淡掉，她在错的这段时间里
+ * 会一直用它下结论；所以更正要有通道。这里是纯函数：返回新数组，不改传入对象，
+ * 命中 0 条时原样返回，调用方据 `voidedIds.length` 如实回执（别说成"已更正"）。
+ */
+export function voidMemories<T extends Memory>(
+  memories: T[],
+  ids: readonly string[],
+  reason: string,
+  now = Date.now(),
+): { memories: T[]; voidedIds: string[] } {
+  const set = new Set(ids);
+  const hit = (memories ?? []).filter((m) => set.has(m.id) && !m.voided);
+  if (!hit.length) return { memories, voidedIds: [] };
+  const at = new Date(now).toISOString();
+  return {
+    memories: (memories ?? []).map((m) =>
+      set.has(m.id) && !m.voided ? { ...m, voided: true, voidedAt: at, voidReason: reason } : m),
+    voidedIds: hit.map((m) => m.id),
+  };
+}
+
+/** 撤销作废（写错了还能改回来）：只回滚带作废章的那几条，理由留档不擦。 */
+export function restoreMemories<T extends Memory>(memories: T[], ids: readonly string[]): { memories: T[]; restoredIds: string[] } {
+  const set = new Set(ids);
+  const hit = (memories ?? []).filter((m) => set.has(m.id) && m.voided);
+  if (!hit.length) return { memories, restoredIds: [] };
+  return {
+    memories: (memories ?? []).map((m) => (set.has(m.id) && m.voided ? { ...m, voided: false } : m)),
+    restoredIds: hit.map((m) => m.id),
+  };
+}

@@ -99,6 +99,11 @@ export interface Memory {
   encodingStrength?: number; // Yerkes-Dodson 曲线 (0-1)
   flashbulb?: boolean;       // 里程碑记忆，几乎不衰减
   source?: MemorySource;
+  /** 作废（#55）：写错了的记忆撤不掉 = 她只能带着假记忆过日子。
+   *  不删原文（content 仍"永不删除"），只盖作废章并退出召回；理由留痕，日后能复盘。 */
+  voided?: boolean;
+  voidedAt?: string;
+  voidReason?: string;
 }
 
 // ============================================================

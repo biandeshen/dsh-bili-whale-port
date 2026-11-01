@@ -106,7 +106,8 @@ export function recallMemories(memories: Memory[], opts: RecallOptions = {}): Re
   const mood = Number.isFinite(opts.mood) ? Number(opts.mood) : 0
   const seed = String(opts.seed ?? '')
 
-  const pool = (memories ?? []).filter((m) => m && m.id && !exclude.has(m.id))
+  // 作废过的记忆（#55）不再被想起：她写错的那条撤掉之后，不能还在下一轮浮上来。
+  const pool = (memories ?? []).filter((m) => m && m.id && !exclude.has(m.id) && m.voided !== true)
   if (!pool.length || (k === 0 && surprises === 0)) return []
 
   // 1) 查询词：文本 + 额外词，去重；时间/功能词剔除
