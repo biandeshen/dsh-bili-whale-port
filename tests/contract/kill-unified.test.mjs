@@ -87,3 +87,22 @@ test('D-22：kill 只认当前 whale home（路径跟 setHomes 走，不碰真 h
 const cleanups = []
 function t_cleanup(fn) { cleanups.push(fn) }
 process.on('exit', () => { for (const fn of cleanups) { try { fn() } catch {} } })
+
+test('kill 也管第三方出口：非 B 站域的写同样被拦，读照走', async (t) => {
+  const s = setup(t)
+  const hook = 'https://hooks.example.com/notify'
+  fs.mkdirSync(path.dirname(killFile()), { recursive: true })
+  fs.writeFileSync(killFile(), 'stop')
+
+  // 非 B 站域的写：以前在域名分叉那一行就 transport 出去了，kill 等于不存在。
+  await assert.rejects(() => s.guard.fetch(hook, { method: 'POST', body: '{}' }), /kill switch/)
+  assert.equal(s.calls(), 0, '被拦下的写一次都不许出网')
+
+  // 非 B 站域的读不受影响
+  await s.guard.fetch('https://hooks.example.com/status')
+  assert.equal(s.calls(), 1)
+
+  // B 站写同样被拦（原有行为不回退）
+  await assert.rejects(() => s.guard.fetch(endpoint, { method: 'POST', body: '{}' }), /kill switch/)
+  assert.equal(s.calls(), 1)
+})

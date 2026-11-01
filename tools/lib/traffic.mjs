@@ -91,13 +91,15 @@ export function createTrafficGuard({ directory, transport = (...a) => globalThis
   }
   async function guarded(input, options = {}) {
     const url = new URL(typeof input === 'string' || input instanceof URL ? input : input.url)
-    if (!isBili(url)) return transport(input, options)
-    const headers = options.headers ?? input.headers ?? {}, account = identity(headers)
     const method = String(options.method ?? input.method ?? 'GET').toUpperCase()
     const writing = !['GET','HEAD','OPTIONS'].includes(method)
-    // D-22 补做（主人 2026-10-30）：kill 的统一收口 —— 所有 B 站写（CLI --go、面板放行、
-    // MCP、直接 bili.mjs）都在这里拦下；读不受影响。approve 层另有一道同文件的提前拦截。
+    // D-22 补做（主人 2026-10-30）：kill 的统一收口 —— 所有对外写都在这里拦下，
+    // 不管是 B 站还是通知 webhook 这类第三方出口。所以这一句必须在域名分叉**之前**：
+    // 放在后面，非 B 站域会在上一行直接 transport 出去，急刹车对它们等于不存在。
+    // 读不受影响（急停=停发送，不停读）。approve 层另有一道同文件的提前拦截。
     if (writing && isKillOn()) throw new TrafficError('kill switch 已开启，写操作全部停止（control/kill）')
+    if (!isBili(url)) return transport(input, options)
+    const headers = options.headers ?? input.headers ?? {}, account = identity(headers)
     const body = options.body ?? (writing && input instanceof Request ? await input.clone().text() : undefined)
     const operation = writing ? await fingerprint(url, body) : null
     const id = operation ? account.slice(0,16) + ':' + operation : null
