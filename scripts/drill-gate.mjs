@@ -114,7 +114,7 @@ check('不存在的 id 被拒', ack.approve(home, 'ack-missing', 'x').code === '
 // —— 场景 7：昨日违规 → kick 点名
 const gates = await import('file:///' + CORTICO.replace(/\\/g, '/') + '/src/worlds/bili-account/gates.ts')
 const yesterday = new Date(Date.now() - 20 * 3600_000).toISOString()
-fs.appendFileSync(causalFile, JSON.stringify({ at: yesterday, kind: 'discipline-violation', reason: 'draft-without-debrief' }) + '\n')
+fs.appendFileSync(causalFile, JSON.stringify({ at: yesterday, actor: 'cli', kind: 'discipline-violation', reason: 'draft-without-debrief' }) + '\n')
 const entries = fs.readFileSync(causalFile, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l))
 const notice = gates.violationNotice(entries)
 check('kick 点名昨日违规', /上一轮.*debrief/.test(notice), notice)

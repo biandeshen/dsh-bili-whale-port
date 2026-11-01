@@ -25,7 +25,8 @@ function atOf(e) {
 
 export function normalizeCausalEntry(e) {
   if (!e || typeof e !== 'object' || !e.kind) return null
-  const base = { at: atOf(e), kind: e.kind, target: '', note: '' }
+  // actor 只透传不推断：历史条目没有这个字段，标成"未知"比编一个署名诚实。
+  const base = { at: atOf(e), kind: e.kind, target: '', note: '', actor: e.actor ?? null }
   switch (e.kind) {
     case 'action':
       return { ...base, target: e.actionKind ?? '', note: e.reason ?? '' }

@@ -54,9 +54,10 @@ export function audit(draftsDir, entry) {
  * 把审批结果写进她自己的因果链：她下次醒来会由代码结算成 draftApproved/draftRejected。
  * 只写事件，不改场值——场值归 World（唯一事实源）管，这里不越权。
  */
-export function recordDraftResult(whaleHome, draft, result, reason) {
+export function recordDraftResult(whaleHome, draft, result, reason, actor = 'cli') {
   appendCausal(whaleHome, {
     kind: 'draft-result',
+    actor,
     draftId: draft.id,
     date: draft.date,
     result,

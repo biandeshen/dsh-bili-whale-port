@@ -22,7 +22,8 @@ const KILL = path.join(CONTROL, 'kill')
 const load = (id) => loadDraftById(DRAFTS, id)
 const save = (file, draft) => saveDraftFile(file, draft)
 const audit = (entry) => auditDraft(DRAFTS, entry)
-const recordDraftResult = (draft, result, reason) => recordResult(WHALE_HOME, draft, result, reason)
+// 署名：CLI 直接放行 = cli；宿主页面点下来 = host（execute() 里由 approveFromPanel 传 actor 覆盖）
+const recordDraftResult = (draft, result, reason, actor) => recordResult(WHALE_HOME, draft, result, reason, actor)
 const markUsed = (image) => markImgUsed(image)
 
 /** 测试用 runner（旧 spawn 契约：argv → {status, stdout, stderr}）适配成 publisher 形状。 */
@@ -32,7 +33,7 @@ const fromRunner = (run) => ({ image, text, go }) => {
   return { exit: r.status ?? -1, ok: r.status === 0, dynId: (out.match(/dyn_id=(\S+)/) || [])[1] || null, transient: /冷却|TRAFFIC_PAUSED|请稍后/.test(out), out }
 }
 
-export async function approve({ id, token, go = false, runner, publisher, why } = {}) {
+export async function approve({ id, token, go = false, runner, publisher, why, actor = 'cli' } = {}) {
   const hit = load(id)
   if (!hit) return { ok: false, error: '找不到草稿 ' + id }
   const d = hit.draft
@@ -83,7 +84,7 @@ export async function approve({ id, token, go = false, runner, publisher, why } 
   }
   if (go && ok) markUsed(d.image)
   // 只有真正发出去/明确被拒才回写因果；dry 与冷却不算审批结果
-  if (go && ok) recordDraftResult(d, 'sent', why)
+  if (go && ok) recordDraftResult(d, 'sent', why, actor)
   audit({ id: d.id, action: go ? 'send' : 'dry-run', result: ok ? d.status : 'failed', exit: r.exit ?? null, outHash: crypto.createHash('sha1').update(out).digest('hex') })
   return { ok, status: d.status, out: out.slice(-800) }
 }
@@ -117,7 +118,7 @@ export async function approveFromPanel({ id, runner, publisher, why } = {}) {
     save(hit.file, d)
     token = it.token
   }
-  const r = await approve({ id, token, go: true, runner, publisher, why })
+  const r = await approve({ id, token, go: true, runner, publisher, why, actor: 'host' })
   const out = String(r.out ?? '')
   return {
     ok: r.ok,
@@ -128,7 +129,7 @@ export async function approveFromPanel({ id, runner, publisher, why } = {}) {
   }
 }
 
-export function reject(id, reason) {
+export function reject(id, reason, actor = 'cli') {
   const hit = load(id)
   if (!hit) return { ok: false, error: '找不到草稿 ' + id }
   // 已发出的草稿不能被改成 rejected：那会让审计和她的记忆都对不上真实发生过的事
@@ -140,7 +141,7 @@ export function reject(id, reason) {
   // 理由可以留空——留空就如实写"没给理由"，绝不替主人编一个原因。
   if (why) hit.draft.rejectReason = why
   save(hit.file, hit.draft)
-  recordDraftResult(hit.draft, 'rejected', why)
+  recordDraftResult(hit.draft, 'rejected', why, actor)
   audit({ id: hit.draft.id, action: 'reject', reason: why ? 'given' : 'none' })
   return { ok: true, reason: why || null }
 }

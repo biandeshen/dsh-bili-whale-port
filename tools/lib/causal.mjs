@@ -15,14 +15,20 @@ import path from 'node:path'
 export const causalFile = (whaleHome) => path.join(whaleHome, 'bili-whale', 'causal.jsonl')
 
 /**
- * 追加一条事件：`{at, ...event}`。写失败不抛——记账不能让发送半途炸掉，
+ * 追加一条事件：`{at, actor, ...event}`。写失败不抛——记账不能让发送半途炸掉，
  * 缺账由读侧（observation-day / ops-day）显式报「读不到」。
+ *
+ * `actor` 是署名：这份账宿主与 CLI 都写，事后要能分清"这条是谁做的"。
+ * 历史条目没有这个字段（补不回来），新写入一律带 `cli`。
+ *
+ * 例外：宿主页面点下去、实际由本仓脚本执行的动作（草稿放行/驳回）传 `actor: 'host'`
+ * ——署名给"谁做的决定"，不是"哪个进程碰巧敲的字"。
  */
 export function appendCausal(whaleHome, event) {
   try {
     const file = causalFile(whaleHome)
     fs.mkdirSync(path.dirname(file), { recursive: true })
-    fs.appendFileSync(file, JSON.stringify({ at: new Date().toISOString(), ...event }) + String.fromCharCode(10))
+    fs.appendFileSync(file, JSON.stringify({ at: new Date().toISOString(), actor: 'cli', ...event }) + String.fromCharCode(10))
     return true
   } catch {
     return false
