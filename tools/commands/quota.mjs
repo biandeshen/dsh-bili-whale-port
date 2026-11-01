@@ -159,7 +159,14 @@ if (cmd === 'check') {
     console.log('（非自主发言：不拦截）主人授权的发言不受限，但照旧 dry→go→复核')
     process.exit(0)
   }
-  console.log(`✓ 通过（分享型额度另算；自主发言已不设每日条数上限 —— 2026-10-18 主人定）${target ? `· target=${target}` : ''}`)
+  // 2026-11-01：主人拍板"评论/弹幕维持她能自主直发"，所以这里不再是"无上限"。
+  // 上限是唯一的节奏约束，由页面 quota.selfDaily 调；报备与署名复核仍然是发完要做的事。
+  const selfDaily = Math.max(1, Number(q.selfDaily ?? config().quota?.selfDaily ?? 6) || 6)
+  if (usedAuto >= selfDaily) {
+    console.log(`✗ 自主发言今天已有 ${usedAuto} 条，到上限 ${selfDaily} 了 —— 剩下的留给明天。`)
+    process.exit(2)
+  }
+  console.log(`✓ 通过（自主发言 ${usedAuto}/${selfDaily}；分享型额度另算）${target ? `· target=${target}` : ''}`)
   process.exit(0)
 }
 

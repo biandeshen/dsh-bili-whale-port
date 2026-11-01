@@ -16,6 +16,7 @@ import { apiGet } from '../lib/bili-api.mjs'
 import fs from 'node:fs'
 import path from 'node:path'
 import { whalePath, credentialsPath, stateReadPath, statePath } from '../lib/paths.mjs'
+import { report } from '../lib/report.mjs'
 
 
 const HOME = (process.env.USERPROFILE || process.env.HOME || '/')
@@ -199,3 +200,5 @@ d.items = [...(d.items ?? []), {
 }]
 save(d)
 console.log(`  ✓ 已收藏（HTTP ${r.status}）· 本地账 +1（共 ${d.items.length} 条）`)
+const rep = await report('收藏', bv, `收藏了《${info.title}》（@${info.up}）\nhttps://www.bilibili.com/video/${bv}/\n理由：${reason}`)
+if (rep.error) console.error('报备没发出去：' + rep.error)

@@ -34,6 +34,11 @@ if (r.exit === 5 && /只收 jpg \/ png \/ gif/.test(r.out)) {
 if (r.ok && r.dynId) {
   console.log(`   复核: node bili.mjs dynamic check --id ${r.dynId}`)
   console.log(`   撤掉: node bili.mjs dynamic rm --id ${r.dynId} --go`)
+  // 发出去了一条动态，主人该知道（干跑不报）。
+  const { report } = await import('../lib/report.mjs')
+  const rep = await report('动态', String(r.dynId), `发了条动态：
+${String(text ?? '').slice(0, 300)}`)
+  if (rep.error) console.error('报备没发出去：' + rep.error)
 }
 // 不调 process.exit：fetch 的 keep-alive socket 还没关，强退会在 Windows 上触发
 // libuv「UV_HANDLE_CLOSING」断言并把退出码打成 127（审批层虽已不走这里，CLI 也要准）

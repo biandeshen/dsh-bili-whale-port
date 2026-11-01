@@ -19,6 +19,7 @@ import { config } from '../lib/config.mjs'
 import { validateShare } from '../lib/share-policy.mjs'
 import { gate, record } from '../lib/quota-gate.mjs'
 import { sendOwnerDm } from '../lib/dm-send-core.mjs'
+import { report } from '../lib/report.mjs'
 import { stateReadPath, writeStateText } from '../lib/paths.mjs'
 
 
@@ -140,4 +141,11 @@ if (!MSG) { console.error('用法: node dm.mjs --msg "…" [--share --target BV�
 // ── 闸门与发送全部在 tools/lib/dm-send-core.mjs（与 dm-approve 共用一份实现） ──
 if (!GO && !DRY) { console.error('✗ 必须给 --dry 或 --go'); process.exit(2) }
 const r = await sendOwnerDm({ text: MSG, share: SHARE, shareTarget: SHARE ? SHARE_TARGET : '', dry: DRY })
+// 报备：私信是主人最想知道的一条（"她刚刚给我写信了"）。dry 不报，没发出去也不报。
+if (r.exit === 0 && !DRY) {
+  const rep = await report('私信', crypto.createHash('sha1').update(MSG).digest('hex').slice(0, 12),
+    `给主人写了条私信${SHARE ? '（分享型）' : ''}：
+${MSG.slice(0, 300)}`)
+  if (rep.error) console.error('报备没发出去：' + rep.error)
+}
 process.exit(r.exit)

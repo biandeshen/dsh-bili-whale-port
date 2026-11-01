@@ -316,6 +316,13 @@ console.log(`  正文长度 ${message.length} 字符（上限 1000）；oid=${oi
   console.log(`\n[限额闸] ${chk.out}`)
   if (chk.code !== 0) {
     console.error('  → 拒绝发送。这是硬约束第 4 条的代码实现，不要绕过（要发请主人当场授权，或改白名单/额度）。')
+    // 被拦也是主人该知道的事：她今天想说什么、被什么规则挡下来了。
+    // 报备失败不改变退出码——这次就是没发出去。
+    try {
+      const { report } = await import('../lib/report.mjs')
+      await report('评论被拦', `${target}:${String(message).slice(0, 24)}`,
+        `想发一条评论但被额度闸拦下：\n${String(message).slice(0, 200)}\n原因：${chk.out}`)
+    } catch { /* 报备不上不影响判定 */ }
     process.exit(2)
   }
 }

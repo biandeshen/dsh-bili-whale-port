@@ -44,7 +44,9 @@ export const DEFAULTS = {
   // 使用者本人（分享型评论要 @ 的人）：mid 用于白名单/查询，name 用于正文里的 @昵称
   // （acc/info 查询会风控，所以 name 缓存一份；改过就用 thread 的 `@到:` 验一下）
   owner: { mid: '', name: '' },
-  quota: { shareDaily: 3 },
+  // selfDaily = 她自主发言（评论/弹幕，不带 @主人）的每日上限。2026-11-01 主人拍板维持
+  // "她能自己发"，所以上限是唯一的节奏约束：没有它，一天几十条也不会有谁拦。
+  quota: { shareDaily: 3, selfDaily: 6 },
   // 「标尺」（2026-10-18 加）：分享前必须打分，不到 share.minScore 就是"今天没有值得发的"（合法结果）
   share: { aiCommentGuard: false, aiThreshold: 30, enabled: true, via: 'comment', minScore: 13, silentAfterDays: 3 },  // 分享型（@主人）开关与评分阈值
   // 倾听（2026-10-18 补默认值，与设置页对齐）：评论区 + 直播间
@@ -65,6 +67,17 @@ const merge = (base, over) => {
 }
 
 let cache = null
+
+/**
+ * 丢掉缓存，下次 `config()` 重读文件。
+ * 同一进程里改了配置文件（面板改完通知渠道就是这种情况）必须调它，
+ * 否则这个进程会一直按旧配置推，而页面上显示的是新值——两处读数又分家。
+ */
+export function reloadConfig() {
+  cache = null
+  return config()
+}
+
 /** 读取合并后的配置（带缓存）。 */
 export function config() {
   if (cache) return cache

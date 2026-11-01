@@ -11,6 +11,7 @@ import { guardedFetch as fetch } from '../lib/traffic.mjs'
 import fs from 'node:fs'
 import path from 'node:path'
 import { credentialsPath, stateReadPath, statePath } from '../lib/paths.mjs'
+import { report } from '../lib/report.mjs'
 
 const HOME = (process.env.USERPROFILE || process.env.HOME || '/')
 // 账本按"文档"处理：读新家、读不到再读旧家，写永远落新家。
@@ -108,3 +109,8 @@ if (j.code !== 0) {
 d.items = [...(d.items ?? []), { bv, aid: info.aid, title: info.title, up: info.up, at: new Date().toISOString(), reason: String(opt.reason ?? '').slice(0, 120) }]
 save(d)
 console.log(`  ✓ 已点赞（HTTP ${r.status}）· 本地账 +1（共 ${d.items.length} 条）`)
+// 报备：主人要能在外看到"她刚做了什么"。没配渠道就跳过，不把已经发出去的赞说成失败。
+const rep = await report('点赞', bv, `点赞了《${info.title}》（@${info.up}）
+https://www.bilibili.com/video/${bv}/${opt.reason ? `
+理由：${String(opt.reason).slice(0, 120)}` : ''}`)
+if (rep.error) console.error('报备没发出去：' + rep.error)
