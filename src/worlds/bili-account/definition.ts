@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { describeTools, type WorldContext, type WorldDefinition, type WorldSection } from '../../world.ts'
 import { extensionsDir, readInstalled } from '../../extensions.ts'
 import { repoRoot } from '../../paths.ts'
-import type { DescribeText, ToolDescribe, WorldWebUiDecl } from '../../core/types.ts'
+import type { DescribeText, ToolDescribe, ToolOutcome, WorldWebUiDecl } from '../../core/types.ts'
 import { canDraft, draftRefusal, canApplyWatched, watchedRefusal, violationNotice, diaryFresh, diaryRefusal } from './gates.ts'
 import { upsertDiarySection, sectionStats, diaryDefaultHeader, paginateDiary, diaryHeadings, summarizeDiaryRange } from './diary.ts'
 import { loadState, saveState, applyEffects, remember, rememberFirst, describeStateWithTrace, applyRecall, recentWatch, annotateFeed, findMemories, voidMemory, PRESETS, WATCH_VERDICTS } from './personaAdapter.ts'
@@ -490,6 +490,7 @@ const DECLS = [
   { name: 'bili_like', description: "Like a video she actually enjoyed (self-sent since 2026-10-31, still traffic-guarded). A like is a light signal — no cap, but do not like everything.", tags: ['write'], parameters: { type: 'object', properties: { bvid: { type: 'string' }, reason: { type: 'string', description: '为什么赞（一句话，写进偏好账）' } }, required: ['bvid'], additionalProperties: false } },
   { name: 'bili_fav', description: "Add a video to her favorites (self-sent since 2026-10-31). Five criteria still apply and the tool REFUSES when they fail: reason ≥6 chars, ≤3/day, no repeat within 30 days, ≤2 per kind unless better. A refusal is final — do not retry.", tags: ['write'], parameters: { type: 'object', properties: { bvid: { type: 'string' }, reason: { type: 'string', description: '为什么留（≥6 字）' }, better: { type: 'boolean', description: '比同类别已收的明显更好时置 true' } }, required: ['bvid', 'reason'], additionalProperties: false } },
   { name: 'bili_capabilities', description: 'Inventory of her own capabilities right now, one line each: every tool actually callable this turn (name + one-line function + read/write tag), every extension package installed on this machine with its enabled state, and this deployment\'s world switches. Read-only: it changes, enables and installs nothing.', tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'bili_look', description: "Actually look at a video's pictures: cover, the 3x3 frame sheet, or the subtitle strip. The images come back with the receipt so the next request carries them. Only works when the running model accepts images — if it does not, the receipt says so and you must not describe what you did not see. Cheap when the files already exist on disk; otherwise it takes a minute to fetch frames.", tags: ['read'], parameters: { type: 'object', properties: { bvid: { type: 'string', description: '看哪条视频' }, what: { type: 'string', enum: ['cover', 'sheet', 'strip', 'all'], description: 'cover=封面；sheet=九宫格（要跑抽帧）；strip=字幕条（要 --substrip）；all=三样都要' } }, required: ['bvid'], additionalProperties: false } },
   { name: 'bili_alarm', description: "Set an alarm for herself. At that time she wakes up with a bili.action_due event carrying the note, so it works across restarts. Use it when something is worth coming back to (a video she wants to finish, checking whether a reply arrived), not as a timer for its own sake.", tags: ['flow'], parameters: { type: 'object', properties: { minutes: { type: 'number', description: '多少分钟后叫你（1–1440）' }, note: { type: 'string', description: '到点要做什么（一句话，会原样出现在唤醒提示里）' } }, required: ['minutes', 'note'], additionalProperties: false } },
   { name: 'bili_memory_void', description: "Void one memory she now believes was recorded wrongly (local only, never touches Bilibili). The original text stays in her state for later review but stops coming back to mind. She must name ONE memory: an exact id, or a text match that hits exactly one. 0 hits or 2+ hits is REFUSED with the candidate list — never void a pile on a guess, and a refusal is not a bug to retry.", tags: ['write'], parameters: { type: 'object', properties: { id: { type: 'string', description: '记忆 id（从工具上一次给的候选清单里取，最准）' }, match: { type: 'string', description: '正文片段；只有唯一命中才生效' }, reason: { type: 'string', description: '为什么作废（≥6 字，留在条上供她日后复盘）' } }, required: ['reason'], additionalProperties: false } },
   { name: 'bili_judgment', description: "File a judgment card: your own structured conclusion about what to watch more or less of. stance=prefer (soft boost, capped) / avoid (hard drop) / noise (hard drop); tokens are 1-6 words of 2-12 characters; reason needs at least 6 characters. Cards affect nothing until the owner adopts them on the world page — you cannot adopt them yourself, and this tool has no access to the owner's word list.", tags: ['write'], parameters: { type: 'object', properties: { action: { type: 'string', enum: ['add', 'list'], description: '默认 list' }, scope: { type: 'string', enum: ['feed', 'draft', 'dm', 'any'], description: '作用域；本轮 feed 只吃 feed 与 any' }, stance: { type: 'string', enum: ['prefer', 'avoid', 'noise'], description: 'prefer=多给这类（加权）；avoid/noise=直接丢掉这类（硬拦）' }, tokens: { type: 'string', description: '1-6 个词，逗号分隔，每词 2-12 字（如 "助眠,白噪音"）' }, reason: { type: 'string', description: '为什么这么判（≥6 字，≤200 字）' }, bvid: { type: 'string', description: '触发这条判断的那条片子（可选）' } }, additionalProperties: false } },
@@ -920,12 +921,22 @@ class BiliAccountWorld {
    * 也要当前模型真收图——工具拿得到字节，模型不收等于没看。
    * 任一条件读不到就按看不见处理：宁可少给一条指令。
    */
+  /**
+   * 这一轮她能不能真看到图。两个条件都成立才算：当前模型收图，且有一个能取到字节的工具。
+   *
+   * 后半句以前只认「名字里带 read/view/see + image」的宿主工具，于是本 World 自己的
+   * `bili_look` 不被承认——能力明明装上了却仍报 false（交接文档 §0 点名的那处误读）。
+   * 现在本 World 的读图工具也算数。
+   */
   private canSeeImages(): boolean {
     try {
       if (this.host?.modelFacts && !this.host.modelFacts.accepts('image/png')) return false
       const list = typeof this.host?.listTools === 'function' ? this.host.listTools() : null
       if (!list) return false
-      return list.some((t: any) => /(?:^|_)(?:read|view|see|analyze)_?image/i.test(String(t?.name ?? '')))
+      return list.some((t: any) => {
+        const name = String(t?.name ?? '')
+        return /(?:^|_)(?:read|view|see|analyze|look)_?(?:image|at)?/i.test(name) && /image|look|see/i.test(name)
+      })
     } catch { return false }
   }
 
@@ -935,7 +946,7 @@ class BiliAccountWorld {
   }
 
   tools() {
-    const mk = (decl: any, handler: (args: any) => Promise<string>) => ({ ...decl, handler })
+    const mk = (decl: any, handler: (args: any) => Promise<string | ToolOutcome>) => ({ ...decl, handler })
     return [
       mk(DECLS[0], async () => (await runAsync(['traffic', 'status'], 60000)).out),
       mk(DECLS[1], async (a) => {
@@ -954,7 +965,13 @@ class BiliAccountWorld {
         if (!/^BV[0-9A-Za-z]{8,}$/.test(bv)) return '[bili_debrief failed] bvid invalid'
         // f-17767a：debrief 过去硬写「交给 read_image 看」，而这条路从来没有过。
         // 读图能力只有宿主知道（工具是装配出来的），所以这里如实告诉脚本有没有。
-        const r = await runNodeAsync(BILI, ['debrief', bv, '--no-frames', '--top', '3', '--comments', '3', '--bucket', '60'], 240000, { BILI_VISION: this.canSeeImages() ? '1' : '0' })
+        // debrief 不抽帧（慢），只读文字那几路；要看画面她自己调 bili_look——
+        // 那条路会把封面/九宫格作为附件交回，模型收图时下一轮才真看见。
+        const sees = this.canSeeImages()
+        const r = await runNodeAsync(BILI, ['debrief', bv, '--no-frames', '--top', '3', '--comments', '3', '--bucket', '60'], 240000, { BILI_VISION: sees ? '1' : '0' })
+        if (r.status === 0 && sees) r.out += `
+
+[NEXT] 想看画面就调 bili_look {"bvid":"${bv}","what":"all"}——封面/九宫格会作为附件交给你，下一轮才看得见。`
         if (r.status === 0) {
           round = { ...round, feedAt: round.feedAt ?? Date.now(), debriefed: true, bvid: bv, debriefedAt: Date.now() }
           writeRound(round)
@@ -1309,6 +1326,49 @@ class BiliAccountWorld {
         configFile: this.ctx ? path.join(this.ctx.botDir, 'config.json') : null,
       })),
       mk(DECLS[14], async (a) => {
+        // 她能看图了（#57 / 交接文档 §0 的"一处不许误读"）：封面/九宫格/字幕条作为
+        // 附件放进回执，下一轮请求就把字节交给模型——和 console_see_image 同一条路。
+        // 模型不收图就明说，不让她对着文件名编内容。
+        const bv = String(a?.bvid ?? '').trim()
+        if (!/^BV[0-9A-Za-z]{10}$/.test(bv)) return '[bili_look] 需要合法的 BV 号'
+        const what = String(a?.what ?? 'all')
+        const wants = (k: string) => what === 'all' || what === k
+        const found: Array<{ bytes: Buffer; mime: string; name: string }> = []
+        const missing: string[] = []
+        // 封面：debrief/feed 早就下好的那份
+        if (wants('cover')) {
+          const p = path.join(WHALE, 'shots', 'covers', `${bv}.jpg`)
+          if (fs.existsSync(p)) found.push({ bytes: fs.readFileSync(p), mime: 'image/jpeg', name: `${bv}-cover.jpg` })
+          else missing.push('封面（还没下过；跑一次 bili_debrief 就会存下来）')
+        }
+        // 九宫格 / 字幕条：取该 BV 最新的一份
+        for (const [k, suffix, label] of [['sheet', '-3x3.jpg', '九宫格'], ['strip', '-substrip.png', '字幕条']] as const) {
+          if (!wants(k)) continue
+          const dir = path.join(WHALE, 'shots', 'video')
+          let pick: string | null = null
+          try {
+            pick = fs.readdirSync(dir)
+              .filter((f) => f.startsWith(bv + '-') && f.endsWith(suffix))
+              .sort().at(-1) ?? null
+          } catch { /* 目录不存在 = 没抽过帧 */ }
+          if (pick) {
+            const p = path.join(dir, pick)
+            found.push({ bytes: fs.readFileSync(p), mime: suffix.endsWith('.png') ? 'image/png' : 'image/jpeg', name: pick })
+          } else missing.push(`${label}（还没抽；debrief 时加 --substrip 或等它跑抽帧）`)
+        }
+        const canSee = this.canSeeImages()
+        const head = `[bili_look] ${bv} · ${what} · 取到 ${found.length} 张${missing.length ? `；缺 ${missing.join('、')}` : ''}`
+        if (!found.length) return `${head}
+没有可看的图。`
+        if (!canSee) {
+          // 关键：不能假装看过。文件在盘上但模型不收图，说清楚。
+          return `${head}
+⚠ 当前模型不收图像，这些图我看了也收不到——别描述它们。要让主人换一个支持视觉的模型，或让主人直接把图发到控制台。
+（文件位置：${found.map((f) => f.name).join('、')}）`
+        }
+        return { text: head, blobs: found.map((f) => ({ bytes: f.bytes, mime: f.mime, name: f.name, fallbackText: `${f.name}` })) }
+      }),
+      mk(DECLS[15], async (a) => {
         const minutes = Math.round(Number(a?.minutes))
         const note = String(a?.note ?? '').trim()
         if (!Number.isFinite(minutes) || minutes < 1 || minutes > 1440)
@@ -1316,7 +1376,7 @@ class BiliAccountWorld {
         if (note.length < 2) return '[alarm] 写清到点要做什么（≥2 字），空闹钟只会叫醒一个不知道要干什么的人。'
         return this.setAlarm(minutes, note.slice(0, 200))
       }),
-      mk(DECLS[15], async (a) => {
+      mk(DECLS[16], async (a) => {
         // #55：写错的记忆以前只能等它慢慢衰减，期间她照常拿它下结论。
         // 更正要有通道，但一次只准点一条：模糊命中多条时把候选还给她，绝不批量作废。
         const reason = String(a?.reason ?? '').trim()
@@ -1342,7 +1402,7 @@ class BiliAccountWorld {
         causal({ kind: 'memory-voided', memoryId: target.id, reason, atMs: Date.now() })
         return `[memory_void] 已作废 ${target.id}：「${String(target.content ?? '').replace(/\s+/g, ' ').slice(0, 60)}」\n理由：${reason}\n从今天起它不会再被想起来；原文仍留在 fields.json（这是更正，不是删除）。要恢复得主人动手——我没有撤销通道。`
       }),
-      mk(DECLS[16], async (a) => {
+      mk(DECLS[17], async (a) => {
         // 判断卡：她只能提与看。采纳/驳回挂在世界页的 invoke 上，这条工具触达不到。
         const action = String(a?.action ?? 'list')
         if (action === 'add') {

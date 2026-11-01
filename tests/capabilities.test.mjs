@@ -171,3 +171,46 @@ test('手脚清单的口径：装/卸与改配置归主人，启用/停用她自
   assert.match(zh, /启用\/停用她自己能点/, '要写明启停是她能做的——否则又变成"别自己改"')
   assert.doesNotMatch(zh, /装着的扩展、这份部署的开关（只读，启用与安装归主人）/, '旧口径把启停也算给主人了')
 })
+
+// ── 她能看图（#57）──────────────────────────────────────────────────────────
+// 交接文档专门点了这一条：控制台看图修的是控制台，她仍然没有读图工具。
+// bili_look 把封面/九宫格/字幕条作为附件放进回执——模型收图时下一轮才真看得见。
+test('bili_look 在工具表里，且模型不收图时明说"别描述"', async () => {
+  const w = BILI_ACCOUNT.create()
+  const tool = w.tools().find((t) => t.name === 'bili_look')
+  assert.ok(tool, '读图工具必须在她的工具表里')
+  assert.deepEqual(tool.tags, ['read'])
+
+  // 宿主声明模型不收图 + 空图目录：回执必须说"看了也收不到"，不是给个文件名让她编。
+  w.start({
+    modelFacts: { model: () => 'blind', accepts: () => false, contextWindow: () => undefined },
+    listTools: () => [],
+    log: { info() {}, warn() {}, error() {}, debug() {} },
+  })
+  const out = await tool.handler({ bvid: 'BV1aaaaaaaaa', what: 'cover' }, { role: 'main', log: { info() {}, warn() {}, error() {}, debug() {} } })
+  assert.equal(typeof out, 'string', '没有可看的图时不返回附件')
+  assert.match(String(out), /没有可看的图|不收图像/)
+})
+
+test('模型收图 + 自己的 bili_look = 真给附件（不是只报文件名）', async () => {
+  // 交接文档 §0 的误读：控制台能看图 ≠ 她能看图。这条锁的是"她能"。
+  const fs = await import('node:fs')
+  const path = await import('node:path')
+  const covers = path.join(process.env.WHALE_HOME || path.join(process.env.USERPROFILE || '', '.dsh'), 'shots', 'covers')
+  let bv = null
+  try { bv = (fs.readdirSync(covers).find((f) => f.endsWith('.jpg')) ?? '').replace(/\.jpg$/, '') } catch { /* 没图就跳过 */ }
+  if (!bv) { console.log('本机没有封面可测，跳过'); return }
+
+  const w = BILI_ACCOUNT.create()
+  w.start({
+    modelFacts: { model: () => 'sees', accepts: () => true, contextWindow: () => undefined },
+    listTools: () => [{ name: 'bili_look', description: '', tags: ['read'], owner: 'bili-account' }],
+    log: { info() {}, warn() {}, error() {}, debug() {} },
+  })
+  const tool = w.tools().find((t) => t.name === 'bili_look')
+  const out = await tool.handler({ bvid: bv, what: 'cover' }, { role: 'main', log: { info() {}, warn() {}, error() {}, debug() {} } })
+  assert.equal(typeof out, 'object', '模型收图时必须返回附件对象，只给文件名等于还是看不见')
+  assert.equal(out.blobs.length, 1)
+  assert.equal(out.blobs[0].mime, 'image/jpeg')
+  assert.ok(out.blobs[0].bytes.length > 1000, '附件里要有真字节')
+})
