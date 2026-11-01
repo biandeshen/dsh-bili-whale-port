@@ -3,13 +3,13 @@ import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { describeTools, type WorldContext, type WorldDefinition, type WorldSection } from '../../world.ts'
-import { extensionsDir, readInstalled } from '../../extensions.ts'
+import { type WorldContext, type WorldDefinition, type WorldSection } from '../../world.ts'
+import { extensionsDir } from '../../extensions.ts'
 import { repoRoot } from '../../paths.ts'
-import type { DescribeText, ToolDescribe, ToolOutcome, WorldWebUiDecl } from '../../core/types.ts'
+import type { ToolOutcome, WorldWebUiDecl } from '../../core/types.ts'
 import { canDraft, draftRefusal, canApplyWatched, watchedRefusal, violationNotice, diaryFresh, diaryRefusal } from './gates.ts'
 import { upsertDiarySection, sectionStats, diaryDefaultHeader, paginateDiary, diaryHeadings, summarizeDiaryRange } from './diary.ts'
-import { loadState, saveState, applyEffects, remember, rememberFirst, describeStateWithTrace, applyRecall, recentWatch, annotateFeed, findMemories, voidMemory, PRESETS, WATCH_VERDICTS } from './personaAdapter.ts'
+import { loadState, saveState, applyEffects, remember, recentWatch, annotateFeed, findMemories, voidMemory, PRESETS, WATCH_VERDICTS } from './personaAdapter.ts'
 import type { WatchVerdict } from './personaAdapter.ts'
 import type { PresetEffect } from './personaAdapter.ts'
 import { buildVoiceBrief } from '../../../persona-core/src/voice-brief.ts'
@@ -30,52 +30,29 @@ import { decideAction, restRecoveryDelta, actionCost, nextCheckDelay, dayKey, MI
 const ROOT = process.env.BILI_WHALE_ROOT || 'E:/WorkSpace_Qoder/dsh-bili-whale'
 const ENV_PROMPT_FILE = fileURLToPath(new URL('./ENV_PROMPT.md', import.meta.url))
 const BILI = path.join(ROOT, 'tools', 'bili.mjs')
-// home 优先级与 dsh `tools/lib/paths.mjs:resolveWhaleHome` 一致（WHALE_HOME → DSH_HOME → ~/.dsh）；
-// 少一档就会和 dsh 子进程读不到同一片数据。
-const WHALE = process.env.WHALE_HOME || process.env.DSH_HOME || path.join(process.env.USERPROFILE || '', '.dsh')
-const FIELDS_FILE = path.join(WHALE, 'bili-whale', 'fields.json')
-const ROUND_FILE = path.join(WHALE, 'bili-whale', 'control', 'round.json')
-const LIFE_FILE = path.join(WHALE, 'bili-whale', 'control', 'life.json')
-const LEGACY_RHYTHM_FILE = path.join(WHALE, 'bili-whale', 'control', 'rhythm.json')
-const LIFE_STATUS_FILE = path.join(WHALE, 'bili-whale', 'control', 'life-status.json')
-const QUEUE_FILE = path.join(WHALE, 'bili-whale', 'control', 'queue.json')
-const PUBLIC_DIARY = path.join(WHALE, 'whale-diary.md')
-const PRIVATE_DIARY = path.join(WHALE, 'whale-diary-private.md')
-const killPath = path.join(WHALE, 'bili-whale', 'control', 'kill')
-const CAUSAL_FILE = path.join(WHALE, 'bili-whale', 'causal.jsonl')
-const DM_APPLIED_FILE = path.join(WHALE, 'bili-whale', 'control', 'dm-applied.json')
 
-function readAppliedDmKeys(): string[] {
-  try {
-    const raw = JSON.parse(fs.readFileSync(DM_APPLIED_FILE, 'utf8'))
-    return Array.isArray(raw?.keys) ? raw.keys.map(String) : []
-  } catch { return [] }
-}
-function writeAppliedDmKeys(keys: string[]): void {
-  try {
-    fs.mkdirSync(path.dirname(DM_APPLIED_FILE), { recursive: true })
-    const tmp = DM_APPLIED_FILE + '.' + process.pid + '.tmp'
-    fs.writeFileSync(tmp, JSON.stringify({ keys: keys.slice(-200) }, null, 2))
-    fs.renameSync(tmp, DM_APPLIED_FILE)
-  } catch {}
-}
-const ROUND_STALE_MS = 12 * 3600_000
-function readLifeFile(): any {
-  try { return JSON.parse(fs.readFileSync(LIFE_FILE, 'utf8')) } catch {}
-  // 旧文件迁移：只取新字段，别把 wakesToday/lastWakeAt 再写回去
-  try {
-    const old = JSON.parse(fs.readFileSync(LEGACY_RHYTHM_FILE, 'utf8'))
-    return { ...old, actionsToday: old.actionsToday ?? old.wakesToday ?? 0, lastActionAt: old.lastActionAt ?? old.lastWakeAt, wakesToday: undefined, lastWakeAt: undefined }
-  } catch { return {} }
-}
-function writeLifeFile(o: any) {
-  try {
-    fs.mkdirSync(path.dirname(LIFE_FILE), { recursive: true })
-    const tmp = LIFE_FILE + '.' + process.pid + '.' + Math.random().toString(36).slice(2, 8) + '.tmp'
-    fs.writeFileSync(tmp, JSON.stringify(o, null, 2))
-    fs.renameSync(tmp, LIFE_FILE)
-  } catch {}
-}
+// 路径、因果账、提示词都已拆到独立模块；这里只 re-export 保住旧调用方（测试直接引这个文件）。
+export { WHALE, FIELDS_FILE, ROUND_FILE, LIFE_FILE, LEGACY_RHYTHM_FILE, LIFE_STATUS_FILE, QUEUE_FILE, PUBLIC_DIARY, PRIVATE_DIARY, killPath, CAUSAL_FILE, DM_APPLIED_FILE, ROUND_STALE_MS, readLifeFile, writeLifeFile, readRound, writeRound, readAppliedDmKeys, writeAppliedDmKeys, readDraftResultCursor, writeDraftResultCursor } from './paths.ts'
+export { causal, withLedgerError, readCausal } from './causal-io.ts'
+export { parseDebriefMemory, rememberWatch, diaryTail, exportPolicyNotice, statePrompt, todayDraftLine, consumeDraftResults, latestDraftFeedback } from './prompts.ts'
+export { capabilityText, type AssembledTool } from './capability.ts'
+
+import {
+  WHALE, FIELDS_FILE, LIFE_STATUS_FILE, QUEUE_FILE, PUBLIC_DIARY, PRIVATE_DIARY,
+  killPath, CAUSAL_FILE,
+  readLifeFile, writeLifeFile, readRound, writeRound, readAppliedDmKeys, writeAppliedDmKeys,
+  readDraftResultCursor, writeDraftResultCursor, ROUND_STALE_MS,
+} from './paths.ts'
+import { causal, withLedgerError, readCausal } from './causal-io.ts'
+import {
+  rememberWatch, diaryTail, exportPolicyNotice, statePrompt, todayDraftLine,
+  consumeDraftResults, latestDraftFeedback,
+} from './prompts.ts'
+import { capabilityText } from './capability.ts'
+import { DECLS, BILI_TOOL_DECLS } from './tool-decls.ts'
+
+const ATOMIC_FIELDS = ['energy', 'stimulation', 'connection', 'social', 'mood', 'curiosity', 'creativity'] as const
+
 /**
  * 从 append-only 因果链数某个逻辑日的行动。
  * 并发实例会把 life.json 的 actionsToday 覆盖回旧值（D-32）：启动时以因果链对账，只增不减。
@@ -102,19 +79,6 @@ export function countCausalActions(file: string, day: string): { count: number; 
 let round: { feedAt?: number; debriefed?: boolean; bvid?: string; debriefedAt?: number } = readRound()
 if (round.feedAt && Date.now() - round.feedAt > ROUND_STALE_MS) round = {}
 
-function readRound() {
-  try { return JSON.parse(fs.readFileSync(ROUND_FILE, 'utf8')) } catch { return {} }
-}
-function writeRound(o: any) {
-  try {
-    fs.mkdirSync(path.dirname(ROUND_FILE), { recursive: true })
-    const tmp = ROUND_FILE + '.' + process.pid + '.' + Math.random().toString(36).slice(2, 8) + '.tmp'
-    fs.writeFileSync(tmp, JSON.stringify(o, null, 2))
-    fs.renameSync(tmp, ROUND_FILE)
-  } catch {}
-}
-const ATOMIC_FIELDS = ['energy', 'stimulation', 'connection', 'social', 'mood', 'curiosity', 'creativity'] as const
-
 /** 模型传来的 custom 效果是外部输入：只收 7 个原子场、|delta|≤0.5、最多 8 条。 */
 export function sanitizeEffects(input: any): PresetEffect[] {
   if (!Array.isArray(input)) return []
@@ -129,182 +93,6 @@ export function sanitizeEffects(input: any): PresetEffect[] {
   }
   return out
 }
-/**
- * 因果账。写失败不许吞：autoSentToday 就是数这个文件里的条目，吞掉等于 autoDailyCap 形同虚设，
- * 而且她/主人在时间线上都看不到"这件事发生过"。所以失败往上抛，由调用方决定是拒绝还是亮红。
- *
- * `actor` 是署名：这份账有两个写者（宿主结算与 CLI 的 dm/草稿），事后查"这条是谁做的"
- * 只能靠它。历史条目没有这个字段（补不回来），新写入一律带上。
- */
-function causal(o: any): void {
-  fs.mkdirSync(path.dirname(CAUSAL_FILE), { recursive: true })
-  fs.appendFileSync(CAUSAL_FILE, JSON.stringify({ at: new Date().toISOString(), actor: 'host', ...o }) + String.fromCharCode(10))
-}
-
-/**
- * 正当"变更已经发生、只是记账失败"时用：手头的结果照常返回，同时把失败挂上去给主人看。
- * 不能因为账本坏了就把已经改好的配置说成没改，也不能假装记上了。
- */
-function withLedgerError<T extends { ok?: boolean; error?: string }>(result: T, entry: any): T {
-  try { causal(entry); return result }
-  catch (e: any) {
-    const note = `因果账写不进去：${String(e?.message ?? e)}（这次改动已经生效，但时间线上不会有这条）`
-    return { ...result, ok: false, error: result.error ? `${result.error}；${note}` : note }
-  }
-}
-function readCausal(): any[] {
-  try {
-    return fs.readFileSync(CAUSAL_FILE, 'utf8').split(String.fromCharCode(10)).slice(-2000)
-      .filter(Boolean)
-      .map((l) => { try { return JSON.parse(l) } catch { return null } })
-      .filter(Boolean)
-  } catch { return [] }
-}
-
-/** 从 debrief 回执里抠出能当记忆的内容：标题 + UP 主。解析不出来就返回空。 */
-export function parseDebriefMemory(receipt: string): { title: string; up: string } | null {
-  const text = String(receipt ?? '')
-  const title = (text.match(/^标题:\s*(.+)$/m) || [])[1]
-  if (!title) return null
-  const up = (text.match(/^UP:\s*(\S+)/m) || [])[1] ?? ''
-  return { title: title.trim().slice(0, 120), up: up.trim() }
-}
-
-/**
- * 看完一条视频就记一条。记忆不写进去，「有连续记忆」就只是文档里的话：
- * 她第二天看到的是空 memories，describeState 也不会带出任何往事。
- * 编码强度按当时的刺激量（Yerkes-Dodson 峰在 0.6），所以特别上头的片子记得更牢。
- */
-function rememberWatch(state: any, receipt: string, bvid: string): any {
-  const parsed = parseDebriefMemory(receipt)
-  if (!parsed) return state
-  const content = `看过《${parsed.title}》` + (parsed.up ? `（${parsed.up}）` : '') + ` —— ${bvid}`
-  return remember(state, content, {
-    sender: 'npc',
-    intensity: Math.max(0.1, Math.min(1, state.fields.stimulation)),
-    tags: [],
-    source: 'npc_self',
-  })
-}
-
-// 草稿目录只认 tank.ts 那一条解析：面板、badge、灯、CLI 必须读同一个数，
-// 以前两处各写一份，第二份漏了旧路径，于是 badge 报「待放行=0」而面板列得出草稿。
-const DRAFTS_DIR = consolePaths.DRAFTS_DIR
-
-/** 公开日记的尾部：给"记得"当情境词，让召回跟今天写的事有关，而不是永远最鲜活三条。 */
-function diaryTail(n = 2000): string {
-  try { return fs.readFileSync(PUBLIC_DIARY, 'utf8').slice(-n) } catch { return '' }
-}
-
-/**
- * 策略切成 auto 时她该看到什么。纯函数，便于不碰真日记文件也能锁住措辞。
- * 存在的理由：7799 本机免口令，任何本地进程都能 POST 改策略；盲改必须留下她自己也读得到的痕迹。
- */
-export function exportPolicyNotice(policy: { draftMode?: string; autoDailyCap?: number; autoWindow?: string }): { heading: string; body: string } | null {
-  if (policy?.draftMode !== 'auto') return null
-  const cap = Number(policy.autoDailyCap) > 0 ? `${policy.autoDailyCap} 条` : '不限'
-  const win = String(policy.autoWindow ?? '').trim() || '不限'
-  return {
-    heading: '策略变了',
-    body: `发送策略被切到 auto：从现在起我的草稿不等主人点头就会发出去（每日上限 ${cap}，时段 ${win}）。`
-      + `\n- 这不是我改的，我也改不了：只有这台机器上的进程能这么写。`
-      + `\n- 如果主人没打算让我自动发，去「发送策略」改回人工审核，或者拉 kill。`,
-  }
-}
-
-/**
- * 给她的状态描述，并把这一轮**真的想起来**的记忆写回（accessCount +1、鲜活度上升）。
- * 面板的只读路径不走这里——看她的状态不该改变她的记忆。
- */
-function statePrompt(state: any, opts: { queryText?: string; seed?: string } = {}): string {
-  const { text, recalledIds } = describeStateWithTrace(state, 5, opts)
-  if (recalledIds.length) saveState(FIELDS_FILE, applyRecall(state, recalledIds))
-  return text
-}
-
-/** 今天是否已经出过草稿（多醒几轮时不重复出稿）。 */
-function todayDraftLine(): string {
-  try {
-    const date = dayKey(Date.now())
-    const d = JSON.parse(fs.readFileSync(path.join(DRAFTS_DIR, date + '.json'), 'utf8'))
-    const zh: Record<string, string> = { pending: '等你审批', 'dry-run': '试发过', sent: '已发出', rejected: '被拒', cooldown: '冷却中', failed: '失败' }
-    return `今天已经出过草稿（${d.id} · ${zh[d.status] ?? d.status}）——这一轮不用再出稿，写日记、看看就好。`
-  } catch { return '' }
-}
-
-/** 审批结果回写游标：记到哪一条已经吃掉了，避免重复结算。 */
-const DRAFT_RESULT_FILE = path.join(WHALE, 'bili-whale', 'control', 'draft-result.json')
-function readDraftResultCursor(): number {
-  try { return Number(JSON.parse(fs.readFileSync(DRAFT_RESULT_FILE, 'utf8')).consumedAt) || 0 } catch { return 0 }
-}
-function writeDraftResultCursor(at: number) {
-  try {
-    fs.mkdirSync(path.dirname(DRAFT_RESULT_FILE), { recursive: true })
-    const tmp = DRAFT_RESULT_FILE + '.' + process.pid + '.tmp'
-    fs.writeFileSync(tmp, JSON.stringify({ consumedAt: at }, null, 2))
-    fs.renameSync(tmp, DRAFT_RESULT_FILE)
-  } catch {}
-}
-
-/**
- * 自我修正的落地：审批结果由 dynamic-approve.mjs 写进 causal（kind=draft-result），
- * 这里在醒来时**由代码**结算成 draftApproved / draftRejected 并落盘。
- * 不指望模型自觉调 mood_apply —— 它不调，被拒稿就永远不影响她下次的选择。
- */
-export function consumeDraftResults(state: any, entries: any[], cursor: number): { state: any; consumedAt: number; applied: string[] } {
-  const fresh = entries
-    .filter((e) => e && e.kind === 'draft-result' && Number.isFinite(Date.parse(String(e.at))) && Date.parse(String(e.at)) > cursor)
-    .sort((a, b) => Date.parse(String(a.at)) - Date.parse(String(b.at)))
-  if (!fresh.length) return { state, consumedAt: cursor, applied: [] }
-  let next = state
-  const applied: string[] = []
-  const RESULT_LINE: Record<string, string> = {
-    sent: '主人把我那条草稿发出去了',
-    rejected: '主人没让发那条草稿',
-    failed: '那条草稿想发没发出去（网络/风控），不是主人拒的',
-    cooldown: '那条草稿还在本地冷却，暂时发不了',
-  }
-  for (const e of fresh) {
-    // 一次审批只影响一次心情；同一批里取最近一条，避免积压的旧稿一次性灌爆场值
-    const preset = e.result === 'sent' ? 'draftApproved' : e.result === 'rejected' ? 'draftRejected' : null
-    if (preset) applied.push(preset)
-    // 四种结果都进记忆：以前 failed/cooldown 等于没发生，她既记不住"发不出去"，也不会去查原因。
-    // 只有第一次点亮 flashbulb，之后同类结果是重复刺激，不该一直"刻在心里"。
-    const base = RESULT_LINE[String(e.result)]
-    // #41：她要从被拒里学习，光知道"没通过"学不到东西。理由来自主人放行/拒绝时写的那句
-    // （dsh 把它记进 draft-result 因果账）。没写就如实说没写，绝不替主人编一个原因。
-    const reason = String((e as any).reason ?? '').trim()
-    const line = base ? (reason ? `${base}（主人的理由：${reason}）` : (e.result === 'rejected' ? `${base}（主人没写理由——别替他想一个）` : base)) : ''
-    if (line) next = rememberFirst(next, `${line}（${e.draftId ?? ''}）`, `draft-${e.result}`, { sender: 'npc', intensity: 0.6, source: 'npc_self' })
-  }
-  const last = applied[applied.length - 1]
-  if (last) {
-    next = applyEffects(next, PRESETS[last].effects, PRESETS[last].description + `（${fresh[fresh.length - 1].draftId ?? ''}）`, { source: last })
-  }
-  return { state: next, consumedAt: Date.parse(String(fresh[fresh.length - 1].at)), applied }
-}
-
-/** 上一条草稿的审批结果，如果她还没用 mood_apply 消化，就在醒来时提醒一次。 */
-function latestDraftFeedback(state: any): string {  try {
-    const drafts = fs.readdirSync(DRAFTS_DIR).filter((f) => f.endsWith('.json')).map((f) => {
-      try { return JSON.parse(fs.readFileSync(path.join(DRAFTS_DIR, f), 'utf8')) } catch { return null }
-    }).filter(Boolean)
-    const done = drafts
-      .filter((d: any) => d.status === 'sent' || d.status === 'rejected')
-      .sort((a: any, b: any) => Date.parse(b.result?.at || b.rejectedAt || 0) - Date.parse(a.result?.at || a.rejectedAt || 0))[0]
-    if (!done) return ''
-    const at = Date.parse(done.result?.at || done.rejectedAt || '')
-    const last = [...state.chain].reverse().find((e: any) => e.source === 'draftApproved' || e.source === 'draftRejected')
-    if (last && last.timestamp.getTime() >= at) return ''
-    // #41：提醒里也带理由——她醒来第一眼看到的就该是"主人为什么没让发"。
-    const why = String((done as any).rejectReason ?? '').trim()
-    const note = String((done as any).ownerNote ?? '').trim()
-    return done.status === 'sent'
-      ? `上次那条草稿（${done.id}）主人放行了${note ? `，他说：「${note}」` : ''}——记得用 bili_mood_apply {"preset":"draftApproved"} 记下来。`
-      : `上次那条草稿（${done.id}）主人没让发${why ? `，理由：「${why}」` : '（他没写理由，别自己编一个）'}——用 bili_mood_apply {"preset":"draftRejected"} 记下来，想想是不是选题偏了。`
-  } catch { return '' }
-}
-
 /** 异步执行，避免长任务（debrief 最长 240s）阻塞 Cortico 事件循环。 */
 const runNodeAsync = (script: string, args: string[], timeout = 180000, extraEnv: Record<string, string> = {}): Promise<{ status: number; out: string }> => {
   if (fs.existsSync(killPath)) return Promise.resolve({ status: -2, out: '[blocked] kill switch is on' })
@@ -330,179 +118,6 @@ const runNodeAsync = (script: string, args: string[], timeout = 180000, extraEnv
 const runAsync = (args: string[], timeout = 180000) => runNodeAsync(BILI, args, timeout)
 
 // ── 手脚清单：她要先看得见自己有什么手脚，才提得出有依据的选择 ──────────────
-/** Core 给的工具表条目；owner 是提供方（World id 或 'persona'）。 */
-interface AssembledTool { name: string; description: string; tags: readonly string[]; owner: string }
-
-const TAG_TEXT: Record<string, string> = { read: '读', write: '写', speak: '说', act: '动', flow: '排', snapshot: '快照' }
-const tagLine = (tags: readonly string[]): string => (tags.map((t) => TAG_TEXT[t] ?? t).join('·') || '没标')
-
-/** 包名里的类别段：`cortico-world-<id>` 这类命名是约定，加载器认的是包导出的 id，所以这里只当推测。 */
-const PKG_ID = /^(?:@[^/]+\/)?cortico-(?:world|provider|bot)-([a-z0-9][a-z0-9._-]*)$/
-
-function readJsonSafe(file: string): any {
-  try { return JSON.parse(fs.readFileSync(file, 'utf8')) } catch { return null }
-}
-
-/**
- * 她此刻有什么手脚：装配好的工具表 + 已装扩展 + 这份部署的开关。全部来自磁盘与 Core 的只读查询，
- * 输出是给人看的文本；启用、安装、改配置都不在这件事的能力范围里，所以这份清单不给任何写路径。
- */
-export function capabilityText(src: {
-  /** 宿主没接入 listTools 时为 null：只能报自己声明的那一份，并说明看不见别的 World。 */
-  assembled: readonly AssembledTool[] | null
-  /** Core 的装配表（id + 可见性 + 它自己声明的工具数）；宿主没接 listWorlds 时为 null，退回从工具表反推并自报是推断。 */
-  worlds: readonly { id: string; visible: boolean; tools: number }[] | null
-  /** 本 World 的自描述（名字 + 给人看的一句话 + 标签）。 */
-  mine: readonly ToolDescribe[]
-  extDir: string
-  configFile: string | null
-}): string {
-  const zh = new Map<string, string>()
-  for (const t of src.mine) {
-    const s = t.summary
-    const line = (typeof s === 'string' ? s : (s?.zh ?? s?.en) ?? t.description).split('\n')[0].trim()
-    zh.set(t.name, line)
-  }
-  const out: string[] = [
-    '【我的手脚 · 只读清单】',
-    '（这份清单我只能用眼睛看：启用扩展、装扩展、改配置都不是我能做的事，只有主人在 WebUI 里做。）',
-    '',
-  ]
-
-  out.push('一、这一轮真的能调的工具')
-  if (src.assembled) {
-    const grouped = new Map<string, AssembledTool[]>()
-    for (const t of src.assembled) {
-      const list = grouped.get(t.owner)
-      if (list) list.push(t)
-      else grouped.set(t.owner, [t])
-    }
-    out.push(`（共 ${src.assembled.length} 个；标签：读=不改东西，其余（写/说/动/排/快照）都会动东西或留下记录）`)
-    for (const [owner, tools] of grouped) {
-      out.push(`〔${owner}〕`)
-      for (const t of tools) out.push(`- ${t.name} · ${zh.get(t.name) ?? t.description.split('\n')[0].trim()} · ${tagLine(t.tags)}`)
-    }
-    const missing = src.mine.filter((t) => !src.assembled!.some((a) => a.name === t.name))
-    if (missing.length) out.push(`〔bili-account 声明过但这一轮没有〕${missing.map((t) => t.name).join('、')} —— World 被停用，或改了配置没重启。`)
-  } else {
-    out.push(`（共 ${src.mine.length} 个，只有我这个 World 的：宿主没给整份工具表，别的 World 有什么我看不到）`)
-    for (const t of src.mine) out.push(`- ${t.name} · ${zh.get(t.name) ?? t.description} · ${tagLine(t.tags)}`)
-  }
-
-  const cfg = src.configFile ? readJsonSafe(src.configFile) : null
-  const mountedByTools = new Set((src.assembled ?? []).map((t) => t.owner))
-  const mountTable = new Map((src.worlds ?? []).map((w) => [w.id, w]))
-  // 宿主没接挂载表时才退回"从工具表反推"，并且必须自报这是推断：只出画面/事件的 World
-  // 在工具表里根本不存在，反推会把"挂着"说成"没挂"（11-01 figure 实测报错过一次）。
-  const inferredMount = src.worlds == null
-  /** 这个 World 这轮挂没挂：挂载表优先；没表时只能看它在工具表里露过面没有。 */
-  const isMounted = (id: string): boolean => mountTable.has(id) || (inferredMount && mountedByTools.has(id))
-  /** 它露了几个工具：null = 说不清（既没挂载表，工具表里也没见过它）。 */
-  const toolCount = (id: string): number | null => mountTable.get(id)?.tools ?? (mountedByTools.has(id) ? 1 : null)
-  const mountLine = (id: string): string => {
-    if (!isMounted(id)) return inferredMount ? '这轮没挂（从工具表反推的，看不见它未必代表没挂）' : '这轮没装配'
-    const n = toolCount(id)
-    const vis = mountTable.get(id)?.visible
-    return `这轮挂着${n ? `，露 ${n} 个工具` : '，但它不出工具（画面/事件类），工具表里看不见它'}${vis === false ? '；对这轮模型不可见' : ''}`
-  }
-  const providerKinds = new Set<string>(Object.values((cfg?.providers ?? {}) as Record<string, any>).map((p) => String(p?.kind ?? '')))
-  const activeBot = src.configFile ? String(readJsonSafe(path.join(path.dirname(src.configFile), 'deployment.json'))?.bot ?? '') : ''
-  const worldSwitches = new Map<string, boolean>()
-  for (const [id, section] of Object.entries((cfg?.worlds ?? {}) as Record<string, any>)) {
-    if (section && typeof section === 'object' && typeof section.enabled === 'boolean') worldSwitches.set(id, section.enabled)
-  }
-
-  out.push('', `二、装在这台机器上的扩展（${src.extDir}）`)
-  let deps: Array<{ name: string; spec: string }> | null = null
-  try {
-    deps = readInstalled(src.extDir)
-  } catch (e: any) {
-    out.push(`- 读不到这个目录的 package.json：${String(e?.message ?? e)}`)
-  }
-  if (deps && deps.length === 0) out.push('- 一个都没有：这份部署没装扩展，能用的只有仓内自带的 World 与 Provider。')
-  for (const d of deps ?? []) {
-    const pkg = readJsonSafe(path.join(src.extDir, 'node_modules', ...d.name.split('/'), 'package.json'))
-    if (!pkg) {
-      out.push(`- ${d.name} · 登记在 package.json（${d.spec}），但 node_modules 里没有这个包 = 没装上，需要主人重装`)
-      continue
-    }
-    const kind = String((pkg.cortico as any)?.kind ?? '类别不明')
-    const guess = PKG_ID.exec(d.name)?.[1] ?? ''
-    let state: string
-    if (kind === 'world' && guess) {
-      if (isMounted(guess)) state = toolCount(guess) ? '这轮挂上了（它给我的工具就在上面那张表里）' : '这轮挂上了，但它不出工具（画面/事件类），所以工具表里看不到它'
-      else if (worldSwitches.get(guess) === true) state = `配置里 worlds.${guess}.enabled=true，但这轮没装配：改动要重启，或它加载失败`
-      else if (worldSwitches.get(guess) === false) state = `装了，但这份部署没启用（worlds.${guess}.enabled=false）`
-      else state = `装了，但这份部署没有 worlds.${guess} 这一项 = 没启用`
-    } else if (kind === 'provider' && guess) {
-      state = providerKinds.has(guess) ? '有端点在用它' : `装了，但没有端点选它（providers 里没有 kind=${guess}）`
-    } else if (kind === 'bot') {
-      state = activeBot && activeBot === d.name ? '这份部署正在用它' : `装了，但这份部署的代码包是「${activeBot || '未记'}」`
-    } else {
-      state = '装了；包名推不出 id（或不认识这个类别），启用与否要主人到扩展页看'
-    }
-    out.push(`- ${d.name} · ${kind} · ${pkg.version ?? '版本不明'} · ${state}`)
-  }
-
-  out.push('', '三、这份部署的 World 开关（config.json 的 worlds.*）')
-  if (!src.configFile) out.push('- 没拿到部署目录（ctx 缺席），读不到 config.json')
-  else if (!cfg) out.push(`- 读不到 ${src.configFile}（这份部署还没写过配置文件）`)
-  else if (worldSwitches.size === 0) out.push('- config.json 里没有 worlds 段：哪些 World 挂上由 bot 的默认值决定（这轮挂上的见第一节〔〕分组）')
-  for (const [id, on] of worldSwitches) out.push(`- ${id} · ${on ? '开' : '关'} · ${mountLine(id)}`)
-
-  // 口径按能力事实写：装/卸扩展、改配置归主人；**启用/停用**主人让她自己在扩展页点。
-  // 以前这里一句"别自己改"把后者也否掉了，跟她被明确告知的授权相反（f-af013b）。
-  out.push('', `（来源：工具表=Core 这一轮装配的结果；扩展=${path.join(src.extDir, 'package.json')}；开关=${src.configFile ?? '无'}。`
-    + '装/卸扩展和改配置归主人；启用或停用某个已装的扩展，主人让过她自己到扩展页点。'
-    + '想试某个扩展、或哪一项看起来该开，先在 bili_feedback 里写一句，让主人知道。）')
-  return out.join('\n')
-}
-
-const TOOL_SUMMARIES: Record<string, DescribeText> = {
-  bili_traffic: { zh: '读取请求预算/熔断状态', en: 'Read traffic budget state.' },
-  bili_feed: { zh: '拉取候选视频（只读）', en: 'Fetch candidate videos (read-only).' },
-  bili_debrief: { zh: '读懂一条视频（只读）', en: 'Understand one video (read-only).' },
-  bili_diary_read: { zh: '分页读日记：一页几天，回执会写明整本还有多少没给（别把一页当全部）', en: 'Read diaries by page; the receipt states what is still unserved.' },
-  bili_mood_read: { zh: '读取她此刻的场值与情绪（含成因）', en: 'Read her fields and current emotion with cause.' },
-  bili_mood_apply: { zh: '按事件更新场值（预设或自定义）', en: 'Apply emotional effects after an event.' },
-  bili_draft_dynamic: { zh: '生成动态草稿（不发送）', en: 'Create a dynamic draft (never posts).' },
-  bili_diary_append: { zh: '写日记（公开/私人两本）：同日同名小节整节替换（回执「已替换」），新小节才追加（回执「已追加」），没有增量模式', en: 'Write a diary section (replace-if-exists, append-if-new; receipt says which).' },
-  bili_dm_read: { zh: '看主人有没有来信（只读，失败不当成没人写信）', en: 'Check for new owner DMs (read-only; failure is not emptiness).' },
-  bili_dm_reply: { zh: '回主人的私信（直接发送；被拒才退回草稿队列等放行）', en: 'Reply to the owner (sends directly; falls back to the draft queue only if refused).' },
-  bili_feedback: { zh: '她的意见箱：add 记一条问题 / list 看清单 / resolve 标已解决（本地文件，不联网、不发帖）', en: 'Local issue box: add / list / resolve (never touches Bilibili).' },
-  bili_like: { zh: '给她看完觉得好的视频点赞（自己发，过风控）', en: 'Like a video she enjoyed (self-sent, traffic-guarded).' },
-  bili_fav: { zh: '收藏视频（自己发；五条判据+每天 3 条上限，不过就拒）', en: 'Favorite a video (self-sent; five criteria + 3/day cap, refuses on failure).' },
-  bili_capabilities: { zh: '看清自己此刻有什么手脚：能调的工具（读/写）、装着的扩展、这份部署的开关（只读；装/卸与改配置归主人，启用/停用她自己能点）', en: 'List the tools callable now, the installed extensions and this deployment\'s world switches (read-only; install and config belong to the owner, enable/disable is hers to toggle).' },
-  bili_alarm: { zh: '给自己设闹钟：到点带着那句话醒来，重启后也照响', en: 'Set an alarm for herself that survives restarts.' },
-  bili_memory_void: { zh: '更正记忆：写错的那条可以盖作废章（不再被想起，但原文留着可复盘）；只准点名一条', en: 'Void one wrongly-recorded memory (it stops being recalled; text kept for review).' },
-  bili_judgment: { zh: '判断卡：把你对片子的判断落成结构化的一条（立场+词+理由），主人在世界页采纳后才影响 feed；采纳与驳回只有主人能点', en: 'File a structured judgment card (stance + tokens + reason); it affects the feed only after the owner adopts it.' },
-  bili_look: { zh: '真的看一眼片子的画面：封面 / 九宫格 / 字幕条，图随回执一起交回；模型不收图时回执会明说，别描述没看见的东西', en: 'Actually look at a video\'s pictures (cover / frame sheet / subtitle strip); images come back with the receipt. If the model does not accept images the receipt says so — do not describe what you did not see.' },
-}
-
-const DECLS = [
-  { name: 'bili_traffic', description: 'Bilibili request-budget state (read-only).', tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
-  { name: 'bili_feed', description: 'Fetch candidate videos from the feed (read-only).', tags: ['read'], parameters: { type: 'object', properties: { n: { type: 'number', description: 'How many candidates (1-6)' } }, additionalProperties: false } },
-  { name: 'bili_debrief', description: 'Understand one video via subtitles, danmaku, comments (read-only).', tags: ['read'], parameters: { type: 'object', properties: { bvid: { type: 'string' } }, required: ['bvid'], additionalProperties: false } },
-  { name: 'bili_diary_read', description: "Read her diaries BY PAGE (read-only). One call = one page of day-blocks (newest first) plus a header stating how many days/chars the whole book has and whether this page is the end. Never assume a page is the whole book: if the header says 还剩 N 块, ask for the next page or a date. Call it without filters first: the receipt lists the section headings this book has.", tags: ['read'], parameters: { type: 'object', properties: { book: { type: 'string', enum: ['public', 'private', 'both'], description: '默认 both' }, page: { type: 'number', description: '第几页（0 起，按天从新到旧）' }, days: { type: 'number', description: '每页几天（1-30，默认 3）' }, budget: { type: 'number', description: '每页字数上限（200-9000，默认 4000）' }, date: { type: 'string', description: '只取某一天 YYYY-MM-DD（给了就忽略 page）' }, heading: { type: 'string', description: '只要这个小节（如 看过 / 想说 / 今日指标），可与 date 一起用；回执会写清有多少天有这一节' }, summary: { type: 'boolean', description: '只给统计不给正文：区间内的天数、看过几个 BV、想说几节、判断小节里收/不收各几条。用来回答「这周判了多少」' }, from: { type: 'string', description: 'summary 用：起始日 YYYY-MM-DD' }, to: { type: 'string', description: 'summary 用：截止日 YYYY-MM-DD' } }, additionalProperties: false } },
-  { name: 'bili_mood_read', description: "Read her current emotion (fields + cause + label) plus what she recalls. Recalling marks those memories as thought-of-again: they get clearer.", tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
-  { name: 'bili_mood_apply', description: 'Apply emotional effects after an event. Optionally record which life activity you picked and a short note. For watchedVideo, say what you actually concluded with verdict (keep / drop / unclear); without it nothing is counted as a positive.', tags: ['write'], parameters: { type: 'object', properties: { preset: { type: 'string', description: 'watchedVideo | masterReplied | masterSilentDay | draftApproved | draftRejected | trafficPaused' }, verdict: { type: 'string', enum: ['keep', 'drop', 'unclear'], description: '只给 watchedVideo 用：你这条到底收不收。keep=收 / drop=不收 / unclear=无从判断（不传按 unclear 记，不替你判成喜欢）' }, custom: { type: 'array', items: { type: 'object', properties: { field: { type: 'string' }, delta: { type: 'number' }, source: { type: 'string' } }, required: ['field', 'delta', 'source'] } }, note: { type: 'string', description: '一句留给自己的话（会写进记忆）' }, activity: { type: 'string', enum: ['rest', 'explore', 'create', 'social', 'reflect', 'exercise', 'consume'], description: '这轮挑的生活活动 id' } }, additionalProperties: false } },
-  { name: 'bili_draft_dynamic', description: "Create a dynamic draft from today's diary and an unused image. Never posts.", tags: ['write'], parameters: { type: 'object', properties: { force: { type: 'boolean' } }, additionalProperties: false } },
-  { name: 'bili_diary_append', description: "Write a section into one of her diaries (public/private). Policy is FIXED: same day+heading = WHOLE-section replace (receipt says 已替换); a heading not yet present = append as a NEW section (receipt says 已追加). There is no incremental append — rewrite the whole section each time.", tags: ['write'], parameters: { type: 'object', properties: { book: { type: 'string', enum: ['public', 'private'], description: 'public = 给人看的；private = 只给自己看的偏好校准' }, heading: { type: 'string', description: '小节标题，如 看过 / 想说 / 今日指标 / 本轮留下的判断' }, text: { type: 'string', description: '这一节的正文（markdown）' } }, required: ['book', 'heading', 'text'], additionalProperties: false } },
-  { name: 'bili_dm_read', description: "Check whether 主人 (the owner) sent a new DM since last check. Read-only: never sends or marks anything read on Bilibili; advances only her local cursor. If reading fails it says so — it is NOT the same as 'no message'.", tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
-  { name: 'bili_dm_reply', description: "Reply to 主人's latest DM. Sends directly (owner DMs are auto-approved since 2026-10-31; still traffic-guarded); if the send is refused it falls back to the local draft queue. Requires having read a message first.", tags: ['write'], parameters: { type: 'object', properties: { text: { type: 'string', description: '回信正文（≤500 字，第一人称）' } }, required: ['text'], additionalProperties: false } },
-  { name: 'bili_feedback', description: "Her local issue box (never touches Bilibili): add = report a tool/system problem in one sentence (you do NOT fix code); list = show open items; resolve = mark one resolved (yours or owner's). Use it instead of silently enduring defects.", tags: ['write'], parameters: { type: 'object', properties: { action: { type: 'string', enum: ['add', 'list', 'resolve'] }, issue: { type: 'string', description: '一句话现象（≤500 字）' }, severity: { type: 'string', enum: ['low', 'high'], description: 'high = 卡住主链路；low = 体验瑕疵' }, note: { type: 'string', description: '你已如何对治（可选）' }, selfHandled: { type: 'boolean', description: '你自己已绕开/对治 = true' }, id: { type: 'string', description: 'resolve 时必填（先 list）' } }, additionalProperties: false } },
-  { name: 'bili_like', description: "Like a video she actually enjoyed (self-sent since 2026-10-31, still traffic-guarded). A like is a light signal — no cap, but do not like everything.", tags: ['write'], parameters: { type: 'object', properties: { bvid: { type: 'string' }, reason: { type: 'string', description: '为什么赞（一句话，写进偏好账）' } }, required: ['bvid'], additionalProperties: false } },
-  { name: 'bili_fav', description: "Add a video to her favorites (self-sent since 2026-10-31). Five criteria still apply and the tool REFUSES when they fail: reason ≥6 chars, ≤3/day, no repeat within 30 days, ≤2 per kind unless better. A refusal is final — do not retry.", tags: ['write'], parameters: { type: 'object', properties: { bvid: { type: 'string' }, reason: { type: 'string', description: '为什么留（≥6 字）' }, better: { type: 'boolean', description: '比同类别已收的明显更好时置 true' } }, required: ['bvid', 'reason'], additionalProperties: false } },
-  { name: 'bili_capabilities', description: 'Inventory of her own capabilities right now, one line each: every tool actually callable this turn (name + one-line function + read/write tag), every extension package installed on this machine with its enabled state, and this deployment\'s world switches. Read-only: it changes, enables and installs nothing.', tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
-  { name: 'bili_look', description: "Actually look at a video's pictures: cover, the 3x3 frame sheet, or the subtitle strip. The images come back with the receipt so the next request carries them. Only works when the running model accepts images — if it does not, the receipt says so and you must not describe what you did not see. Cheap when the files already exist on disk; otherwise it takes a minute to fetch frames.", tags: ['read'], parameters: { type: 'object', properties: { bvid: { type: 'string', description: '看哪条视频' }, what: { type: 'string', enum: ['cover', 'sheet', 'strip', 'all'], description: 'cover=封面；sheet=九宫格（要跑抽帧）；strip=字幕条（要 --substrip）；all=三样都要' } }, required: ['bvid'], additionalProperties: false } },
-  { name: 'bili_alarm', description: "Set an alarm for herself. At that time she wakes up with a bili.action_due event carrying the note, so it works across restarts. Use it when something is worth coming back to (a video she wants to finish, checking whether a reply arrived), not as a timer for its own sake.", tags: ['flow'], parameters: { type: 'object', properties: { minutes: { type: 'number', description: '多少分钟后叫你（1–1440）' }, note: { type: 'string', description: '到点要做什么（一句话，会原样出现在唤醒提示里）' } }, required: ['minutes', 'note'], additionalProperties: false } },
-  { name: 'bili_memory_void', description: "Void one memory she now believes was recorded wrongly (local only, never touches Bilibili). The original text stays in her state for later review but stops coming back to mind. She must name ONE memory: an exact id, or a text match that hits exactly one. 0 hits or 2+ hits is REFUSED with the candidate list — never void a pile on a guess, and a refusal is not a bug to retry.", tags: ['write'], parameters: { type: 'object', properties: { id: { type: 'string', description: '记忆 id（从工具上一次给的候选清单里取，最准）' }, match: { type: 'string', description: '正文片段；只有唯一命中才生效' }, reason: { type: 'string', description: '为什么作废（≥6 字，留在条上供她日后复盘）' } }, required: ['reason'], additionalProperties: false } },
-  { name: 'bili_judgment', description: "File a judgment card: your own structured conclusion about what to watch more or less of. stance=prefer (soft boost, capped) / avoid (hard drop) / noise (hard drop); tokens are 1-6 words of 2-12 characters; reason needs at least 6 characters. Cards affect nothing until the owner adopts them on the world page — you cannot adopt them yourself, and this tool has no access to the owner's word list.", tags: ['write'], parameters: { type: 'object', properties: { action: { type: 'string', enum: ['add', 'list'], description: '默认 list' }, scope: { type: 'string', enum: ['feed', 'draft', 'dm', 'any'], description: '作用域；本轮 feed 只吃 feed 与 any' }, stance: { type: 'string', enum: ['prefer', 'avoid', 'noise'], description: 'prefer=多给这类（加权）；avoid/noise=直接丢掉这类（硬拦）' }, tokens: { type: 'string', description: '1-6 个词，逗号分隔，每词 2-12 字（如 "助眠,白噪音"）' }, reason: { type: 'string', description: '为什么这么判（≥6 字，≤200 字）' }, bvid: { type: 'string', description: '触发这条判断的那条片子（可选）' } }, additionalProperties: false } },
-] as const
-
-/** 自描述与手脚清单共用同一份"给人看的一句话"。 */
-const BILI_TOOL_DECLS = describeTools(DECLS, TOOL_SUMMARIES)
-
 class BiliAccountWorld {
   readonly id = 'bili-account'
   private host: any = null
@@ -1151,7 +766,7 @@ class BiliAccountWorld {
         } catch (e: any) {
           return '[bili_draft_dynamic failed] 无法写入 voiceBrief：' + String(e?.message ?? e)
         }
-        const args = [...(a?.force ? ['--force'] : []), '--drafts', DRAFTS_DIR, '--voice', voiceFile]
+        const args = [...(a?.force ? ['--force'] : []), '--drafts', consolePaths.DRAFTS_DIR, '--voice', voiceFile]
         const r = await runNodeAsync(path.join(ROOT, 'scripts', 'draft-dynamic.mjs'), args, 90000)
         // 发送策略 auto：与人工点同一份审批语义（严格一次性令牌 + draftId/正文哈希绑定 + 防双发）。
         // draftId 取磁盘事实源 `<day>.json`，不从工具 stdout 抠 —— 她写的文本不该能指向别的草稿。

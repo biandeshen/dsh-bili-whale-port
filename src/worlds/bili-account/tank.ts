@@ -12,6 +12,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { loadState, readMood, describeState } from './personaAdapter.ts'
+import { resolveDraftsDir } from './paths.ts'
 
 const ROOT = process.env.BILI_WHALE_ROOT || 'E:/WorkSpace_Qoder/dsh-bili-whale'
 // home 优先级与 dsh `tools/lib/paths.mjs:resolveWhaleHome` 一致（WHALE_HOME → DSH_HOME → ~/.dsh）。
@@ -21,20 +22,8 @@ const FIELDS_FILE = path.join(WHALE, 'bili-whale', 'fields.json')
 const CAUSAL_FILE = path.join(WHALE, 'bili-whale', 'causal.jsonl')
 const KILL_FILE = path.join(WHALE, 'bili-whale', 'control', 'kill')
 const FEEDBACK_FILE = path.join(WHALE, 'bili-whale', 'control', 'feedback.jsonl')
-/**
- * 草稿目录：与 dsh `tools/lib/paths.mjs:draftsDir()` 同一优先级（env → 旧路径-if-exists → home）。
- * 这条链曾在两处各写一份、第二份漏了旧路径，于是 badge 读不存在的空目录报「待放行=0」，
- * 而同页面板能列出真实草稿 —— 对外读数与事实相反的根因。只此一处实现。
- */
-function resolveDraftsDir(): string {
-  for (const env of ['WHALE_DRAFTS', 'BILI_DRAFTS']) {
-    const v = process.env[env]
-    if (v) return v
-  }
-  const legacy = 'D:/AI/养鱼/drafts'
-  try { if (fs.existsSync(legacy)) return legacy } catch {}
-  return path.join(WHALE, 'bili-whale', 'drafts')
-}
+// 解析规则在 paths.resolveDraftsDir()（只此一份）；这里在模块加载时求值，
+// 测试用 `?query` 重新 import 本文件时才能拿到新的 env。
 const DRAFTS_DIR = resolveDraftsDir()
 /**
  * 待审回信队列（go-gate 写的 `pending-replies.json`）。

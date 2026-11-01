@@ -321,3 +321,28 @@ test('待放行 = 草稿 + 待审回信：徽标与面板同一口径，且新�
     fs.rmSync(home, { recursive: true, force: true })
   }
 })
+
+// 2026-11-02 拆分：definition.ts 从 1440 行降到 ~1055 行，纯数据与纯函数搬到了
+// tool-decls / capability / paths / causal-io / prompts。搬家的验收标准是**对外契约一模一样**，
+// 这条锁住三件事：工具表仍按序、handler 下标仍对得上、旧入口仍能按名字 import。
+test('拆出去的工具表与 handler 下标仍对得上，旧入口仍可用', async () => {
+  const { DECLS, BILI_TOOL_DECLS } = await import('../src/worlds/bili-account/tool-decls.ts')
+  const def = await import('../src/worlds/bili-account/definition.ts')
+
+  // ① 声明是有序数组：handler 用 DECLS[n] 取参数 schema，顺序变了等于换了参数
+  assert.equal(DECLS.length, 18, '工具数变了就要同步改 tools() 里的下标')
+  assert.deepEqual(
+    DECLS.map((d) => d.name),
+    ['bili_traffic', 'bili_feed', 'bili_debrief', 'bili_diary_read', 'bili_mood_read', 'bili_mood_apply',
+      'bili_draft_dynamic', 'bili_diary_append', 'bili_dm_read', 'bili_dm_reply', 'bili_feedback',
+      'bili_like', 'bili_fav', 'bili_capabilities', 'bili_look', 'bili_alarm', 'bili_memory_void', 'bili_judgment'],
+  )
+  // ② 每个声明都有给人看的一句话（自描述与手脚清单共用）
+  for (const d of DECLS) assert.ok(BILI_TOOL_DECLS.find((t) => t.name === d.name)?.summary, `${d.name} 缺摘要`)
+
+  // ③ 旧调用方（测试、脚本）仍能按原来的名字从这个文件 import
+  for (const name of ['countCausalActions', 'sanitizeEffects', 'parseDebriefMemory', 'exportPolicyNotice', 'consumeDraftResults', 'capabilityText']) {
+    assert.equal(typeof def[name], 'function', `definition.ts 不再导出 ${name}`)
+  }
+  assert.ok(def.BILI_ACCOUNT, 'BILI_ACCOUNT 仍在 definition.ts')
+})
