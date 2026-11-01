@@ -23,6 +23,7 @@
     "observe": "node scripts/observation-status.mjs",
     "observe:day": "node scripts/observation-day.mjs",
     "ops:day": "node scripts/ops-day.mjs",
+    "ops:backup": "node scripts/ops-backup.mjs",
     "observe:start": "node scripts/observation-start.mjs",
     "audit:goal": "node scripts/goal-audit.mjs",
     "c2:arm": "node scripts/c2-offline.mjs arm",
