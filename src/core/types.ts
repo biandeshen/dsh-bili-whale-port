@@ -735,6 +735,12 @@ export interface WorldHost {
    * 未接入此查询的宿主可省略。
    */
   llmStalls?(withinMs: number): Promise<number>;
+  /**
+   * 本轮真的能调的工具：装配、去重并按 World 可见性过滤后的表，与发给模型的那份同源。
+   * `owner` 是提供方的 World id，Persona 自有工具与装配层的补充项为 `persona`。
+   * 只读快照，不改变工具表；未接入此查询的宿主可省略。
+   */
+  listTools?(): Array<{ name: string; description: string; tags: readonly ToolTag[]; owner: string }>;
   /** Persona 未实现、全局关闭或宿主未接入时为 undefined。 */
   cognition?: CognitionHost;
   log: Logger;

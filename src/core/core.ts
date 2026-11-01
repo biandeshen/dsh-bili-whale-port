@@ -566,6 +566,13 @@ export class Core<C extends CoreConfig = CoreConfig> {
         if (lease.active) this.reportWorldUsage(mod.id, usage, opts);
       },
       llmStalls: async (withinMs) => this.loop.llmStalls(withinMs),
+      // 归属按挂载表查：认不出提供方名字的工具来自 Persona 自己或装配层的补充项。
+      listTools: () => this.loop.getToolSchemas().map((t) => ({
+        name: t.name,
+        description: t.description,
+        tags: t.tags,
+        owner: this.worlds.find((m) => m.tools().some((own) => own.name === t.name))?.id ?? 'persona',
+      })),
       // 每次访问重新检查 Persona 开关，关闭后 getter 立即返回 undefined。
       get cognition(): CognitionHost | undefined {
         return lease.active ? self.makeCognition(mod, () => lease.active) : undefined;

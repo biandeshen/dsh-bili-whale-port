@@ -121,6 +121,12 @@ describe('World 对 agent 的可见性', () => {
     expect(core.isWorldVisible('probe')).toBe(true);
   });
 
+  it('World 宿主问「我有什么手脚」时拿到的就是装配后那张表：名字、标签与提供方', () => {
+    const table = probe.host!.listTools!();
+    expect(table.map((t) => t.name)).toEqual(toolNames());
+    expect(table.find((t) => t.name === 'send_probe')?.owner).toBe('probe');
+  });
+
   it("隐藏后事件立即停止投递，仍写入事件库", async () => {
     const before = core.store.latestCursor();
     core.setWorldVisible('probe', false);
