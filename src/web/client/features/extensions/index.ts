@@ -1058,6 +1058,9 @@ export function mountExtensions(ctx: FeatureContext): void {
     if (item.state === 'failed') return S.whyFailed(item.reason ?? '');
     if (item.state === 'pending-restart') return S.whyPendingRestart;
     if (item.state === 'removed') return S.whyRemoved;
+    // 内建 World 的 state 一直是 loaded，靠 enabled 区分装没装上（宿主 decorate 写的是
+    // assembly.slots.mounted）——只看 state 会把"已安装，未加载"的原因漏掉。
+    if (item.kind === 'world' && item.worldId && item.enabled === false) return S.whyIdle;
     return '';
   }
   async function activation(item: ExtensionView, want: boolean): Promise<void> {

@@ -655,6 +655,16 @@ describe('extension card and history controls', () => {
     expect(button(pcard, '激活').disabled).toBe(true);
   });
 
+  it('内建 World 的 state 恒为 loaded：只看状态会漏掉原因，enabled=false 也要说清', async () => {
+    const builtin = { ...LIST.extensions[0], name: 'bilibili', worldId: 'bilibili', label: 'B 站直播间', enabled: false, state: 'loaded' };
+    stub({ list: { ...LIST, extensions: [builtin] } });
+    const { root } = mount(); await flush();
+    const card = cardOf(root, 'B 站直播间');
+    expect(card.textContent).toContain('已安装，未加载');
+    expect(card.querySelector('.extension-reason')?.textContent).toContain('这个 Bot 没启用它');
+    expect(button(card, '激活').disabled).toBe(false);
+  });
+
   it('provider/bot 不作假装有开关，只说清它的开关在哪一页', async () => {
     window.history.replaceState(null, '', '#/extensions/provider');
     stub();
