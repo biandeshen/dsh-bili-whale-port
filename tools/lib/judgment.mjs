@@ -66,8 +66,9 @@ function pickAllowed(entry) {
 }
 
 /**
- * 全部判断卡，按状态折叠。`adopted` 的卡同时是 feed 现在真在用的那份。
- * 卡片过期只是不再被 feed 采纳，历史仍在（status 不变），便于回看她当初为什么那么判。
+ * 全部判断卡，按状态折叠。`adopted` 只算**此刻仍写在配置里**的那些：
+ * 账本记的是"主人点过采纳"，配置记的是"feed 现在真按它筛"。两者分开是必要的——
+ * 配置里的条目被移除或过期后，账本不能继续说它还在生效。
  */
 export function listJudgments(file = JUDGMENT_FILE, { status = 'all', limit = 50 } = {}) {
   const entries = readEntries(file)
@@ -77,9 +78,11 @@ export function listJudgments(file = JUDGMENT_FILE, { status = 'all', limit = 50
     if (e.kind === 'judgment-adopted') adopted.set(String(e.id), e)
     if (e.kind === 'judgment-rejected') rejected.set(String(e.id), e)
   }
+  // 配置里此刻真实生效的那份（后台没写到配置的采纳一律不算"已采纳"）
+  const live = new Set(activeJudgments().ids)
   const items = entries.filter((e) => e.kind === 'judgment').map((e) => {
     const id = String(e.id)
-    const state = adopted.has(id) ? 'adopted' : rejected.has(id) ? 'rejected' : 'proposed'
+    const state = live.has(id) ? 'adopted' : adopted.has(id) ? 'retired' : rejected.has(id) ? 'rejected' : 'proposed'
     return {
       id,
       at: e.at,
@@ -100,6 +103,7 @@ export function listJudgments(file = JUDGMENT_FILE, { status = 'all', limit = 50
     ok: true,
     proposed: items.filter((x) => x.status === 'proposed').length,
     adopted: items.filter((x) => x.status === 'adopted').length,
+    retired: items.filter((x) => x.status === 'retired').length,
     total: items.length,
     items: filtered.slice(-limit).reverse(),
   }
@@ -222,5 +226,5 @@ export function activeJudgments(now = Date.now()) {
       for (const t of tokens) if (!blocked.includes(t)) prefer.push(t)
     }
   }
-  return { avoid: [...new Set(avoid)], prefer: [...new Set(prefer)], conflicts }
+  return { avoid: [...new Set(avoid)], prefer: [...new Set(prefer)], conflicts, ids: live.map((x) => String(x.id)) }
 }

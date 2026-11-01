@@ -113,7 +113,9 @@ test('过期的卡不再生效；没有卡时两个桶都是空（合并当天�
   }, null, 2), 'utf8')
   assert.deepEqual(J.activeJudgments().avoid, [])
   fs.writeFileSync(cfgFile, JSON.stringify({ preferences: { like: [], dislike: [] } }, null, 2), 'utf8')
-  assert.deepEqual(J.activeJudgments(), { avoid: [], prefer: [], conflicts: [] })
+  const empty = J.activeJudgments()
+  assert.deepEqual([empty.avoid, empty.prefer, empty.conflicts], [[], [], []], '没有卡时两个桶都空')
+  assert.deepEqual(empty.ids, [])
 })
 
 test('坏行不拖垮整条链：半行损坏时其余照读', () => {
@@ -121,6 +123,22 @@ test('坏行不拖垮整条链：半行损坏时其余照读', () => {
   const list = J.listJudgments(file)
   assert.equal(list.total, 1)
   assert.equal(list.items[0].id, 'j-ok')
+})
+
+test('采纳记在账本上、生效记在配置上：配置里被撤掉后不能继续报"已采纳"', () => {
+  fs.writeFileSync(file, '', 'utf8')
+  fs.writeFileSync(cfgFile, JSON.stringify({ preferences: { like: [], dislike: [], judgments: [] } }, null, 2), 'utf8')
+  const { id } = J.appendJudgment({ tokens: '长视频', reason: '这类太长看不完' }, file)
+  J.adoptJudgment(id, 'owner', file)
+  assert.equal(J.listJudgments(file).items[0].status, 'adopted', '配置里在 = 已采纳')
+
+  const cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf8'))
+  cfg.preferences.judgments = []
+  fs.writeFileSync(cfgFile, JSON.stringify(cfg, null, 2), 'utf8')
+  const after = J.listJudgments(file)
+  assert.equal(after.items[0].status, 'retired', '配置里没了 = 撤下，不是还在生效')
+  assert.equal(after.adopted, 0)
+  assert.equal(after.retired, 1)
 })
 
 test.after(() => fs.rmSync(home, { recursive: true, force: true }))
