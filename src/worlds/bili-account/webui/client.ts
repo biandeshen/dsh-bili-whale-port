@@ -177,24 +177,38 @@ function mountTimeline(ctx: WebUiPanelContext): void {
   const err = ui.msgline();
   const table = ui.table({ head: ['时间', '事件', '内容'] });
   const count = ui.h('div', 'sh-desc');
-  const btn = ui.button('刷新', { size: 'sm', onClick: () => poll() });
-  const bar = ui.rowbar(); bar.append(ui.h('span', 'grow'), btn);
+  const btn = ui.button('刷新', { size: 'sm', onClick: () => { cursor = 0; poll(); } });
+  // 服务端返回 next=下一页游标；第一页之外的都从那里接着读，刷新才回到最新一页。
+  const older = ui.button('加载更早', { size: 'sm', onClick: () => olderPage() });
+  const bar = ui.rowbar(); bar.append(ui.h('span', 'grow'), older, btn);
   card.body.append(err, count, table.el, bar);
 
-  const draw = (st: TimelineState): void => {
-    err.hidden = true;
-    if (st?.ok === false) { err.textContent = '时间线读不到：' + (st?.error ?? ''); err.hidden = false; return; }
-    const items = st?.items ?? [];
-    table.clear(items.length ? undefined : '还没有事件');
+  let cursor = 0;
+
+  /** 事件只在下拉里追加：往前翻不该把已经看过的行冲掉。 */
+  const addRows = (items: TimelineEntry[]): void => {
     for (const e of items) {
       const t = e.at ? new Date(e.at) : null;
       const hhmm = t ? `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}` : '—';
       const content = e.note ?? e.heading ?? e.bvid ?? e.result ?? '';
       table.addRow([hhmm, String(e.kind ?? ''), String(content).slice(0, 90)]);
     }
+  };
+  const draw = (st: TimelineState, append: boolean): void => {
+    err.hidden = true;
+    if (st?.ok === false) { err.textContent = '时间线读不到：' + (st?.error ?? ''); err.hidden = false; return; }
+    const items = st?.items ?? [];
+    if (!append) table.clear(items.length ? undefined : '还没有事件');
+    addRows(items);
+    cursor = typeof st?.next === 'number' ? st.next : 0;
+    older.hidden = typeof st?.next !== 'number';
     count.textContent = `共 ${st?.total ?? 0} 条`;
   };
-  const poll = (): void => { void ctx.invoke<TimelineState>('state', [0, 50]).then(draw).catch((e) => { err.textContent = errText(e); err.hidden = false; }); };
+  const load = (at: number): void => {
+    void ctx.invoke<TimelineState>('state', [at, 50]).then((st) => draw(st, at > 0)).catch((e) => { err.textContent = errText(e); err.hidden = false; });
+  };
+  const poll = (): void => load(0);
+  const olderPage = (): void => { if (cursor > 0) load(cursor); };
   poll();
   ctx.interval(poll, POLL_MS);
 }
