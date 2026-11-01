@@ -14,7 +14,7 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
-import { spawnSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -24,6 +24,26 @@ const root = path.resolve(arg('root', process.cwd()))
 const loader = arg('import', '') // 例如 tsx
 const reportAt = arg('report', '')
 const SKIP = new Set(['node_modules', '.git', 'dist', 'dist-web', '.spike-home', 'deployments', 'runtime', 'local-resources'])
+
+/**
+ * 报告落点。给一个以分隔符结尾的路径（或已存在的目录）时，按当天日期自动命名——
+ * 这样 `npm run gates` 在 cmd.exe 里也能用（那里没有 `$(date)`）。
+ */
+function reportTarget(spec) {
+  const absolute = path.isAbsolute(spec) ? spec : path.join(root, spec)
+  const looksLikeDir = /[\\/]$/.test(spec) || (fs.existsSync(absolute) && fs.statSync(absolute).isDirectory())
+  if (!looksLikeDir) return absolute
+  // 本地日期：用 UTC 的话，北京时间早上 8 点前跑出来的报告会挂在前一天名下。
+  const d = new Date()
+  const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const prefix = path.basename(root) === 'dsh-bili-whale' ? 'gates' : `gates-${path.basename(root)}`
+  return path.join(absolute, `${prefix}-${day}.json`)
+}
+
+/** 报告要能回答"这是哪份代码跑出来的"：没有 sha 的报告过两周就没法对账。 */
+function gitSha(dir) {
+  try { return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() } catch { return '' }
+}
 
 function walk(dir, out = []) {
   let entries
@@ -99,11 +119,13 @@ if (notRun.length) console.log(`NOT_RUN=${notRun.join(', ')}`)
 const mismatch = executed !== files.length || counts.tests === 0
 
 if (reportAt) {
-  const target = path.isAbsolute(reportAt) ? reportAt : path.join(root, reportAt)
+  const target = reportTarget(reportAt)
   fs.mkdirSync(path.dirname(target), { recursive: true })
   fs.writeFileSync(target, JSON.stringify({
     at: startedAt.toISOString(),
     root,
+    gitSha: gitSha(root),
+    node: process.version,
     exit: code,
     discovered: files.length,
     executed,
