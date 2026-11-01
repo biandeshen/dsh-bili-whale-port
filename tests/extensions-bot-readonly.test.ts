@@ -30,7 +30,8 @@ const getJ = async (path: string) => {
 const postJ = async (path: string, body: unknown) => {
   const r = await fetch(`http://127.0.0.1:${port}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    // 非 GET 要带同源 Origin：本仓的闸门挡的是跨站脚本与无 Origin 的盲写。
+    headers: { 'Content-Type': 'application/json', Origin: `http://127.0.0.1:${port}` },
     body: JSON.stringify(body),
   });
   return { status: r.status, body: (await r.json()) as Record<string, unknown> };

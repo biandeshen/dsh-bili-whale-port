@@ -200,7 +200,7 @@ describe.sequential('CortiV 集成测试', () => {
       `http://127.0.0.1:${port}/api/webui/providers/memory%3Acortiv/panels/workspace/history`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Origin: `http://127.0.0.1:${port}` },
         body: JSON.stringify({ args: ['minecraft/试播记录.md'] }),
       },
     );
@@ -220,7 +220,7 @@ describe.sequential('CortiV 集成测试', () => {
       `http://127.0.0.1:${port}/api/config`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Origin: `http://127.0.0.1:${port}` },
         body: JSON.stringify({ group, values }),
       },
     );

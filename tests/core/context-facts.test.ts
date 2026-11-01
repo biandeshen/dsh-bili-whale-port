@@ -44,7 +44,9 @@ describe('ModelCatalog', () => {
     expect(catalog.contextWindow('a/wide')).toBe(200000);
     expect(catalog.contextWindow('b/plain')).toBeUndefined();
     const denied = new ModelCatalog(() => ({ baseUrl: 'https://router.test/api/v1', headers: {} }), (async () => new Response('nope', { status: 401 })) as unknown as typeof fetch);
-    await expect(denied.list()).rejects.toThrow('GET /models 401');
+    // 报错要能指路：说清"这个端点不提供模型列表"，并把试过的路径与状态码带上，
+    // 而不是抛一句给程序员看的 'GET /models 401'。断言匹配实质，不锁死措辞。
+    await expect(denied.list()).rejects.toThrow(/不提供模型列表[\s\S]*401/);
   });
 
   it('name、top_provider.max_completion_tokens、architecture.input_modalities 成为显示名、最大输出与图像输入;类型不对的不报', async () => {
