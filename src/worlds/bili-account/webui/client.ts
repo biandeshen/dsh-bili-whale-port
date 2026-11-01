@@ -580,9 +580,14 @@ function mountPolicy(ctx: WebUiPanelContext): void {
           row.appendChild(v);
         } else {
           // 控件按现值的类型给：开关是二选一，数字是数字框，名单是逗号分隔的一条输入。
-          const ctl: any = typeof it.value === 'boolean'
-            ? ui.select({ options: [{ value: 'true', label: '是' }, { value: 'false', label: '否' }] })
-            : ui.input({ type: typeof it.value === 'number' ? 'number' : 'text', placeholder: Array.isArray(it.value) ? '顿号或逗号分隔' : '' });
+          // 有固定选项的键（通知渠道、报文格式）给下拉：拼错一个字母就等于"没配渠道"，
+          // 而页面不会告诉你拼错了。
+          const options: string[] | null = Array.isArray(it.options) ? it.options : null;
+          const ctl: any = options
+            ? ui.select({ options: options.map((o) => ({ value: o, label: o })) })
+            : typeof it.value === 'boolean'
+              ? ui.select({ options: [{ value: 'true', label: '是' }, { value: 'false', label: '否' }] })
+              : ui.input({ type: typeof it.value === 'number' ? 'number' : 'text', placeholder: Array.isArray(it.value) ? '顿号或逗号分隔' : '' });
           ctl.value = Array.isArray(it.value) ? it.value.join('、') : String(it.value ?? '');
           const btn = ui.button('改', {
             onClick: () => {

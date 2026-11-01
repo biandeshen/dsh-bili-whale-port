@@ -263,7 +263,18 @@ const RESTART_KEYS = new Set(['owner.displayName', 'owner.name', 'owner.mid', 's
 /** 策略六项在页面最上方那组控件里改（那边有档位护栏与 auto 留痕），不走通用一格一改。 */
 const POLICY_KEYS = new Set(['publish.draftMode', 'publish.autoDailyCap', 'publish.autoWindow', 'permissions.like', 'permissions.fav', 'permissions.dmReply'])
 
-export interface SettingsItem { key: string; value: unknown; group: string; editable: boolean; editVia: 'policy' | 'settings' | null; needsRestart: boolean; declared: boolean }
+/** 有固定选项的键：页面上渲染成下拉，不用让人记住拼写（拼错就是"没配渠道"）。 */
+const ENUM_KEYS: Record<string, string[]> = {
+  'notify.type': ['none', 'desktop', 'webhook', 'ntfy', 'bark', 'command', 'stdout'],
+  'notify.template': ['text', 'markdown'],
+}
+
+export interface SettingsItem {
+  key: string; value: unknown; group: string; editable: boolean; editVia: 'policy' | 'settings' | null;
+  needsRestart: boolean; declared: boolean;
+  /** 固定选项；没有就是自由输入。 */
+  options?: string[];
+}
 
 const hasPath = (o: any, path: string) => path.split('.').reduce((acc: any, k) => (acc && typeof acc === 'object' ? acc[k] : undefined), o) !== undefined
 
@@ -285,7 +296,11 @@ export function settingsOverview(user: any, declared: any): { total: number; und
       const scalar = kind === 'number' || kind === 'boolean' || kind === 'string' || kind === 'array'
       const denied = DENY_KEYS.has(key) || DENY_PREFIX.some((p) => key.startsWith(p))
       const editVia = POLICY_KEYS.has(key) ? 'policy' : scalar && !denied ? 'settings' : null
-      items.push({ key, value: v, group, editable: editVia !== null, editVia, needsRestart: RESTART_KEYS.has(key), declared: hasPath(declared, key) })
+      items.push({
+        key, value: v, group, editable: editVia !== null, editVia,
+        needsRestart: RESTART_KEYS.has(key), declared: hasPath(declared, key),
+        ...(ENUM_KEYS[key] ? { options: ENUM_KEYS[key] } : {}),
+      })
     }
   }
   walk(user, '')
