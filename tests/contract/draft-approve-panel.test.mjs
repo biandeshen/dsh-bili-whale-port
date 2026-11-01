@@ -71,3 +71,21 @@ test('面板放行：入队后正文被改过 → 按当前正文重新绑定（
   assert.equal(pend.used, true)
   assert.equal(pend.payload.textHash, sha1('正文D改过'), '新令牌绑定改后正文')
 })
+
+// #41：面板上放行时主人写的那句话也要落到她能读到的地方（草稿 + 因果账）。
+test('面板放行带理由：ownerNote 与 draft-result 的 reason 都落盘', async () => {
+  const d = { id: 'dyn-20261101-why', date: '2026-11-02', status: 'pending', image: img, text: '带理由的正文', textHash: sha1('带理由的正文') }
+  const it = ack.enqueue(WHALE, { draftId: d.id, date: d.date, textHash: d.textHash })
+  d.ackId = it.id
+  writeDraft(d)
+  const r = await approveFromPanel({ id: d.id, runner: fakeRunner, why: '这条发吧，语气是对的' })
+  assert.equal(r.ok, true)
+  const onDisk = JSON.parse(fs.readFileSync(path.join(DRAFTS, '2026-11-02.json'), 'utf8'))
+  assert.equal(onDisk.ownerNote, '这条发吧，语气是对的')
+  const causal = fs.readFileSync(path.join(WHALE, 'bili-whale', 'causal.jsonl'), 'utf8')
+    .split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l) } catch { return null } })
+    .filter((e) => e && e.kind === 'draft-result' && e.draftId === d.id)
+  assert.equal(causal.length, 1, 'sent 应有一条 draft-result')
+  assert.equal(causal[0].reason, '这条发吧，语气是对的')
+  assert.ok(!JSON.stringify(r).includes(it.token), '带理由也不许把 token 漏进响应')
+})

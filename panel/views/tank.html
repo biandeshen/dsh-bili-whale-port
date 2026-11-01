@@ -210,8 +210,11 @@ document.addEventListener('click',async e=>{
   if(fbBtn){const r=await api('/api/feedback/resolve',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:fbBtn.dataset.fb})})
     toast(r.ok?'✓ 已标记解决':('失败：'+(r.error||'')));loadAll();return}
   const da=e.target.closest('[data-da]')
-  if(da){const r=await api('/api/draft-approve',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:da.dataset.id,action:da.dataset.da})})
-    toast(r.ok?(r.dynId?('✓ 已发出 '+r.dynId):'✓ 已处理'):('失败：'+(r.error||'未知')))
+  if(da){
+    let why=''
+    if(da.dataset.da==='reject'){try{why=String(window.prompt('拒掉的理由（会回写给她，让她知道为什么；留空=没写理由）','')||'')}catch{return}}
+    const r=await api('/api/draft-approve',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:da.dataset.id,action:da.dataset.da,why})})
+    toast(r.ok?(r.dynId?('✓ 已发出 '+r.dynId):(da.dataset.da==='reject'?(r.reason?('✗ 已拒绝（理由已回写）'):'✗ 已拒绝（没写理由）'):'✓ 已处理')):('失败：'+(r.error||'未知')))
     loadAll();return}
   const b=e.target.closest('[data-a]')
   if(b){const r=await api('/api/pending/'+(b.dataset.a==='ok'?'approve':'reject'),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:b.dataset.id})})

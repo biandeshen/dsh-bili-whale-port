@@ -54,12 +54,15 @@ export function audit(draftsDir, entry) {
  * 把审批结果写进她自己的因果链：她下次醒来会由代码结算成 draftApproved/draftRejected。
  * 只写事件，不改场值——场值归 World（唯一事实源）管，这里不越权。
  */
-export function recordDraftResult(whaleHome, draft, result) {
+export function recordDraftResult(whaleHome, draft, result, reason) {
   appendCausal(whaleHome, {
     kind: 'draft-result',
     draftId: draft.id,
     date: draft.date,
     result,
+    // #41：她从"被拒"里学习，前提是理由真的传到位。没有理由就留空，
+    // 宿主侧会据此说"主人没写理由"，而不是编一个。
+    ...(String(reason ?? '').trim() ? { reason: String(reason).trim().slice(0, 300) } : {}),
     textHash: crypto.createHash('sha1').update(String(draft.text ?? '')).digest('hex').slice(0, 12),
   })
 }

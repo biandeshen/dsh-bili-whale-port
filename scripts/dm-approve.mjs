@@ -85,14 +85,16 @@ export async function approve({ id, token, go = false, runner } = {}) {
   return { ok, status, out: out.slice(-800) }
 }
 
-export function reject(id) {
+export function reject(id, reason) {
   const d = findDraft(FILE, id)
   if (!d) return { ok: false, error: '找不到回信草稿 ' + id }
   if (d.status === 'sent') return { ok: false, error: '已经发出去了，不能再拒' }
-  setStatus(FILE, id, 'rejected', { rejectedAt: new Date().toISOString() })
+  const why = String(reason ?? '').trim().slice(0, 300)
+  // #41：理由留在草稿上（可以没有）；她那边读到的是"主人没写理由"，不是编出来的原因。
+  setStatus(FILE, id, 'rejected', { rejectedAt: new Date().toISOString(), ...(why ? { rejectReason: why } : {}) })
   if (d.ackId) { try { ack.cancel(WHALE_HOME, d.ackId) } catch {} }
-  audit({ id, action: 'reject' })
-  return { ok: true }
+  audit({ id, action: 'reject', reason: why ? 'given' : 'none' })
+  return { ok: true, reason: why || null }
 }
 
 export function list() {
@@ -143,12 +145,12 @@ if (isMain) {
 
   if (cmd === 'reject') {
     const id = argv[1]
-    if (!id) { console.error('用法: node scripts/dm-approve.mjs reject <id>'); process.exit(2) }
-    const r = reject(id)
-    console.log(r.ok ? '✓ 已拒绝' : '✗ ' + r.error)
+    if (!id) { console.error('用法: node scripts/dm-approve.mjs reject <id> [--why 一句话]'); process.exit(2) }
+    const r = reject(id, arg('why'))
+    console.log(r.ok ? `✓ 已拒绝${r.reason ? `（理由已回写：${r.reason}）` : '（没写理由）'}` : '✗ ' + r.error)
     process.exit(r.ok ? 0 : 1)
   }
 
-  console.error('用法: node scripts/dm-approve.mjs list | approve <id> [--token …] [--go] | reject <id>')
+  console.error('用法: node scripts/dm-approve.mjs list | approve <id> [--token …] [--go] | reject <id> [--why 一句话]')
   process.exit(2)
 }

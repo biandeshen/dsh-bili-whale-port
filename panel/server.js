@@ -94,15 +94,16 @@ const extra = {
     const id = String(b.id ?? '')
     if (!id) { json(res, 400, { ok: false, error: '需要 id' }); return }
     if (b.action === 'reject') {
-      const r = rejectDraft(id)
-      json(res, 200, { ok: r.ok, error: r.error ?? null })
+      // #41：拒的时候可以写一句为什么（可留空）。这句话会进因果账，她会读到。
+      const r = rejectDraft(id, String(b.why ?? ''))
+      json(res, 200, { ok: r.ok, error: r.error ?? null, reason: r.reason ?? null })
       return
     }
     if (!id.startsWith('dyn-')) {
       json(res, 400, { ok: false, error: '暂只支持动态草稿放行（回信稿等 dm 死循环修复上线后接入）' })
       return
     }
-    const r = await approveFromPanel({ id })
+    const r = await approveFromPanel({ id, why: String(b.why ?? '') })
     json(res, 200, { ok: r.ok, status: r.status ?? null, error: r.error ?? null, dynId: r.dynId ?? null, outTail: r.outTail ?? '' })
   },
   '/api/avatar': (req, res) => {
