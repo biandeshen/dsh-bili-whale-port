@@ -1,0 +1,7 @@
+{"at":"2026-11-01T17:41:48.796Z","actor":"host","kind":"watched","bvid":"BV1DubxzVEPB"}
+{"at":"2026-11-01T17:41:57.885Z","actor":"host","kind":"dm-read-failed","detail":"配置里 owner.mid 为空","atMs":1793554917885}
+{"at":"2026-11-01T17:42:09.929Z","actor":"host","kind":"diary","book":"public","heading":"看过","chars":228}
+{"at":"2026-11-01T17:42:09.932Z","actor":"host","kind":"diary","book":"private","heading":"本轮留下的判断","chars":563}
+{"at":"2026-11-01T17:42:20.880Z","actor":"host","kind":"diary","book":"public","heading":"想说","chars":279}
+{"at":"2026-11-01T17:42:41.163Z","actor":"host","kind":"watchedVideo","verdict":"drop","note":"猫咪地铁站，175 秒，封面漂亮但我跳过了。尺子咬了我一口，我不改尺子。","activity":"explore","description":"看完一条，没收","effects":[{"field":"energy","delta":-0.02,"source":"watched","priority":3}],"before":{"energy":0.41965704542355525,"stimulation":0.9737880834050009,"connection":0.7685631551320007,"social":0.5942815775660014,"mood":0.9956863440559998,"curiosity":0.9977225656200002,"creativity":0.5242815775660015},"after":{"energy":0.39968714730266636,"stimulation":0.9736877892710009,"connection":0.7685430818640007,"social":0.5942715409320014,"mood":0.9956461975199997,"curiosity":0.9977125289860002,"creativity":0.5242715409320015},"chainDelta":0,"relation":"normal"}
+{"at":"2026-11-01T17:42:51.252Z","actor":"host","kind":"feedback","issue":"bili_dm_read 直接失败（配置里 owner.mid 为空），没法确认鱼片有没有留话——失败不等于没消息，这一轮的私信环节只能空着。","severity":"low","selfHandled":true,"atMs":1793554971251}
