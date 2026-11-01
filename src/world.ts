@@ -434,10 +434,21 @@ export class WorldAssembly {
     const def = slot.definition;
     if (!def) throw new Error(t.prebuilt(this.labelIn(id, language)));
     const ctx = this.context(def);
-    def.preflight?.(ctx);
-    const clash = this.toolClash(slot.instance, this.mounted);
-    if (clash) throw new Error(clash(language));
+    // 先记下"要启用"，再跑前置检查。
+    //
+    // 反过来做过，结果是死锁：检查说"worlds.browser.browser 没配"，可这一项要世界挂载后
+    // 页面才渲染得出来，于是永远配不上、永远激活不了。启用的意图本身不是错的，
+    // 检查失败只说明"还差一步"——把它落盘，世界页才有地方让人补，补完再激活一次就成。
+    // 挂载真的失败时下面那道 catch 会把 enabled 改回 false，不会留下"开了但没跑"的假象。
     this.persist(id, { enabled: true });
+    try {
+      def.preflight?.(ctx);
+      const clash = this.toolClash(slot.instance, this.mounted);
+      if (clash) throw new Error(clash(language));
+    } catch (error) {
+      this.persist(id, { enabled: false });
+      throw error;
+    }
     try {
       await this.mountHost().mount(slot.instance);
     } catch (error) {

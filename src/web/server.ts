@@ -2011,6 +2011,9 @@ export class WebApp {
         this.deps.log.warn('World 激活状态已改', { id, enabled: body.enabled });
         res.json({ ok: true, result });
       } catch (err) {
+        // 失败的激活以前只在浏览器里闪一下 toast，服务端一个字都不留——事后查"为什么点不动"
+        // 无从查起。原因（通常是缺一项配置）记进日志，页面那边也把这句话留在卡片上。
+        this.deps.log.warn('World 激活失败', { id, enabled: body.enabled, error: String(err) });
         res.status(400).json({ error: this.errorText(err, req) });
       }
     }));
