@@ -253,8 +253,14 @@ describe('控制台消息附图', () => {
     expect(Buffer.from(host.blob(msg.e.blobs![0].handle)!.bytes).equals(PNG)).toBe(true);
     // 正文后每张一行 [blob 句柄 mime 名字] 文本形态,与模型吃不吃图无关
     const [h1, h2] = msg.e.blobs!.map((b) => b.handle);
-    expect(msg.e.text).toBe(`${msg.e.text.split('\n')[0]}\n[blob ${h1} image/png shot.png] image 1/2 from 阿明\n[blob ${h2} image/jpeg] image 2/2 from 阿明`);
-    expect(msg.e.text.split('\n')[0]).toMatch(/^\[\d{2}:\d{2}\] 阿明: 看看这个$/);
+    const [first, blind, ...rest] = msg.e.text.split('\n');
+    expect(first).toMatch(/^\[\d{2}:\d{2}\] 阿明: 看看这个$/);
+    // 模型不收图时这条正文里必须写明,否则她会顺着"附图"猜内容
+    expect(blind).toBe('(2 images attached by the sender; this model does not take images, so they are not in this message.)');
+    expect(rest).toEqual([
+      `[blob ${h1} image/png shot.png] image 1/2 from 阿明`,
+      `[blob ${h2} image/jpeg] image 2/2 from 阿明`,
+    ]);
     expect(msg.e.blobs![0].fallbackText).toBe('image 1/2 from 阿明');
     // 回显与回放素材只带句柄,不带字节
     const echo = sock.frames().find((f) => f.type === 'msg')!;
@@ -276,6 +282,7 @@ describe('控制台消息附图', () => {
     sock.feed(JSON.stringify({ type: 'msg', text: '', images: [{ mime: 'image/png', base64: PNG.toString('base64') }] }));
     await settle();
     const msg = host.pushed.find((p) => p.e.type === 'console.message')!;
+    // 模型收图时正文里没有那句"图上不了",字节会直接随请求送过去
     expect(msg.e.text).toMatch(/^\[\d{2}:\d{2}\] 阿明: \n\[blob log:\S+ image\/png\] image 1\/1 from 阿明$/);
     expect(msg.e.origin).toBe('internal');
     expect(msg.opts?.trigger).toBe('flush');
@@ -301,6 +308,55 @@ describe('控制台消息附图', () => {
     await mod.stop();
   });
 
+  it('console_see_image:不给句柄列出最近的图,给了句柄把字节随回执带回', async () => {
+    const host = new FakeHost();
+    host.modelFacts = { ...host.modelFacts, accepts: (mime: string) => mime.startsWith('image/') };
+    const handle = host.putBlob(PNG, 'image/png');
+    host.store.append({
+      type: 'console.message', ts: '2026-08-12T10:00:00+08:00', source: 'console', origin: 'internal',
+      text: `[10:00] 阿明: 看看\n[blob ${handle} image/png] image 1/1 from 阿明`, senderKey: '阿明',
+      meta: { from: '阿明', body: '看看' },
+      blobs: [{ handle, mime: 'image/png', fallbackText: 'image 1/1 from 阿明' }],
+    });
+    const { mod } = await connect(host);
+    const see = mod.tools().find((t) => t.name === 'console_see_image')!;
+
+    const listing = String(await see.handler({}, toolCtx));
+    expect(listing).toContain(handle);
+    expect(listing).toContain('阿明');
+    expect(listing).toContain('10:00');
+
+    const outcome = await see.handler({ handle }, toolCtx) as { text: string; blobs: Array<{ bytes: Uint8Array; mime: string }> };
+    // 字节随回执交回,下一轮请求才带得动这张图;只报文字等于让她猜
+    expect(Buffer.from(outcome.blobs[0].bytes).equals(PNG)).toBe(true);
+    expect(outcome.blobs[0].mime).toBe('image/png');
+    expect(outcome.text).toContain(handle);
+
+    await mod.stop();
+  });
+
+  it('console_see_image:模型不吃图时直说看不到,不返回字节', async () => {
+    const host = new FakeHost();
+    const handle = host.putBlob(PNG, 'image/png');
+    const { mod } = await connect(host);
+    const see = mod.tools().find((t) => t.name === 'console_see_image')!;
+    const result = await see.handler({ handle }, toolCtx);
+    expect(typeof result).toBe('string');
+    expect(String(result)).toContain('不接收图像');
+    expect(String(result)).toContain('fake-model');
+    await mod.stop();
+  });
+
+  it('console_see_image:句柄不对时说清楚,并列出现有的图', async () => {
+    const host = new FakeHost();
+    host.modelFacts = { ...host.modelFacts, accepts: () => true };
+    const { mod } = await connect(host);
+    const see = mod.tools().find((t) => t.name === 'console_see_image')!;
+    expect(String(await see.handler({ handle: 'log:nope.png' }, toolCtx))).toContain('取不到这张图');
+    expect(String(await see.handler({}, toolCtx))).toContain('还没有图');
+    await mod.stop();
+  });
+
   it('hello 回放从落库的 blobs 取图片句柄一并带回', async () => {
     const host = new FakeHost();
     const handle = host.putBlob(PNG, 'image/png');
@@ -319,6 +375,57 @@ describe('控制台消息附图', () => {
 
 });
 
+
+describe('console_see_image', () => {
+  const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
+  const seeImage = async (host: FakeHost) => {
+    const mod = new ConsoleWorld({ timezone: 'Asia/Shanghai' });
+    await mod.start(host);
+    return { mod, tool: mod.tools().find((t) => t.name === 'console_see_image')! };
+  };
+
+  it('不带参数列出控制台上留着的图:句柄、发图人、时刻;内容一字不猜', async () => {
+    const host = new FakeHost();
+    const handle = host.putBlob(PNG, 'image/png');
+    host.store.append({
+      type: 'console.message', ts: '2026-08-12T10:00:00+08:00', source: 'console', origin: 'internal',
+      text: '看图', senderKey: '阿明', meta: { from: '阿明', body: '看图' },
+      blobs: [{ handle, mime: 'image/png', fallbackText: 'image 1/1 from 阿明' }],
+    });
+    const { mod, tool } = await seeImage(host);
+    const out = await tool.handler({}, toolCtx);
+    expect(out).toContain(handle);
+    expect(out).toContain('阿明');
+    expect(out).toContain('image 1/1 from 阿明');
+    await mod.stop();
+  });
+
+  it('给了句柄就把字节放进回执,下一轮请求才带得出去', async () => {
+    const host = new FakeHost();
+    host.modelFacts = { ...host.modelFacts, accepts: () => true };
+    const handle = host.putBlob(PNG, 'image/png');
+    const { mod, tool } = await seeImage(host);
+    const out = await tool.handler({ handle }, toolCtx);
+    expect(typeof out).toBe('object');
+    const outcome = out as { text: string; blobs: Array<{ bytes: Uint8Array; mime: string }> };
+    expect(outcome.text).toContain(handle);
+    expect(outcome.blobs).toHaveLength(1);
+    expect(outcome.blobs[0].mime).toBe('image/png');
+    expect(Buffer.from(outcome.blobs[0].bytes).equals(PNG)).toBe(true);
+    await mod.stop();
+  });
+
+  it('模型不收图就直说看不了,不假装看过', async () => {
+    const host = new FakeHost();
+    const handle = host.putBlob(PNG, 'image/png');
+    const { mod, tool } = await seeImage(host);
+    const out = await tool.handler({ handle }, toolCtx);
+    expect(typeof out).toBe('string');
+    expect(String(out)).toContain('不接收图像');
+    expect(String(out)).not.toContain('log:');
+    await mod.stop();
+  });
+});
 
 describe('协议解析', () => {
   it('一串覆盖全分支的输入:合法/非法 JSON、非对象、未 hello 先说话、未知类型', async () => {

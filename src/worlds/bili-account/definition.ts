@@ -836,14 +836,16 @@ class BiliAccountWorld {
   }
 
   /**
-   * 这一轮她到底能不能看图：只认宿主装配出来的读图工具（名字里带 read/view/analyze + image），
-   * 不做任何"应该有"的假设。宿主没接入工具表 = 看不见 = 按不能读处理，宁可少给一条指令。
+   * 这一轮她到底能不能看图：既要宿主装配出读图工具（名字里带 read/view/see/analyze + image），
+   * 也要当前模型真收图——工具拿得到字节，模型不收等于没看。
+   * 任一条件读不到就按看不见处理：宁可少给一条指令。
    */
   private canSeeImages(): boolean {
     try {
+      if (this.host?.modelFacts && !this.host.modelFacts.accepts('image/png')) return false
       const list = typeof this.host?.listTools === 'function' ? this.host.listTools() : null
       if (!list) return false
-      return list.some((t: any) => /(?:^|_)(?:read|view|analyze)_?image/i.test(String(t?.name ?? '')))
+      return list.some((t: any) => /(?:^|_)(?:read|view|see|analyze)_?image/i.test(String(t?.name ?? '')))
     } catch { return false }
   }
 

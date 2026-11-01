@@ -75,6 +75,9 @@ const MODEL_TEXT = {
     `[${time}] ${name} pressed the "${label}" button on the console.`
     + (spokenBefore ? '' : ' No speech is recorded in the retained console history.'),
   imageFallback: (from: string, i: number, total: number) => `image ${i}/${total} from ${from}`,
+  /** 收不到图时正文里必须写明，否则她会顺着"附图"猜内容。 */
+  imagesBlind: (total: number) =>
+    `(${total} image${total === 1 ? '' : 's'} attached by the sender; this model does not take images, so they are not in this message.)`,
   deliveredTo: (delivered: number, names: string[]) =>
     `Sent to the chat channel on the WebUI's "Console" page; ${delivered} connection${delivered === 1 ? '' : 's'} online right now`
     + (names.length ? ` (${names.join(', ')})` : ''),
@@ -101,6 +104,22 @@ export const CONSOLE_TOOL_DECLS: ReadonlyArray<Omit<ToolDef, 'handler'>> = [
         text: { type: 'string', description: 'Text to send.' },
       },
       required: ['text'],
+    },
+  },
+  {
+    // 图片随消息落库后只有句柄与一句文字形态；主模型不收图时这条工具是唯一能真看到内容的路。
+    // 回执带上字节，下一轮请求就把图交给模型，所以它不需要自己调模型。
+    name: 'console_see_image',
+    description:
+      'Look at an image that was sent on the console. Returns the image bytes so the next request carries them. '
+      + 'Call it with no argument to see what images are available. Only works when the running model accepts images.',
+    tags: ['read'],
+    parameters: {
+      type: 'object',
+      properties: {
+        handle: { type: 'string', description: 'Blob handle shown in the message (log:...). Omit to list recent console images.' },
+      },
+      additionalProperties: false,
     },
   },
 ];
@@ -171,6 +190,8 @@ const LABEL_MAX = 40;
 /** 一条消息最多带几张图,单张解码后的字节上限。与面板侧的上限一致。 */
 const IMAGES_MAX = 8;
 const IMAGE_MAX_BYTES = 8 * 1024 * 1024;
+/** 清单里最多摆几张，免得一次把整段历史塞进回执。 */
+const IMAGE_INVENTORY_MAX = 12;
 /** 接收的图片格式:媒体库认得扩展名、主流多模态模型都吃的那几种。 */
 const IMAGE_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
@@ -374,7 +395,49 @@ export class ConsoleWorld implements World {
           return receipt;
         },
       },
+      {
+        ...CONSOLE_TOOL_DECLS[1],
+        handler: async (args) => {
+          const host = this.host;
+          if (!host) return '[see_image failed] console module not started';
+          const wanted = typeof args.handle === 'string' ? args.handle.trim() : '';
+          // 清单与"能不能看"无关：看不了也照样告诉她这张图在、是谁发的。
+          if (!wanted) return this.imageInventory();
+          if (!host.modelFacts.accepts('image/png'))
+            return `[see_image] 当前模型 ${host.modelFacts.model()} 不接收图像，我看了也收不到。`
+              + '要么让主人换一个支持图像的模型，要么让主人在消息里说明图里是什么。';
+          const found = host.blob(wanted.startsWith('log:') || wanted.startsWith('mem:') ? wanted : `log:${wanted}`);
+          if (!found || !found.mime.startsWith('image/')) return `[see_image] 取不到这张图：${wanted}。不带参数调一次可以看还有哪些。`;
+          return {
+            text: `[see_image] ${wanted}（${found.mime}，${Math.round(found.bytes.length / 1024)} KB）`,
+            blobs: [{ bytes: found.bytes, mime: found.mime, fallbackText: `image ${wanted}` }],
+          };
+        },
+      },
     ];
+  }
+
+  /**
+   * 控制台上还留着哪几张图。只报句柄、时刻与发图人，不下结论说内容是什么：
+   * 内容和判断都归模型，工具只把可看的东西摆出来。
+   */
+  private imageInventory(): string {
+    if (!this.host) return '[see_image] console module not started';
+    const events = this.host.store.range({ source: this.id, limit: 200 });
+    const seen = new Set<string>();
+    const lines: string[] = [];
+    for (const e of [...events].reverse()) {
+      for (const b of e.blobs ?? []) {
+        if (!b.mime.startsWith('image/') || seen.has(b.handle)) continue;
+        seen.add(b.handle);
+        const from = String(e.meta?.from ?? e.senderKey ?? '?');
+        lines.push(`- ${b.handle} · ${shortTime(this.timezone, new Date(e.ts))} · ${from} · ${b.fallbackText}`);
+        if (lines.length >= IMAGE_INVENTORY_MAX) break;
+      }
+      if (lines.length >= IMAGE_INVENTORY_MAX) break;
+    }
+    if (!lines.length) return '[see_image] 控制台里还没有图。';
+    return `[see_image] 控制台上最近的 ${lines.length} 张图（带上 handle 再调一次就能看到内容）：\n${lines.join('\n')}`;
   }
 
   // ── 连接生命周期(两条入口共用) ───────────────────────────────────────
@@ -477,7 +540,8 @@ export class ConsoleWorld implements World {
       // 操作员消息:落库 + internal 投递(进 user 区)+ flush(跳过合批安静窗口)。
       // 口令标记由 World 加,操作员不打;meta.from/body 供 hello 时历史回放还原,图片从落库的 blobs 取。
       const pin = this.activePin();
-      const line = `[${shortTime(this.timezone)}] ${client.name}: ${text}`;
+      const blindNote = total > 0 && !visible ? MODEL_TEXT.imagesBlind(total) : '';
+      const line = `[${shortTime(this.timezone)}] ${client.name}: ${text}${blindNote ? `\n${blindNote}` : ''}`;
       // console_send 回执要报"上一条发出之后控制台上有没有人说过话",按条数记比
       // 按时间戳比更准:事件库的 ts 只到秒,同秒的消息分不出先后。
       this.operatorMessages += 1;
