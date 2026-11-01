@@ -5,7 +5,7 @@
  */
 import { appendFileSync, existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import type { ContextRecord } from '../protocol/open-responses/context.ts';
+import { itemText, type ContextRecord } from '../protocol/open-responses/context.ts';
 import { currentAnchors } from './log-context.ts';
 import { nowIso, SYSTEM_TIMEZONE } from './util.ts';
 
@@ -165,5 +165,148 @@ export function readTranscriptHistory(dataDir: string, opts: { before?: string |
     cursor: ordered.length ? ordered[0].key : null,
     hasMore,
     scannedRuns,
+  };
+}
+
+// ── 检索（#67）：跨 run、按日期、按关键词 ──────────────────────────────────
+/**
+ * 分页回答"最近的对话是什么"，检索回答"某天/某句话在哪"。两者读同一份账本，
+ * 但取法不同：分页从最新往回攒够一页就停；检索必须先知道哪些 run 落在目标日期内，
+ * 再在范围内做子串匹配——否则为了查一周前的一句话要把后面几十个 run 全读完。
+ *
+ * 日期以 run 目录名里的 `YYYYMMDD` 为准（`r-20261101-…`），不用记录里的 ts：
+ * 交接、前缀重载这类边界记录写的时刻可能跨到第二天凌晨，按 ts 归日会把它算错一天。
+ */
+export interface TranscriptSearchOptions {
+  /** `YYYY-MM-DD`；给了就只扫这一天的 run。 */
+  date?: string | null;
+  /** 不区分大小写的子串；空/缺省 = 不限（只按日期与游标翻页）。 */
+  query?: string | null;
+  /** 角色/类型过滤：只看她说的话、只看主人的话，或只看工具调用。 */
+  role?: 'user' | 'assistant' | 'tool' | null;
+  /** 从哪条更早的键接着往前找（上一次返回的 cursor）。 */
+  before?: string | null;
+  limit?: number;
+}
+
+export interface TranscriptHit {
+  key: string;
+  run: string;
+  ts: string;
+  /** 人看得懂的角色标签。 */
+  role: 'user' | 'assistant' | 'tool' | 'reasoning' | 'other';
+  /** 命中所在的整段文字，按关键词前后截一段。 */
+  excerpt: string;
+  /** 工具调用/回执的名字，其它角色为 null。 */
+  tool?: string | null;
+}
+
+export interface TranscriptSearchPage {
+  hits: TranscriptHit[];
+  cursor: string | null;
+  hasMore: boolean;
+  scannedRuns: number;
+  /** 目标日期内实际存在的 run 数（给了 date 才有意义）。 */
+  matchingRuns: number;
+}
+
+/** `r-20261101-125921-dc5f` → `2026-11-01`；认不出形状的 run 返回 null。 */
+export function runDate(run: string): string | null {
+  const m = /^r-(\d{4})(\d{2})(\d{2})-/.exec(run);
+  return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
+}
+
+function roleOf(rec: TranscriptRecord): TranscriptHit['role'] {
+  if (rec.kind === 'boundary') return 'other';
+  const item = rec.item;
+  if (item.type === 'message') return item.role === 'assistant' ? 'assistant' : 'user';
+  if (item.type === 'function_call' || item.type === 'function_call_output') return 'tool';
+  if (item.type === 'reasoning') return 'reasoning';
+  return 'other';
+}
+
+function textOfRecord(rec: TranscriptRecord): string {
+  if (rec.kind === 'boundary') return `${rec.event} ${JSON.stringify(rec.data ?? {})}`;
+  const item = rec.item;
+  if (item.type === 'function_call') return `${item.name} ${item.arguments ?? ''}`;
+  return itemText(item);
+}
+
+/** 命中位置前后各留一点上下文，别把整段 12k 的工具回执塞进检索结果。 */
+function excerptOf(text: string, query: string | null, span = 160): string {
+  const flat = text.replace(/\s+/g, ' ').trim();
+  if (!query) return flat.slice(0, span * 2);
+  const at = flat.toLowerCase().indexOf(query.toLowerCase());
+  if (at < 0) return flat.slice(0, span);
+  const from = Math.max(0, at - span);
+  return `${from > 0 ? '…' : ''}${flat.slice(from, at + query.length + span)}${at + query.length + span < flat.length ? '…' : ''}`
+    .trim();
+}
+
+export function searchTranscript(dataDir: string, opts: TranscriptSearchOptions = {}): TranscriptSearchPage {
+  const want = Math.round(Number(opts.limit));
+  const limit = Math.max(1, Math.min(200, Number.isFinite(want) && want > 0 ? want : 40));
+  const query = typeof opts.query === 'string' && opts.query.trim() ? opts.query.trim() : null;
+  const date = typeof opts.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(opts.date) ? opts.date : null;
+  const role = opts.role ?? null;
+  const before = typeof opts.before === 'string' && opts.before ? opts.before : null;
+  const root = join(dataDir, 'runs');
+
+  let runs: string[] = [];
+  try {
+    runs = readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name).sort();
+  } catch {
+    return { hits: [], cursor: null, hasMore: false, scannedRuns: 0, matchingRuns: 0 };
+  }
+  if (date) runs = runs.filter((run) => runDate(run) === date);
+
+  const hits: TranscriptHit[] = [];
+  let scannedRuns = 0;
+  let overflow = false;
+  let cursorAt = 0;
+
+  outer: for (let i = runs.length - 1; i >= 0; i--) {
+    const run = runs[i];
+    const file = join(root, run, 'transcript.jsonl');
+    if (!existsSync(file)) continue;
+    scannedRuns++;
+    let lines: string[];
+    try {
+      lines = readFileSync(file, 'utf8').split('\n');
+    } catch {
+      continue;
+    }
+    for (let seq = lines.length - 1; seq >= 0; seq--) {
+      const line = lines[seq];
+      if (!line || !line.trim()) continue;
+      let rec: TranscriptRecord;
+      try {
+        rec = JSON.parse(line) as TranscriptRecord;
+      } catch {
+        continue;
+      }
+      const key = keyOf(run, seq);
+      if (before && key >= before) continue;
+      const recRole = roleOf(rec);
+      if (role && recRole !== role) continue;
+      const body = textOfRecord(rec);
+      if (query && !body.toLowerCase().includes(query.toLowerCase())) continue;
+      hits.push({
+        key, run, ts: rec.ts, role: recRole,
+        excerpt: excerptOf(body, query),
+        tool: rec.kind === 'item' && rec.item.type === 'function_call' ? rec.item.name : null,
+      });
+      if (hits.length > limit) { overflow = true; break outer; }
+    }
+    cursorAt = i;
+  }
+
+  const page = overflow ? hits.slice(0, limit) : hits;
+  return {
+    hits: page,
+    cursor: page.length ? page[page.length - 1].key : null,
+    hasMore: overflow || (hits.length > 0 && cursorAt > 0),
+    scannedRuns,
+    matchingRuns: runs.length,
   };
 }

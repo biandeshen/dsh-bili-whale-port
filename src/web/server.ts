@@ -28,7 +28,7 @@ import type { SessionStats } from '../core/sessions.ts';
 import type { UsageAggregate, UsageBucketOption } from '../core/cost.ts';
 import type { UsageRateSource } from '../core/usage-rates.ts';
 import { estimateMessagesTokens, readTextFile } from '../core/util.ts';
-import { readTranscriptHistory } from '../core/transcript.ts';
+import { readTranscriptHistory, searchTranscript } from '../core/transcript.ts';
 import { blobScheme } from '../core/blobs.ts';
 import { coerceGroupValues } from '../core/config-schema.ts';
 import { isLanguage, languageTag, LocalizedError, systemLanguage, type Language } from '../core/language.ts';
@@ -1843,6 +1843,22 @@ export class WebApp {
     app.get('/api/session/history', wrap((req, res) => {
       const before = typeof req.query.before === 'string' && req.query.before ? req.query.before : null;
       const page = readTranscriptHistory(this.deps.dataDir, { before, limit: Number(req.query.limit ?? 120) });
+      res.json(page);
+    }));
+
+    // 检索同一份账本（#67）：分页回答"最近说了什么"，检索回答"某天/某句话在哪"。
+    // date 只按 run 目录名里的日期筛选（不看记录 ts），query 是不区分大小写的子串，
+    // role 用来只看她说的话或只看工具调用。只读，不改任何东西。
+    app.get('/api/session/history/search', wrap((req, res) => {
+      const one = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
+      const role = one(req.query.role);
+      const page = searchTranscript(this.deps.dataDir, {
+        date: one(req.query.date),
+        query: one(req.query.q),
+        role: role === 'user' || role === 'assistant' || role === 'tool' ? role : null,
+        before: one(req.query.before),
+        limit: Number(req.query.limit ?? 40),
+      });
       res.json(page);
     }));
 

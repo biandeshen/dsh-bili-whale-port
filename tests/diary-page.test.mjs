@@ -64,3 +64,49 @@ test('空本：说"真的还没有"，不写成"没内容被截"', () => {
   assert.equal(p.totalDays, 0)
   assert.match(p.receipt, /没有日记块/)
 })
+
+// ── 按小节检索（#68）───────────────────────────────────────────────────────
+// 她要找"上个月写过的所有《看过》"，不该只靠按天翻。日记里日期与小节同级（都是 ##），
+// 所以块内第一个 ## 就是第一小节的标题。
+const book = [
+  '# 日记',
+  '## 2026-10-30',
+  '## 看过',
+  '看了雨声那一条。',
+  '## 想说',
+  '今天有点累。',
+  '## 2026-10-31',
+  '## 看过',
+  '看了敲鼓那一条。',
+  '## 今日指标',
+  '分享 0 条。',
+].join('\n')
+
+test('按小节过滤：只给命中那一节，并说明哪些天有它', () => {
+  const p = paginateDiary(book, { heading: '看过', budget: 9000 })
+  assert.match(p.receipt, /其中 2 天有「看过」/)
+  assert.match(p.body, /看了雨声那一条/)
+  assert.match(p.body, /看了敲鼓那一条/)
+  assert.doesNotMatch(p.body, /今天有点累/, '别的节不许混进来')
+  assert.doesNotMatch(p.body, /分享 0 条/)
+})
+
+test('小节与日期能一起用；那天没有这一节就说没有', () => {
+  const only = paginateDiary(book, { heading: '看过', date: '2026-10-31', budget: 9000 })
+  assert.match(only.body, /看了敲鼓那一条/)
+  assert.doesNotMatch(only.body, /看了雨声那一条/)
+
+  const missing = paginateDiary(book, { heading: '想说', date: '2026-10-31', budget: 9000 })
+  assert.match(missing.receipt, /本里没有 2026-10-31 这一天（或这天没有「想说」这一节）/)
+})
+
+test('没有哪一节命中时直说，而不是给一本空的', () => {
+  const p = paginateDiary(book, { heading: '不存在的节' })
+  assert.match(p.receipt, /没有哪个日期块含「不存在的节」/)
+  assert.equal(p.body, '')
+})
+
+test('diaryHeadings 列出这一本有哪些节（新→旧，去重）', async () => {
+  const { diaryHeadings } = await import('../src/worlds/bili-account/diary.ts')
+  assert.deepEqual(diaryHeadings(book), ['看过', '今日指标', '想说'])
+})

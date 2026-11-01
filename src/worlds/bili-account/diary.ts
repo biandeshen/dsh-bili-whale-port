@@ -112,6 +112,12 @@ export interface DiaryPageInput {
   days?: number
   budget?: number
   date?: string
+  /**
+   * 只要正文里含这个小节标题（`### 标题`）的段落。日期块里一个小节一段，
+   * 给了它就把每块裁成命中的小节——她要找"上个月写过的所有《判断》"，不必按天翻。
+   * 与 date 同时给 = 那天里的这一节。
+   */
+  heading?: string
 }
 
 export interface DiaryPageResult {
@@ -126,6 +132,24 @@ export interface DiaryPageResult {
 }
 
 interface Block { date: string; text: string }
+
+/**
+ * 把一个日期块按 `## 标题` 切成小节。日记里日期与小节同级（都是二级标题），
+ * 所以块内的第一个 `## ` 就是第一小节的标题。
+ */
+function splitSections(blockText: string): Array<{ heading: string; text: string }> {
+  const lines = blockText.split(/\r?\n/)
+  const cuts: number[] = []
+  for (let i = 1; i < lines.length; i++) if (/^##\s+/.test(lines[i])) cuts.push(i)
+  if (!cuts.length) return [{ heading: '', text: blockText }]
+  const out: Array<{ heading: string; text: string }> = []
+  for (let i = 0; i < cuts.length; i++) {
+    const start = cuts[i]
+    const end = i + 1 < cuts.length ? cuts[i + 1] : lines.length
+    out.push({ heading: lines[start].replace(/^##\s*/, '').trim(), text: lines.slice(start, end).join('\n').trimEnd() })
+  }
+  return out
+}
 
 function splitBlocks(raw: string): { preamble: string; blocks: Block[] } {
   const lines = String(raw ?? '').split(/\r?\n/)
@@ -147,14 +171,28 @@ export function paginateDiary(raw: string, input: DiaryPageInput = {}): DiaryPag
   const per = Math.max(1, Math.min(30, Math.round(Number(input.days ?? 3)) || 3))
   const budget = Math.max(200, Math.min(9000, Math.round(Number(input.budget ?? 4000)) || 4000))
 
-  let window = newestFirst
+  // 小节过滤：先把每块裁成命中的小节，再按天成页。这样"上个月所有《看过》"是一页一页
+  // 往前翻，而不是把整本按天读一遍再自己挑。
+  const wanted = typeof input.heading === 'string' ? input.heading.trim() : ''
+  const shaped: Block[] = wanted
+    ? newestFirst
+      .map((b) => {
+        const hit = splitSections(b.text).filter((s) => s.heading.includes(wanted))
+        // 日期标题本身也跟着给一行，否则读者不知道这一段是哪天的。
+        return hit.length ? { date: b.date, text: [`## ${b.date}`, ...hit.map((s) => s.text)].join('\n') } : null
+      })
+      .filter((b): b is Block => b !== null)
+    : newestFirst
+  const totalForHead = shaped.length
+
+  let window = shaped
   let page = Math.max(0, Math.floor(Number(input.page) || 0))
   if (input.date) {
-    const at = newestFirst.findIndex((b) => b.date === input.date)
-    window = at < 0 ? [] : [newestFirst[at]]
+    const at = shaped.findIndex((b) => b.date === input.date)
+    window = at < 0 ? [] : [shaped[at]]
     page = 0
   } else {
-    window = newestFirst.slice(page * per)
+    window = shaped.slice(page * per)
   }
 
   const picked: string[] = []
@@ -174,25 +212,43 @@ export function paginateDiary(raw: string, input: DiaryPageInput = {}): DiaryPag
   }
 
   const consumed = input.date ? (window.length ? 1 : 0) : picked.length
-  const hasMore = input.date ? (window.length > picked.length) : (page * per + consumed < newestFirst.length)
-  const restDays = Math.max(0, newestFirst.length - (input.date ? (window.length ? dates.length : 0) : page * per + consumed))
+  const hasMore = input.date ? (window.length > picked.length) : (page * per + consumed < shaped.length)
+  const restDays = Math.max(0, shaped.length - (input.date ? (window.length ? dates.length : 0) : page * per + consumed))
   const restChars = Math.max(0, totalChars - used)
 
+  const scope = wanted ? `小节含「${wanted}」的 ` : ''
   const head = [
-    `【这一本共 ${newestFirst.length} 个日期块 / ${totalChars} 字】`,
+    wanted
+      ? `【这一本共 ${newestFirst.length} 个日期块 / ${totalChars} 字；其中 ${totalForHead} 天有「${wanted}」】`
+      : `【这一本共 ${newestFirst.length} 个日期块 / ${totalChars} 字】`,
     picked.length
       ? `本页给了 ${dates.join('、')}（${picked.length} 块 · ${used} 字）${truncatedDay ? `；⚠️ ${truncatedDay} 本日超长，已截断（只给了前 ${budget} 字）` : ''}`
       : (input.date
-        ? `本里没有 ${input.date} 这一天。`
-        : (newestFirst.length
-          ? `第 ${page + 1} 页取不到内容：整本 ${newestFirst.length} 块，往前最多到第 ${Math.ceil(newestFirst.length / per)} 页。该翻完的已经翻完了。`
-          : '这一本没有日记块（可能还是空的）。')),
+        ? `本里没有 ${input.date} 这一天${wanted ? `（或这天没有「${wanted}」这一节）` : ''}。`
+        : (shaped.length
+          ? `第 ${page + 1} 页取不到内容：整本 ${shaped.length} 块${wanted ? `（「${wanted}」在其中）` : ''}，往前最多到第 ${Math.ceil(shaped.length / per)} 页。该翻完的已经翻完了。`
+          : (wanted
+            ? `这一本里没有哪个日期块含「${wanted}」这一节。换个词，或去掉小节过滤按天翻。`
+            : '这一本没有日记块（可能还是空的）。'))),
     hasMore
-      ? `还剩 ${restDays} 块（约 ${restChars} 字）**没在这页里** —— 别把本页当成全部。往前翻 {"page":${page + 1}}；只要某天 {"date":"YYYY-MM-DD"}；想看更长一页 {"budget":8000}。`
-      : `翻完了：这一本到此就是全部，没有截断。`,
+      ? `还剩 ${restDays} 块（约 ${restChars} 字）**没在这页里** —— 别把本页当成全部。往前翻 {"page":${page + 1}}${wanted ? '' : '；只要某天 {"date":"YYYY-MM-DD"}'}${wanted ? '' : '；只想看某一节 {"heading":"看过"}'}；想看更长一页 {"budget":8000}。`
+      : `翻完了：这一本${scope}到此就是全部，没有截断。`,
   ].join('\n')
 
-  const body = [page === 0 && !input.date && preamble ? preamble : '', ...picked].filter(Boolean).join('\n\n')
+  // 小节过滤时 preamble（书名、运行目录）只是噪音：她要的是那几节的正文。
+  const body = [page === 0 && !input.date && !wanted && preamble ? preamble : '', ...picked].filter(Boolean).join('\n\n')
   return { totalDays: newestFirst.length, totalChars, page, dates, body, returnedChars: used, hasMore, receipt: `${head}\n\n${body}` }
+}
+
+/** 日记里出现过哪些小节标题（新→旧，去重）：让她先知道有哪些节可选，再按名字取。 */
+export function diaryHeadings(raw: string): string[] {
+  const { blocks } = splitBlocks(raw)
+  const seen: string[] = []
+  for (const b of [...blocks].reverse()) {
+    for (const s of splitSections(b.text)) {
+      if (s.heading && !seen.includes(s.heading)) seen.push(s.heading)
+    }
+  }
+  return seen
 }
 

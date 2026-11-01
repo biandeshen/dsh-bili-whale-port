@@ -76,3 +76,54 @@ test('limit 收在 1..500：坏值回落默认，不给一次翻穿整个盘', (
   assert.equal(readTranscriptHistory(dir, { limit: 99999 }).records.length, 30, '超上限按 500 收')
   assert.equal(readTranscriptHistory(dir, { limit: 7 }).records.length, 7, '正常上限照用')
 })
+
+// ── 检索（#67）：跨 run、按日期、按关键词、按角色 ────────────────────────────
+// 分页回答"最近说了什么"，检索回答"某天那句话在哪"。日期按 run 目录名而不是记录 ts：
+// 交接这类边界记录可能落在第二天凌晨，按 ts 归日会把它算错一天。
+test('按日期只扫那一天的 run，别的天即使命中也不返回', async (t) => {
+  const { searchTranscript } = await import('../src/core/transcript.ts')
+  const dir = tree(t)
+  mk(dir, 'r-20261031-090000-aaaa', [item('昨天提到 鼓')])
+  mk(dir, 'r-20261101-090000-bbbb', [item('今天提到 鼓')])
+  const p = searchTranscript(dir, { date: '2026-11-01', query: '鼓' })
+  assert.deepEqual(p.hits.map((h) => h.excerpt), ['今天提到 鼓'])
+  assert.equal(p.matchingRuns, 1, '范围内只有一天一个 run')
+})
+
+test('关键词不区分大小写；命中片段带前后文但不塞整段工具回执', async (t) => {
+  const { searchTranscript } = await import('../src/core/transcript.ts')
+  const dir = tree(t)
+  mk(dir, 'r-20261101-090000-bbbb', [item('FLOWER Dance 很好听', 'assistant')])
+  const p = searchTranscript(dir, { query: 'flower' })
+  assert.equal(p.hits.length, 1)
+  assert.equal(p.hits[0].role, 'assistant')
+  assert.match(p.hits[0].excerpt, /FLOWER Dance/)
+})
+
+test('按角色只看她说的，工具调用单独一类并带上工具名', async (t) => {
+  const { searchTranscript } = await import('../src/core/transcript.ts')
+  const dir = tree(t)
+  const call = JSON.stringify({
+    kind: 'item', ts: '2026-11-01T10:00:00.000Z', run: 'r', index: 1,
+    item: { type: 'function_call', call_id: 'c1', name: 'bili_feed', arguments: '{"n":2}' }, context: {},
+  })
+  mk(dir, 'r-20261101-090000-bbbb', [item('主人的话'), item('她的话', 'assistant'), call])
+  const hers = searchTranscript(dir, { role: 'assistant' })
+  assert.deepEqual(hers.hits.map((h) => h.excerpt), ['她的话'])
+  const tools = searchTranscript(dir, { role: 'tool' })
+  assert.equal(tools.hits.length, 1)
+  assert.equal(tools.hits[0].tool, 'bili_feed')
+})
+
+test('游标翻页不重复、不跳过；坏行不带走整页', async (t) => {
+  const { searchTranscript } = await import('../src/core/transcript.ts')
+  const dir = tree(t)
+  mk(dir, 'r-20261101-090000-bbbb', [item('a1 命中'), '{坏行', item('a2 命中'), item('a3 命中')])
+  const first = searchTranscript(dir, { query: '命中', limit: 2 })
+  assert.equal(first.hits.length, 2)
+  assert.equal(first.hasMore, true)
+  const second = searchTranscript(dir, { query: '命中', limit: 2, before: first.cursor })
+  assert.equal(second.hits.length, 1, '坏行不算命中，也不能让第二页整页失败')
+  const keys = new Set([...first.hits, ...second.hits].map((h) => h.key))
+  assert.equal(keys.size, 3, '两页之间不许重复同一条')
+})
