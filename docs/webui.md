@@ -24,6 +24,8 @@ SameSite=Strict、Max-Age 取浏览器上限 400 天;请求经 HTTPS 或反向�
 WebUI 不终结 TLS。经公网使用时放在终结 HTTPS 的反向代理后面,否则密码与 Cookie 明文传输;登录请求从非回环对端
 经明文连接送来时记一条 warn。
 
+本机免口令端口上写接口的实际边界,与两条还没拍的加法,见 [WEBUI-AUTH-2026-11.md](WEBUI-AUTH-2026-11.md)。
+
 ## 页
 
 框架自己的页:
