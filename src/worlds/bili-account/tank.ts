@@ -177,6 +177,26 @@ export function personaNameFromConfig(file = CONFIG_FILE): string {
   return v.slice(0, 24) || '小鱼'
 }
 
+/**
+ * 改名字。本机名字（配置 self.name）与 B站昵称是两件事：本机名字影响标题与提示词，
+ * B站昵称别人看得见。页面一次只改一处，由调用方说明改的是哪种。
+ * 与 settingsSet 同一条规矩：测试里不许写正式配置。
+ */
+export function renameSelf(name: string, file = CONFIG_FILE): { ok: boolean; name?: string; error?: string } {
+  if (file === CONFIG_FILE && process.env.NODE_TEST_CONTEXT) return { ok: false, error: '测试里必须显式传临时路径，不许写正式配置' }
+  const next = String(name ?? '').trim().slice(0, 24)
+  if (!next) return { ok: false, error: '名字不能是空的：留空等于让她没有名字。' }
+  const cfg = readJson(file) ?? {}
+  const out = { ...cfg, self: { ...(cfg.self ?? {}), name: next } }
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true })
+    const tmp = `${file}.${process.pid}.tmp`
+    fs.writeFileSync(tmp, JSON.stringify(out, null, 2))
+    fs.renameSync(tmp, file)
+  } catch (e: any) { return { ok: false, error: `写不进去：${String(e?.message ?? e)}` } }
+  return { ok: true, name: next }
+}
+
 // ── 全部配置（只读总览）：主人要求"每一项都看得见"，不是去翻 JSON 文件 ──────────
 const GROUP_LABEL: Record<string, string> = {
   owner: '主人', self: '她自己', preferences: '口味词表', quota: '额度上限', risk: '风控节奏',

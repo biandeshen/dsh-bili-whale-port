@@ -22,7 +22,7 @@ import type { Language } from '../../core/language.ts'
 import {
   warmConsole, consoleReady, tankLocal, killOn, lastTickAt, pendingDraftCount, openFeedbackCount,
   timelineState, diaryState, draftsState, draftAction, feedbackResolve, feedbackListSafe, vitalsState, avatarBinary, trafficStatus,
-  policyState, policySet, policyInWindow, autoSentToday, draftForDay, freshAckToken, ownerNameFromConfig, personaNameFromConfig, settingsState, settingsSet,
+  policyState, policySet, policyInWindow, autoSentToday, draftForDay, freshAckToken, ownerNameFromConfig, personaNameFromConfig, settingsState, settingsSet, renameSelf,
 } from './tank.ts'
 import { decideAction, restRecoveryDelta, actionCost, nextCheckDelay, dayKey, MIN_GAP_MS } from '../../../persona-core/src/rhythm.ts'
 
@@ -631,6 +631,31 @@ class BiliAccountWorld {
               causal({ kind: 'settings-change', changed: r.changed, atMs: Date.now() })
             }
             return r
+          }
+          // #48：两个名字是两件事——本机名字进标题和提示词，B站昵称别人看得见。
+          // 页面分别改，并各自报清改了哪一个；B站 那次是真的账号写，走 rename 命令（有 --dry/--go 与改后复核）。
+          if (method === 'name/state') {
+            const local = personaNameFromConfig()
+            const r = await runNodeAsync(BILI, ['rename', '--status'], 30000)
+            const remote = r.status === 0 ? r.out.trim().split('\n').at(-1)?.trim() ?? null : null
+            return {
+              local,
+              remote,
+              remoteError: r.status === 0 ? null : String(r.out).trim().slice(0, 200) || `rename 退出码 ${r.status}`,
+            }
+          }
+          if (method === 'name/local') {
+            const r = renameSelf(String(args[0] ?? ''))
+            if (r.ok) causal({ kind: 'name-change', scope: 'local', to: r.name, atMs: Date.now() })
+            return r
+          }
+          if (method === 'name/bili') {
+            const to = String(args[0] ?? '').trim()
+            if (!to) return { ok: false, error: '新昵称不能是空的' }
+            const r = await runNodeAsync(BILI, ['rename', '--to', to, '--go'], 60000)
+            // 真的改成了才记因果账：退出码 0 表示平台复核后的名字就是它。
+            if (r.status === 0) causal({ kind: 'name-change', scope: 'bili', to, atMs: Date.now() })
+            return { ok: r.status === 0, out: String(r.out).trim().slice(0, 600), code: r.status }
           }
           throw new Error('unknown method ' + method)
         }

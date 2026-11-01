@@ -5,7 +5,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { BILI_ACCOUNT, exportPolicyNotice } from '../src/worlds/bili-account/definition.ts'
-import { readPolicyLite, policyInWindow, policySet, policyState, autoSentToday, draftForDay, freshAckToken, openFeedbackCount, settingsOverview, settingsState, personaNameFromConfig } from '../src/worlds/bili-account/tank.ts'
+import { readPolicyLite, policyInWindow, policySet, policyState, autoSentToday, draftForDay, freshAckToken, openFeedbackCount, settingsOverview, settingsState, personaNameFromConfig, renameSelf } from '../src/worlds/bili-account/tank.ts'
 
 const decl = BILI_ACCOUNT.create().webUi('zh')
 
@@ -194,6 +194,23 @@ test('personaNameFromConfig：读 self.name，去空白、24 字封顶，空值�
   assert.equal(personaNameFromConfig(file), '小鱼')
   fs.rmSync(file)
   assert.equal(personaNameFromConfig(path.join(dir, 'nope.json')), '小鱼', '读不到配置也要有名字')
+})
+
+test('renameSelf：改本机名字只动 self.name，别的一项不碰；空名与非字符串拒', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rename-'))
+  const file = path.join(dir, 'bili-whale.config.json')
+  fs.writeFileSync(file, JSON.stringify({ self: { name: '旧名', mid: '497080562' }, owner: { displayName: '鱼片' } }), 'utf8')
+  const r = renameSelf('  新名  ', file)
+  assert.equal(r.ok, true)
+  assert.equal(r.name, '新名', '首尾空白裁掉')
+  const after = JSON.parse(fs.readFileSync(file, 'utf8'))
+  assert.equal(after.self.name, '新名')
+  assert.equal(after.self.mid, '497080562', '同段其他字段不许丢')
+  assert.equal(after.owner.displayName, '鱼片', '别的段不许动')
+  assert.equal(renameSelf('   ', file).ok, false)
+  assert.match(renameSelf('', file).error, /不能是空/)
+  assert.equal(renameSelf('名'.repeat(40), file).name.length, 24)
+  fs.rmSync(dir, { recursive: true, force: true })
 })
 
 test('世界页标题跟着 self.name 走；工具描述里不再写死名字', () => {

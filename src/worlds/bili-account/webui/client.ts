@@ -366,6 +366,53 @@ function mountPolicy(ctx: WebUiPanelContext): void {
     },
   });
   const acts = ui.actions(); acts.append(save);
+
+  // ── 名字：本机名字与 B站昵称是两件事，分两行改 ──────────────────────────
+  const nameErr = ui.msgline();
+  const localRow = ui.rowbar();
+  const inpLocal = ui.input({ placeholder: '本机名字（标题与提示词用）' });
+  const btnLocal = ui.button('改本机名字', {
+    onClick: () => {
+      const v = inpLocal.value.trim();
+      if (!v) { ui.toast('名字不能是空的', 'bad'); return; }
+      void ctx.invoke<{ ok?: boolean; name?: string; error?: string }>('name/local', [v])
+        .then((r) => {
+          if (!r?.ok) { ui.toast('✗ ' + (r?.error ?? '改不了'), 'bad'); return; }
+          ui.toast(`✓ 本机名字已改成「${r.name}」；页面标题重启后更新`, 'ok');
+          void poll();
+        })
+        .catch((e) => ui.toast(errText(e), 'bad'));
+    },
+  });
+  localRow.append(inpLocal, btnLocal);
+  const remoteRow = ui.rowbar();
+  const inpRemote = ui.input({ placeholder: 'B站昵称（别人看得见）' });
+  const btnRemote = ui.button('改 B站昵称', {
+    onClick: () => {
+      const v = inpRemote.value.trim();
+      if (!v) { ui.toast('新昵称不能是空的', 'bad'); return; }
+      void (async () => {
+        // 真账号写：先说清改了谁看得见，再确认一次，别一次误点就把账号名换了。
+        const yes = await ui.confirm({
+          title: `把 B站 昵称改成「${v}」？`,
+          body: '这是真实的账号写：改完粉丝、评论区和私信里显示的都会变，B站 对改名有次数限制。本机名字不受影响。',
+          danger: true,
+        });
+        if (!yes) return;
+        const busy = ui.busy('正在改 B站 昵称…', '提交后会用 nav 复核平台真记了什么');
+        try {
+          const r = await ctx.invoke<{ ok?: boolean; out?: string; code?: number }>('name/bili', [v]);
+          busy.dispose();
+          nameErr.hidden = false;
+          nameErr.textContent = r?.out ?? `退出码 ${r?.code ?? '?'}`;
+          ui.toast(r?.ok ? '✓ 已改名' : '✗ 没改成，原因见上方', r?.ok ? 'ok' : 'bad');
+          void poll();
+        } catch (e) { busy.dispose(); ui.toast(errText(e), 'bad'); }
+      })();
+    },
+  });
+  remoteRow.append(inpRemote, btnRemote);
+
   card.body.append(err, status,
     ui.field('草稿发送', selMode),
     ui.field('auto 每日上限（0=不限）', inpCap),
@@ -373,7 +420,11 @@ function mountPolicy(ctx: WebUiPanelContext): void {
     ui.field('点赞档位', selLike),
     ui.field('收藏档位', selFav),
     ui.field('回信档位', selDm),
-    acts);
+    acts,
+    ui.section('名字', '本机名字进页面标题与提示词；B站昵称别人看得见。改的是两个不同的地方。'),
+    nameErr,
+    ui.field('本机名字', localRow),
+    ui.field('B站昵称', remoteRow));
 
   // 全部配置(只读):要的是"每一项都看得见",不是让主人去翻 JSON 文件。
   const ov = document.createElement('details');
@@ -455,6 +506,15 @@ function mountPolicy(ctx: WebUiPanelContext): void {
     selMode.value = p.draftMode; inpCap.value = String(p.autoDailyCap); inpWin.value = p.autoWindow;
     selLike.value = p.like; selFav.value = p.fav; selDm.value = p.dmReply;
     renderOverview(st.settings);
+    // 两个名字各自填各自的现值；B站 那个读不到就留空并说明，不拿本机名字冒充。
+    void ctx.invoke<{ local?: string; remote?: string | null; remoteError?: string | null }>('name/state')
+      .then((n) => {
+        if (document.activeElement !== inpLocal) inpLocal.value = n?.local ?? '';
+        if (document.activeElement !== inpRemote) inpRemote.value = n?.remote ?? '';
+        nameErr.hidden = !n?.remoteError;
+        nameErr.textContent = n?.remoteError ? `读不到 B站 当前昵称：${n.remoteError}` : '';
+      })
+      .catch((e) => { nameErr.hidden = false; nameErr.textContent = errText(e); });
   };
   const poll = (): void => { void ctx.invoke<PolicyState>('state').then(draw).catch((e) => { err.textContent = errText(e); err.hidden = false; }); };
   poll();
