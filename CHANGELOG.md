@@ -1,3 +1,49 @@
+# CHANGELOG
+
+> 版本线规矩（何时打 tag / 谁打 / 不 push）见 [`docs/INDEX.md`](docs/INDEX.md) §4。上游 `v0.4.6`（tag 在，2026-10-24）之上的移植工作走 `port-0.x.y`。
+
+## port-0.5.0（2026-11-01）—— 从"多宿主能跑"到"她真的过日子"
+
+首个附注 tag `port-0.5.0`（**只建本地，未 push**）。上一版 port-0.1.0 只有 CHANGELOG 条目、没有 tag（写在 `9c9d4aa`，2026-10-25），到本版之间 **239 次提交无 tag**（`git rev-list v0.4.6..HEAD --count` = 239，2026-11-01 实测）。
+
+**为什么是 0.5.0 而不是 0.4.7**：这一串提交里既有整块新能力（多宿主端口化、每日草稿与一次性令牌审批、观测门禁链、发送策略单一事实源、意见箱与放行入口、媒体层与 vendor 隔离、`ops:day`），也有改变既有语义的破坏性变更（日界 04:00 → 自然日 00:00 `a38c74e`；`fix(feed)!` 偏好回执改按真实来源 `76519ff`；令牌不再进 argv `eef637c`）。补丁号装不下这两件事，按 minor 走。上游行为冻结基线仍以 `docs/BASELINE.md`（upstream `3e11454` / 0.4.6）为准。
+
+**本版收口时复跑的门禁**（2026-11-01，本机；数字随提交变化，复算命令见 `docs/INDEX.md` §3）：
+`node scripts/run-mjs-tests.mjs` → `ℹ tests 321` / `pass 321` / `fail 0` / `EXECUTED=60`；`node scripts/check-hashes.mjs` → 末行「一致」；`node scripts/check-consumers.mjs` → 末行「全部有生产调用」。
+
+### 里程碑（不逐提交流水；每条给可验证物）
+
+| 日期 | 里程碑 | 可验证物 |
+|---|---|---|
+| 10-25 | **多宿主移植**：`lib/` → `core/`、`AgentSessionPort`、`WHALE_HOME`/`WHALE_NODE`、OpenCode daemon + MCP 包装、whale-panel、ntfy/bark、go-gate 方案三代码闸 | `af6fc2c` `05a2b3a` `1e3c47f` `12b9d1a` `6a6f8bd` `b688e8a` `ca7ec4a`；`adapters/opencode/README.md`、`docs/TERMUX.md` |
+| 10-26 | **每日动态草稿 + 审批 CLI**（默认 dry、幂等、kill 阻断）、选图器、单实例启动器与健康检查 | `3fe4185` `c58fde4` `95c849b` `1208abf` `2fc7b62`；`scripts/dynamic-approve.mjs`、`scripts/cortico-health.mjs` |
+| 10-27 | **一次性批准接入生产审批**（入队发 token，`--go` 必须校验并作废）；**清除"唤醒"概念**，改成状态驱动的 `decideAction`/`lifeTick`/`life.json`；离线门禁演练 | `0e37a36` `14be3df` `28049c5`；`scripts/ack.mjs`、`scripts/drill-gate.mjs` |
+| 10-28 | **文档基线**：BLUEPRINT v2 更正 v1 的系统性曲解、ARCHITECTURE v1（M0–M4）、ISSUES 台账、TEAM 常设编制、REUSE-MATRIX、ROADMAP | `da99cbf` `b25d6d0` `dbe5f13` `78e660e` `4415532` `e5c9118` `50aea94` |
+| 10-29 | **观测门禁链成型**：她的一天的容器 + 看门狗、voiceBrief 进草稿链（缺 voice 拒稿）、`g3b-check`、`observation-start` 未就绪拒开窗、反事实工具、`wake-audit`、C2 arm/verify 防作弊、人设单一来源、DM 回信草稿 + 一次性令牌、M4 召回回指、15 情绪标签、`check-consumers` + `gates` | `5d4142a` `edf828c` `a648020` `2314f8c` `3f3fb05` `d27af6b` `b62c18a` `36b99ca` `49cec82` `3476300` `e91bebb` `a5c0bf6` |
+| 10-30 | **M1a–M1e 全部合 live**：可观测只读层与资产根收口、审批加固（argv 重建、令牌绑正文）、kill 在写通道统一收口、凭据注册表（secret 不进回执）、V1 本地出片（MiMo TTS + CC0 BGM + 双封面）、vendor 两个 MIT 件、按主人裁决**取消每日 3 次上限** | `86107bb` `d48096c` `a26de00` `989206b` `f709d0b` `cbfa1c5` `1571913` `2163f5c`；证据卡 `docs/evidence/V1-VIDEO-SMOKE-2026-10-30.md`、`docs/MODULARITY-2026-10-30.md` |
+| 10-31 | **拆分与档位**：媒体层拆 `tools/media/*`（M1c）、草稿链拆 compose/store/publishers（M2）、日界 04:00 → 自然日 00:00、权限分级（点赞/收藏自发档 + `like` 命令）、意见箱、面板放行入口（token 不出服务端）、「小鱼 · 鱼缸」世界页在 7799 激活、`dynamic recent` 复核入口、发布策略单一事实源 + 令牌走环境变量、词表词组级 + dislike 硬过滤、Drive v2 三变体模拟（**未采纳**） | `ae023a5` `3d501e1` `a38c74e` `fd2a77b` `e4eb8b0` `f6a2a75` `e8b4916` `d481d89` `dd909ee` `eef637c` `dc26a93` `36030f6` `8e16801`；`tools/lib/publish-policy.mjs`、`docs/DRIVE-V2-SIM-2026-10-31.md` |
+| 11-01 | **接入日**：voice 的节律/今天/钟点/场值/意外槽全部接进正文（断链闭合）、《作品名》取位收成一个口径、词表命中率可复量、`ops:day` 一条命令看一天、私信真发落 `dm-out`、feed 回执标明偏好来源、01:23 `draftMode=auto` 盲写事故与两条缓解、G3b 判定与"14 天窗从 11-02 00:00 起算" | `3827cc4` `e2228ba` `6abe473` `70956a9` `4490404` `76519ff` `091daf5` `6487da7`；`tests/contract/voice-state-coupling.test.mjs`、`docs/evidence/G3B-DECISION-2026-11-01.md` |
+
+### 破坏性变更与迁移（本版一次性说明，不留到"以后"）
+
+- **日界**：04:00 → 自然日 00:00（`a38c74e`，主人 2026-10-31 拍板）。存量 `~/.dsh/bili-whale/days/<日期>/` 按当时口径写就，不回填。
+- **feed 偏好**：回执按真实来源打印「统一配置」或「日记兜底」（`76519ff`）。此前硬写「来自日记」，误导她连报七轮"改动没落地"。
+- **令牌**：不再进 argv/stdout/账本，只走 `--token-env` 或进程 env（`eef637c`）。外部脚本若曾把 token 拼进命令行要改调用方式。
+- **写档位**：点赞/收藏转自发档（过 kill + 额度 + 各自判据），公开评论/弹幕仍走 go-gate 人工放行，关注/取关不开放（`fd2a77b`，`tests/perm-tier.test.mjs`）。
+- **面板**：8447/8448 端口退役，日常界面是 WebUI 的「小鱼 · 鱼缸」世界页（7799）；`panel/` 目录保留作 CLI 与数据模块来源（`docs/ARCHITECTURE-2026-11.md` §4、§8 第 10 条）。
+
+### 本版**没有**做的事（别把"版本涨了"读成"都通了"）
+
+- 视频/直播整条媒体链**无调用方**：`tools/video-build.mjs` 与 `tools/media/*` 不在 `bili.mjs` 命令表、World 也无对应工具（`ARCHITECTURE-2026-11.md` §7⑤）。
+- 7799 写接口**免口令**未修（§7④）；给写口加认证排在观测后第一批。
+- 控制台对话页仍**不带**她的场值与记忆（§7①）；她的判断**没有**执行通道（§7②）。
+- **14 天观测窗尚未开**：`node scripts/observation-status.mjs` 2026-11-01 实跑得「观测尚未开始：G3b 通过后创建 control/observation.json」（开窗顺序与理由见 `docs/evidence/G3B-DECISION-2026-11-01.md`）。
+- 扩展市场搜索 `/api/extensions/search` 仍 `registry.npmjs.org ECONNRESET`（待办 #47）。
+
+### 文档
+
+新增 [`docs/INDEX.md`](docs/INDEX.md) 做真相源仲裁与全量登记（此前 `docs/` 顶层 37 个 md 无索引，BLUEPRINT/CURRENT/PRODUCT 三份互抢"唯一真相源"）；`ARCHITECTURE-2026-11.md` 补 §8.1 十条出入的逐条处置；RUNBOOK/DEPLOY/PR 里 6 处写死的"122 全过"改成复跑命令。
+
 ## port-0.1.0（2026-10-25）—— 多宿主移植
 
 把 DSH 专用插件拆成 **core + adapters + panel**，同一份配置/风控/日记可跑在 DSH、OpenCode 与手机 Termux。

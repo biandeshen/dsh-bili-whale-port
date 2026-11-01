@@ -1,4 +1,4 @@
-# dsh-bili-whale 0.4.6
+# dsh-bili-whale 0.5.0
 
 
 > 给 DSH 装一条**有日子的鱼**：它自己按作息刷 B 站、真看懂视频、写两本日记，把值得的 **@ 你**。
@@ -8,9 +8,10 @@
 她该长成什么，见 [VISION.md](VISION.md)；每一版的改动见 [CHANGELOG.md](CHANGELOG.md)。
 
 > **本分支是移植版（port/core-opencode-panel）**：DSH 不再是唯一宿主。
-> 恢复入口 [docs/CURRENT.md](docs/CURRENT.md) · 变更与评审记录 [docs/PR-port-core-opencode-panel.md](docs/PR-port-core-opencode-panel.md)
+> **文档从 [docs/INDEX.md](docs/INDEX.md) 进**（那里写明谁是架构/现状/产品/判据/版本的真相源，以及哪些只是历史证据）
+> 恢复入口 [docs/CURRENT.md](docs/CURRENT.md) · 架构现状 [docs/ARCHITECTURE-2026-11.md](docs/ARCHITECTURE-2026-11.md) · 变更与评审记录 [docs/PR-port-core-opencode-panel.md](docs/PR-port-core-opencode-panel.md)
 > · OpenCode 接入 [adapters/opencode/README.md](adapters/opencode/README.md) · 一键安装 [setup.cmd](setup.cmd) · 真机操作手册 [docs/RUNBOOK.md](docs/RUNBOOK.md) · 手机部署 [docs/TERMUX.md](docs/TERMUX.md)
-> · 独立面板 `node panel/server.js --port 8447`（用启动日志里的 `?t=` 链接打开）
+> · 日常界面：Cortico WebUI 的「小鱼 · 鱼缸」世界页 `http://127.0.0.1:7799/#/provider/world%3Abili-account`；独立面板 `panel/server.js` 的 8447/8448 **端口已退役**（目录留作 CLI 与数据模块来源，调试仍可起）
 > · 素材与许可 [docs/CREDITS.md](docs/CREDITS.md)（鲸鱼娘图形 CC BY-NC-SA 4.0，仅个人非商用）
 > · 行为基线 [docs/BASELINE.md](docs/BASELINE.md)；改调度/预算/路由前先读它。
 
