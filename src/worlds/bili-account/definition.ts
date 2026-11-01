@@ -8,7 +8,7 @@ import { extensionsDir, readInstalled } from '../../extensions.ts'
 import { repoRoot } from '../../paths.ts'
 import type { DescribeText, ToolDescribe, WorldWebUiDecl } from '../../core/types.ts'
 import { canDraft, draftRefusal, canApplyWatched, watchedRefusal, violationNotice, diaryFresh, diaryRefusal } from './gates.ts'
-import { upsertDiarySection, sectionStats, diaryDefaultHeader } from './diary.ts'
+import { upsertDiarySection, sectionStats, diaryDefaultHeader, paginateDiary } from './diary.ts'
 import { loadState, saveState, applyEffects, remember, rememberFirst, describeStateWithTrace, applyRecall, recentWatch, annotateFeed, PRESETS, WATCH_VERDICTS } from './personaAdapter.ts'
 import type { WatchVerdict } from './personaAdapter.ts'
 import type { PresetEffect } from './personaAdapter.ts'
@@ -415,7 +415,7 @@ const TOOL_SUMMARIES: Record<string, DescribeText> = {
   bili_traffic: { zh: '读取请求预算/熔断状态', en: 'Read traffic budget state.' },
   bili_feed: { zh: '拉取候选视频（只读）', en: 'Fetch candidate videos (read-only).' },
   bili_debrief: { zh: '读懂一条视频（只读）', en: 'Understand one video (read-only).' },
-  bili_diary_read: { zh: '读取两本日记', en: 'Read the two diary files.' },
+  bili_diary_read: { zh: '分页读日记：一页几天，回执会写明整本还有多少没给（别把一页当全部）', en: 'Read diaries by page; the receipt states what is still unserved.' },
   bili_mood_read: { zh: '读取小鱼的场值与当前情绪（含成因）', en: "Read Xiaoyu's fields and current emotion with cause." },
   bili_mood_apply: { zh: '按事件更新场值（预设或自定义）', en: 'Apply emotional effects after an event.' },
   bili_draft_dynamic: { zh: '生成动态草稿（不发送）', en: 'Create a dynamic draft (never posts).' },
@@ -432,7 +432,7 @@ const DECLS = [
   { name: 'bili_traffic', description: 'Bilibili request-budget state (read-only).', tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'bili_feed', description: 'Fetch candidate videos from the feed (read-only).', tags: ['read'], parameters: { type: 'object', properties: { n: { type: 'number', description: 'How many candidates (1-6)' } }, additionalProperties: false } },
   { name: 'bili_debrief', description: 'Understand one video via subtitles, danmaku, comments (read-only).', tags: ['read'], parameters: { type: 'object', properties: { bvid: { type: 'string' } }, required: ['bvid'], additionalProperties: false } },
-  { name: 'bili_diary_read', description: 'Read the two diary files (read-only).', tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'bili_diary_read', description: "Read her diaries BY PAGE (read-only). One call = one page of day-blocks (newest first) plus a header stating how many days/chars the whole book has and whether this page is the end. Never assume a page is the whole book: if the header says 还剩 N 块, ask for the next page or a date.", tags: ['read'], parameters: { type: 'object', properties: { book: { type: 'string', enum: ['public', 'private', 'both'], description: '默认 both' }, page: { type: 'number', description: '第几页（0 起，按天从新到旧）' }, days: { type: 'number', description: '每页几天（1-30，默认 3）' }, budget: { type: 'number', description: '每页字数上限（200-9000，默认 4000）' }, date: { type: 'string', description: '只取某一天 YYYY-MM-DD（给了就忽略 page）' } }, additionalProperties: false } },
   { name: 'bili_mood_read', description: "Read Xiaoyu's current emotion (fields + cause + label) plus what she recalls. Recalling marks those memories as thought-of-again: they get clearer.", tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'bili_mood_apply', description: 'Apply emotional effects after an event. Optionally record which life activity you picked and a short note. For watchedVideo, say what you actually concluded with verdict (keep / drop / unclear); without it nothing is counted as a positive.', tags: ['write'], parameters: { type: 'object', properties: { preset: { type: 'string', description: 'watchedVideo | masterReplied | masterSilentDay | draftApproved | draftRejected | trafficPaused' }, verdict: { type: 'string', enum: ['keep', 'drop', 'unclear'], description: '只给 watchedVideo 用：你这条到底收不收。keep=收 / drop=不收 / unclear=无从判断（不传按 unclear 记，不替你判成喜欢）' }, custom: { type: 'array', items: { type: 'object', properties: { field: { type: 'string' }, delta: { type: 'number' }, source: { type: 'string' } }, required: ['field', 'delta', 'source'] } }, note: { type: 'string', description: '一句留给自己的话（会写进记忆）' }, activity: { type: 'string', enum: ['rest', 'explore', 'create', 'social', 'reflect', 'exercise', 'consume'], description: '这轮挑的生活活动 id' } }, additionalProperties: false } },
   { name: 'bili_draft_dynamic', description: "Create a dynamic draft from today's diary and an unused image. Never posts.", tags: ['write'], parameters: { type: 'object', properties: { force: { type: 'boolean' } }, additionalProperties: false } },
@@ -799,6 +799,18 @@ class BiliAccountWorld {
     } catch { return null }
   }
 
+  /**
+   * 这一轮她到底能不能看图：只认宿主装配出来的读图工具（名字里带 read/view/analyze + image），
+   * 不做任何"应该有"的假设。宿主没接入工具表 = 看不见 = 按不能读处理，宁可少给一条指令。
+   */
+  private canSeeImages(): boolean {
+    try {
+      const list = typeof this.host?.listTools === 'function' ? this.host.listTools() : null
+      if (!list) return false
+      return list.some((t: any) => /(?:^|_)(?:read|view|analyze)_?image/i.test(String(t?.name ?? '')))
+    } catch { return false }
+  }
+
   tools() {
     const mk = (decl: any, handler: (args: any) => Promise<string>) => ({ ...decl, handler })
     return [
@@ -817,7 +829,9 @@ class BiliAccountWorld {
       mk(DECLS[2], async (a) => {
         const bv = String(a?.bvid || '').trim()
         if (!/^BV[0-9A-Za-z]{8,}$/.test(bv)) return '[bili_debrief failed] bvid invalid'
-        const r = await runAsync(['debrief', bv, '--no-frames', '--top', '3', '--comments', '3', '--bucket', '60'], 240000)
+        // f-17767a：debrief 过去硬写「交给 read_image 看」，而这条路从来没有过。
+        // 读图能力只有宿主知道（工具是装配出来的），所以这里如实告诉脚本有没有。
+        const r = await runNodeAsync(BILI, ['debrief', bv, '--no-frames', '--top', '3', '--comments', '3', '--bucket', '60'], 240000, { BILI_VISION: this.canSeeImages() ? '1' : '0' })
         if (r.status === 0) {
           round = { ...round, feedAt: round.feedAt ?? Date.now(), debriefed: true, bvid: bv, debriefedAt: Date.now() }
           writeRound(round)
@@ -828,10 +842,25 @@ class BiliAccountWorld {
         }
         return r.status === 0 ? r.out : `[bili_debrief failed] ${r.out}`
       }),
-      mk(DECLS[3], async () => {
-        return ['whale-diary.md', 'whale-diary-private.md'].map((f) => {
-          try { return `## ${f}\n` + fs.readFileSync(path.join(WHALE, f), 'utf8') } catch { return `## ${f}\n(missing)` }
-        }).join('\n\n').slice(0, 12000)
+      mk(DECLS[3], async (a) => {
+        // #56：整本拼接 + slice(0,12000) 会让她把截断当全部，从而下错结论。
+        // 现在按天成页，回执自己说清楚"这一本共多少、这页给了多少、还剩多少、怎么继续翻"。
+        const want = a?.book === 'public' || a?.book === 'private' ? a.book : 'both'
+        const specs = [
+          { book: 'public', file: 'whale-diary.md', label: '公开日记（给主人看的）' },
+          { book: 'private', file: 'whale-diary-private.md', label: '私人日记（偏好校准）' },
+        ].filter((s) => want === 'both' || s.book === want)
+        return specs.map((s) => {
+          let raw = ''
+          try { raw = fs.readFileSync(path.join(WHALE, s.file), 'utf8') } catch {
+            return `【${s.label} · ${s.file}】\n这个文件不存在 —— 是"真的还没有"，不是"被截断没给你"。`
+          }
+          const p = paginateDiary(raw, {
+            page: Number(a?.page ?? 0), days: Number(a?.days ?? 3), budget: Number(a?.budget ?? 4000),
+            date: a?.date ? String(a.date) : undefined,
+          })
+          return `【${s.label} · ${s.file} · 第 ${p.page + 1} 页】\n${p.receipt}`
+        }).join('\n\n────────────────\n\n')
       }),
       mk(DECLS[4], async () => statePrompt(loadState(FIELDS_FILE), { queryText: diaryTail(), seed: dayKey(Date.now()) })),
       mk(DECLS[5], async (a) => {
