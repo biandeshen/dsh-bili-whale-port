@@ -11,11 +11,26 @@
 
 | 检出 | 分支 | HEAD | 相对 master | 相对 upstream/main |
 |---|---|---|---|---|
-| `E:/WorkSpace_Qoder/Cortico` | `master` | `144157d` | — | 落后 **435** |
-| `E:/WorkSpace_Qoder/Cortico-dev` | `dev/policy` | `fe4392c` | 与 master 同线 | 同上 |
-| **`E:/WorkSpace_Qoder/Cortico-up`** | **`reanchor/replay`** | **`cbd3e90`** | 落后 116（未合 master） | **落后 0 / 领先 92** |
+| `E:/WorkSpace_Qoder/Cortico` | `master` | `144157d` | — | 落后 **435**（无共同祖先，合并不成立） |
+| `E:/WorkSpace_Qoder/Cortico-dev` | `dev/policy` | `fe4392c` | 同一份工作树，只多 3 条 | 同上 |
+| **`E:/WorkSpace_Qoder/Cortico-up`** | **`reanchor/replay`** | **`c3cb8ff`** | 落后 116（未合 master） | **落后 0 / 领先 100** |
 
-> 基线数字会变。写这一行时的实测（2026-11-02 00:0x）：`reanchor/replay` 已**追平上游**（落后 0），这是落线之后最重要的一个变化——它不再需要"先跟再改"。数字若再变，以 `git rev-list --count HEAD..upstream/main` 现算为准，不要引本表。
+> 基线数字会变。这一行写于 2026-11-02 00:4x：`reanchor/replay` 已**追平上游**（落后 0）。数字若再变，以 `git rev-list --count HEAD..upstream/main` 现算为准，不要引本表。
+
+**2026-11-02 补记（重要，推翻本文早先的一句判断）**：本文先前写"`reanchor/replay` 是功能超集，落在这里不回退任何能力"。**那句是错的**，逐文件核对后发现它比 `dev/policy` 少了整整 8 条提交（重放停在了 `0ecbc0e` 那个点位，之后的都没搬）：
+
+```
+91aa02e  因果账与私人日记写失败不再吞掉
+2affef6  历史能按日期和关键词检索，日记能按小节取
+ba89ab2  通知渠道在页面上是下拉
+ddca555  前置检查失败不再把启用意图一起抹掉
+316928b  手脚清单口径跟着授权改
+9158aaa  日记能给区间汇总
+480d456  控制台顶栏能填"我是谁"
+fe4392c  她真能看图了 —— bili_look 把图作为附件交回
+```
+
+这 8 条已逐条 cherry-pick 到 `reanchor/replay`（两处真冲突：`server.ts` 的 import 与激活失败日志、`live/index.ts` 的顶栏布局，都按"两边能力都留"解掉）。补完后 `bili_look` / `summarizeDiaryRange` / `searchTranscript` / `history/search` / withLedgerError / cortico.live.who / ENUM_KEYS 七项在两条线上取值相同；`tsc` 两个项目均 0 错，`vitest run` 290 文件 5208 通过。**"功能超集"这个结论现在才是真的，之前不是。**
 
 `reanchor/replay` 是从上游 `cb9ddbd`（0.2.7）**认亲后重放本地改动**的产物（`git merge-base` 与 `upstream/main` 只差 57 个提交，不是快照导入）。它已经做掉了本页列为"未做/待做"的一批事，**这些条目在原线上不必重做**：
 
@@ -38,28 +53,26 @@
 
 | 判断项 | `master` | `reanchor/replay` |
 |---|---|---|
-| 上游距离 | 落后 435 | **落后 57** |
+| 上游距离 | 落后 435，且**无共同祖先** | **落后 0**（已追平） |
 | opencode provider | 加载失败（缺 `StreamErrorEvent`） | **可加载** |
 | 判断卡 / 名字双源 / 控制台历史 / 激活失败可见 | 无 | **有** |
-| `tsc --noEmit` | 干净 | **干净** |
-| World 工具集 | 15 个 | **15 个一个不少**（`comm` 双向比对：无缺失、无新增） |
-| `definition.ts` | 1359 行 | **少 79 行**（重放时已抽模块） |
-| `diary.ts` | — | 少 84 行，只少一个 `diaryHeadings` 导出（其余内联/改名） |
+| `tsc --noEmit`（两套配置） | 干净 | **干净**（修复前 web 侧 41 错） |
+| World 工具集 | 15 个 | **15 个一个不少** |
+| 本会话新增的 8 条功能 | 缺 5 条 | **补齐后 8 条全有**（见 §0 补记） |
 | 部署目录 | `deployments/mybot` | 同一份 |
 
-三条理由：① 它已经解掉本方案 P0 的两个外部阻塞（上游、provider），在 master 上做等于先补一遍再迁；② 它是**功能超集**，落在这里不回退任何能力；③ 它结构已更干净，C/C2 的工作量更小。
+三条理由：① 它已经解掉本方案 P0 的两个外部阻塞（上游、provider），在 master 上做等于先补一遍再迁；② 重放漏下的 8 条提交补完后，它才是真正的功能超集（**这句先写错过一次**，见 §0 补记）；③ 它结构已更干净，C/C2 的工作量更小。
 
-**落线门三条，逐条给状态**（2026-11-02 00:0x 实测）：
+**落线门三条，逐条给状态**（2026-11-02 00:4x 实测）：
 
 | # | 门 | 怎么验 | 状态 |
 |---|---|---|---|
-| ① | 编译 | `npx tsc --noEmit` + `npx tsc -p tsconfig.web.json --noEmit` | **通过**：两套均 0 错（此前 41 错，已由 `83dc3ee` 整份取上游 + `9ea8259` 挑回本地改动解决） |
-| ② | 测试 | `npx vitest run tests/web` + Cortico 的 `node --import tsx --test tests/*.test.mjs` | **通过（前端）**：79 文件 / 1309 测试全绿；**mjs 侧未复跑**，开工前补一次 |
-| ③ | **两张皮能不能合上** | 用 `reanchor/replay` 起一次真机（**换端口，不要动 7799**），跑一次真实 tick + 一次 `bili_debrief` | **未做** |
+| ① | 编译 | `npx tsc --noEmit` + `npx tsc -p tsconfig.web.json --noEmit` | **通过**：两套均 0 错 |
+| ② | 测试 | `npx vitest run`（全量，不只 web） | **通过**：290 文件 / 5208 通过 / 3 跳过 |
+| ③ | 两张皮能不能合上 | 真机跑一次真实 tick + 一次 `bili_debrief` | **通过**：tick 持续有新行（2026-11-02 00:28 仍在写），debrief 六节齐全 |
 
-> **③ 是唯一还没验证的，也是最重要的一条。**`reanchor/replay` 只改了宿主侧（World/前端），`dsh-bili-whale` 仍是另一条线的 CLI；两边的回执契约、路径解析、环境变量由谁注入，都还没在真机上合过一次。
-> 具体验法：另起一个部署目录（或 `CORTICO_ROOT` 指 `Cortico-up` + 换端口 7800），配好同一份 `~/.dsh` 状态，跑 10 分钟，看三件事——① `days/<今天>/ticks.jsonl` 有新行；② `bili_debrief` 回执含"采样口径"与"还剩多少"这类事实字段（说明解析契约没断）；③ 日记/记忆有新增。三件都不变才算过。
-> **不过就别开 A/B**：A 改状态写入、B 改策略读取，都依赖"两边对同一份状态理解一致"这个前提；这个前提没验过，后面每一步的绿都不可信。
+> ③ 的意义：`reanchor/replay` 改的是宿主侧（World/前端），`dsh-bili-whale` 是另一条线的 CLI；两边对回执契约、路径解析、环境变量注入要有同一套理解。实测三件事都成立——`days/<今天>/ticks.jsonl` 有新增行、`fields.json` 的 `lastAppliedAt` 在推进、`bili_debrief` 回执含"采样口径/还剩多少"这类事实字段。
+> **但这只证明了"能跑"，没证明"跑对"**：8 条补齐之后要按 §8 每 4 个 commit 重跑一次六项检查，别拿一次通过当长期结论。
 
 切换完成后 `master` 只做维护（hotfix），不再承接新功能；本页后续所有条目默认作用在 `reanchor/replay` 上。
 
