@@ -177,10 +177,10 @@ const GROUP_LABEL: Record<string, string> = {
 }
 /** 这些键 Cortico 只在启动时读一次，改完必须重启才生效（页面上要说清，别让人改了以为没生效）。 */
 const RESTART_KEYS = new Set(['owner.displayName', 'owner.name', 'owner.mid', 'self.name', 'self.mid', 'home', 'toolsPath'])
-/** 页签里已经能直接改的六项。 */
-const EDITABLE_KEYS = new Set(['publish.draftMode', 'publish.autoDailyCap', 'publish.autoWindow', 'permissions.like', 'permissions.fav', 'permissions.dmReply'])
+/** 策略六项在页面最上方那组控件里改（那边有档位护栏与 auto 留痕），不走通用一格一改。 */
+const POLICY_KEYS = new Set(['publish.draftMode', 'publish.autoDailyCap', 'publish.autoWindow', 'permissions.like', 'permissions.fav', 'permissions.dmReply'])
 
-export interface SettingsItem { key: string; value: unknown; group: string; editable: boolean; needsRestart: boolean; declared: boolean }
+export interface SettingsItem { key: string; value: unknown; group: string; editable: boolean; editVia: 'policy' | 'settings' | null; needsRestart: boolean; declared: boolean }
 
 const hasPath = (o: any, path: string) => path.split('.').reduce((acc: any, k) => (acc && typeof acc === 'object' ? acc[k] : undefined), o) !== undefined
 
@@ -195,7 +195,14 @@ export function settingsOverview(user: any, declared: any): { total: number; und
       const key = prefix ? `${prefix}.${k}` : k
       if (v && typeof v === 'object' && !Array.isArray(v)) { walk(v, key); continue }
       const group = key.split('.')[0]
-      items.push({ key, value: v, group, editable: EDITABLE_KEYS.has(key), needsRestart: RESTART_KEYS.has(key), declared: hasPath(declared, key) })
+      // 能改的不是"我列出来的那几个"，而是"任何标量叶子"——主人要的是全部可见且可改，
+      // 白名单少列一项就是一个必须去翻文件的漏洞。策略六项走上方那组控件（有护栏与留痕），
+      // 路径类（home/toolsPath）只能在文件里改：改错会把她的家搬走。
+      const kind = typeOf(v)
+      const scalar = kind === 'number' || kind === 'boolean' || kind === 'string' || kind === 'array'
+      const denied = DENY_KEYS.has(key) || DENY_PREFIX.some((p) => key.startsWith(p))
+      const editVia = POLICY_KEYS.has(key) ? 'policy' : scalar && !denied ? 'settings' : null
+      items.push({ key, value: v, group, editable: editVia !== null, editVia, needsRestart: RESTART_KEYS.has(key), declared: hasPath(declared, key) })
     }
   }
   walk(user, '')
@@ -217,6 +224,94 @@ export function settingsState(): { ok: boolean; file: string; total: number; und
   const user = readJson(CONFIG_FILE) ?? {}
   return { ok: true, file: CONFIG_FILE, ...settingsOverview(user, mods.cfg?.DEFAULTS ?? {}) }
 }
+
+/**
+ * 页面改值（#49）。主人原话："我要所有配置都可以见到，而不是直接去改配置文件。"
+ * 可见不等于随便写，所以这里有三条硬规则：
+ *   ① 路径/身份类（home、toolsPath）与策略六项（publish.* / permissions.*）不在这里写
+ *      —— 前两者改错会把她的整个家搬走，后六项走发送策略那格（那里有 auto 的留痕与档位护栏）；
+ *   ② 值必须过类型与范围校验（按现值或 dsh 默认值推类型），非法值拒并说清哪坏了；
+ *   ③ 测试上下文不许写正式配置（与 policySet 同一条，2026-11-01 01:23 那次盲写的教训）。
+ */
+const DENY_KEYS = new Set(['home', 'toolsPath'])
+const DENY_PREFIX = ['publish.', 'permissions.']
+/** 名字类：与 persona-core/src/naming.ts 一样 24 字封顶，别把叙事提示词撑爆。 */
+const NAME_KEYS = new Set(['self.name', 'owner.displayName'])
+const COUNT_RE = /(Hourly|Daily|Cap|Max|Count|Limit|Days|Hours|Minutes|Seconds|Ms|PerDay|PerHour)$/
+
+function typeOf(v: unknown): 'number' | 'boolean' | 'string' | 'array' | 'object' | 'undefined' {
+  if (v === undefined) return 'undefined'
+  if (Array.isArray(v)) return 'array'
+  if (typeof v === 'number') return 'number'
+  if (typeof v === 'boolean') return 'boolean'
+  if (typeof v === 'string') return 'string'
+  return 'object'
+}
+
+/** 校验并归一一个值；返回 {value} 或 {error}（错误要能直接给人看懂，不写"invalid"）。 */
+function coerceValue(key: string, rawValue: unknown, current: unknown): { value?: unknown; error?: string } {
+  const kind = typeOf(current) === 'undefined' ? typeOf(rawValue) : typeOf(current)
+  if (kind === 'object' || kind === 'undefined') return { error: `${key} 是嵌套对象或还不存在，这一格改不了 —— 那种结构请直接看文件，别在页面上半改。` }
+  if (kind === 'number') {
+    const n = typeof rawValue === 'number' ? rawValue : Number(String(rawValue).trim())
+    if (!Number.isFinite(n)) return { error: `${key} 要的是数字，收到的是「${String(rawValue)}」。` }
+    if (COUNT_RE.test(key) && (!Number.isInteger(n) || n < 0)) return { error: `${key} 要的是「0 或更大的整数」（次数/额度/天数类），收到 ${String(rawValue)}。` }
+    return { value: n }
+  }
+  if (kind === 'boolean') {
+    const s = String(rawValue).trim().toLowerCase()
+    if (rawValue === true || s === 'true' || s === '1' || s === 'on') return { value: true }
+    if (rawValue === false || s === 'false' || s === '0' || s === 'off' || s === '') return { value: false }
+    return { error: `${key} 是开关，只能真或假，收到「${String(rawValue)}」。` }
+  }
+  if (kind === 'array') {
+    const list = (Array.isArray(rawValue) ? rawValue : String(rawValue).split(/[、,，·|]/)).map((x) => String(x).trim()).filter(Boolean)
+    if (list.length > 20) return { error: `${key} 最多 20 项，现在 ${list.length} 项。` }
+    if (list.some((x) => x.length > 40)) return { error: `${key} 每一项不能超过 40 字。` }
+    return { value: list }
+  }
+  const text = String(rawValue ?? '').trim()
+  const cap = NAME_KEYS.has(key) ? 24 : 500
+  if (NAME_KEYS.has(key) && !text) return { error: `${key} 不能是空的：名字留空等于让她没有名字。` }
+  if (text.length > cap) return { error: `${key} 最长 ${cap} 字，现在 ${text.length} 字。` }
+  return { value: text }
+}
+
+export interface SettingsChange { key: string; from: unknown; to: unknown; needsRestart: boolean }
+export function settingsSet(patch: any, file = CONFIG_FILE): { ok: boolean; changed?: SettingsChange[]; error?: string; settings?: ReturnType<typeof settingsOverview> } {
+  if (file === CONFIG_FILE && process.env.NODE_TEST_CONTEXT) return { ok: false, error: '测试里必须显式传临时路径，不许写正式配置' }
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) return { ok: false, error: '缺少要改的键值对象' }
+  const keys = Object.keys(patch)
+  if (!keys.length) return { ok: false, error: '没有要改的键' }
+  if (keys.length > 12) return { ok: false, error: `一次最多改 12 项（这次 ${keys.length} 项），分批改才看得出哪一项坏了。` }
+  const cfg = readJson(file) ?? {}
+  const declared = mods.cfg?.DEFAULTS ?? {}
+  const changes: SettingsChange[] = []
+  const next = structuredClone(cfg)
+  for (const key of keys) {
+    if (DENY_KEYS.has(key) || DENY_PREFIX.some((p) => key.startsWith(p))) {
+      const why = DENY_PREFIX.some((p) => key.startsWith(p)) ? '那几项在「发送策略」那格改（有档位护栏和 auto 留痕）' : '路径类改错会把她的家搬走，必须手工改文件并重启'
+      return { ok: false, error: `${key} 不在这里改：${why}。` }
+    }
+    const current = key.split('.').reduce((acc: any, k) => (acc && typeof acc === 'object' ? acc[k] : undefined), cfg)
+    const declaredValue = key.split('.').reduce((acc: any, k) => (acc && typeof acc === 'object' ? acc[k] : undefined), declared)
+    const c = coerceValue(key, patch[key], current === undefined ? declaredValue : current)
+    if (c.error) return { ok: false, error: c.error }
+    if (current === c.value) continue
+    const parts = key.split('.')
+    let node = next
+    for (const p of parts.slice(0, -1)) node = node[p] ??= {}
+    node[parts.at(-1)!] = c.value
+    changes.push({ key, from: current, to: c.value, needsRestart: RESTART_KEYS.has(key) })
+  }
+  if (!changes.length) return { ok: true, changed: [], settings: settingsOverview(next, declared) }
+  try {
+    const tmp = file + '.' + process.pid + '.settings-tmp'
+    fs.writeFileSync(tmp, JSON.stringify(next, null, 2) + '\n', 'utf8')
+    fs.renameSync(tmp, file)
+    return { ok: true, changed: changes, settings: settingsOverview(readJson(file) ?? {}, mods.cfg?.DEFAULTS ?? {}) }
+  } catch (e: any) { return { ok: false, error: String(e?.message ?? e) } }}
+
 
 /** 与 dsh tools/lib/publish-policy.mjs 的 readPolicy 同语义（TS 侧一份小镜像，值语义在此测试锁）。 */
 export function readPolicyLite(cfg: any) {

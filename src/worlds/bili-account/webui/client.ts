@@ -324,12 +324,12 @@ interface PolicyState {
   file?: string; exists?: boolean; autoSentToday?: number; error?: string;
   settings?: {
     ok: boolean; file: string; total: number; undeclared: number;
-    groups: { group: string; label: string; items: { key: string; value: unknown; group: string; editable: boolean; needsRestart: boolean; declared: boolean }[] }[];
+    groups: { group: string; label: string; items: { key: string; value: unknown; group: string; editable: boolean; editVia: 'policy' | 'settings' | null; needsRestart: boolean; declared: boolean }[] }[];
   };
 }
 function mountPolicy(ctx: WebUiPanelContext): void {
   const { ui, root } = ctx;
-  const card = ui.sheet({ title: '发送策略与全部配置', en: 'send policy', desc: '默认全人工；auto 要你显式打开。kill 永远压过这里的一切设置。下方是配置文件里的每一项,只读,标明谁能改、要不要重启。' });
+  const card = ui.sheet({ title: '发送策略与全部配置', en: 'send policy', desc: '默认全人工；auto 要你显式打开。kill 永远压过这里的一切设置。下方是配置文件里的每一项：标量都能在这页直接改（路径类与策略六项除外），并标明要不要重启。' });
   root.appendChild(card.el);
   const err = ui.msgline();
   const selMode = ui.select({ options: [{ value: 'review', label: '草稿：人工审核（默认）' }, { value: 'auto', label: '草稿：自动发送（auto）' }] });
@@ -385,12 +385,41 @@ function mountPolicy(ctx: WebUiPanelContext): void {
         const k = document.createElement('span');
         k.className = 'sh-ov-k';
         k.textContent = it.key;
-        const v = document.createElement('span');
-        v.className = 'sh-ov-v';
-        v.textContent = Array.isArray(it.value) ? it.value.join(' · ') : String(it.value);
-        row.append(k, v);
+        row.appendChild(k);
+        if (it.editVia !== 'settings') {
+          const v = document.createElement('span');
+          v.className = 'sh-ov-v';
+          v.textContent = Array.isArray(it.value) ? it.value.join(' · ') : String(it.value);
+          row.appendChild(v);
+        } else {
+          // 控件按现值的类型给：开关是二选一，数字是数字框，名单是逗号分隔的一条输入。
+          const ctl: any = typeof it.value === 'boolean'
+            ? ui.select({ options: [{ value: 'true', label: '是' }, { value: 'false', label: '否' }] })
+            : ui.input({ type: typeof it.value === 'number' ? 'number' : 'text', placeholder: Array.isArray(it.value) ? '顿号或逗号分隔' : '' });
+          ctl.value = Array.isArray(it.value) ? it.value.join('、') : String(it.value ?? '');
+          const btn = ui.button('改', {
+            onClick: () => {
+              const raw = ctl.value;
+              const value = typeof it.value === 'boolean' ? raw === 'true'
+                : typeof it.value === 'number' ? Number(raw)
+                : Array.isArray(it.value) ? String(raw).split(/[、,，·|]/).map((x) => x.trim()).filter(Boolean)
+                : String(raw);
+              void ctx.invoke<{ ok?: boolean; error?: string; changed?: { needsRestart: boolean }[] }>('settings/set', [{ [it.key]: value }])
+                .then((r) => {
+                  if (!r?.ok) { ui.toast('✗ ' + (r?.error ?? '保存失败'), 'bad'); return }
+                  if (!r.changed?.length) { ui.toast(`${it.key} 没变（填的就是现值）`, 'ok'); return }
+                  const restart = r.changed.every((c) => c.needsRestart);
+                  ui.toast(`✓ ${it.key} 已保存${restart ? '，这一项要重启才生效' : ''}`, 'ok');
+                })
+                .catch((e) => ui.toast(errText(e), 'bad'));
+            },
+          });
+          row.append(ctl, btn);
+        }
         const tags: string[] = [];
-        if (it.editable) tags.push('页面可改');
+        if (it.editVia === 'settings') tags.push('这一格可改');
+        else if (it.editVia === 'policy') tags.push('在上方「发送策略」里改');
+        else tags.push('只能改文件');
         if (it.needsRestart) tags.push('改后要重启');
         if (!it.declared) tags.push('未声明默认值');
         if (tags.length) {

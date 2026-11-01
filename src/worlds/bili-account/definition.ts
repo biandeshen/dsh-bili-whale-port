@@ -22,7 +22,7 @@ import type { Language } from '../../core/language.ts'
 import {
   warmConsole, consoleReady, tankLocal, killOn, lastTickAt, pendingDraftCount, openFeedbackCount,
   timelineState, diaryState, draftsState, draftAction, feedbackResolve, feedbackListSafe, vitalsState, avatarBinary, trafficStatus,
-  policyState, policySet, policyInWindow, autoSentToday, draftForDay, freshAckToken, ownerNameFromConfig, settingsState,
+  policyState, policySet, policyInWindow, autoSentToday, draftForDay, freshAckToken, ownerNameFromConfig, settingsState, settingsSet,
 } from './tank.ts'
 import { decideAction, restRecoveryDelta, actionCost, nextCheckDelay, dayKey, MIN_GAP_MS } from '../../../persona-core/src/rhythm.ts'
 
@@ -603,6 +603,14 @@ class BiliAccountWorld {
                   } catch {}
                 }
               }
+            }
+            return r
+          }
+          // #49：全部配置里除禁改项之外的每一项都能在这一页改，不用去翻 bili-whale.config.json。
+          if (method === 'settings/set') {
+            const r = settingsSet(args[0])
+            if (r.ok && r.changed?.length) {
+              causal({ kind: 'settings-change', changed: r.changed, atMs: Date.now() })
             }
             return r
           }
