@@ -22,7 +22,7 @@ import type { Language } from '../../core/language.ts'
 import {
   warmConsole, consoleReady, tankLocal, killOn, lastTickAt, pendingDraftCount, openFeedbackCount,
   timelineState, diaryState, draftsState, draftAction, feedbackResolve, feedbackListSafe, vitalsState, avatarBinary, trafficStatus,
-  policyState, policySet, policyInWindow, autoSentToday, draftForDay, freshAckToken, ownerNameFromConfig, personaNameFromConfig, settingsState, settingsSet, renameSelf,
+  policyState, policySet, policyInWindow, autoSentToday, draftForDay, freshAckToken, ownerNameFromConfig, personaNameFromConfig, hostDisplayName, settingsState, settingsSet, renameSelf,
 } from './tank.ts'
 import { decideAction, restRecoveryDelta, actionCost, nextCheckDelay, dayKey, MIN_GAP_MS } from '../../../persona-core/src/rhythm.ts'
 
@@ -449,6 +449,7 @@ const TOOL_SUMMARIES: Record<string, DescribeText> = {
   bili_like: { zh: '给她看完觉得好的视频点赞（自己发，过风控）', en: 'Like a video she enjoyed (self-sent, traffic-guarded).' },
   bili_fav: { zh: '收藏视频（自己发；五条判据+每天 3 条上限，不过就拒）', en: 'Favorite a video (self-sent; five criteria + 3/day cap, refuses on failure).' },
   bili_capabilities: { zh: '看清自己此刻有什么手脚：能调的工具（读/写）、装着的扩展、这份部署的开关（只读，启用与安装归主人）', en: 'List the tools callable now, the installed extensions and this deployment\'s world switches (read-only).' },
+  bili_alarm: { zh: '给自己设闹钟：到点带着那句话醒来，重启后也照响', en: 'Set an alarm for herself that survives restarts.' },
   bili_memory_void: { zh: '更正记忆：写错的那条可以盖作废章（不再被想起，但原文留着可复盘）；只准点名一条', en: 'Void one wrongly-recorded memory (it stops being recalled; text kept for review).' },
 }
 
@@ -467,6 +468,7 @@ const DECLS = [
   { name: 'bili_like', description: "Like a video she actually enjoyed (self-sent since 2026-10-31, still traffic-guarded). A like is a light signal — no cap, but do not like everything.", tags: ['write'], parameters: { type: 'object', properties: { bvid: { type: 'string' }, reason: { type: 'string', description: '为什么赞（一句话，写进偏好账）' } }, required: ['bvid'], additionalProperties: false } },
   { name: 'bili_fav', description: "Add a video to her favorites (self-sent since 2026-10-31). Five criteria still apply and the tool REFUSES when they fail: reason ≥6 chars, ≤3/day, no repeat within 30 days, ≤2 per kind unless better. A refusal is final — do not retry.", tags: ['write'], parameters: { type: 'object', properties: { bvid: { type: 'string' }, reason: { type: 'string', description: '为什么留（≥6 字）' }, better: { type: 'boolean', description: '比同类别已收的明显更好时置 true' } }, required: ['bvid', 'reason'], additionalProperties: false } },
   { name: 'bili_capabilities', description: 'Inventory of her own capabilities right now, one line each: every tool actually callable this turn (name + one-line function + read/write tag), every extension package installed on this machine with its enabled state, and this deployment\'s world switches. Read-only: it changes, enables and installs nothing.', tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'bili_alarm', description: "Set an alarm for herself. At that time she wakes up with a bili.action_due event carrying the note, so it works across restarts. Use it when something is worth coming back to (a video she wants to finish, checking whether a reply arrived), not as a timer for its own sake.", tags: ['flow'], parameters: { type: 'object', properties: { minutes: { type: 'number', description: '多少分钟后叫你（1–1440）' }, note: { type: 'string', description: '到点要做什么（一句话，会原样出现在唤醒提示里）' } }, required: ['minutes', 'note'], additionalProperties: false } },
   { name: 'bili_memory_void', description: "Void one memory she now believes was recorded wrongly (local only, never touches Bilibili). The original text stays in her state for later review but stops coming back to mind. She must name ONE memory: an exact id, or a text match that hits exactly one. 0 hits or 2+ hits is REFUSED with the candidate list — never void a pile on a guess, and a refusal is not a bug to retry.", tags: ['write'], parameters: { type: 'object', properties: { id: { type: 'string', description: '记忆 id（从工具上一次给的候选清单里取，最准）' }, match: { type: 'string', description: '正文片段；只有唯一命中才生效' }, reason: { type: 'string', description: '为什么作废（≥6 字，留在条上供她日后复盘）' } }, required: ['reason'], additionalProperties: false } },
 ] as const
 
@@ -509,6 +511,15 @@ class BiliAccountWorld {
   private enqueue(kind: string, text: string, now: number): void {
     this.queue = prune([...this.queue, newTask(kind, text, now)], now)
     try { writeQueue(QUEUE_FILE, this.queue) } catch {}
+  }
+
+  /** 她给自己设的闹钟：走同一条持久队列，所以重启后仍会响；到点是一条 bili.action_due 事件。 */
+  private setAlarm(minutes: number, note: string): string {
+    const now = Date.now()
+    const at = now + minutes * 60_000
+    const text = `【闹钟】${note}（${minutes} 分钟后，${new Date(at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}）`
+    this.enqueue('alarm', text, at)
+    return `[alarm] 已设：${minutes} 分钟后叫你 —— ${note}`
   }
 
   /**
@@ -640,13 +651,15 @@ class BiliAccountWorld {
             const remote = r.status === 0 ? r.out.trim().split('\n').at(-1)?.trim() ?? null : null
             return {
               local,
+              // 宿主导航读部署 config.json 的 displayName：页面把它一并露出来，好让主人看见两边是不是同一个名字。
+              host: hostDisplayName(this.botConfigFile()),
               remote,
               remoteError: r.status === 0 ? null : String(r.out).trim().slice(0, 200) || `rename 退出码 ${r.status}`,
             }
           }
           if (method === 'name/local') {
-            const r = renameSelf(String(args[0] ?? ''))
-            if (r.ok) causal({ kind: 'name-change', scope: 'local', to: r.name, atMs: Date.now() })
+            const r = renameSelf(String(args[0] ?? ''), undefined, this.botConfigFile())
+            if (r.ok) causal({ kind: 'name-change', scope: 'local', to: r.name, hostUpdated: r.hostUpdated, atMs: Date.now() })
             return r
           }
           if (method === 'name/bili') {
@@ -872,6 +885,11 @@ class BiliAccountWorld {
       if (!list) return false
       return list.some((t: any) => /(?:^|_)(?:read|view|see|analyze)_?image/i.test(String(t?.name ?? '')))
     } catch { return false }
+  }
+
+  /** 本部署的 config.json（宿主导航名字在里面）；ctx 缺席时返回 null，调用方按"没有第二个来源"处理。 */
+  private botConfigFile(): string | null {
+    return this.ctx ? path.join(this.ctx.botDir, 'config.json') : null
   }
 
   tools() {
@@ -1224,6 +1242,14 @@ class BiliAccountWorld {
         configFile: this.ctx ? path.join(this.ctx.botDir, 'config.json') : null,
       })),
       mk(DECLS[14], async (a) => {
+        const minutes = Math.round(Number(a?.minutes))
+        const note = String(a?.note ?? '').trim()
+        if (!Number.isFinite(minutes) || minutes < 1 || minutes > 1440)
+          return '[alarm] 分钟数要 1–1440 之间 —— 一天以上就不再是"想起来"，那是排期。'
+        if (note.length < 2) return '[alarm] 写清到点要做什么（≥2 字），空闹钟只会叫醒一个不知道要干什么的人。'
+        return this.setAlarm(minutes, note.slice(0, 200))
+      }),
+      mk(DECLS[15], async (a) => {
         // #55：写错的记忆以前只能等它慢慢衰减，期间她照常拿它下结论。
         // 更正要有通道，但一次只准点一条：模糊命中多条时把候选还给她，绝不批量作废。
         const reason = String(a?.reason ?? '').trim()

@@ -5,7 +5,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { BILI_ACCOUNT, exportPolicyNotice } from '../src/worlds/bili-account/definition.ts'
-import { readPolicyLite, policyInWindow, policySet, policyState, autoSentToday, draftForDay, freshAckToken, openFeedbackCount, settingsOverview, settingsState, personaNameFromConfig, renameSelf } from '../src/worlds/bili-account/tank.ts'
+import { readPolicyLite, policyInWindow, policySet, policyState, autoSentToday, draftForDay, freshAckToken, openFeedbackCount, settingsOverview, settingsState, personaNameFromConfig, hostDisplayName, renameSelf } from '../src/worlds/bili-account/tank.ts'
 
 const decl = BILI_ACCOUNT.create().webUi('zh')
 
@@ -210,6 +210,41 @@ test('renameSelf：改本机名字只动 self.name，别的一项不碰；空名
   assert.equal(renameSelf('   ', file).ok, false)
   assert.match(renameSelf('', file).error, /不能是空/)
   assert.equal(renameSelf('名'.repeat(40), file).name.length, 24)
+  fs.rmSync(dir, { recursive: true, force: true })
+})
+
+test('改本机名字时部署那份 displayName 一起写：导航与标题不会各叫各的', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rename-host-'))
+  const file = path.join(dir, 'bili-whale.config.json')
+  const bot = path.join(dir, 'deploy', 'config.json')
+  fs.mkdirSync(path.dirname(bot), { recursive: true })
+  fs.writeFileSync(file, JSON.stringify({ self: { name: '旧名' } }), 'utf8')
+  fs.writeFileSync(bot, JSON.stringify({ displayName: '旧名', activeProvider: 'x', worlds: { figure: { enabled: false } } }), 'utf8')
+
+  const r = renameSelf('新名', file, bot)
+  assert.equal(r.ok, true)
+  assert.equal(r.hostUpdated, true)
+  const deploy = JSON.parse(fs.readFileSync(bot, 'utf8'))
+  assert.equal(deploy.displayName, '新名')
+  assert.equal(deploy.activeProvider, 'x', '部署配置的其他键原样保留')
+  assert.deepEqual(deploy.worlds, { figure: { enabled: false } })
+
+  // 部署那份写不进去：本机名字照样生效，但要如实说导航没跟上
+  const blocked = renameSelf('再来一个', file, path.join(dir, 'no-such-dir-x', '\u0000bad'))
+  assert.equal(blocked.ok, true)
+  assert.equal(blocked.hostUpdated, false)
+  fs.rmSync(dir, { recursive: true, force: true })
+})
+
+test('hostDisplayName：读部署 config.json 的 displayName，没有就说没有', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hostname-'))
+  const bot = path.join(dir, 'config.json')
+  assert.equal(hostDisplayName(null), null, '没拿到部署目录 = 没有第二个来源')
+  assert.equal(hostDisplayName(bot), null, '文件不存在 = 没有')
+  fs.writeFileSync(bot, JSON.stringify({ displayName: '  导航名  ' }), 'utf8')
+  assert.equal(hostDisplayName(bot), '导航名')
+  fs.writeFileSync(bot, JSON.stringify({ displayName: '   ' }), 'utf8')
+  assert.equal(hostDisplayName(bot), null, '全空白当没有')
   fs.rmSync(dir, { recursive: true, force: true })
 })
 
