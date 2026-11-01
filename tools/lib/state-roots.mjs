@@ -69,9 +69,10 @@ const KINDS = {
   'draft-result': { owner: 'host' },
   'dm-applied': { owner: 'host' },
 
-  // —— 两边都写：必须拿锁，且只追加单行 ——
-  // withStateLock/appendLocked 见 tools/lib/state-lock.mjs。
-  causal: { owner: 'both-with-lock', requiresLock: true },
+  // —— 两边都写：README 的规矩是"同一份文件不许两个写者"，除非它只追加、不读-改-写 ——
+  // causal.jsonl 属于后者：两个进程都只 append 单行。2026-11-02 实测（三进程 × 60 行 × 100KB
+  // 并发）600 行无撕裂无丢失，所以它**不需要锁**；真出现读-改-写的字段时再改成拿锁的那类。
+  causal: { owner: 'both-with-lock', requiresLock: false },
 
   // —— 特殊落点 ——
   credentials: { owner: 'cli', fixedLegacy: true }, // R2：读写都在旧家

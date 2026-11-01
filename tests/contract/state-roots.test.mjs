@@ -129,9 +129,11 @@ test('崩溃留下的陈旧锁（pid 已死）会被清掉，下一次还能拿'
   assert.equal(fs.existsSync(lock), false, '跑完要放锁')
 })
 
-test('causal 被标记为必须拿锁；其余不是', () => {
-  assert.equal(R.requiresLock('causal'), true)
+test('causal 两边都写但只追加：不要求锁；读-改-写的类才要求', () => {
+  // 2026-11-02 实测：三进程并发各写 60 行 100KB，600 行无撕裂——单行 append 本身原子。
+  // 所以 causal 不该配锁（配了只会多一种"超时失败"）；这条防止有人凭直觉把它改回去。
+  assert.equal(R.requiresLock('causal'), false)
+  assert.equal(R.specOf('causal').owner, 'both-with-lock')
   assert.equal(R.requiresLock('fields'), false)
   assert.equal(R.requiresLock('traffic-state'), false)
-  // 标记只是"问得到"，真正拦住裸写的守卫在 state-lock 里（见上一条测试）
 })

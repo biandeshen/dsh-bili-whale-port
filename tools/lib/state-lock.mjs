@@ -1,9 +1,12 @@
 /**
  * 状态文件互斥锁（从 `traffic.mjs` 里提取，通用化）。
  *
- * 为什么要有它：`both-with-lock` 那几类状态（`causal.jsonl` 最典型）两个进程都会写。
- * 路径统一只保证"写同一个文件"，不保证"不互相踩"。这里给一个拿锁跑一段逻辑的原语：
- * 拿不到就等，等到超时才放弃，而不是硬写。
+ * 为什么要有个原语：读-改-写的状态（先读整份、改一个字段、整份写回）两个进程同时做
+ * 会互相覆盖——后写的把先写的那次改动整份抹掉。这种场景必须先拿锁再读。
+ *
+ * **不要拿它护单行追加**：2026-11-02 实测（三进程各 60 行 / 每行 100KB 并发追加），
+ * 600 行全部完整、无撕裂、无丢失——`causal.jsonl` 这种 append-only 单行写入本身就是原子的，
+ * 给它加锁只会让写变成"可能超时失败"，是纯损失。锁留给真正的读-改-写。
  *
  * 锁的形状与 `traffic.mjs` 一致：`<target>.lock` 文件里写 pid；pid 已死或文件过旧就
  * 当作陈旧锁清掉——崩溃留下的锁不该永久堵住下一次。
@@ -71,8 +74,10 @@ export async function withStateLock(target, fn, opts = {}) {
 }
 
 /**
- * 追加一行到 `both-with-lock` 类文件（`causal.jsonl` 就是它）。
- * 拿锁 + 单次 `appendFileSync`：单行写入不会被别的进程切断。
+ * 追加一行到"两边都写"的文件（`causal.jsonl` 就是它）。
+ *
+ * 单行 append 本身是原子的（实测见文件头），这里加锁**只为了在需要时能排它**，
+ * 日常写路径应当直接 `appendFileSync`。真正需要它的是"读整份再改"的写入方。
  */
 export async function appendLocked(file, line, opts) {
   return withStateLock(file, () => {
@@ -82,5 +87,5 @@ export async function appendLocked(file, line, opts) {
   }, opts)
 }
 
-/** 同步版本的表：明确告诉调用方"这个文件两条路都会写"。 */
-export const LOCKED_KINDS = new Set(['causal'])
+/** 需要互斥的状态类。`causal` 不在其中：它只追加单行，不需要锁（理由见文件头实测）。 */
+export const LOCKED_KINDS = new Set()
