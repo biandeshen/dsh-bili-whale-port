@@ -4,10 +4,11 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import {config} from '../lib/config.mjs'
 import {readHistory} from '../lib/dm-history.mjs'
+import {statePath, credentialsPath} from '../lib/paths.mjs'
 const argv=process.argv.slice(2),peek=argv.includes('--peek'),json=argv.includes('--json')
 const owner=String(config().owner?.mid??'').trim(),name=String(config().owner?.name??'主人')
-const home=process.env.USERPROFILE||process.env.HOME||'/'
-const file=path.join(home,'.bili-ai/dm-await-state.json'),lock=file+'.lock'
+// 等待状态落新家（paths.mjs 的归一规则），别在这里拼 .bili-ai。
+const file=statePath('dm-await-state.json'),lock=file+'.lock'
 function save(state) {
   const tmp=file+'.'+crypto.randomUUID()+'.tmp'
   try{fs.writeFileSync(tmp,JSON.stringify(state,null,2));fs.renameSync(tmp,file)}finally{fs.rmSync(tmp,{force:true})}
@@ -32,7 +33,7 @@ async function main(){
   }
   if(state.pending?.mid===owner&&!argv.includes('--baseline')){emit(state.pending);return 0}
   if(!state.queue?.length||argv.includes('--baseline')){
-    const cred=JSON.parse(fs.readFileSync(path.join(home,'.bili-ai/credentials.json'),'utf8'))
+    const cred=JSON.parse(fs.readFileSync(credentialsPath(),'utf8'))
     const headers={'user-agent':'Mozilla/5.0',referer:'https://www.bilibili.com/',cookie:'SESSDATA='+cred.sessdata+'; bili_jct='+cred.bili_jct+'; buvid3='+cred.buvid3}
     const result=await readHistory(owner,headers,state,{baseline:argv.includes('--baseline')})
     if(argv.includes('--baseline')){

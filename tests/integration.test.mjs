@@ -73,8 +73,8 @@ test('quota react does not refresh silence when an old result disappears',t=>{
   const b={...a,id:'2',reply_time:now+10,item:{source_content:'reply B',source_id:'2'}}
   fs.writeFileSync(env.TEST_FEEDS,JSON.stringify({reply:[a,b],at:[],like:[]}))
   let r=run(env,'tools/commands/quota.mjs',['react','--auto']);assert.equal(r.status,0,r.stderr)
-  // quota.mjs 的 feedback.json 还没接状态助手（仍写旧家 ~/.bili-ai），搬家那一步单独做
-  const file=path.join(env.HOME,'.bili-ai/feedback.json'),before=JSON.parse(fs.readFileSync(file))
+  // quota.mjs 的 feedback.json 现在走 paths.mjs：写只落新家（旧家那份只是兼容期只读兜底）。
+  const file=path.join(env.DSH_HOME,'bili-ai/feedback.json'),before=JSON.parse(fs.readFileSync(file))
   assert.equal(before.events.length,1);assert.equal(Date.parse(before.last),(now+10)*1000)
   fs.writeFileSync(env.TEST_FEEDS,JSON.stringify({reply:[b],at:[],like:[]}))
   r=run(env,'tools/commands/quota.mjs',['react','--auto']);assert.equal(r.status,0,r.stderr)

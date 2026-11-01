@@ -33,12 +33,17 @@ function sources() {
   // 草稿两处都抓（运营席实测：observation-day 等都按 WHALE_DRAFTS→legacy→whale home 回退，
   // 只备一处会丢稿）；draftsDir() 已含 legacy 判断，不另列 LEGACY_DRAFTS 免得把"已被用户
   // 显式改向"的旧目录也拖进来。
+  // 顺序不能只按字母排：`C:\…\.dsh\…` 排在 `D:\…` 前面，会让存在的那份掉到 drafts-2，
+  // 顶层 drafts 指向一个不存在的空目录（2026-11-01 备份包实测就是这个错）。存在的先。
   const draftRoots = [...new Set([draftsDir(), path.join(whaleHome, 'bili-whale', 'drafts')])]
-    .map((d) => path.resolve(d)).sort()
+    .map((d) => path.resolve(d))
+    .sort((a, b) => Number(fs.existsSync(b)) - Number(fs.existsSync(a)) || a.localeCompare(b))
   const cortico = process.env.CORTICO_ROOT || path.resolve(REPO, '..', 'Cortico')
   return {
     roots: {
       whale: whaleHome,
+      // 备份要跨双家：迁移期两边都可能有还没搬完的东西，只备新家会丢旧家那份。
+      // 这是"读"的用法，不是状态读写分叉，所以直接拼路径是这里唯一正当的一处。
       'bili-ai': homePath('.bili-ai'),
       cortico,
       drafts: draftRoots[0],
@@ -53,7 +58,9 @@ function sources() {
       ['whale/whale-diary-private.md', whalePath('whale-diary-private.md')],
       ['whale/whale-log.jsonl', whalePath('whale-log.jsonl')],
       ['whale/bili-whale.config.json', whalePath('bili-whale.config.json')],
+      // 同上：备份跨双家，旧家这份人格文件单独列。
       ['bili-ai/persona.md', homePath('.bili-ai', 'persona.md')],
+      ['cortico/deployments/mybot/config.json', path.join(cortico, 'deployments', 'mybot', 'config.json')],
       ['cortico/deployments/mybot/prompts/ORIENTATION.md', path.join(cortico, 'deployments', 'mybot', 'prompts', 'ORIENTATION.md')],
       ['cortico/deployments/mybot/workspace/CONSTITUTION.md', path.join(cortico, 'deployments', 'mybot', 'workspace', 'CONSTITUTION.md')],
     ],
@@ -62,6 +69,9 @@ function sources() {
       ['whale/bili-whale/days', whalePath('bili-whale', 'days'), null],
       ['whale/bili-whale/feed', whalePath('bili-whale', 'feed'), null],
       ['whale/bili-whale/control', whalePath('bili-whale', 'control'), (f) => !/\.(pid|log|tmp|lock)$/.test(f)],
+      // 对话全文只存在这里（runs/r-*/transcript.jsonl）：不备它，唯一的历史既读不全也没副本。
+      ['cortico/deployments/mybot/data/runs', path.join(cortico, 'deployments', 'mybot', 'data', 'runs'),
+        (f) => !/\.(pid|log|tmp|lock)$/.test(f)],
       ['drafts', draftRoots[0], null],
       ...(draftRoots.length > 1 ? [['drafts-2', draftRoots[1], null]] : []),
     ],

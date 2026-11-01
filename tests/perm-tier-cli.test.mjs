@@ -31,7 +31,8 @@ function setup(tier) {
     run,
     requests: () => (fs.existsSync(req) ? fs.readFileSync(req, 'utf8') : ''),
     pending: () => read(path.join(home, 'whale', 'bili-ai', 'pending-replies.json'))?.items ?? [],
-    likes: () => read(path.join(home, '.bili-ai', 'likes-sent.json'))?.items ?? [],
+    // 点赞账写在新家（paths.mjs：写只落新家，旧家只读兜底）—— 读旧家会永远看到 0。
+    likes: () => read(path.join(home, 'whale', 'bili-ai', 'likes-sent.json'))?.items ?? [],
   }
 }
 

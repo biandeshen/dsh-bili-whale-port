@@ -11,7 +11,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import net from 'node:net'
-import { whaleHome as WHALE_HOME, draftsDir } from '../tools/lib/paths.mjs'
+import { whaleHome as WHALE_HOME, draftsDir, stateDir } from '../tools/lib/paths.mjs'
 import { causalFile } from '../tools/lib/causal.mjs'
 import { isKillOn } from '../tools/lib/kill.mjs'
 import { queueDir } from './ack.mjs'
@@ -25,7 +25,7 @@ const CONTROL = path.join(WHALE_HOME, 'bili-whale', 'control')
 const DAYS = path.join(WHALE_HOME, 'bili-whale', 'days')
 const CAUSAL = causalFile(WHALE_HOME)
 const HOME_DIR = process.env.USERPROFILE || process.env.HOME || '.'
-const BILI_AI = path.join(HOME_DIR, '.bili-ai')
+const BILI_AI = stateDir()
 const PORT = Number(arg('port', process.env.OPS_DAY_PORT || 7799)) || 7799
 const NEUTRAL_MOOD = ['宁静', '平静']
 

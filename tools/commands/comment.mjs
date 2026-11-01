@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url'
 import { config } from '../lib/config.mjs'
 import { validateShare } from '../lib/share-policy.mjs'
 import { NODE_EXE } from '../lib/nodebin.mjs'   // 2026-10-21：别用 process.execPath（Electron 里它是主程序 ✗）
+import { stateReadPath, statePath, writeStateText } from '../lib/paths.mjs'
 
 // ── 限额闸（B 档「限额自主」的代码强制部分，2026-10-14 主人选 B 档）────────────────
 // 语义：闸门**只管自主发言**（带 --auto，即"她自己决定说的"）；主人当场授权的发言不拦 ✓
@@ -33,9 +34,10 @@ const SHARE = process.argv.includes('--share')
 const ONCE = process.argv.includes('--once-per-person')
   || (process.argv.includes('--parent') && config().listen?.oncePerPerson === true)
 const ONCE_DAYS = 30
-const REPLIED = path.join(process.env.USERPROFILE || process.env.HOME || '.', '.bili-ai', 'replied.json')
+// 去重账走归一后的读数（新→旧），写只落新家。
+const REPLIED = stateReadPath('replied.json')
 const loadReplied = () => { try { return JSON.parse(fs.readFileSync(REPLIED, 'utf8')) } catch { return { byUid: {} } } }
-const saveReplied = (o) => { try { fs.mkdirSync(path.dirname(REPLIED), { recursive: true }); fs.writeFileSync(REPLIED, JSON.stringify(o, null, 2) + '\n') } catch {} }
+const saveReplied = (o) => { try { writeStateText(JSON.stringify(o, null, 2) + '\n', 'replied.json') } catch (e) { console.error('⚠ 回复去重账写不进去：' + e.message) } }
 // 查出"被回复的那个人"是谁（reply/reply 里 rpid === parent 的那条的作者）
 async function parentAuthor(aid, rootRpid, parentRpid, replyType) {
   for (let pn = 1; pn <= 4; pn += 1) {
@@ -192,7 +194,7 @@ if (ONCE) {
         '→ who=' + JSON.stringify(who),
         'script=' + import.meta.url.split('/').slice(-2).join('/'),
       ].join(' ') + '\n'
-      fs2.appendFileSync(p2.join(os2.homedir(), '.bili-ai', 'once-debug.log'), line)
+      fs2.appendFileSync(statePath('once-debug.log'), line)
     } catch {}
     // 2026-10-22 补回（这条在 v0.4.x 某次重写时丢了 ✗）：
     //   这个开关是给【陌生人】防拉锯的 ✗ 对主人生效会把主人锁 30 天 ✗

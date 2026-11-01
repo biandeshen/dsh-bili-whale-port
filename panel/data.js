@@ -47,7 +47,8 @@ export function diary(whaleHome) {
 }
 
 export function vitals({ whaleHome, home, traffic, schedStatusGetter }) {
-  const status = readJson(path.join(home, '.bili-ai', 'quota.json')) ?? { log: [] }
+  // 读数只认归一后的那一份：自己拼 .bili-ai 会让面板和 CLI 报两个数。
+  const status = readJson(stateReadPathFrom(home, 'quota.json')) ?? { log: [] }
   const today = new Date().toLocaleDateString('sv-SE')
   const todays = (status.log ?? []).filter((x) => new Date(x.at).toLocaleDateString('sv-SE') === today)
   const t = traffic.status()

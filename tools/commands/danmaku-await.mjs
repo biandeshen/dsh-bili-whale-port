@@ -44,21 +44,21 @@ const ignoreUids = String(args.get('ignore-uid') ?? '')
 // （自身昵称见下方 SELF_NAMES：会从 nav 动态读取，昵称改了也不会漏判）
 if (!roomArg) { console.error('需要 --room <房间号>'); process.exit(2) }
 
-const credDir = path.join((process.env.USERPROFILE || process.env.HOME || '/'), '.bili-ai')
-const cred = JSON.parse(fs.readFileSync(path.join(credDir, 'credentials.json'), 'utf8'))
-const statePath = path.join(credDir, 'await-state.json')
+// 凭据留在旧家（paths.mjs 的例外）；等待状态走归一后的读数。
+const cred = JSON.parse(fs.readFileSync(credentialsPath(), 'utf8'))
+const statePath = stateReadPath('await-state.json')
 const state = fs.existsSync(statePath) ? JSON.parse(fs.readFileSync(statePath, 'utf8')) : { lastTs: 0 }
 const recentIds = new Set(state.recentIds ?? []) // 已处理过的消息 id（跨进程持久，防止重挂后重复回）
 const recentTexts = new Map(state.recentTexts ?? []) // "uid|文本" → 上次回复时间（防同句多发被回两次）
 const saveState = (ts, extraId) => {
   if (extraId) recentIds.add(String(extraId))
   try {
-    fs.writeFileSync(statePath, JSON.stringify({
+    writeStateText(JSON.stringify({
       lastTs: ts, at: new Date().toISOString(),
       recentIds: [...recentIds].slice(-50),
       recentTexts: [...recentTexts].slice(-20),
-    }))
-  } catch {}
+    }), 'await-state.json')
+  } catch (e) { log('⚠ 等待状态写不进去：' + e.message) }
 }
 
 const cookieHeader = `SESSDATA=${cred.sessdata}; bili_jct=${cred.bili_jct}; buvid3=${cred.buvid3}`
@@ -70,6 +70,7 @@ const jget = async (u) => (await fetch(u, { headers: H() })).json()
 // 账号昵称可能被改（实测小号改过名），
 // 所以自身名字动态从 nav 取，**历史昵称来自统一配置**（config.aliases），避免"@我"的弹幕被漏判。
 import { config } from '../lib/config.mjs'
+import { credentialsPath, stateReadPath, writeStateText } from '../lib/paths.mjs'
 const SELF_NAMES = [...(config().aliases ?? [])]
 try {
   const navNow = await jget('https://api.bilibili.com/x/web-interface/nav')

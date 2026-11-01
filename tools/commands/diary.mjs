@@ -15,7 +15,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { config } from '../lib/config.mjs'
-import { whalePath } from '../lib/paths.mjs'
+import { whalePath, stateReadPath } from '../lib/paths.mjs'
 
 
 const argv = process.argv.slice(2)
@@ -29,7 +29,7 @@ for (let i = 1; i < argv.length; i += 1) {
 }
 const HOME = (process.env.USERPROFILE || process.env.HOME || '/')
 const DIARY = whalePath('whale-diary.md')
-const QUOTA = path.join(HOME, '.bili-ai', 'quota.json')
+const QUOTA = stateReadPath('quota.json')
 const LOG = whalePath('whale-log.jsonl')
 const today = () => new Date().toLocaleDateString('sv-SE')
 const hhmm = (iso) => String(iso).slice(11, 16)

@@ -52,7 +52,9 @@ if(process.env.TEST_NO_NODE) {
   await request('cookie',{sessdata:'replacement-cookie-local-test',bili_jct:'b'.repeat(32)})
   const {loadCred}=await import('../../tools/lib/cred.mjs')
   assert.equal(loadCred().sessdata,'replacement-cookie-local-test')
-  const pending=path.join(process.env.USERPROFILE,'.bili-ai/pending-replies.json')
+  // 待审队列归一到新家（<whale home>/bili-ai）；服务端读新、写也只落新。
+  const pending=path.join(process.env.DSH_HOME ?? path.join(process.env.USERPROFILE,'.dsh'),'bili-ai/pending-replies.json')
+  fs.mkdirSync(path.dirname(pending),{recursive:true})
   fs.writeFileSync(pending,JSON.stringify({items:[{id:'test',oid:'1',bvid:'BV1234567890',root:'2',parent:'2',message:'local draft'}]}))
   const response=await request('pending/approve',{id:'test'})
   await new Promise(r=>setImmediate(r))

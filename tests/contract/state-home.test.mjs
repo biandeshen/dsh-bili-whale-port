@@ -113,3 +113,54 @@ test('注入 home 的读点：新家有就用新家，新家没有才退到 <hom
   fs.rmSync(path.join(legacy, 'pending-replies.json'))
   assert.equal(P.stateReadPathFrom(home, 'pending-replies.json'), P.statePath('pending-replies.json'))
 })
+
+// ── 读数只有一处来源（2026-11-01 审计 P0-1） ───────────────────────────────
+// 分账的成因不是缺函数，而是调用方绕过函数自己拼 `.bili-ai`：
+// 写落到 A、读落到 B，两边各自"正常"，合起来是两个数。所以这条锁的是**调用方**，
+// 不是 paths.mjs 本身。
+const REPO = path.resolve(import.meta.dirname, '..', '..')
+const SRC_DIRS = ['tools', 'panel', 'scripts']
+
+function walk(dir, out = []) {
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const abs = path.join(dir, e.name)
+    if (e.isDirectory()) {
+      if (e.name === 'node_modules' || e.name === '.git') continue
+      walk(abs, out)
+      continue
+    }
+    if (/\.(mjs|js)$/.test(e.name)) out.push(abs)
+  }
+  return out
+}
+
+test('除 paths.mjs 与凭据外，没有脚本自己拼 .bili-ai 状态路径', () => {
+  const offenders = []
+  for (const dir of SRC_DIRS) {
+    for (const file of walk(path.join(REPO, dir))) {
+      if (path.basename(file) === 'paths.mjs') continue
+      const text = fs.readFileSync(file, 'utf8')
+      for (const [index, line] of text.split('\n').entries()) {
+        if (!/['"`]\.bili-ai['"`]/.test(line)) continue
+        // 注释与文档串说的是历史，不是代码路径；凭据是归一规则的明文例外。
+        const code = line.split('//')[0]
+        if (!/['"`]\.bili-ai['"`]/.test(code)) continue
+        if (/credentials\.json|credentialsPath/.test(line)) continue
+        // 备份脚本跨双家有明确理由，源码里那行上一句写了为什么；只放行 ops-backup。
+        if (path.basename(file) === 'ops-backup.mjs') continue
+        offenders.push(`${path.relative(REPO, file)}:${index + 1}  ${line.trim()}`)
+      }
+    }
+  }
+  assert.deepEqual(offenders, [], '状态路径必须走 paths.mjs（读写同一份实现），不能各拼各的')
+})
+
+test('额度读数只有一处来源：traffic 状态只在新家写', () => {
+  const store = path.join(whale, 'bili-ai', 'traffic-state.json')
+  fs.writeFileSync(store, JSON.stringify({ accounts: { a: { readDay: 7 } } }))
+  assert.equal(P.stateExists('traffic-state.json'), true)
+  assert.equal(P.stateReadPath('traffic-state.json'), store)
+  // 旧家那份即使存在也不再被选中：新家优先
+  fs.writeFileSync(path.join(legacy, 'traffic-state.json'), JSON.stringify({ accounts: { a: { readDay: 999 } } }))
+  assert.equal(P.stateReadPath('traffic-state.json'), store)
+})

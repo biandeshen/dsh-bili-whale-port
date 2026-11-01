@@ -19,6 +19,7 @@ import { config } from '../lib/config.mjs'
 import { validateShare } from '../lib/share-policy.mjs'
 import { gate, record } from '../lib/quota-gate.mjs'
 import { sendOwnerDm } from '../lib/dm-send-core.mjs'
+import { stateReadPath, writeStateText } from '../lib/paths.mjs'
 
 
 
@@ -47,7 +48,7 @@ if (SHARE && !STATUS) {
 
 const HOME = process.env.USERPROFILE || process.env.HOME || '.'
 const CRED = path.join(HOME, '.bili-ai', 'credentials.json')
-const QUOTA = path.join(HOME, '.bili-ai', 'dm-quota.json')
+const QUOTA = stateReadPath('dm-quota.json')
 // 2026-10-21：用共用凭据层（trim + 缺字段检查 + 错误码翻译）
 //   以前这里直接 JSON.parse 就用：bili_jct 空着也照发 → B站回裸的 code=-111，
 //   用户看到"体检全绿 / 能查互关"却发不出去，完全不知道该改什么 ✗
@@ -79,7 +80,8 @@ const H = {
 }
 const jget = async (u) => (await fetch(u, { headers: H })).json()
 const loadQ = () => { try { return JSON.parse(fs.readFileSync(QUOTA, 'utf8')) } catch { return {} } }
-const saveQ = (o) => { fs.mkdirSync(path.dirname(QUOTA), { recursive: true }); fs.writeFileSync(QUOTA, JSON.stringify(o, null, 2) + '\n') }
+// 写只落新家：跟着读路径写会让旧家那份继续被追加，两处计数对不上（实测新 5 / 旧 4）。
+const saveQ = (o) => writeStateText(JSON.stringify(o, null, 2) + '\n', 'dm-quota.json')
 const today = () => new Date().toLocaleDateString('sv-SE')
 
 // ── 写死的三条 ───────────────────────────────────────────────────────

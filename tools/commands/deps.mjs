@@ -1,5 +1,5 @@
 import { guardedFetch as fetch, trafficGuard } from '../lib/traffic.mjs'
-import { whalePath } from '../lib/paths.mjs'
+import { whalePath, stateDir, credentialsPath } from '../lib/paths.mjs'
 // 依赖体检（2026-10-17 加）：装完之后让 agent 自己跑一次，确认"能不能用"
 //
 // 用法：
@@ -13,7 +13,7 @@ import { ffmpegInfo } from '../lib/ffmpeg.mjs'
 import { apiState } from '../lib/bili-api.mjs'
 
 const HOME = process.env.USERPROFILE || process.env.HOME || '.'
-const cred = path.join(HOME, '.bili-ai', 'credentials.json')
+const cred = credentialsPath()
 const asJson = process.argv.includes('--json')
 
 const items = []
@@ -63,7 +63,7 @@ items.push({
 // ④ 可写的家目录（放 cookie/配额/日记）
 let dirOk = false
 try {
-  const d = path.join(HOME, '.bili-ai')
+  const d = stateDir()
   fs.mkdirSync(d, { recursive: true })
   const probe = path.join(d, '.write-probe')
   fs.writeFileSync(probe, 'ok'); fs.unlinkSync(probe)
@@ -84,7 +84,7 @@ try {
   items.push({ name: 'node 运行时', ok: false, detail: '检查失败：' + String(e?.message ?? e).slice(0, 80), fix: '设置 WHALE_NODE' })
 }
 
-items.push({ name: '数据目录可写', ok: dirOk, detail: path.join(HOME, '.bili-ai'), fix: '检查该目录权限' })
+items.push({ name: '数据目录可写', ok: dirOk, detail: stateDir(), fix: '检查该目录权限' })
 // 2026-10-22：把「接口缓存 / 熔断」现状也列出来 ——
 //   被 412 限流时最想知道的就是「还要等多久」和「缓存里还有多少能撑」
 try {

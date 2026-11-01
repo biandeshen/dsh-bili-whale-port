@@ -10,8 +10,9 @@ const row=(seq,ts=1000,sender=222)=>({msg_seqno:seq,msg_key:String(seq),timestam
 const page=(messages,has_more=0)=>({code:0,data:{messages,has_more}})
 function box(t){
  const home=fs.mkdtempSync(path.join(os.tmpdir(),'dm-history-'));t.after(()=>fs.rmSync(home,{recursive:true,force:true}))
- fs.mkdirSync(path.join(home,'.bili-ai'));fs.mkdirSync(path.join(home,'.dsh'))
- const state=path.join(home,'.bili-ai/dm-await-state.json'),cfg=path.join(home,'.dsh/bili-whale.config.json'),fixture=path.join(home,'history.json'),log=path.join(home,'requests')
+ fs.mkdirSync(path.join(home,'.bili-ai'));fs.mkdirSync(path.join(home,'.dsh'));fs.mkdirSync(path.join(home,'.dsh','bili-ai'),{recursive:true})
+ // 等待状态归一到新家（<whale home>/bili-ai）；旧家那份只是兼容期只读兜底。
+ const state=path.join(home,'.dsh','bili-ai','dm-await-state.json'),cfg=path.join(home,'.dsh/bili-whale.config.json'),fixture=path.join(home,'history.json'),log=path.join(home,'requests')
  fs.writeFileSync(path.join(home,'.bili-ai/credentials.json'),JSON.stringify({sessdata:'fake',bili_jct:'fake'}));fs.writeFileSync(cfg,JSON.stringify({owner:{mid:'222'}}))
  const env={...process.env,HOME:home,USERPROFILE:home,DSH_HOME:path.join(home,'.dsh'),BILI_WHALE_CONFIG:cfg,BILI_TRAFFIC_TEST:'1',NODE_TEST_CONTEXT:'child-v8',NODE_OPTIONS:'--import='+pathToFileURL(path.join(root,'tests/helpers/history-fetch.mjs')),TEST_HISTORY:fixture,TEST_REQUESTS:log}
  const run=(...args)=>spawnSync(process.execPath,[path.join(root,'tools/commands/dm-await.mjs'),'--json',...args],{env,encoding:'utf8',timeout:10000})

@@ -20,9 +20,9 @@ import crypto from 'node:crypto'
 import { execFile } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { NODE_EXE } from '../lib/nodebin.mjs'   // 2026-10-21：别用 process.execPath（Electron 里它是主程序 ✗）
+import { readStateText, writeStateText } from '../lib/paths.mjs'
 
-const HOME = process.env.USERPROFILE || process.env.HOME || '.'
-const FILE = path.join(HOME, '.bili-ai', 'pending-replies.json')
+// 待审回信：读走新→旧，写只落新家（paths.mjs 的归一规则，别在这里拼 .bili-ai）。
 
 const argv = process.argv.slice(2)
 const cmd = argv[0]
@@ -35,11 +35,19 @@ for (let i = 1; i < argv.length; i += 1) {
   } else if (!opt._a) opt._a = argv[i]
 }
 
+/**
+ * 读失败不许当成"队列是空的"：那份空数组一写回盘就把主人排的队抹掉，且无痕迹。
+ * 只有文件不存在才算空；解析失败判错，让调用方停手。
+ */
 const load = () => {
-  try { const j = JSON.parse(fs.readFileSync(FILE, 'utf8')); return { items: Array.isArray(j.items) ? j.items : [] } }
-  catch { return { items: [] } }
+  let text
+  try { text = readStateText('pending-replies.json') }
+  catch (e) { if (e.code === 'ENOENT') return { items: [] }; throw e }
+  const j = JSON.parse(text)
+  return { items: Array.isArray(j?.items) ? j.items : [] }
 }
-const save = (o) => { fs.mkdirSync(path.dirname(FILE), { recursive: true }); fs.writeFileSync(FILE, JSON.stringify(o, null, 2) + '\n') }
+// 写只落新家：跟着读路径写会把旧家那份当当前状态继续追加。
+const save = (o) => writeStateText(JSON.stringify(o, null, 2) + '\n', 'pending-replies.json')
 
 if (cmd === 'add') {
   const { oid, bvid, root, parent, who, message, src } = opt

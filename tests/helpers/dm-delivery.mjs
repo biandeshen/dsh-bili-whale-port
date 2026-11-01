@@ -13,7 +13,8 @@ const ts = Math.floor(now / 1000)
 const message = (id, text) => fs.writeFileSync(process.env.TEST_DM_FILE, JSON.stringify({ timestamp: ts, msg_key: id, sender_uid: 222, content: JSON.stringify({ content: text }) }))
 message('1', 'first')
 fs.writeFileSync(process.env.BILI_WHALE_CONFIG, JSON.stringify({ owner: { mid: '222' }, listen: { dm: true, comment: false, live: false } }))
-const stateFile = path.join(process.env.HOME, '.bili-ai/dm-await-state.json')
+// 等待状态在新家（<whale home>/bili-ai），与 tools/lib/paths.mjs 的归一规则一致。
+const stateFile = path.join(process.env.DSH_HOME ?? path.join(process.env.HOME, '.dsh'), 'bili-ai/dm-await-state.json')
 let fail = true
 const attempts = [], delivered = []
 const sched = startScheduler({ controller: { create: async () => {}, prompt: async p => {

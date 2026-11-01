@@ -79,3 +79,34 @@ test('panel approve 对 go-gate 项重放 argv 并补 --go', async () => {
 
 // 恢复进程级 env，避免污染同进程的后续测试文件
 test.after(() => { process.env.USERPROFILE = _env.u; process.env.HOME = _env.h; process.env.DSH_HOME = _env.d; process.env.DSH_NODE = _env.n; process.env.BILI_TRAFFIC_TEST = _env.b })
+
+// ── 读失败不许清空主人队列（2026-11-01 审计 P0-3） ──────────────────────────
+test('待审文件读不出来时拒绝写入，已有条目一个字都不改', async () => {
+  const { queueGo } = await import('../../tools/lib/go-gate.mjs')
+  const { statePath, stateReadPath, setHomes, DSH_HOME } = await import('../../tools/lib/paths.mjs')
+  const fs = await import('node:fs')
+  const os = await import('node:os')
+  const path = await import('node:path')
+
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'gogate-broken-'))
+  try {
+    setHomes({ whaleHome: home })
+    fs.mkdirSync(path.dirname(statePath('pending-replies.json')), { recursive: true })
+    // 文件存在但内容坏了：这是"读失败"，不是"空队列"。
+    fs.writeFileSync(statePath('pending-replies.json'), '{"items": [ {broken')
+    const before = fs.readFileSync(stateReadPath('pending-replies.json'), 'utf8')
+    assert.throws(() => queueGo({ argv: ['comment', '--go'], kind: '评论' }), /JSON|Unexpected/)
+    const after = fs.readFileSync(stateReadPath('pending-replies.json'), 'utf8')
+    assert.equal(after, before, '读失败时原文件必须原封不动')
+
+    // 文件不存在才算空队列，可以正常追加。
+    fs.rmSync(statePath('pending-replies.json'))
+    const id = queueGo({ argv: ['comment', '--go'], kind: '评论' })
+    assert.ok(id)
+    const saved = JSON.parse(fs.readFileSync(stateReadPath('pending-replies.json'), 'utf8'))
+    assert.equal(saved.items.length, 1)
+  } finally {
+    setHomes({ whaleHome: DSH_HOME })
+    fs.rmSync(home, { recursive: true, force: true })
+  }
+})

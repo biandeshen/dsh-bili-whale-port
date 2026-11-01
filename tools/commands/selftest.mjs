@@ -10,7 +10,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { execFileSync } from '../lib/capture.mjs'
 import { fileURLToPath } from 'node:url'
-import { whalePath } from '../lib/paths.mjs'
+import { whalePath, stateDir, statePath } from '../lib/paths.mjs'
 import { NODE_EXE } from '../lib/nodebin.mjs'   // 2026-10-21：别用 process.execPath（Electron 里它是主程序 ✗）
 
 
@@ -70,7 +70,7 @@ try {
 
 // ④ 数据目录
 // 2026-10-23 修（issue #27）：'.dsh' 那条要看 whale home ✗ 不能写死 HOME/.dsh
-for (const [label, p] of [['.bili-ai', path.join(HOME, '.bili-ai')], ['whale home', WHALE]]) {
+for (const [label, p] of [['state dir', stateDir()], ['whale home', WHALE]]) {
   line(fs.existsSync(p) ? OK : NO, '目录 ' + label, p)
 }
 const DIARY = path.join(WHALE, 'whale-diary.md')
@@ -100,8 +100,8 @@ console.log('')
 // 2026-10-20：全绿时落个标记 —— 设置页和她的唤醒提示会用它在"还没测过"时提醒
 if (bad === 0) {
   try {
-    fs.mkdirSync(path.join(HOME, '.bili-ai'), { recursive: true })
-    fs.writeFileSync(path.join(HOME, '.bili-ai', 'selftest-passed.json'), JSON.stringify({ at: new Date().toISOString() }, null, 2))
+    fs.mkdirSync(stateDir(), { recursive: true })
+    fs.writeFileSync(statePath('selftest-passed.json'), JSON.stringify({ at: new Date().toISOString() }, null, 2))
   } catch {}
   console.log('══════════ 全部通过 ✓ 可以用了 ══════════')
   console.log('  想立刻看她跑一轮：设置页 →「生物钟」→ 把窗口改成现在之后 2 分钟 → 等她自己醒\n')
