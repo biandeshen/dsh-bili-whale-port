@@ -15,6 +15,7 @@ import { openStream } from '../../core/stream.ts';
 import { browserSocketEnv, openFrameworkSocket, type SocketEnv } from '../../core/websocket.ts';
 import { buildCtxPanel, computeCtx, type ContextBreakdown } from './context.ts';
 import { exportDiagnostics } from './diagnostics.ts';
+import { createHistoryView } from './history.ts';
 import { createForkView, MAIN_ID, MAIN_LABEL } from './fork.ts';
 import {
   arr,
@@ -201,7 +202,7 @@ function mountLive(ctx: FeatureContext, env: SocketEnv): Disposable | void {
       return true;
     },
   });
-  view.append(timeline.el, composer.el);
+  view.append(timeline.el, createHistoryView(ui, ctx.signal), composer.el);
   timeline.rebuild([], { empty: S.emptyConnecting });
 
   let providerReady = false;

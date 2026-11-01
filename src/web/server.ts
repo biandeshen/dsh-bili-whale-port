@@ -27,6 +27,7 @@ import type { ProviderAuth, ProviderDescribe } from '../providers/base.ts';
 import type { SessionStats } from '../core/sessions.ts';
 import type { UsageAggregate, UsageBucketOption } from '../core/cost.ts';
 import { estimateMessagesTokens } from '../core/util.ts';
+import { readTranscriptHistory } from '../core/transcript.ts';
 import { blobScheme } from '../core/blobs.ts';
 import { coerceGroupValues } from '../core/config-schema.ts';
 import { isLanguage, languageTag, LocalizedError, systemLanguage, type Language } from '../core/language.ts';
@@ -1826,6 +1827,16 @@ export class WebApp {
       const messages = src.messages(id);
       if (messages === null) { res.status(404).json({ error: t.noSession(id) }); return; }
       res.json({ id, messages, estTokens: estimateMessagesTokens(messages) });
+    }));
+
+    // 全量对话历史（#59）：当前 session 那一份在交接/清空时会被整体替换，控制台也就只能
+    // 看到"现在这一截"。真正一条不丢的是各 run 目录下的 transcript.jsonl（只追加、
+    // 从不剪枝），过去只有命令行 logq 能读。这条路由把它变成可翻页的接口：
+    // before=游标往回翻，records 按旧→新返回，前端可直接前插。只读，不碰任何写路径。
+    app.get('/api/session/history', wrap((req, res) => {
+      const before = typeof req.query.before === 'string' && req.query.before ? req.query.before : null;
+      const page = readTranscriptHistory(this.deps.dataDir, { before, limit: Number(req.query.limit ?? 120) });
+      res.json(page);
     }));
 
     app.get('/api/storage', wrap((req, res) => {
