@@ -4,6 +4,7 @@ import { guardedFetch as fetch } from '../lib/traffic.mjs'
 // 文档: docs/comment-add.md「删除评论」（x/v2/reply/del，只能删自己的）
 import fs from 'node:fs'
 import path from 'node:path'
+import { credentialsPath } from '../lib/paths.mjs'
 
 const argv = process.argv.slice(2)
 const args = new Map()
@@ -19,7 +20,7 @@ const isGo = args.has('go')
 if (!oid || !rpid) { console.error('需要 --oid <aid> --rpid <rpid>'); process.exit(2) }
 if (isDry === isGo) { console.error('必须且只能给一个 --dry 或 --go'); process.exit(2) }
 
-const cred = JSON.parse(fs.readFileSync(path.join((process.env.USERPROFILE || process.env.HOME || '/'), '.bili-ai', 'credentials.json'), 'utf8'))
+const cred = JSON.parse(fs.readFileSync(credentialsPath(), 'utf8'))
 const cookie = `SESSDATA=${cred.sessdata}; bili_jct=${cred.bili_jct}; buvid3=${cred.buvid3}`
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 

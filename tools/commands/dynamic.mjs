@@ -13,6 +13,7 @@ import crypto from 'node:crypto'
 import { gate } from '../lib/quota-gate.mjs'
 import { draftsDir } from '../lib/paths.mjs'
 import { postTextDynamic } from '../drafts/publishers/bilibili-dynamic.mjs'
+import { credentialsPath } from '../lib/paths.mjs'
 
 const argv = process.argv.slice(2)
 const mode = argv[0]
@@ -26,7 +27,7 @@ const isGo = args.has('go')
 const text = args.get('text')
 const dynId = args.get('id')
 
-const credPath = path.join((process.env.USERPROFILE || process.env.HOME || '/'), '.bili-ai', 'credentials.json')
+const credPath = credentialsPath()
 if (!fs.existsSync(credPath)) { console.error(`缺少凭据文件: ${credPath}`); process.exit(3) }
 const cred = JSON.parse(fs.readFileSync(credPath, 'utf8'))
 for (const k of ['sessdata', 'bili_jct', 'buvid3']) {

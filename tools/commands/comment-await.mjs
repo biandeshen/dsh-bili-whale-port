@@ -21,6 +21,7 @@ import fs from 'node:fs'
 import { config } from '../lib/config.mjs'
 import path from 'node:path'
 import { makeHeaders, pullFeed, resolveLatestReply, ME, OWNER } from '../lib/msgfeed.mjs'
+import { credentialsPath } from '../lib/paths.mjs'
 
 const args = process.argv.slice(2)
 const get = (k, d) => {
@@ -53,7 +54,7 @@ const INTERVAL = Math.max(60, Number(get('interval', String(config().listen?.com
 const ONLY_OWNER = args.includes('--only-owner')
 const QUIET = args.includes('--quiet')
 
-const cred = JSON.parse(fs.readFileSync(path.join((process.env.USERPROFILE || process.env.HOME || '/'), '.bili-ai', 'credentials.json'), 'utf8'))
+const cred = JSON.parse(fs.readFileSync(credentialsPath(), 'utf8'))
 const H = makeHeaders(cred)
 
 const startedAt = Number(get('since', String(Math.floor(Date.now() / 1000))))

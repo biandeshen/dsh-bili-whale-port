@@ -92,6 +92,7 @@ const type = String(args.get('type') ?? '1')
 const refererArg = args.get('referer') ? String(args.get('referer')) : ''
 const dry = args.get('dry') === true || args.has('dry')
 import { shouldGate, queueGo } from '../lib/go-gate.mjs'
+import { credentialsPath } from '../lib/paths.mjs'
 const go = args.get('go') === true || args.has('go')
 // 方案三 go-gate：非分享评论（被注入诱导的主要面）必须主人放行
 if (shouldGate(process.argv.slice(2), { exemptFlags: ['--auto', '--share'] })) {
@@ -234,7 +235,7 @@ if (SHARE && !parent && type === '1' && config().share?.via === 'comment' && con
     process.exit(3)
   }
 }
-const credPath = path.join((process.env.USERPROFILE || process.env.HOME || '/'), '.bili-ai', 'credentials.json')
+const credPath = credentialsPath()
 if (!fs.existsSync(credPath)) {
   console.error(`credentials file missing: ${credPath}`)
   console.error('create it with {"sessdata":"...","bili_jct":"...","buvid3":"..."}')

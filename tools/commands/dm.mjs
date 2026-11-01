@@ -21,6 +21,7 @@ import { gate, record } from '../lib/quota-gate.mjs'
 import { sendOwnerDm } from '../lib/dm-send-core.mjs'
 import { report } from '../lib/report.mjs'
 import { stateReadPath, writeStateText } from '../lib/paths.mjs'
+import { credentialsPath } from '../lib/paths.mjs'
 
 
 
@@ -48,7 +49,7 @@ if (SHARE && !STATUS) {
 }
 
 const HOME = process.env.USERPROFILE || process.env.HOME || '.'
-const CRED = path.join(HOME, '.bili-ai', 'credentials.json')
+const CRED = credentialsPath()
 const QUOTA = stateReadPath('dm-quota.json')
 // 2026-10-21：用共用凭据层（trim + 缺字段检查 + 错误码翻译）
 //   以前这里直接 JSON.parse 就用：bili_jct 空着也照发 → B站回裸的 code=-111，

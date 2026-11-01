@@ -13,6 +13,7 @@ import path from 'node:path'
 import { execFileSync } from '../lib/capture.mjs'
 import { requireFfmpeg } from '../lib/ffmpeg.mjs'
 import { whalePath } from '../lib/paths.mjs'
+import { credentialsPath } from '../lib/paths.mjs'
 
 
 let FFMPEG
@@ -25,7 +26,7 @@ const [cols, rows] = grid.split('x').map(Number)
 if (!cols || !rows) { console.error('格子格式应是 3x3 这样'); process.exit(2) }
 const N = cols * rows
 
-const cred = JSON.parse(fs.readFileSync(path.join((process.env.USERPROFILE || process.env.HOME || '/'), '.bili-ai', 'credentials.json'), 'utf8'))
+const cred = JSON.parse(fs.readFileSync(credentialsPath(), 'utf8'))
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 const H = { 'user-agent': UA, referer: 'https://www.bilibili.com/', cookie: `SESSDATA=${cred.sessdata}; bili_jct=${cred.bili_jct}; buvid3=${cred.buvid3}` }
 

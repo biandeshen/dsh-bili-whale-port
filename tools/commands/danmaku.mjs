@@ -15,6 +15,7 @@ import crypto from 'node:crypto'
 import { gate } from '../lib/quota-gate.mjs'
 
 import { shouldGate, queueGo } from '../lib/go-gate.mjs'
+import { credentialsPath } from '../lib/paths.mjs'
 const argv = process.argv.slice(2)
 const mode = argv[0]
 const args = new Map()
@@ -28,7 +29,7 @@ const isDry = args.has('dry')
 const isGo = args.has('go')
 if (!roomArg) { console.error('需要 --room <房间号>'); process.exit(2) }
 
-const credPath = path.join((process.env.USERPROFILE || process.env.HOME || '/'), '.bili-ai', 'credentials.json')
+const credPath = credentialsPath()
 if (!fs.existsSync(credPath)) { console.error(`缺少凭据文件: ${credPath}`); process.exit(3) }
 const cred = JSON.parse(fs.readFileSync(credPath, 'utf8'))
 for (const k of ['sessdata', 'bili_jct', 'buvid3']) {

@@ -16,6 +16,7 @@ import fs from 'node:fs'
 import { config } from '../lib/config.mjs'
 import path from 'node:path'
 import { makeHeaders, pullFeed, resolveLatestReply } from '../lib/msgfeed.mjs'
+import { credentialsPath } from '../lib/paths.mjs'
 
 const args = process.argv.slice(2)
 const get = (k, d) => {
@@ -31,7 +32,7 @@ const RAW = args.includes('--raw')
 //   以前 quota 拿人类可读文本做子串匹配 → 统计行里出现主人名也会误命中 ✗
 const JSON_OUT = args.includes('--json')
 
-const cred = JSON.parse(fs.readFileSync(path.join((process.env.USERPROFILE || process.env.HOME || '/'), '.bili-ai', 'credentials.json'), 'utf8'))
+const cred = JSON.parse(fs.readFileSync(credentialsPath(), 'utf8'))
 const H = makeHeaders(cred)
 const hhmm = (t) => (t ? new Date(t * 1000).toLocaleString('zh-CN', { hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '时间未知')
 

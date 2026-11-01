@@ -11,13 +11,14 @@ import path from 'node:path'
 import { execFileSync } from '../lib/capture.mjs'
 import { fileURLToPath } from 'node:url'
 import { whalePath, stateDir, statePath } from '../lib/paths.mjs'
+import { credentialsPath } from '../lib/paths.mjs'
 import { NODE_EXE } from '../lib/nodebin.mjs'   // 2026-10-21：别用 process.execPath（Electron 里它是主程序 ✗）
 
 
 const HOME = (process.env.USERPROFILE || process.env.HOME || '/')
 const WHALE = whalePath()
 const CFG = path.join(WHALE, 'bili-whale.config.json')
-const CRED = path.join(HOME, '.bili-ai', 'credentials.json')
+const CRED = credentialsPath()
 const OK = '✓'
 const NO = '✗'
 const WARN = '!'

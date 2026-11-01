@@ -8,13 +8,14 @@ import path from 'node:path'
 // 2026-10-21 修（外部审计）：下面 --go 路径里调了 gate()，但从来没导入过 ✗
 //   一跑到那儿就是 ReferenceError（danmaku.mjs 早就踩过同一个坑，这次补齐三条）
 import { gate } from '../lib/quota-gate.mjs'
+import { credentialsPath } from '../lib/paths.mjs'
 
 const dyn = process.argv[2]
 const textFile = process.argv[3]
 const go = process.argv.includes('--go')
 if (!dyn || !textFile) { console.error('用法: node edit-dynamic.mjs <dyn_id> <文本文件> [--go]'); process.exit(2) }
 
-const cred = JSON.parse(fs.readFileSync(path.join((process.env.USERPROFILE || process.env.HOME || '/'), '.bili-ai', 'credentials.json'), 'utf8'))
+const cred = JSON.parse(fs.readFileSync(credentialsPath(), 'utf8'))
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 const H = {
   'user-agent': UA,

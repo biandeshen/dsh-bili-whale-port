@@ -13,6 +13,7 @@ import { spawn, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { whaleHome as WHALE_HOME } from '../tools/lib/paths.mjs'
 import { DEFAULTS } from '../core/api/support.js'
+import { credentialsPath } from '../tools/lib/paths.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const CHECK = process.argv.includes('--check')
@@ -41,7 +42,7 @@ else {
   log(`  → 写入默认配置：${cfgFile}`)
   if (!CHECK) fs.writeFileSync(cfgFile, JSON.stringify(DEFAULTS, null, 2) + '\n')
 }
-const creds = path.join(process.env.USERPROFILE || process.env.HOME || '.', '.bili-ai', 'credentials.json')
+const creds = credentialsPath()
 log(`  ${exists(creds) ? '✓' : '⚠️'} B站 cookie：${exists(creds) ? '已就位' : '还没有（装完在面板里填）'}`)
 
 // 2) MCP 合并（备份原文件）

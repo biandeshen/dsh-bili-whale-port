@@ -15,6 +15,7 @@ import { guardedFetch as fetch } from '../lib/traffic.mjs'
 // 用法: node comment-exists.mjs <rpid> <aid> [bvid]
 import fs from 'node:fs'
 import path from 'node:path'
+import { credentialsPath } from '../lib/paths.mjs'
 
 const RPID = process.argv[2]
 const AID = process.argv[3]
@@ -90,7 +91,7 @@ if (foundInMain) {
   process.exit(0)
 }
 try {
-  const cred = JSON.parse(fs.readFileSync(path.join((process.env.USERPROFILE || process.env.HOME || '/'), '.bili-ai', 'credentials.json'), 'utf8'))
+  const cred = JSON.parse(fs.readFileSync(credentialsPath(), 'utf8'))
   const cookie = `SESSDATA=${cred.sessdata}; bili_jct=${cred.bili_jct}; buvid3=${cred.buvid3}`
   const c = await fetch(`https://api.bilibili.com/x/v2/reply/reply?type=1&oid=${AID}&root=${RPID}&pn=1&ps=20`, {
     headers: { 'user-agent': UA, referer: REF, cookie },

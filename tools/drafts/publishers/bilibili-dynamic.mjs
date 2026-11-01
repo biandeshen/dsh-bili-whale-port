@@ -14,6 +14,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import { guardedFetch as guarded } from '../../lib/traffic.mjs'
 import { gate as quotaGate } from '../../lib/quota-gate.mjs'
+import { credentialsPath } from '../../lib/paths.mjs'
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 const REF = 'https://t.bilibili.com/'
@@ -21,7 +22,7 @@ const MIXIN_TAB = [46,47,18,2,53,8,23,32,15,50,10,31,58,3,45,35,27,43,5,49,33,9,
 const keyOf = (u) => u.slice(u.lastIndexOf('/') + 1, u.lastIndexOf('.'))
 
 function loadCred() {
-  const credPath = path.join((process.env.USERPROFILE || process.env.HOME || '/'), '.bili-ai', 'credentials.json')
+  const credPath = credentialsPath()
   if (!fs.existsSync(credPath)) return { error: `缺少凭据文件: ${credPath}` }
   const cred = JSON.parse(fs.readFileSync(credPath, 'utf8'))
   for (const k of ['sessdata', 'bili_jct', 'buvid3']) {

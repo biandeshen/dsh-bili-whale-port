@@ -13,6 +13,7 @@ import { guardedFetch as fetch } from '../lib/traffic.mjs'
 import fs from 'node:fs'
 import path from 'node:path'
 import { config } from '../lib/config.mjs'
+import { credentialsPath } from '../lib/paths.mjs'
 
 const HOME = process.env.USERPROFILE || process.env.HOME || '/'
 const argv = process.argv.slice(2)
@@ -24,7 +25,7 @@ const HOURS = Number(typeof opt.hours === 'string' ? opt.hours : 24)
 const ONLY_OWNER = process.argv.includes('--owner')
 const JSONOUT = process.argv.includes('--json')
 
-const cred = JSON.parse(fs.readFileSync(path.join(HOME, '.bili-ai', 'credentials.json'), 'utf8'))
+const cred = JSON.parse(fs.readFileSync(credentialsPath(), 'utf8'))
 const H = {
   'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
   referer: 'https://www.bilibili.com/',
