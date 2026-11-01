@@ -3,9 +3,10 @@ import { keepCandidate, snapshotRow, numOf, dislikeHit } from '../lib/feed-quali
 import { collectLearnedTokens } from '../lib/feed-feedback.mjs'
 // 选题器：照"她自己的偏好"挑今天该看什么。**只读**，不产生任何对外动作。
 //
-// 用法: node feed.mjs [--n 6] [--per 2] [--pool 30]
+// 用法: node feed.mjs [--n 6] [--per 2] [--pool 30] [--allow-seen]
 // 数据来源：~/.dsh/whale-diary.md 的「爱看」一行（偏好关键词）+「看过的」表格（防重复）
 //          + commented-videos.md（已评论过的视频也排除）
+//          + ~/.dsh/bili-whale/fields.json 近 7 天观看记录（f-a2142e：真正排除已看项）
 //
 // 为什么这么做（2026-10-14 主人定的方向）：主人要的是"有日子的鱼"，
 // 所以"看什么"不该由别人喂，而该由她自己的偏好决定 —— 偏好写在日记里，这个脚本只负责照它去捞。
@@ -34,20 +35,39 @@ const diary = whalePath('whale-diary.md')
 // 2026-10-18：审计表挪到 `~/.bili-ai/` ✓（原来写死作者机器路径 ✗ 换机器就写不进去，静默失效 ✗）
 const audit = path.join(HOME, '.bili-ai', 'commented-videos.md')
 
-// ── 偏好与"看过"名单：都从日记里读 ──
+// ── 偏好与"看过"名单：三源合并（f-a2142e，2026-11-01 意见箱）──────────────
+//   旧版只从日记 + 评论审计表取"看过"，她每轮看完落在 fields.json 记忆里的
+//   观看记录没接进来 → 已看过的片子照样当新候选排第一（她 10-30 被 BV1Sw41187j4
+//   重推、10-31 同类再现）。现在：日记 + 审计表 + 近 7 天观看记录，默认排除；
+//   --allow-seen 显式放回，放回的行内标 [已看过]，不再让"排除"变成不可逆的瞎猜。
 let prefs = [...(config().preferences?.like ?? [])]   // 偏好来自统一配置（首选）
 let dislike = [...(config().preferences?.dislike ?? [])]
-let seen = new Set()
+const seenDiary = new Set()
+const seenAudit = new Set()
+const seenWatched = new Set()
 try {
   const text = fs.readFileSync(diary, 'utf8')
   const m = text.match(/^-\s*\*\*爱看\*\*：(.+)$/m)
   // 兼容旧写法：日记里若仍写着「爱看」，只在配置没给偏好时兜底（日记应回归纯叙事）
   if (m && !prefs.length) prefs = m[1].split(/[·、,，]/).map((s) => s.trim()).filter(Boolean)
-  for (const bv of text.matchAll(/\bBV[0-9A-Za-z]{10}\b/g)) seen.add(bv[0])
+  for (const bv of text.matchAll(/\bBV[0-9A-Za-z]{10}\b/g)) seenDiary.add(bv[0])
 } catch { console.log('（读不到日记，用默认偏好）') }
 try {
-  for (const bv of fs.readFileSync(audit, 'utf8').matchAll(/\bBV[0-9A-Za-z]{10}\b/g)) seen.add(bv[0])
+  for (const bv of fs.readFileSync(audit, 'utf8').matchAll(/\bBV[0-9A-Za-z]{10}\b/g)) seenAudit.add(bv[0])
 } catch { /* 没有审计表也无妨 */ }
+try {
+  // fields.json 的记忆行形如「看过《…》（UP） —— BV…」；7 天窗与她 10-31 的口径一致
+  // （世界侧 annotateFeed 的 recentWatch 也是 7 天），窗口外的仍由日记/审计表兜着。
+  const fj = JSON.parse(fs.readFileSync(whalePath('bili-whale', 'fields.json'), 'utf8'))
+  const cut = Date.now() - 7 * 86400000
+  for (const mem of (fj.memories ?? [])) {
+    const at = Date.parse(String(mem?.createdAt ?? ''))
+    if (!Number.isFinite(at) || at < cut) continue
+    for (const bv of String(mem?.content ?? '').matchAll(/\bBV[0-9A-Za-z]{8,}\b/g)) seenWatched.add(bv[0])
+  }
+} catch { /* 没有 fields.json = 还没有观看记录 */ }
+const seen = new Set([...seenDiary, ...seenAudit, ...seenWatched])
+const ALLOW_SEEN = opt['allow-seen'] === true
 
 const cred = JSON.parse(fs.readFileSync(path.join(HOME, '.bili-ai', 'credentials.json'), 'utf8'))
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
@@ -255,7 +275,7 @@ const selfName = String(config().self?.name ?? "")
 const dropped = []
 const droppedDislike = []
 const uniq = [...new Map(pool.map((x) => [x.bv, x])).values()]
-  .filter((x) => !seen.has(x.bv) && !likedBVs.has(x.bv) && !favBVs.has(x.bv))
+  .filter((x) => (ALLOW_SEEN || !seen.has(x.bv)) && !likedBVs.has(x.bv) && !favBVs.has(x.bv))
   .filter((x) => !(selfName && String(x.up ?? "").includes(selfName)))
   .filter((x) => {
     const d = dislikeHit(x.t, dislike)
@@ -267,6 +287,7 @@ const uniq = [...new Map(pool.map((x) => [x.bv, x])).values()]
     if (!d.keep) dropped.push(x)
     return d.keep
   })
+for (const x of uniq) x._seen = seen.has(x.bv)
 const scoreOf = (x) => densityOf(x) * 3 + hitsOf(x.t).length * 4 + boostOf(x.t)
 uniq.sort((a, b) => scoreOf(b) - scoreOf(a))
 for (const x of uniq) { x._hits = hitsOf(x.t); x._score = scoreOf(x) }
@@ -287,8 +308,8 @@ for (const x of uniq) {
 
 console.log(`偏好（来自日记）: ${prefs.join(' · ')}`)
 console.log(`反馈回流: 被赞 ${likedEvents.length} 条 · 她收藏 ${favItems.length} 条 · 已发稿 ${sentDrafts.length} 条 → 学会 ${learnedTokens.length} 个主题词`)
-console.log(`已看过/已评论过（已排除）: ${seen.size} 个 BV`)
-console.log(`候选池: ${pool.length} 条 → 去重去已看后 ${uniq.length} 条（质量下限丢掉 ${dropped.length} 条 · dislike 拦下 ${droppedDislike.length} 条）\n`)
+console.log(`已看过（日记 ${seenDiary.size} + 评论审计 ${seenAudit.size} + 近 7 天观看记录 ${seenWatched.size} → 去重 ${seen.size} 个 BV）：${ALLOW_SEEN ? '--allow-seen 显式放回，行内标 [已看过]' : '默认排除'}`)
+console.log(`候选池: ${pool.length} 条 → ${ALLOW_SEEN ? '去重后' : '去重去已看后'} ${uniq.length} 条（质量下限丢掉 ${dropped.length} 条 · dislike 拦下 ${droppedDislike.length} 条）\n`)
 if (droppedDislike.length) console.log(`  dislike 命中样例: ${droppedDislike.slice(0, 3).map((x) => `${x._dislike}←「${String(x.t).slice(0, 20)}」`).join(' · ')}`)
 console.log(`今天可以看这几条（每词最多 ${PER} 条，共 ${N} 条）：`)
 const perKw = {}
@@ -298,7 +319,7 @@ for (const x of diversified) {
   perKw[x.kw] = perKw[x.kw] ?? 0
   // 多样性已在上一步做过 → 这里不再二次限流 ✓
   perKw[x.kw] += 1; shown += 1
-  console.log(`  ${String(shown).padStart(2)}. ${x.bv}  ${String(x.d).padStart(4)}s  弹幕${String(x.dm).padStart(7)}  播放${String(x.play).padStart(9)}  ${x.t.slice(0, 40)}  @${x.up} ${x._hits.length ? "[" + x._hits.join("+") + "]" : ""}`)
+  console.log(`  ${String(shown).padStart(2)}. ${x.bv}  ${String(x.d).padStart(4)}s  弹幕${String(x.dm).padStart(7)}  播放${String(x.play).padStart(9)}  ${x.t.slice(0, 40)}  @${x.up} ${x._hits.length ? "[" + x._hits.join("+") + "]" : ""}${x._seen ? " [已看过]" : ""}`)
 }
 console.log('\n看完跑：node bili.mjs debrief <BV>   → 然后把"想法"写进日记的「想说」区（不发）')
 

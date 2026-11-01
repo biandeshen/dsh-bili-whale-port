@@ -31,7 +31,12 @@ globalThis.fetch = async (url, opts = {}) => {
     if(fx.pages[key]===undefined)throw Error('TEST_SPACE_FILE 没有 offset='+key+' 这页')
     data={code:(fx.pages[key].__code ?? 0),data:fx.pages[key]}
   }
+  else if((String(url).includes('/x/web-interface/view')||String(url).includes('/x/web-interface/wbi/view'))&&process.env.TEST_VIEW_FILE)data=JSON.parse(fs.readFileSync(process.env.TEST_VIEW_FILE,'utf8'))
   else if(String(url).includes('/x/web-interface/view'))data={code:0,data:{aid:12345,title:'测试视频标题',owner:{name:'测试UP'}}}
+  else if(String(url).includes('comment.bilibili.com')&&process.env.TEST_DANMAKU_FILE)return new Response(fs.readFileSync(process.env.TEST_DANMAKU_FILE,'utf8'),{status:200})
+  else if(String(url).includes('/x/player/wbi/v2')&&process.env.TEST_PLAYER_FILE)data=JSON.parse(fs.readFileSync(process.env.TEST_PLAYER_FILE,'utf8'))
+  else if(String(url).includes('/x/player/wbi/v2'))data={code:0,data:{subtitle:{subtitles:[]}}}
+  else if(String(url).includes('wbi/search/type')&&process.env.TEST_SEARCH_FILE)data=JSON.parse(fs.readFileSync(process.env.TEST_SEARCH_FILE,'utf8'))
   else if(String(url).includes('/x/web-interface/archive/like'))data={code:0,data:{}}
   else if(String(url).includes('/x/v3/fav/resource'))data={code:0,data:{}}
   else throw Error('Network blocked by test: '+url)

@@ -178,6 +178,12 @@ if (!danmaku.length) {
   const avgReal = realTotal / Math.max(1, buckets.size)
   const peaks = [...buckets.entries()].sort((a, b) => b[1].real.length - a[1].real.length).slice(0, TOP)
   console.log(`覆盖 ${buckets.size} 桶；剔刷屏后共 ${realTotal} 条，平均 ${avgReal.toFixed(1)} 条/桶`)
+  // 采样口径回执（f-a2142e，2026-11-01 意见箱）：同类视频实测出现过 1/3、1/20、1/49 的
+  //   采样比，而"条/桶"密度以前不写口径 → 跨片不可比，她每轮自己补规则。
+  //   现在固定一行写明 采样数/标称总数/桶数/采样比；桶数 <15 时明说密度不可横向比较（她立的线）。
+  const ratio = claimed && danmaku.length ? `1/${Math.max(1, Math.round(claimed / danmaku.length))}` : '未知（接口没给标称总数）'
+  console.log(`[采样口径] 采样数 ${danmaku.length} · 标称总数 ${claimed || '未知'} · 桶数 ${buckets.size} · 采样比 ${ratio}`)
+  if (buckets.size < 15) console.log(`⚠️ 桶数 <15：条/桶密度不可用于横向比较，只看热区在头在尾。`)
   console.log(`\n--- 最热的 ${TOP} 段（按有效条数排序；≥平均 1.5 倍标 🔥）---`)
   for (const [k, b] of peaks) {
     const line = subAt(k + BUCKET / 2)
