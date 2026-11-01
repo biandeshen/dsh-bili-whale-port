@@ -1,19 +1,23 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
+import { credentialsPath, statePath, stateReadPath } from './paths.mjs'
 const TTL = 6 * 3600000
 const hash = s => crypto.createHash('sha256').update(s).digest('hex')
-const home = () => process.env.USERPROFILE || process.env.HOME || '.'
-function file(bvid, suffix) {
+// 账号维度用 sessdata 摘要前 20 位分桶；凭据留在旧家（见 paths.mjs credentialsPath），样本本身随状态归一搬家
+function key(bvid, suffix) {
   if (!/^BV[a-zA-Z0-9]{10}$/.test(bvid)) throw Error('需要有效 BV 号')
   let session = 'anonymous'
-  try { session = JSON.parse(fs.readFileSync(path.join(home(),'.bili-ai/credentials.json'),'utf8')).sessdata || session } catch {}
-  const dir = path.join(home(),'.bili-ai/ai-share',hash(session).slice(0,20))
-  fs.mkdirSync(dir,{recursive:true})
-  return path.join(dir,bvid+'.'+suffix+'.json')
+  try { session = JSON.parse(fs.readFileSync(credentialsPath(),'utf8')).sessdata || session } catch {}
+  return ['ai-share',hash(session).slice(0,20),bvid+'.'+suffix+'.json']
+}
+function file(bvid, suffix) {
+  const dest = statePath(...key(bvid,suffix))
+  fs.mkdirSync(path.dirname(dest),{recursive:true})
+  return dest
 }
 export function readAI(bvid, suffix) {
-  try { const x=JSON.parse(fs.readFileSync(file(bvid,suffix),'utf8')); return x.at <= Date.now() && Date.now()-x.at<TTL ? x : null } catch { return null }
+  try { const x=JSON.parse(fs.readFileSync(stateReadPath(...key(bvid,suffix)),'utf8')); return x.at <= Date.now() && Date.now()-x.at<TTL ? x : null } catch { return null }
 }
 export function writeAI(bvid,suffix,value) {
   const dest=file(bvid,suffix), tmp=dest+'.'+crypto.randomUUID()+'.tmp'

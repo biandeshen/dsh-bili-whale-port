@@ -73,6 +73,7 @@ test('quota react does not refresh silence when an old result disappears',t=>{
   const b={...a,id:'2',reply_time:now+10,item:{source_content:'reply B',source_id:'2'}}
   fs.writeFileSync(env.TEST_FEEDS,JSON.stringify({reply:[a,b],at:[],like:[]}))
   let r=run(env,'tools/commands/quota.mjs',['react','--auto']);assert.equal(r.status,0,r.stderr)
+  // quota.mjs 的 feedback.json 还没接状态助手（仍写旧家 ~/.bili-ai），搬家那一步单独做
   const file=path.join(env.HOME,'.bili-ai/feedback.json'),before=JSON.parse(fs.readFileSync(file))
   assert.equal(before.events.length,1);assert.equal(Date.parse(before.last),(now+10)*1000)
   fs.writeFileSync(env.TEST_FEEDS,JSON.stringify({reply:[b],at:[],like:[]}))
@@ -80,7 +81,7 @@ test('quota react does not refresh silence when an old result disappears',t=>{
   const after=JSON.parse(fs.readFileSync(file));assert.equal(after.last,before.last);assert.equal(after.events.length,1)
 })
 test('stable device ID reused across sends and persistence failure stops send',t=>{
-  const env=sandbox(t), id=path.join(env.HOME,'.bili-ai/dev_id')
+  const env=sandbox(t), id=path.join(env.DSH_HOME,'bili-ai','dev_id')
   assert.equal(run(env,'tools/commands/dm.mjs',['--msg','one','--go']).status,0)
   const first=fs.readFileSync(id,'utf8')
   assert.equal(run(env,'tools/commands/dm.mjs',['--msg','two','--go']).status,0)

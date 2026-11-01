@@ -89,7 +89,7 @@ export default {
     let sched = null
     const { routes } = makeRoutes({
       cfgFile: configPath,
-      credFile: credentialsPath,
+      credFile: credentialsPath(),
       toolsRoot: TOOLS_ROOT,
       home: HOME,
       whaleHome,

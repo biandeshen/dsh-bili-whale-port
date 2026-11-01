@@ -3,11 +3,9 @@
  * 由主人在 panel「信箱与事件」放行后才真正发出。注入者拿不到主人的点击。
  * 分享链路（comment --share --auto / dm --share）沿用既有评分/额度闸，不经过本文件。
  */
-import fs from 'node:fs'
-import path from 'node:path'
-import { HOME } from './paths.mjs'
+import { readStateText, writeStateText } from './paths.mjs'
 
-const FILE = path.join(HOME, '.bili-ai', 'pending-replies.json')
+const PENDING = 'pending-replies.json'
 
 export function shouldGate(argv, { exemptFlags = [] } = {}) {
   if (!argv.includes('--go')) return false
@@ -15,12 +13,11 @@ export function shouldGate(argv, { exemptFlags = [] } = {}) {
 }
 
 export function queueGo({ argv, kind, who, src, message, oid, bvid, ...extra }) {
-  const items = (() => { try { return JSON.parse(fs.readFileSync(FILE, 'utf8')).items ?? [] } catch { return [] } })()
+  const items = (() => { try { return JSON.parse(readStateText(PENDING)).items ?? [] } catch { return [] } })()
   const id = Math.random().toString(16).slice(2, 10)
   // 结构化字段（含 root/parent/room 等 extra）是放行时重建 argv 的依据：展示什么就执行什么（M1e）
   items.push({ id, at: new Date().toISOString(), kind, who: who || kind, src: src || '', message: message || '', oid: oid ?? '', bvid: bvid ?? '', ...extra, argv })
-  fs.mkdirSync(path.dirname(FILE), { recursive: true })
-  fs.writeFileSync(FILE, JSON.stringify({ items }, null, 2) + '\n')
+  writeStateText(JSON.stringify({ items }, null, 2) + '\n', PENDING)
   console.log(`[go-gate] ${kind}（id=${id}）已进待审队列：主人在 panel「信箱与事件」放行后才会发出 ✓`)
   return id
 }

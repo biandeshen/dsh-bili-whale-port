@@ -177,7 +177,7 @@ export function startScheduler({controller, isBusy: hostIsBusy}, opts) {
 
   const STATE = path.join(whaleHome, 'whale-night.json')
   const CFG_FILE_REF = process.env.BILI_WHALE_CONFIG || path.join(whaleHome, 'bili-whale.config.json')     // 监听循环每次重读（改配置立刻生效 ✓）
-  const CRED_REF = credentialsPath
+  const CRED_REF = credentialsPath()
   const readState = () => { try { return JSON.parse(fs.readFileSync(STATE, 'utf8')) } catch { return null } }
   // 2026-10-22：tick() 里拿不到别处闭包的 cfg ✗（实测 ReferenceError: cfg is not defined）
   //   给一个「每次现读」的小函数 —— 顺带好处：设置页一保存，下一次唤醒就用新值 ✓

@@ -30,7 +30,7 @@ function setup(tier) {
   return {
     run,
     requests: () => (fs.existsSync(req) ? fs.readFileSync(req, 'utf8') : ''),
-    pending: () => read(path.join(home, '.bili-ai', 'pending-replies.json'))?.items ?? [],
+    pending: () => read(path.join(home, 'whale', 'bili-ai', 'pending-replies.json'))?.items ?? [],
     likes: () => read(path.join(home, '.bili-ai', 'likes-sent.json'))?.items ?? [],
   }
 }

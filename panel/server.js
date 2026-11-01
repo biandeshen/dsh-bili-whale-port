@@ -58,7 +58,7 @@ if (process.env.PANEL_SCHED === '1') {
 }
 
 const { routes } = makeRoutes({
-  cfgFile: configPath, credFile: credentialsPath, toolsRoot: ROOT,
+  cfgFile: configPath, credFile: credentialsPath(), toolsRoot: ROOT,
   home: HOME, whaleHome,
   getSchedStatus: () => schedStatus, execNode, fetch: guardedFetch,
   onConfigSaved: (changed) => { try { sched?.invalidate(changed) } catch {} },

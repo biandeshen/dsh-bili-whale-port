@@ -7,8 +7,9 @@ import path from 'node:path'
 const home = fs.mkdtempSync(path.join(os.tmpdir(), 'whale-review-'))
 process.env.USERPROFILE = process.env.HOME = home
 delete process.env.BILI_NO_CACHE
-const dataDir = path.join(home, '.bili-ai')
-fs.mkdirSync(dataDir)
+// 状态写新家（whale home 下的 bili-ai），旧家 ~/.bili-ai 只读兜底 —— 见 tools/lib/paths.mjs
+const dataDir = path.join(home, '.dsh', 'bili-ai')
+fs.mkdirSync(dataDir, { recursive: true })
 after(() => fs.rmSync(home, { recursive: true, force: true }))
 beforeEach(() => { for (const file of fs.readdirSync(dataDir)) fs.unlinkSync(path.join(dataDir, file)) })
 const { apiGet } = await import('../tools/lib/bili-api.mjs')

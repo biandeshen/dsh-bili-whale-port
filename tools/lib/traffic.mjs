@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { setTimeout as delay } from 'node:timers/promises'
-import { configPath } from './paths.mjs'
+import { configPath, stateDir, statePath, legacyStateDir } from './paths.mjs'
 import { isKillOn } from './kill.mjs'
 
 export const RISK_DEFAULTS = { minGapMs: 1500, readHourly: 600, readDaily: 3000, writeHourly: 12, writeDaily: 30, writeGapSec: 120, dmGapSec: 60 }
@@ -198,7 +198,25 @@ export function createTrafficGuard({ directory, transport = (...a) => globalThis
   }
 }
 let singleton
-export function trafficGuard() { return singleton ??= createTrafficGuard({ directory: path.join(process.env.USERPROFILE || process.env.HOME || '.', '.bili-ai') }) }
+/**
+ * 风控状态先整份搬一次再归零风险：traffic-state.json / api-ban.json 里的"暂停到几点"
+ * 若在搬家那一刻消失，等于刚被风控也能立刻发。只复制、不动旧家那份；新家已有就不覆盖
+ * （此后写只落新家，见 paths.mjs 的归一规则）。
+ */
+function riskStateDir() {
+  const fresh = stateDir(), legacy = legacyStateDir()
+  for (const name of ['traffic-state.json', 'api-ban.json']) {
+    const to = statePath(name), from = path.join(legacy, name)
+    try {
+      if (fs.existsSync(to) || !fs.existsSync(from)) continue
+      fs.mkdirSync(fresh, { recursive: true })
+      fs.copyFileSync(from, to)
+      console.error(`[traffic] 风控状态从旧家迁入新家：${from} → ${to}`)
+    } catch {}
+  }
+  return fresh
+}
+export function trafficGuard() { return singleton ??= createTrafficGuard({ directory: riskStateDir() }) }
 export function guardedFetch(...args) {
   // Legacy fixture suites replace fetch and opt out explicitly. Production
   // BILI_NO_CACHE does NOT disable traffic protection.

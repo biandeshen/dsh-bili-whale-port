@@ -13,21 +13,21 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { credentialsPath } from './paths.mjs'
-export const CRED_PATH = credentialsPath
 
-/** 读凭据：统一 trim，容忍 BOM / 首尾空白。 */
+/** 读凭据：统一 trim，容忍 BOM / 首尾空白。两处都没有 = 报错，不返回空凭据。 */
 export function loadCred() {
+  const file = credentialsPath()
   let raw
   try {
-    raw = fs.readFileSync(CRED_PATH, 'utf8')
+    raw = fs.readFileSync(file, 'utf8')
   } catch {
-    throw new Error(`没有凭据文件：${CRED_PATH}\n  去设置页粘贴一次 cookie 并保存 ✓`)
+    throw new Error(`没有凭据文件：${file}\n  去设置页粘贴一次 cookie 并保存 ✓`)
   }
   let j
   try {
     j = JSON.parse(raw.replace(/^\uFEFF/, ''))
   } catch (e) {
-    throw new Error(`凭据文件不是合法 JSON：${CRED_PATH}\n  ${String(e.message).slice(0, 80)}`)
+    throw new Error(`凭据文件不是合法 JSON：${file}\n  ${String(e.message).slice(0, 80)}`)
   }
   const clean = (v) => String(v ?? '').replace(/^["'\s]+|["'\s]+$/g, '')
   return {

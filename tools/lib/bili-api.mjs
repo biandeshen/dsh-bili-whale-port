@@ -3,6 +3,7 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { readStateText, writeStateText, stateDir, statePath } from './paths.mjs'
 
 const MIXIN = [46,47,18,2,53,8,23,32,15,50,10,31,58,3,45,35,27,43,5,49,33,9,42,19,29,28,14,39,12,38,41,13,37,48,7,16,24,55,40,61,26,17,0,1,60,51,30,4,22,25,54,21,56,59,6,63,57,62,11,36,20,34,44,52]
 const keyOf = u => String(u).split('/').at(-1).split('.')[0]
@@ -26,17 +27,20 @@ export function signWbi(params, images, now = Date.now()) {
 //   view 会被 recon/debrief/video/comments/subtitles/quota 各查一遍 ✗
 // ─────────────────────────────────────────────────────────────────────────────
 
-const HOME = process.env.USERPROFILE || process.env.HOME || '.'
-const CACHE_FILE = path.join(HOME, '.bili-ai', 'api-cache.json')
-const BAN_FILE = path.join(HOME, '.bili-ai', 'api-ban.json')
+// 状态文件名（落点由 paths.mjs 决定：写新家、读新→旧兜底）
+const CACHE_FILE = 'api-cache.json'
+const BAN_FILE = 'api-ban.json'
 const CACHE_TTL_MS = 24 * 3600 * 1000
 // 2026-10-22：请求日志 —— 回答「这一趟到底打了几次网络、命中几次缓存」
 //   主人问「她那次只查了一次缓存吗」✗ 当时只有「缓存写了几条」这个间接指标 ✗
 //   日志按行追加：时间 命中/未命中 路径（不含 cookie、不含响应正文）
-const REQ_LOG = path.join(HOME, '.bili-ai', 'api-requests.log')
+const REQ_LOG = 'api-requests.log'
 const logReq = (hit, p) => {
   if (noCacheEnv()) return
-  try { fs.appendFileSync(REQ_LOG, `${new Date().toISOString()} ${hit ? 'HIT ' : 'NET '} ${p}\n`) } catch {}
+  try {
+    fs.mkdirSync(stateDir(), { recursive: true })
+    fs.appendFileSync(statePath(REQ_LOG), `${new Date().toISOString()} ${hit ? 'HIT ' : 'NET '} ${p}\n`)
+  } catch {}
 }
 
 // 只缓存「静态一点的元信息」✗ 动态内容（评论/收件箱/动态流/点赞）绝不能缓存 ✓
@@ -52,14 +56,11 @@ const BAN_CODES = new Set([-412, -352, -799, -509, -10403])
 
 // 播放接口的 -412 原因不能仅凭路径确定，按风控信号暂停。
 
-function readJson(file, fallback) {
-  try { return JSON.parse(fs.readFileSync(file, 'utf8')) } catch { return fallback }
+function readJson(name, fallback) {
+  try { return JSON.parse(readStateText(name)) } catch { return fallback }
 }
-function writeJson(file, value) {
-  try {
-    fs.mkdirSync(path.dirname(file), { recursive: true })
-    fs.writeFileSync(file, JSON.stringify(value))
-  } catch {}
+function writeJson(name, value) {
+  try { writeStateText(JSON.stringify(value), name) } catch {}
 }
 
 // 缓存键：去掉每次都变的签名参数（wts / w_rid）和排序，才可能命中 ✓

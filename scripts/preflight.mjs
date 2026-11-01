@@ -40,8 +40,8 @@ else {
   }
 }
 
-const cred = readJson(credentialsPath)
-if (!cred?.sessdata || !cred?.bili_jct) add('fail', 'B 站凭据缺失', `${credentialsPath}：先在 panel「B 站 cookie」写入 SESSDATA + bili_jct`)
+const cred = readJson(credentialsPath())
+if (!cred?.sessdata || !cred?.bili_jct) add('fail', 'B 站凭据缺失', `${credentialsPath()}：先在 panel「B 站 cookie」写入 SESSDATA + bili_jct`)
 else if (String(cred.bili_jct).length !== 32) add('warn', 'bili_jct 长度异常', `长度 ${String(cred.bili_jct).length}，B 站目前 32 位十六进制`)
 else add('ok', 'B 站凭据', 'SESSDATA + bili_jct 已就位')
 

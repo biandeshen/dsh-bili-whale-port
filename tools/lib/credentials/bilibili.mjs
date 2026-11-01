@@ -12,5 +12,5 @@ export { loadCred, missingForWrite }
 
 /** 来源描述：'file' | 'missing'（不含任何凭据值）。 */
 export function describeBilibiliCred() {
-  try { return fs.existsSync(credentialsPath) ? 'file' : 'missing' } catch { return 'missing' }
+  try { return fs.existsSync(credentialsPath()) ? 'file' : 'missing' } catch { return 'missing' }
 }

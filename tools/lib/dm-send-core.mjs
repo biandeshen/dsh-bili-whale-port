@@ -16,30 +16,28 @@ import crypto from 'node:crypto'
 import { guardedFetch as fetch } from './traffic.mjs'
 import { config } from './config.mjs'
 import { gate, record } from './quota-gate.mjs'
-import { whaleHome } from './paths.mjs'
+import { whaleHome, readStateText, writeStateText, statePath } from './paths.mjs'
 import { appendCausal } from './causal.mjs'
 
-const HOME = process.env.USERPROFILE || process.env.HOME || '.'
-const QUOTA = path.join(HOME, '.bili-ai', 'dm-quota.json')
+const QUOTA = 'dm-quota.json'
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 const ONE_TARGET_PER_DAY = true
 const REQUIRE_MUTUAL = true
 const MAX_LEN = 300
 const today = () => new Date().toLocaleDateString('sv-SE')
-const loadQ = () => { try { return JSON.parse(fs.readFileSync(QUOTA, 'utf8')) } catch { return {} } }
-const saveQ = (o) => { fs.mkdirSync(path.dirname(QUOTA), { recursive: true }); fs.writeFileSync(QUOTA, JSON.stringify(o, null, 2) + '\n') }
+const loadQ = () => { try { return JSON.parse(readStateText(QUOTA)) } catch { return {} } }
+const saveQ = (o) => { writeStateText(JSON.stringify(o, null, 2) + '\n', QUOTA) }
 
-/** 稳定的设备 ID（存在 ~/.bili-ai/dev_id，永久复用）：随机换 dev_id 会被风控判成设备高频切换。 */
+/** 稳定的设备 ID（状态目录里的 dev_id，永久复用）：随机换 dev_id 会被风控判成设备高频切换。 */
 function stableDevId() {
-  const file = path.join(HOME, '.bili-ai', 'dev_id')
+  const file = statePath('dev_id')
   try {
-    const v = fs.readFileSync(file, 'utf8').trim()
+    const v = readStateText('dev_id').trim()
     if (/^WEB-[0-9A-F-]{20,}$/i.test(v)) return v
   } catch {}
   const v = 'WEB-' + crypto.randomUUID().toUpperCase()
   try {
-    fs.mkdirSync(path.dirname(file), { recursive: true })
-    fs.writeFileSync(file, v + '\n')
+    writeStateText(v + '\n', 'dev_id')
     try { fs.chmodSync(file, 0o600) } catch {}
   } catch (e) { throw new Error('无法保存私信设备 ID，已停止发送：' + e.message) }
   return v

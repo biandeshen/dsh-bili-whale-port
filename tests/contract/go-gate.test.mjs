@@ -18,7 +18,10 @@ process.env.DSH_HOME = path.join(home, 'whale')
 process.env.DSH_NODE = process.execPath
 fs.mkdirSync(path.join(home, '.bili-ai'), { recursive: true })
 fs.writeFileSync(path.join(home, '.bili-ai', 'credentials.json'), JSON.stringify({ sessdata: 'x'.repeat(32), bili_jct: 'a'.repeat(32), buvid3: '0BE6296B-F60E-ABAF-24FD-2D4F1619E79785121infoc' }))
-const PENDING = path.join(home, '.bili-ai', 'pending-replies.json')
+// 凭据留旧家，其余状态写新家（DSH_HOME/bili-ai）—— 见 tools/lib/paths.mjs 的归一规则
+const STATE = path.join(home, 'whale', 'bili-ai')
+fs.mkdirSync(STATE, { recursive: true })
+const PENDING = path.join(STATE, 'pending-replies.json')
 const run = (file, args) => spawnSync(process.execPath, [path.join(ROOT, file), ...args], { encoding: 'utf8', timeout: 20000 })
 const items = () => { try { return JSON.parse(fs.readFileSync(PENDING, 'utf8')).items ?? [] } catch { return [] } }
 const REQ = () => { const p = path.join(home, 'requests.jsonl'); return fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : '' }
