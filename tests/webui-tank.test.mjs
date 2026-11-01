@@ -9,13 +9,13 @@ import { readPolicyLite, policyInWindow, policySet, policyState, autoSentToday, 
 
 const decl = BILI_ACCOUNT.create().webUi('zh')
 
-test('鱼缸页声明：7 块面板、id 合法且唯一、灯 ≤7', () => {
+test('鱼缸页声明：8 块面板、id 合法且唯一、灯 ≤7', () => {
   // 标题不再写死"小鱼"：它跟配置里的 self.name 走（#48），所以这里断言的是同一来源，
   // 不把某一份具体配置当成规格。
   assert.equal(decl.label, `${personaNameFromConfig()} · 鱼缸`)
   assert.match(decl.label, /^.{1,24} · 鱼缸$/)
   const panels = decl.panels ?? []
-  assert.deepEqual(panels.map((p) => p.id).sort(), ['diary', 'drafts', 'feedback', 'policy', 'tank', 'timeline', 'vitals'])
+  assert.deepEqual(panels.map((p) => p.id).sort(), ['diary', 'drafts', 'feedback', 'judgment', 'policy', 'tank', 'timeline', 'vitals'])
   for (const p of panels) assert.match(p.id, /^[a-z0-9-]+$/, `${p.id} id 合法性`)
   assert.equal(new Set(panels.map((p) => p.id)).size, panels.length, 'id 唯一')
   assert.ok((decl.lamps ?? []).length >= 1 && (decl.lamps ?? []).length <= 7, '灯 1–7')

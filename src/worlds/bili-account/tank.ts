@@ -21,7 +21,21 @@ const FIELDS_FILE = path.join(WHALE, 'bili-whale', 'fields.json')
 const CAUSAL_FILE = path.join(WHALE, 'bili-whale', 'causal.jsonl')
 const KILL_FILE = path.join(WHALE, 'bili-whale', 'control', 'kill')
 const FEEDBACK_FILE = path.join(WHALE, 'bili-whale', 'control', 'feedback.jsonl')
-const DRAFTS_DIR = process.env.BILI_DRAFTS || path.join(WHALE, 'bili-whale', 'drafts')
+/**
+ * 草稿目录：与 dsh `tools/lib/paths.mjs:draftsDir()` 同一优先级（env → 旧路径-if-exists → home）。
+ * 这条链曾在两处各写一份、第二份漏了旧路径，于是 badge 读不存在的空目录报「待放行=0」，
+ * 而同页面板能列出真实草稿 —— 对外读数与事实相反的根因。只此一处实现。
+ */
+function resolveDraftsDir(): string {
+  for (const env of ['WHALE_DRAFTS', 'BILI_DRAFTS']) {
+    const v = process.env[env]
+    if (v) return v
+  }
+  const legacy = 'D:/AI/养鱼/drafts'
+  try { if (fs.existsSync(legacy)) return legacy } catch {}
+  return path.join(WHALE, 'bili-whale', 'drafts')
+}
+const DRAFTS_DIR = resolveDraftsDir()
 const AVATAR_FILE = path.join(WHALE, 'avatar.png')
 const NEEDS = new Set(['pending', 'failed', 'cooldown', 'dry-run'])
 
@@ -34,6 +48,14 @@ type Mods = {
   traffic?: { trafficGuard: () => any }
   /** dsh 的统一配置层，只为「全部配置」页签取 DEFAULTS（哪些键是声明过的）。缺它不降级报错，只标"未声明"。 */
   cfg?: { DEFAULTS: any; configPath?: string }
+  /** 判断卡：她提、主人采纳。采纳/驳回只有世界页能调，工具与 CLI 都够不着。 */
+  judgment?: {
+    listJudgments: (file: string, o?: object) => any
+    adoptJudgment: (id: string, by: string, file: string) => any
+    rejectJudgment: (id: string, why: string, file: string) => any
+    activeJudgments: () => { avoid: string[]; prefer: string[]; conflicts: any[] }
+    JUDGMENT_FILE: string
+  }
 }
 const mods: Mods = {}
 let warming: Promise<void> | null = null
@@ -52,6 +74,7 @@ async function warm(): Promise<void> {
       load('approve', 'scripts/dynamic-approve.mjs'),
       load('traffic', 'tools/lib/traffic.mjs'),
       load('cfg', 'tools/lib/config.mjs'),
+      load('judgment', 'tools/lib/judgment.mjs'),
     ])
   })()
   return warming
@@ -490,6 +513,32 @@ export async function feedbackResolve(id: string) {
   await warm()
   if (!mods.feedback) return { ok: false, error: 'feedback 模块未加载' }
   return mods.feedback.resolveFeedback(id, 'webui')
+}
+
+/**
+ * 判断卡：她提的卡在这里被主人看到、采纳或驳回。
+ * 采纳只做一件事——把卡并进 `preferences.judgments`；feed 下一轮就按它筛。
+ */
+export async function judgmentList() {
+  await warm()
+  if (!mods.judgment) return { ok: false, error: 'judgment 模块未加载', items: [], proposed: 0, adopted: 0, total: 0 }
+  return mods.judgment.listJudgments(mods.judgment.JUDGMENT_FILE)
+}
+export async function judgmentAdopt(id: string) {
+  await warm()
+  if (!mods.judgment) return { ok: false, error: 'judgment 模块未加载' }
+  return mods.judgment.adoptJudgment(id, 'owner', mods.judgment.JUDGMENT_FILE)
+}
+export async function judgmentReject(id: string, why = '') {
+  await warm()
+  if (!mods.judgment) return { ok: false, error: 'judgment 模块未加载' }
+  return mods.judgment.rejectJudgment(id, why, mods.judgment.JUDGMENT_FILE)
+}
+/** feed 此刻真在用的那份（含与主人词表的冲突），页面要说清"采纳之后到底改了什么"。 */
+export async function judgmentActive() {
+  await warm()
+  if (!mods.judgment) return { avoid: [], prefer: [], conflicts: [] }
+  try { return mods.judgment.activeJudgments() } catch { return { avoid: [], prefer: [], conflicts: [] } }
 }
 export async function vitalsState() {
   await warm()

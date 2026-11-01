@@ -21,8 +21,9 @@ import { dmAutoPlan, noteInboxRead, noteInbound } from './dm-reply.ts'
 import type { Language } from '../../core/language.ts'
 import {
   warmConsole, consoleReady, tankLocal, killOn, lastTickAt, pendingDraftCount, openFeedbackCount,
-  timelineState, diaryState, draftsState, draftAction, feedbackResolve, feedbackListSafe, vitalsState, avatarBinary, trafficStatus,
+  timelineState, diaryState, draftsState, draftAction, feedbackResolve, feedbackListSafe, judgmentList, judgmentAdopt, judgmentReject, judgmentActive, vitalsState, avatarBinary, trafficStatus,
   policyState, policySet, policyInWindow, autoSentToday, draftForDay, freshAckToken, ownerNameFromConfig, personaNameFromConfig, hostDisplayName, settingsState, settingsSet, renameSelf,
+  consolePaths,
 } from './tank.ts'
 import { decideAction, restRecoveryDelta, actionCost, nextCheckDelay, dayKey, MIN_GAP_MS } from '../../../persona-core/src/rhythm.ts'
 
@@ -164,11 +165,9 @@ function rememberWatch(state: any, receipt: string, bvid: string): any {
   })
 }
 
-// M1a：与 dsh 仓 tools/lib/paths.mjs 的 draftsDir() 同优先级（env → 旧路径-if-exists → home）。
-// 跨仓 import 比复制三行更脆，所以保持本地等价实现 + 下面用 --drafts 把本进程解析的目录
-// 显式传给 draft-dynamic 子进程 —— 读的和写的永远是同一个目录。
-const DRAFTS_DIR = process.env.WHALE_DRAFTS
-  || (fs.existsSync('D:/AI/养鱼/drafts') ? 'D:/AI/养鱼/drafts' : path.join(WHALE, 'bili-whale', 'drafts'))
+// 草稿目录只认 tank.ts 那一条解析：面板、badge、灯、CLI 必须读同一个数，
+// 以前两处各写一份，第二份漏了旧路径，于是 badge 报「待放行=0」而面板列得出草稿。
+const DRAFTS_DIR = consolePaths.DRAFTS_DIR
 
 /** 公开日记的尾部：给"记得"当情境词，让召回跟今天写的事有关，而不是永远最鲜活三条。 */
 function diaryTail(n = 2000): string {
@@ -451,6 +450,7 @@ const TOOL_SUMMARIES: Record<string, DescribeText> = {
   bili_capabilities: { zh: '看清自己此刻有什么手脚：能调的工具（读/写）、装着的扩展、这份部署的开关（只读，启用与安装归主人）', en: 'List the tools callable now, the installed extensions and this deployment\'s world switches (read-only).' },
   bili_alarm: { zh: '给自己设闹钟：到点带着那句话醒来，重启后也照响', en: 'Set an alarm for herself that survives restarts.' },
   bili_memory_void: { zh: '更正记忆：写错的那条可以盖作废章（不再被想起，但原文留着可复盘）；只准点名一条', en: 'Void one wrongly-recorded memory (it stops being recalled; text kept for review).' },
+  bili_judgment: { zh: '判断卡：把你对片子的判断落成结构化的一条（立场+词+理由），主人在世界页采纳后才影响 feed；采纳与驳回只有主人能点', en: 'File a structured judgment card (stance + tokens + reason); it affects the feed only after the owner adopts it.' },
 }
 
 const DECLS = [
@@ -470,6 +470,7 @@ const DECLS = [
   { name: 'bili_capabilities', description: 'Inventory of her own capabilities right now, one line each: every tool actually callable this turn (name + one-line function + read/write tag), every extension package installed on this machine with its enabled state, and this deployment\'s world switches. Read-only: it changes, enables and installs nothing.', tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'bili_alarm', description: "Set an alarm for herself. At that time she wakes up with a bili.action_due event carrying the note, so it works across restarts. Use it when something is worth coming back to (a video she wants to finish, checking whether a reply arrived), not as a timer for its own sake.", tags: ['flow'], parameters: { type: 'object', properties: { minutes: { type: 'number', description: '多少分钟后叫你（1–1440）' }, note: { type: 'string', description: '到点要做什么（一句话，会原样出现在唤醒提示里）' } }, required: ['minutes', 'note'], additionalProperties: false } },
   { name: 'bili_memory_void', description: "Void one memory she now believes was recorded wrongly (local only, never touches Bilibili). The original text stays in her state for later review but stops coming back to mind. She must name ONE memory: an exact id, or a text match that hits exactly one. 0 hits or 2+ hits is REFUSED with the candidate list — never void a pile on a guess, and a refusal is not a bug to retry.", tags: ['write'], parameters: { type: 'object', properties: { id: { type: 'string', description: '记忆 id（从工具上一次给的候选清单里取，最准）' }, match: { type: 'string', description: '正文片段；只有唯一命中才生效' }, reason: { type: 'string', description: '为什么作废（≥6 字，留在条上供她日后复盘）' } }, required: ['reason'], additionalProperties: false } },
+  { name: 'bili_judgment', description: "File a judgment card: your own structured conclusion about what to watch more or less of. stance=prefer (soft boost, capped) / avoid (hard drop) / noise (hard drop); tokens are 1-6 words of 2-12 characters; reason needs at least 6 characters. Cards affect nothing until the owner adopts them on the world page — you cannot adopt them yourself, and this tool has no access to the owner's word list.", tags: ['write'], parameters: { type: 'object', properties: { action: { type: 'string', enum: ['add', 'list'], description: '默认 list' }, scope: { type: 'string', enum: ['feed', 'draft', 'dm', 'any'], description: '作用域；本轮 feed 只吃 feed 与 any' }, stance: { type: 'string', enum: ['prefer', 'avoid', 'noise'], description: 'prefer=多给这类（加权）；avoid/noise=直接丢掉这类（硬拦）' }, tokens: { type: 'string', description: '1-6 个词，逗号分隔，每词 2-12 字（如 "助眠,白噪音"）' }, reason: { type: 'string', description: '为什么这么判（≥6 字，≤200 字）' }, bvid: { type: 'string', description: '触发这条判断的那条片子（可选）' } }, additionalProperties: false } },
 ] as const
 
 /** 自描述与手脚清单共用同一份"给人看的一句话"。 */
@@ -577,6 +578,7 @@ class BiliAccountWorld {
         { id: 'timeline', title: t('她的一天', 'Her day'), description: t('因果链事件（只读）', 'Causal events (read-only)'), getMethods: ['state'] },
         { id: 'diary', title: t('日记', 'Diary'), description: t('公开与私人两本', 'Public and private books'), getMethods: ['state'] },
         { id: 'feedback', title: t('意见箱', 'Issues'), description: t('她报的问题与处理', 'Her reported issues'), getMethods: ['state'] },
+        { id: 'judgment', title: t('判断卡', 'Judgments'), description: t('她提的判断：采纳后 feed 按它筛，采纳与驳回归你', 'Her judgment cards: adopting one makes the feed follow it'), getMethods: ['state'] },
         { id: 'policy', title: t('发送策略', 'Send policy'), description: t('草稿人工/自动、档位收回、护栏', 'Draft review/auto, tier switches, guardrails'), getMethods: ['state'] },
         { id: 'vitals', title: t('体征', 'Vitals'), description: t('风控额度与今日计数', 'Traffic budget and today counts'), getMethods: ['state'] },
       ],
@@ -608,6 +610,21 @@ class BiliAccountWorld {
         if (panel === 'feedback') {
           if (method === 'state') return feedbackListSafe()
           if (method === 'resolve') return feedbackResolve(String(args[0]))
+          throw new Error('unknown method ' + method)
+        }
+        if (panel === 'judgment') {
+          // 采纳/驳回只有这一条通道能走到：工具与 CLI 都没有对应入口（见 dsh tools/lib/judgment.mjs 头部红线）。
+          if (method === 'state') return { ...(await judgmentList()), active: await judgmentActive() }
+          if (method === 'adopt') {
+            const r = await judgmentAdopt(String(args[0] ?? ''))
+            if (r.ok) causal({ kind: 'judgment-adopted', id: String(args[0] ?? ''), atMs: Date.now() })
+            return r
+          }
+          if (method === 'reject') {
+            const r = await judgmentReject(String(args[0] ?? ''), String(args[1] ?? ''))
+            if (r.ok) causal({ kind: 'judgment-rejected', id: String(args[0] ?? ''), atMs: Date.now() })
+            return r
+          }
           throw new Error('unknown method ' + method)
         }
         if (panel === 'vitals') {
@@ -1274,6 +1291,24 @@ class BiliAccountWorld {
         saveState(FIELDS_FILE, after)
         causal({ kind: 'memory-voided', memoryId: target.id, reason, atMs: Date.now() })
         return `[memory_void] 已作废 ${target.id}：「${String(target.content ?? '').replace(/\s+/g, ' ').slice(0, 60)}」\n理由：${reason}\n从今天起它不会再被想起来；原文仍留在 fields.json（这是更正，不是删除）。要恢复得主人动手——我没有撤销通道。`
+      }),
+      mk(DECLS[16], async (a) => {
+        // 判断卡：她只能提与看。采纳/驳回挂在世界页的 invoke 上，这条工具触达不到。
+        const action = String(a?.action ?? 'list')
+        if (action === 'add') {
+          const args = ['judgment', 'add',
+            '--scope', String(a?.scope ?? 'feed'),
+            '--stance', String(a?.stance ?? 'prefer'),
+            '--tokens', String(a?.tokens ?? ''),
+            '--reason', String(a?.reason ?? '')]
+          const bvid = String(a?.bvid ?? '').trim()
+          if (bvid) args.push('--bvid', bvid)
+          const r = await runAsync(args, 30000)
+          if (r.status === 0) causal({ kind: 'judgment', stance: String(a?.stance ?? 'prefer'), tokens: String(a?.tokens ?? '').slice(0, 80), atMs: Date.now() })
+          return r.out
+        }
+        const r = await runAsync(['judgment', 'list'], 30000)
+        return r.out + '\n（采纳与驳回只有主人能在世界页点；你提的卡在那之前不影响 feed。）'
       }),
     ]
   }

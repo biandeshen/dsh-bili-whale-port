@@ -26,6 +26,19 @@ interface DiaryBook { bytes?: number; updatedAt?: string; text?: string }
 interface DiaryState { ok?: boolean; owner?: DiaryBook | null; private?: DiaryBook | null }
 interface FeedbackItem { id: string; at?: string; day?: string; issue: string; severity: 'high' | 'low'; selfHandled?: boolean; note?: string; resolved: boolean; resolvedBy?: string | null }
 interface FeedbackState { ok?: boolean; error?: string; items?: FeedbackItem[] }
+interface JudgmentItem {
+  id: string; at?: string; day?: string;
+  scope: 'feed' | 'draft' | 'dm' | 'any';
+  stance: 'prefer' | 'avoid' | 'noise';
+  tokens: string[]; reason: string; bvid?: string;
+  status: 'proposed' | 'adopted' | 'rejected';
+  rejectedWhy?: string | null;
+}
+interface JudgmentState {
+  ok?: boolean; error?: string; items?: JudgmentItem[];
+  proposed?: number; adopted?: number; total?: number;
+  active?: { avoid?: string[]; prefer?: string[]; conflicts?: Array<{ id?: string; tokens?: string[]; winner?: string }> };
+}
 interface VitalsState {
   ok?: boolean; today?: string; shares?: number; commentsToday?: number;
   scheduler?: { ok?: boolean; reason?: string };
@@ -284,6 +297,107 @@ function mountFeedback(ctx: WebUiPanelContext): void {
     }
   };
   const poll = (): void => { void ctx.invoke<FeedbackState>('state').then(draw).catch((e) => { err.textContent = errText(e); err.hidden = false; }); };
+  poll();
+  ctx.interval(poll, POLL_MS * 2);
+}
+
+// ── 判断卡：她提，主人采纳 ──────────────────────────────────────────────────
+const STANCE_LABEL: Record<JudgmentItem['stance'], string> = { prefer: '多给', avoid: '拉黑', noise: '噪声' };
+
+function mountJudgment(ctx: WebUiPanelContext): void {
+  const { ui, root } = ctx;
+  const card = ui.sheet({ title: '判断卡', en: 'judgments', desc: '她提的判断；采纳后 feed 就按它筛，驳回要给她一个理由' });
+  root.appendChild(card.el);
+  const err = ui.msgline();
+  const live = ui.h('div', 'sh-desc');
+  const list = ui.h('div', 'fb-list');
+  card.body.append(err, live, list);
+
+  const draw = (st: JudgmentState): void => {
+    err.hidden = true;
+    if (st?.ok === false) { err.textContent = '判断卡读不到：' + (st?.error ?? ''); err.hidden = false; return; }
+    const avoid = st.active?.avoid ?? [];
+    const prefer = st.active?.prefer ?? [];
+    const conflicts = st.active?.conflicts ?? [];
+    live.textContent = `feed 现在按已采纳的卡筛：拉黑 ${avoid.length} 个词${avoid.length ? `（${avoid.join('、')}）` : ''} · 加权 ${prefer.length} 个词${prefer.length ? `（${prefer.join('、')}）` : ''}`
+      + (conflicts.length ? ` · 与你手写词表冲突 ${conflicts.length} 条，按你的来` : '');
+
+    list.replaceChildren();
+    const items = st?.items ?? [];
+    if (!items.length) { list.append(ui.placeholder('她还没提过判断卡')); return; }
+    for (const it of items) {
+      const row = ui.h('div', 'fb-row');
+      const head = ui.h('div', 'fb-issue');
+      head.append(
+        ui.pill(STANCE_LABEL[it.stance] ?? it.stance, it.stance === 'prefer' ? 'on' : 'off'),
+        ui.h('span', '', ` ${it.tokens.join('、')}`),
+      );
+      const meta = ui.h('div', 'fb-meta', [
+        it.day ?? (it.at ?? '').slice(0, 10),
+        `· ${it.scope}`,
+        it.status === 'adopted' ? '· 已采纳' : it.status === 'rejected' ? `· 已驳回${it.rejectedWhy ? `：${it.rejectedWhy}` : '（没写理由）'}` : '· 待采纳',
+        it.bvid ? `· ${it.bvid}` : '',
+      ].filter(Boolean).join(' '));
+      const reason = ui.h('div', 'fb-meta', '理由：' + it.reason);
+      const wrap = ui.h('div');
+      wrap.append(head, meta, reason);
+      row.append(wrap);
+
+      if (it.status === 'proposed') {
+        const acts = ui.actions();
+        acts.append(
+          ui.button('采纳', {
+            size: 'sm',
+            variant: 'primary',
+            onClick: () => {
+              void ctx.invoke<{ ok?: boolean; error?: string }>('adopt', [it.id])
+                .then((r) => { ui.toast(r?.ok ? '✓ 已采纳，下一轮 feed 按它筛' : r?.error ?? '失败', r?.ok ? 'ok' : 'bad'); poll(); })
+                .catch((e) => ui.toast(errText(e), 'bad'));
+            },
+          }),
+          ui.button('驳回', {
+            size: 'sm',
+            onClick: () => { askReject(it.id); },
+          }),
+        );
+        row.append(acts);
+      }
+      list.append(row);
+    }
+  };
+
+  /** 驳回要问她为什么——理由会回到她自己的账上，她下次才知道该怎么判。 */
+  // 面板内就地输入，不弹窗：框架的模态只有 confirm，填字一律走页面上的格子。
+  let rejectingId = '';
+  const whyRow = ui.rowbar();
+  const whyInput = ui.input({ placeholder: '为什么驳回（可以留空；留空就是没写，不替你想一个）' });
+  whyRow.hidden = true;
+  const askReject = (id: string): void => {
+    rejectingId = id;
+    whyRow.hidden = false;
+    whyInput.value = '';
+    whyInput.focus();
+  };
+  whyRow.append(
+    whyInput,
+    ui.button('确认驳回', {
+      size: 'sm',
+      onClick: () => {
+        const id = rejectingId;
+        if (!id) return;
+        void ctx.invoke<{ ok?: boolean; error?: string }>('reject', [id, whyInput.value.trim()])
+          .then((r) => {
+            ui.toast(r?.ok ? '已驳回' : r?.error ?? '失败', r?.ok ? 'ok' : 'bad');
+            rejectingId = ''; whyRow.hidden = true; poll();
+          })
+          .catch((e) => ui.toast(errText(e), 'bad'));
+      },
+    }),
+    ui.button('取消', { size: 'sm', onClick: () => { rejectingId = ''; whyRow.hidden = true; } }),
+  );
+  card.body.insertBefore(whyRow, list);
+
+  const poll = (): void => { void ctx.invoke<JudgmentState>('state').then(draw).catch((e) => { err.textContent = errText(e); err.hidden = false; }); };
   poll();
   ctx.interval(poll, POLL_MS * 2);
 }
@@ -575,6 +689,7 @@ export default {
     timeline: { mount(ctx: WebUiPanelContext) { ensureStyle(ctx.root); mountTimeline(ctx); } },
     diary: { mount(ctx: WebUiPanelContext) { ensureStyle(ctx.root); mountDiary(ctx); } },
     feedback: { mount(ctx: WebUiPanelContext) { ensureStyle(ctx.root); mountFeedback(ctx); } },
+    judgment: { mount(ctx: WebUiPanelContext) { ensureStyle(ctx.root); mountJudgment(ctx); } },
     policy: { mount(ctx: WebUiPanelContext) { ensureStyle(ctx.root); mountPolicy(ctx); } },
     vitals: { mount(ctx: WebUiPanelContext) { ensureStyle(ctx.root); mountVitals(ctx); } },
   },
