@@ -161,3 +161,13 @@ test('宿主没接挂载表：退回反推并自报"这是反推的"', async () 
   const second = await call(bare)
   assert.match(second.out, /- qq · 开 · 这轮没挂（从工具表反推的，看不见它未必代表没挂）/)
 })
+
+// 口径与授权要一致（意见箱 f-af013b）：主人当面说过"你想用哪些扩展也可以自己加的"，
+// 而清单里一句"别自己改"把她能做的事也否掉了。装/卸与改配置归主人，启用/停用是她的。
+test('手脚清单的口径：装/卸与改配置归主人，启用/停用她自己能点', async () => {
+  const decl = BILI_ACCOUNT.describe.tools.find((t) => t.name === 'bili_capabilities')
+  const zh = String(decl.summary?.zh ?? '')
+  assert.match(zh, /装\/卸/, '要写明装卸归主人')
+  assert.match(zh, /启用\/停用她自己能点/, '要写明启停是她能做的——否则又变成"别自己改"')
+  assert.doesNotMatch(zh, /装着的扩展、这份部署的开关（只读，启用与安装归主人）/, '旧口径把启停也算给主人了')
+})

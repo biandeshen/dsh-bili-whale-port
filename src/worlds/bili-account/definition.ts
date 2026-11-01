@@ -447,8 +447,11 @@ export function capabilityText(src: {
   else if (worldSwitches.size === 0) out.push('- config.json 里没有 worlds 段：哪些 World 挂上由 bot 的默认值决定（这轮挂上的见第一节〔〕分组）')
   for (const [id, on] of worldSwitches) out.push(`- ${id} · ${on ? '开' : '关'} · ${mountLine(id)}`)
 
+  // 口径按能力事实写：装/卸扩展、改配置归主人；**启用/停用**主人让她自己在扩展页点。
+  // 以前这里一句"别自己改"把后者也否掉了，跟她被明确告知的授权相反（f-af013b）。
   out.push('', `（来源：工具表=Core 这一轮装配的结果；扩展=${path.join(src.extDir, 'package.json')}；开关=${src.configFile ?? '无'}。`
-    + '哪一项该开、哪个扩展想试，写一条 bili_feedback 给主人，别自己改。）')
+    + '装/卸扩展和改配置归主人；启用或停用某个已装的扩展，主人让过她自己到扩展页点。'
+    + '想试某个扩展、或哪一项看起来该开，先在 bili_feedback 里写一句，让主人知道。）')
   return out.join('\n')
 }
 
@@ -466,7 +469,7 @@ const TOOL_SUMMARIES: Record<string, DescribeText> = {
   bili_feedback: { zh: '她的意见箱：add 记一条问题 / list 看清单 / resolve 标已解决（本地文件，不联网、不发帖）', en: 'Local issue box: add / list / resolve (never touches Bilibili).' },
   bili_like: { zh: '给她看完觉得好的视频点赞（自己发，过风控）', en: 'Like a video she enjoyed (self-sent, traffic-guarded).' },
   bili_fav: { zh: '收藏视频（自己发；五条判据+每天 3 条上限，不过就拒）', en: 'Favorite a video (self-sent; five criteria + 3/day cap, refuses on failure).' },
-  bili_capabilities: { zh: '看清自己此刻有什么手脚：能调的工具（读/写）、装着的扩展、这份部署的开关（只读，启用与安装归主人）', en: 'List the tools callable now, the installed extensions and this deployment\'s world switches (read-only).' },
+  bili_capabilities: { zh: '看清自己此刻有什么手脚：能调的工具（读/写）、装着的扩展、这份部署的开关（只读；装/卸与改配置归主人，启用/停用她自己能点）', en: 'List the tools callable now, the installed extensions and this deployment\'s world switches (read-only; install and config belong to the owner, enable/disable is hers to toggle).' },
   bili_alarm: { zh: '给自己设闹钟：到点带着那句话醒来，重启后也照响', en: 'Set an alarm for herself that survives restarts.' },
   bili_memory_void: { zh: '更正记忆：写错的那条可以盖作废章（不再被想起，但原文留着可复盘）；只准点名一条', en: 'Void one wrongly-recorded memory (it stops being recalled; text kept for review).' },
   bili_judgment: { zh: '判断卡：把你对片子的判断落成结构化的一条（立场+词+理由），主人在世界页采纳后才影响 feed；采纳与驳回只有主人能点', en: 'File a structured judgment card (stance + tokens + reason); it affects the feed only after the owner adopts it.' },

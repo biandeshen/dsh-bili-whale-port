@@ -2,7 +2,8 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # master 是实际在跑的分支（main 只是个旧名）。只挂 main 等于这些检查从来没跑过。
+    branches: [main, master]
   pull_request:
 
 concurrency:
@@ -44,8 +45,13 @@ jobs:
       - name: Typecheck (browser)
         run: pnpm run typecheck:web
 
-      - name: Tests
+      - name: Tests (vitest)
         run: pnpm test
+
+      # 仓库里还有一批 node:test 的 .mjs 行为测试（tests/*.test.mjs）。vitest 不认它们的
+      # 写法，以前只有本机 `pnpm run test:mjs` 跑得到，CI 里等于没有。
+      - name: Tests (node:test .mjs)
+        run: pnpm run test:mjs
 
       - name: Build WebUI bundle
         run: pnpm run build:web
