@@ -4,6 +4,7 @@ import { get, post, pickPath } from '../../core/api.ts';
 import { icon, brandMark } from '../../ui/icons.ts';
 import { pageIntro } from '../../ui/page.ts';
 import { renderMarkdown } from './markdown.ts';
+import { createConfigView } from '../config/view.ts';
 import type { FeatureContext, FrameworkFeature } from '../feature.ts';
 import { S } from './strings.ts';
 
@@ -479,6 +480,12 @@ export function mountExtensions(ctx: FeatureContext): void {
   };
   /** 正在安装或删除的包;同一个包的第二次操作等前一次回来。 */
   const busy = new Set<string>();
+  /**
+   * 激活失败的包 → 那句原话。它必须留在卡片上：2026-11-01 主人点了 Browser 的「激活」
+   * 什么都没发生，真因是 `/api/worlds/activation` 回了 400「worlds.browser.browser 没配」,
+   * 而那句话只闪成一条 toast——看不见就等于没反应。
+   */
+  const activationErrors = new Map<string, string>();
   let armed: (() => void) | null = null;
   const disarm = () => { armed?.(); armed = null; };
   const doc = root.ownerDocument;
@@ -1073,12 +1080,53 @@ export function mountExtensions(ctx: FeatureContext): void {
     try {
       await post('/api/worlds/activation', { id: item.worldId, enabled: want }, { signal });
       if (signal.aborted) return;
+      activationErrors.delete(identity);
       message(kind, 'management', want ? S.activatedDone(name) : S.deactivatedDone(name));
       if (!await load()) message(kind, 'management', S.syncedFailed, true);
     } catch (error) {
-      if (!signal.aborted) message(kind, 'management', S.activationFailed(errorText(error)), true);
+      if (!signal.aborted) {
+        // 留在卡片上，不等下一轮重渲染就看不见：激活被配置项卡住时，这就是唯一的线索。
+        activationErrors.set(identity, errorText(error));
+        message(kind, 'management', S.activationFailed(errorText(error)), true);
+        renderInstalled();
+      }
     } finally { busy.delete(identity); if (!signal.aborted) renderInstalled(); }
   }
+  /**
+   * 未启用 World 的配置就地给（复用运行诊断页那套 config 视图，按 owner 过滤）。
+   * 不这么做就是个死结：配置页只在自己的 World 页上画，而那个 World 不激活就没有页；
+   * 激活又要求先配好——主人在扩展页点「激活」于是只看到一个不动的按钮。
+   * 展开时才发请求（一张卡片一次），并且挡住卡片本身的点击，别填个字段就弹出抽屉。
+   */
+  function worldConfigSection(item: ExtensionView, open: boolean): HTMLElement {
+    const box = doc.createElement('details');
+    box.className = 'extension-world-config';
+    box.open = open;
+    const sum = doc.createElement('summary');
+    sum.textContent = S.worldConfigTitle(item.worldId ?? '');
+    const holder = ui.h('div', 'extension-world-config-body');
+    let loaded = false;
+    box.addEventListener('toggle', () => {
+      if (!box.open || loaded) return;
+      loaded = true;
+      const view = createConfigView({ ui, lifecycle, signal, filter: (g) => g.owner === 'world:' + item.worldId, showOwner: false });
+      holder.replaceChildren(view.el);
+      void view.load();
+    }, { signal });
+    box.addEventListener('click', event => event.stopPropagation(), { signal });
+    if (open) {
+      loaded = true;
+      const view = createConfigView({ ui, lifecycle, signal, filter: (g) => g.owner === 'world:' + item.worldId, showOwner: false });
+      holder.replaceChildren(view.el);
+      void view.load();
+    }
+    box.append(sum, holder);
+    return box;
+  }
+
+  /**
+   * 装着但没启用的 World 一律就地给配置与开关；激活失败那句留在卡上。
+   */
   function installedCard(item: ExtensionView) {
     const card = ui.h('article', 'extension-card extension-installed-card' + (item.enabled ? ' is-enabled' : ''));
     card.tabIndex = 0; card.setAttribute('aria-label', item.metadata?.displayName ?? item.label ?? item.name);
@@ -1130,6 +1178,10 @@ export function mountExtensions(ctx: FeatureContext): void {
     if (why) card.append(ui.h('div', 'extension-secondary extension-reason', why));
     const footer = ui.h('div', 'extension-status-row'); footer.append(status);
     const label = item.metadata?.displayName ?? item.label ?? item.name;
+    // 激活失败的原因留在卡片上（toast 会消失，"点了没反应"就是这么来的）
+    const actErr = activationErrors.get(item.name);
+    if (actErr) card.append(ui.msgline(S.activationOnCard(actErr), true));
+    if (item.kind === 'world' && item.worldId && item.enabled === false) card.append(worldConfigSection(item, !!actErr));
     if (item.kind === 'world' && item.worldId && item.state !== 'removed') {
       // 停用是"把她正在用的手脚撤下去"，所以与删除一样要按两次；启用一步就行。
       const want = !item.enabled;

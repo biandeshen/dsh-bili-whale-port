@@ -73,6 +73,7 @@ function stub(over: {
   list?: unknown; updates?: unknown; updateStatus?: number; installStatus?: number; checkStatus?: number;
   hits?: unknown; detail?: Any; detailStatus?: number; restart?: unknown; onInstall?: (body: Any) => void;
   activationStatus?: number; activationError?: string; onActivation?: (body: Any) => void;
+  config?: unknown;
 } = {}): void {
   vi.stubGlobal('fetch', (url: unknown, init: Any) => {
     const u = String(url);
@@ -93,6 +94,7 @@ function stub(over: {
     }
     else if (u === '/api/extensions/install') { status = over.installStatus ?? 200; if (status === 200) over.onInstall?.(JSON.parse(init.body)); body = status === 200 ? { ok: true, result: '已安装 x。重启进程后加载。\n+ x 1.0.0' } : { error: 'pnpm add 退出码 1' }; }
     else if (u === '/api/extensions/uninstall') body = { ok: true, result: '已卸载 x。' };
+    else if (u === '/api/config') body = over.config ?? { groups: [] };
     else if (u === '/api/worlds/activation') {
       const payload = JSON.parse(init.body);
       status = over.activationStatus ?? 200;
@@ -680,5 +682,46 @@ describe('extension card and history controls', () => {
     const prov = cardOf(root, 'gamma-prov');
     expect([...prov.querySelectorAll('button')].some(b => /激活|停用/.test(b.textContent ?? ''))).toBe(false);
     expect(prov.textContent).toContain('模型供应商');
+  });
+
+  // 真机：主人点 Browser 的「激活」→ 什么也没发生。实际是 /api/worlds/activation 回了
+  // 400「worlds.browser.browser 没配」，而那句话只闪成 toast；更糟的是配置页只画在
+  // "已激活的 World 的页面上"，不激活就没页 —— 死结。
+  const BROWSER_ITEM = { name: 'cortico-world-browser', spec: '^0.4.1', version: '0.4.1', kind: 'world', api: 6, webUiClient: true, loaded: true, enabled: false, worldId: 'browser', label: 'Browser', state: 'loaded' };
+  const BROWSER_CONFIG = {
+    groups: [{
+      group: { id: 'world:browser', owner: 'world:browser', schema: { type: 'object', title: 'Browser', properties: { 'worlds.browser.browser': { type: 'string', title: '浏览器', description: 'chrome / edge / chromium', enum: ['chrome', 'edge', 'chromium'], 'x-hot': false } } } },
+      values: { 'worlds.browser.browser': 'chrome' },
+    }],
+  };
+
+  it('未启用的 World 卡片带着自己的配置区（不激活也能填）', async () => {
+    stub({ list: { ...LIST, extensions: [BROWSER_ITEM] }, config: BROWSER_CONFIG });
+    const { root } = mount(); await flush();
+    const box = cardOf(root, 'Browser').querySelector('.extension-world-config') as HTMLDetailsElement | null;
+    expect(box).toBeTruthy();
+    expect(box!.querySelector('summary')?.textContent).toContain('worlds.browser');
+    // 展开才发请求：一屏卡片不该各拉一次全量配置
+    expect(calls.some(c => c.url === '/api/config')).toBe(false);
+  });
+
+  it('激活被缺配置挡住：原因留在卡片上，并把配置区摊开', async () => {
+    stub({
+      list: { ...LIST, extensions: [BROWSER_ITEM] }, config: BROWSER_CONFIG,
+      activationStatus: 400, activationError: 'worlds.browser.browser 没配。填 chrome / edge / chromium——必须是你要操作的那一个。',
+    });
+    const { root } = mount(); await flush();
+    button(cardOf(root, 'Browser'), '激活').click(); await flush(40);
+    // 失败后卡片是重画过的，必须重新取节点（旧引用已经脱离文档）
+    const card = cardOf(root, 'Browser');
+    expect(card.textContent).toContain('激活没成');
+    expect(card.textContent).toContain('worlds.browser.browser 没配');
+    expect(card.textContent).toContain('再点一次「激活」');
+    const box = card.querySelector('.extension-world-config') as HTMLDetailsElement;
+    expect(box.open).toBe(true);
+    await flush(40);
+    expect(calls.some(c => c.url === '/api/config')).toBe(true);
+    expect(box.textContent).toContain('浏览器');
+    expect(box.textContent).toContain('chrome / edge / chromium');
   });
 });
