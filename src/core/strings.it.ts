@@ -40,10 +40,6 @@ export const coreGroupText: Partial<typeof coreGroupEn> = {
     title: 'Soglie file per area',
     description: "`area=livello` separati da virgole, ad esempio `core.loop=trace,console=warn`; `.*` è supportato. Si applica il prefisso corrispondente più lungo. Le aree senza corrispondenza usano la soglia predefinita.",
   },
-  usageRate: {
-    title: (code: string) => `Cambio del report di utilizzo: ${code}`,
-    description: 'Cambio con cui il report di utilizzo converte tra USD e questa valuta: quanto vale 1 USD in essa, all’inizio il cambio medio del 2026-10-10. 0 esclude questa valuta dalla conversione.',
-  },
 };
 export const validationText: Partial<typeof validationEn> = {
   notNumber: (label: string) => `${label} deve essere un numero`,
@@ -55,4 +51,6 @@ export const validationText: Partial<typeof validationEn> = {
   second: (label: string) => `${label} (secondo valore)`,
   pairOrder: (label: string) => `${label}: il primo valore non può superare il secondo`,
   empty: (label: string) => `${label}: il valore non può essere vuoto`,
+  unknownKeys: (group: string, keys: string, declared: string) => `Il gruppo di impostazioni ${group} non dichiara ${keys}; chiavi scrivibili: ${declared}`,
+  didYouMean: (key: string, path: string) => `${key} (forse intendevi ${path}?)`,
 };

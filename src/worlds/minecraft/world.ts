@@ -6,7 +6,7 @@
  * 语义文本化投递，prismarine-viewer 画面由 OBS 采集。将 "minecraft" 列入
  * worlds.vtuber.delayedSources 可延迟 vtuber 侧投递，避免画面先行。
  */
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type {
@@ -18,7 +18,7 @@ import { selfDamageText, takeSelfDamage } from './damage-source.ts';
 import { readMapDat } from './level-dat.ts';
 import { readMapId } from './item-facts.ts';
 import { Vec3 } from 'vec3';
-import { nowIso, SYSTEM_TIMEZONE } from '../../core/util.ts';
+import { nowIso, SYSTEM_TIMEZONE, readTextFile } from '../../core/util.ts';
 import { Bridge } from './bridge.ts';
 import {
   REPEATED_QUERY_RECEIPT, RoundOnceGate, roundTokenOf,
@@ -1627,7 +1627,7 @@ export class BlueprintBook {
     if (!this.file || !existsSync(this.file)) return;
     let data: BlueprintCacheFile;
     try {
-      const raw = readFileSync(this.file, 'utf8').trim();
+      const raw = readTextFile(this.file).trim();
       if (!raw) return;
       data = JSON.parse(raw) as BlueprintCacheFile;
     } catch (e) {
@@ -3164,7 +3164,7 @@ export class MinecraftWorld implements World {
       // 上下文截断时读取当前非默认设置，同时注明被蓝图预留收口的垫脚料。
       'minecraft.policy': renderPolicyEnv(this.policy.get(), false, this.blueprintHeldScaffold()),
       'minecraft.camera': this.cfg.client.enabled
-        ? readFileSync(CAMERA_NOTE_FILE, 'utf8').trim()
+        ? readTextFile(CAMERA_NOTE_FILE).trim()
         : '',
     };
   }
@@ -5314,7 +5314,7 @@ export class MinecraftWorld implements World {
     let prev: string | null = null;
     if (this.worldFile) {
       try {
-        prev = (JSON.parse(readFileSync(this.worldFile, 'utf8')) as { world?: string }).world ?? null;
+        prev = (JSON.parse(readTextFile(this.worldFile)) as { world?: string }).world ?? null;
       } catch { /* 首次或文件缺损:当作没有上一个世界 */ }
       if (prev !== cur) {
         try {
@@ -5549,17 +5549,31 @@ export class MinecraftWorld implements World {
     this.hookedBots.add(bot);
 
     // 爆炸仅写 diag，不投递成文事件。
+    // 包里没有的半径、炸掉格数记 null,文案省掉那一段。
     bot._client.on('explosion', (packet: {
-      x: number; y: number; z: number; radius: number; affectedBlockOffsets: unknown[];
+      /** 1.21.9 之前的爆心 */
+      x?: number; y?: number; z?: number;
+      /** 1.21.9 起的爆心 */
+      center?: { x: number; y: number; z: number };
+      /** 1.21.2–1.21.8 不发 */
+      radius?: number;
+      /** 1.21.2 之前 */
+      affectedBlockOffsets?: unknown[];
+      /** 1.21.9 起 */
+      blockCount?: number;
     }) => {
+      const { x, y, z } = (packet.center ?? packet) as { x: number; y: number; z: number };
+      const radius = packet.radius ?? null;
+      const affected = packet.blockCount ?? packet.affectedBlockOffsets?.length ?? null;
       const at = bot.entity?.position;
-      const distance = at ? Math.hypot(at.x - packet.x, at.y - packet.y, at.z - packet.z) : null;
-      const affected = packet.affectedBlockOffsets.length;
+      const distance = at ? Math.hypot(at.x - x, at.y - y, at.z - z) : null;
       this.diag.write({
         lane: 'world', event: 'explosion',
-        msg: `爆炸:(${Math.round(packet.x)}, ${Math.round(packet.y)}, ${Math.round(packet.z)}) 半径 ${packet.radius.toFixed(1)}`
-          + `,炸掉 ${affected} 格${distance === null ? '' : `,离我 ${distance.toFixed(1)} 格`}`,
-        data: { x: packet.x, y: packet.y, z: packet.z, radius: packet.radius, affected, distance },
+        msg: `爆炸:(${Math.round(x)}, ${Math.round(y)}, ${Math.round(z)})`
+          + (radius === null ? '' : ` 半径 ${radius.toFixed(1)}`)
+          + (affected === null ? '' : `,炸掉 ${affected} 格`)
+          + (distance === null ? '' : `,离我 ${distance.toFixed(1)} 格`),
+        data: { x, y, z, radius, affected, distance },
       });
     });
     if (typeof bot.inventory?.on === 'function') {

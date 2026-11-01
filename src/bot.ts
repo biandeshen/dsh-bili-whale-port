@@ -1,5 +1,5 @@
 /** 装配 Core、Persona、World 与 WebUI；具体 bot 的配置和行为由 BotDefinition 提供。 */
-import { existsSync, mkdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import type {
@@ -17,7 +17,7 @@ import type {
   ToolSchema,
 } from './core/types.ts';
 import type { LoadedConfig } from './core/config.ts';
-import { coreConfigGroup, usageRates } from './core/config.ts';
+import { coreConfigGroup } from './core/config.ts';
 import { resolveLanguage, type Language } from './core/language.ts';
 import { botText } from './strings.ts';
 import { updateJsonObject } from './config-file.ts';
@@ -34,7 +34,8 @@ import type { ResponseClient } from './core/generation.ts';
 import { acquireInstanceLock, type InstanceLock } from './core/instance-lock.ts';
 import { assembleSystemSegments, envPromptOverridePath, envPromptTemplateSource, renderWorldEnvPrompt, type EnvPromptDirs, type EnvPromptOrigin } from './core/prefix.ts';
 import { aggregateUsage } from './core/cost.ts';
-import { DeadlineError, nowIso, withDeadline } from './core/util.ts';
+import { createUsageRates } from './core/usage-rates.ts';
+import { DeadlineError, nowIso, withDeadline, readTextFile } from './core/util.ts';
 import { closeRun } from './core/run.ts';
 import { ProviderHub } from './providers/webui/hub.ts';
 import { ProviderSettings } from './providers/webui/settings.ts';
@@ -382,7 +383,7 @@ function derivePrompts<C extends CoreConfig>(
     return out;
   };
 
-  const readSource = (path: string): string => (existsSync(path) ? readFileSync(path, 'utf8') : '');
+  const readSource = (path: string): string => (existsSync(path) ? readTextFile(path) : '');
 
   const readDoc = (d: Doc, values: Record<string, string>): PromptDocument => {
     const { readPath, origin } = sourceOf(d);
@@ -477,7 +478,13 @@ export function deriveWorldFacts(
     }
     const label = decl?.label ?? assembly.labelIn(slot.id, language);
     if (!slot.mounted) {
-      return { id: slot.id, status: 'inactive' as const, label, declared: slot.declared };
+      return {
+        id: slot.id,
+        status: 'inactive' as const,
+        label,
+        declared: slot.declared,
+        ...(slot.failure ? { reason: slot.failure(language) } : {}),
+      };
     }
     return {
       id: m.id,
@@ -523,11 +530,11 @@ const BUILTIN_AUTHOR = 'phantivia';
  * 以及不来自扩展的 provider 模块。World 的状态取本进程的装配。
  */
 export function builtinExtensions(assembly: WorldAssembly, set: ExtensionSet, language: Language): ExtensionInfo[] {
-  const pkg = JSON.parse(readFileSync(join(repoRoot(), 'package.json'), 'utf8')) as ExtensionPackageJson;
+  const pkg = JSON.parse(readTextFile(join(repoRoot(), 'package.json'))) as ExtensionPackageJson;
   const version = pkg.version ?? null;
   const common = {
     spec: 'builtin', version, installedVersion: version, webUiClient: false, builtin: true,
-    author: BUILTIN_AUTHOR, metadata: packageMetadata(pkg), location: repoRoot(),
+    author: BUILTIN_AUTHOR, metadata: packageMetadata(pkg, language), location: repoRoot(),
   } as const;
   const external = new Set(set.worlds.map((world) => world.id));
   const candidates = [...assembly.definitions, ...assembly.slots.filter((slot) => !slot.definition)];
@@ -892,16 +899,22 @@ export function createBot<C extends CoreConfig>(
       const slot = assembly.slots.find((item) => item.id === worldId);
       undeclared.event(`worlds.${worldId}`, slot?.definition?.describe?.events, type);
     },
+    onWorldFailed: (failure) => assembly.failed(failure),
   });
   undeclared.tools('persona', definition.describe?.tools, parts.persona.ownToolNames?.() ?? []);
 
+  // 运行中读取失败的事件从主循环建前缀时发出,钩子的异常不能穿过主循环
   const notifyLifecycle = (event: WorldLifecycleEvent): void => {
-    parts.persona.onWorldLifecycle?.(event);
+    try {
+      parts.persona.onWorldLifecycle?.(event);
+    } catch (error) {
+      core.runlog.logger('persona').warn('onWorldLifecycle 失败', { kind: event.kind, id: event.id, err: error instanceof Error ? error.message : String(error) });
+    }
   };
   assembly.bind({
     mount: async (mod) => {
       await core.mountWorld(mod);
-      checkWorldTools(mod);
+      if (assembly.mounted.includes(mod)) checkWorldTools(mod);
     },
     unmount: async (id) => { await core.unmountWorld(id); },
     lifecycle: notifyLifecycle,
@@ -993,6 +1006,7 @@ export function createBot<C extends CoreConfig>(
         ...deriveSlotStorage(assembly, language),
       ];
     };
+    const liveRates = createUsageRates();
     webApp = new WebApp({
       store: core.store,
       memoryDir: loaded.memoryDir,
@@ -1006,7 +1020,13 @@ export function createBot<C extends CoreConfig>(
       defaultScheme: cfg.web.theme,
       sessions: core.sessions,
       storage: webUiStorage,
-      usage: { aggregate: (opts) => aggregateUsage(core.usageLog.readAll(), { ...opts, timezone: core.config.timezone, rates: usageRates(core.config) }), status: () => core.usageLog.status() },
+      usage: {
+        aggregate: async (opts) => {
+          const { rates, sources } = await liveRates.resolve();
+          return { ...aggregateUsage(core.usageLog.readAll(), { ...opts, timezone: core.config.timezone, rates }), rateSources: sources };
+        },
+        status: () => core.usageLog.status(),
+      },
       config: {
         groups: (language) => allConfigGroups(language).map((group) => ({ group, values: group.owner.startsWith('provider:') ? providerSettings.values(group.id, language) : readGroupValues(cfg, group) })),
         set: (groupId: string, values: ConfigValues, language) => {
@@ -1162,7 +1182,7 @@ export function createBot<C extends CoreConfig>(
       if (orphans.length) core.runlog.logger('provider').warn('端点条目没有对应的 Provider 模块,不可用', { orphans });
       if (cfg.activeProvider && cfg.providers[cfg.activeProvider]) void core.providers.start(cfg.activeProvider).catch(error=>core.runlog.logger('provider').error('Provider 启动失败',{error:String(error)}));
       await parts.onStart?.({ core, loaded, port });
-      await core.start();
+      for (const failure of await core.start()) assembly.startFailed(failure.worldId, failure.detail);
       app?.markReady();
       return { port };
     },
@@ -1287,12 +1307,13 @@ async function runShutdown<C extends CoreConfig>(ctx: {
       externalChecks: externalChecks.map((check) => `${check.label}=${check.status}`),
     },
   });
-  closeRun(ctx.core.run, {
+  const indexError = closeRun(ctx.core.run, {
     endedAt: nowIso(ctx.core.config.timezone),
     lastCursor: ctx.core.store.latestCursor(),
     complete,
     reason: ctx.reason,
   });
+  if (indexError) ctx.log.emit('error', '关机记录没写进 runs/index.jsonl', { event: 'run-index', data: { error: indexError } });
   return { reason: ctx.reason, localComplete, complete, steps, externalChecks };
 }
 

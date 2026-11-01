@@ -63,7 +63,8 @@ piggyback 只入队，随后续唤醒一起投递。
 ## 主循环
 
 每次唤醒处理一批事件，可进行多轮模型调用。`SessionDecl.rounds()` 提供
-`{ soft, hard, softHint? }`：到 soft 轮时将 `softHint` 追加到最后一条工具回执；到 hard 轮时
+`{ soft, hard, softHint? }`：到 soft 与 hard − 1 中较小的那一轮时将 `softHint` 追加到最后一条
+工具回执(soft 不小于 hard 时提前到 hard 的前一轮，留一轮照着收尾)；到 hard 轮时
 记录 warn 并结束本批。`endsTurn` 工具和自然结束共用结束处理；本批结束时尚未处理的事件
 退回总线，进入下一批。WebUI 的前缀重载与清空 session 在批次边界执行：正在处理批次时等该批
 结束，空闲时立即；并发请求复用同一事务。
@@ -86,7 +87,7 @@ piggyback 只入队，随后续唤醒一起投递。
 返回当前值。暂停与投递闸门不进入 `RunPhase`,由 `paused`、`scheduleBlocked` 报告。
 
 参数不是合法 JSON 时返回 `TOOL_FAILED_BAD_ARGS`，不执行工具；未知工具返回 `UNKNOWN_TOOL`；
-handler 抛错，或返回值既不是字符串也不是带字符串 text 的对象，都转为失败回执。流式生成时 `EagerDispatch` 可提前执行完整的工具调用，遵守
+handler 抛错，或返回值既不是字符串也不是带字符串 text 的对象，都转为失败回执。有 `outputTap` 时 `EagerDispatch` 可提前执行完整的工具调用，遵守
 `barrierAfter` 顺序，并按 call id 配对结果。回执超过 8000 字符时记录 warn。
 
 ## 上下文
@@ -104,8 +105,14 @@ handler 抛错，或返回值既不是字符串也不是带字符串 text 的对
 
 ## 错误隔离
 
-装配层将 World 构造失败限制在该 World。`start()` 抛错时不挂载；`stop()` 失败或超时会记录
-结果并继续卸载。`onOpening`、`onDelivery`、`onBatchEnd`、`onTurnEnded`、`onIdle` 异常记录
+装配层将 World 构造失败限制在该 World。启动期 `start()` 抛错的 World 记 error、移出挂载表并带理由回到
+未激活,经 `Persona.onWorldLifecycle` 报一次 `start-failed`,其余 World 照常启动,`enabled` 不变,下次启动再试;
+运行期激活时 `start()` 抛错回滚 `enabled`,不报事件。
+构建前缀或工具表时读取一个已挂载 World 的 `envPromptVars()` 或 `tools()` 抛错:Core 把它移出挂载表、
+作废租约、限时 `stop()`,这次构建不含它,其余 World 照常;装配层带理由把槽位回到未激活,`enabled` 不变,
+报一次 `failed`。恢复已有 session 时若工具读取失败而卸载 World,首个请求前重建 system 前缀,保留历史消息。
+工具流水的 World 归属取自建工具表时读到的工具名。
+`stop()` 失败或超时会记录结果并继续卸载。`onOpening`、`onDelivery`、`onBatchEnd`、`onTurnEnded`、`onIdle` 异常记录
 warn；`onHandoff` 异常记录 error 并使用默认交接策略。其他钩子的异常由调用方处理。
 读取 `webUi()` 失败时省略该 World 的环境段，继续构建前缀。主循环异常退出时记录 event 为 `loop-exit` 的 error
 并停止定时器，进程不退出;宿主按这个 event 决定是否重启。启动器处理未捕获的进程异常并执行关机流程。

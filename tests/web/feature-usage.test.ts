@@ -5,6 +5,7 @@
  */
 
 import { describe, expect, it, vi, afterEach } from 'vitest';
+import { extendMiniElement } from './mini-dom.ts';
 
 const CHART = '../../src/web/client/features/usage/chart.ts';
 const RANGE = '../../src/web/client/features/usage/range.ts';
@@ -283,6 +284,8 @@ class FakeWindow {
     return { getPropertyValue: (k: string): string => vars[k] ?? '' };
   }
 }
+
+extendMiniElement(FakeEl);
 
 class FakeDoc {
   listeners = new Listeners();
@@ -636,20 +639,20 @@ describe('标签与配色', () => {
 // ---------------------------------------------------------------------------
 
 describe('格式化', () => {
-  it('fmtMetric：成本带币种、调用带次、token 走 k 口径', async () => {
+  it('fmtMetric：成本两位小数带币种符号、调用带次、token 走 k 口径', async () => {
     const c = (await import(CHART)) as Any;
-    expect(c.fmtMetric(0.5, 'cost')).toBe('$0.5000');
+    expect(c.fmtMetric(0.5, 'cost')).toBe('$0.50');
     expect(c.fmtMetric(12.345, 'cost')).toBe('$12.35');
-    expect(c.fmtMetric(1.5, 'cost', 'EUR')).toBe('EUR 1.50');
+    expect(c.fmtMetric(1.5, 'cost', 'EUR')).toBe('€1.50');
     expect(c.fmtMetric(3.7, 'calls')).toBe('4 次');
     expect(c.fmtMetric(9999, 'tokens')).toBe('9999 tok');
     expect(c.fmtMetric(12345, 'tokens')).toBe('12.3k tok');
   });
 
-  it('fmtAxis：比读数短一截，不带单位；成本 <1 保三位', async () => {
+  it('fmtAxis：不带单位；成本两位小数', async () => {
     const c = (await import(CHART)) as Any;
-    expect(c.fmtAxis(0.125, 'cost')).toBe('0.125');
-    expect(c.fmtAxis(2.5, 'cost')).toBe('2.5');
+    expect(c.fmtAxis(0.125, 'cost')).toBe('0.13');
+    expect(c.fmtAxis(2.5, 'cost')).toBe('2.50');
     expect(c.fmtAxis(3.6, 'calls')).toBe('4');
     expect(c.fmtAxis(12345, 'tokens')).toBe('12.3k');
   });
@@ -1033,17 +1036,42 @@ describe('用量页挂载', () => {
 
   it('记住的币种服务端不再提供 → 退回自动并忘掉偏好，不留下一个空着的选择框', async () => {
     const view = new FakeWindow();
-    view.localStorage.setItem('cortico:usage-currency:v1', 'CNY');
+    // 币种偏好经 createMemo 存在页面的 localStorage 里
+    vi.stubGlobal('localStorage', view.localStorage);
+    view.localStorage.setItem('cortico.usage.currency', JSON.stringify('CNY'));
+    vi.resetModules();
     stubFetch({ '/api/usage': { ...sample(), currency: 'USD', currencies: ['USD'] } });
     const { ctx, root } = await mkCtx({ usage: true }, view);
     const { mountUsage } = (await import(USAGE)) as Any;
     mountUsage(ctx);
     await flush();
 
-    expect(view.localStorage.getItem('cortico:usage-currency:v1')).toBe('');
+    expect(JSON.parse(view.localStorage.getItem('cortico.usage.currency')!)).toBe('');
     expect(currencyPicker(root).value).toBe('');
     expect(seen.at(-1)).toContain('currency=');
     expect(seen.at(-1)).not.toContain('currency=CNY');
+  });
+
+  it('换算币种旁只读显示汇率与出处', async () => {
+    const live = { kind: 'live', feed: 'Feed', site: 'https://feed.example', date: '2026-10-25' };
+    stubFetch({ '/api/usage': { ...sample(), currency: 'CNY', currencies: ['USD', 'CNY'], rates: { CNY: 6.689203 }, rateSources: { CNY: live } } });
+    const { ctx, root } = await mkCtx({ usage: true });
+    const { mountUsage } = (await import(USAGE)) as Any;
+    mountUsage(ctx);
+    await flush();
+    const box = root.find('urate')!;
+    expect(box.hidden).toBe(false);
+    expect(box.findAllTag('input')).toEqual([]);
+    expect(box.textContent).toBe('$1 = ¥6.6892Feed 2026-10-25');
+  });
+
+  it('汇率来自内置值时写明内置日期', async () => {
+    stubFetch({ '/api/usage': { ...sample(), currency: 'CNY', currencies: ['USD', 'CNY'], rates: { CNY: 6.69 }, rateSources: { CNY: { kind: 'builtin', date: '2026-10-10' } } } });
+    const { ctx, root } = await mkCtx({ usage: true });
+    const { mountUsage } = (await import(USAGE)) as Any;
+    mountUsage(ctx);
+    await flush();
+    expect(root.find('ursrc')!.textContent).toBe('内置 2026-10-10');
   });
 
   it('刷新失败时保留上一次结果，整块标为过期并写明失败原因', async () => {
@@ -1107,21 +1135,6 @@ describe('用量页挂载', () => {
     root.findButton('刷新')!.dispatchEvent({ type: 'click' });
     await flush();
     expect(seen.length).toBe(1);
-  });
-
-  it('粒度选「自动」时选择器旁写出服务端实际用的粒度，选了具体粒度就收起', async () => {
-    stubFetch({ '/api/usage': sample() });
-    const { ctx, root } = await mkCtx({ usage: true });
-    const { mountUsage } = (await import(USAGE)) as Any;
-    mountUsage(ctx);
-    await flush();
-    const note = root.find('uauto')!;
-    expect(note.hidden).toBe(false);
-    expect(note.textContent).toBe('自动(按天)');
-
-    root.findButton('时')!.dispatchEvent({ type: 'click' });
-    await flush();
-    expect(note.hidden).toBe(true);
   });
 
   it('日期框常驻：切到「自定义」沿用当前范围；改日期即切到自定义档并按新日期取数', async () => {

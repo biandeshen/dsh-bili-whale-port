@@ -2,10 +2,11 @@
  * 一次进程运行对应一个 run，运行日志保存在 data/runs/<run>/。
  * index.jsonl 在启动与正常关机时各追加一行；暂停沿用 run，重启创建新 run。
  */
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
-import { nowIso } from './util.ts';
+import { nowIso, readTextFile } from './util.ts';
+import { retryBusy } from './fs-busy.ts';
 
 export interface RunInfo {
   id: string;
@@ -13,6 +14,8 @@ export interface RunInfo {
   runsDir: string;
   startedAt: string;
   previousRun: string | null;
+  /** 开机那行没写进 index.jsonl 的原因;index 只是索引，缺一行不影响运行。 */
+  indexError?: string;
 }
 
 export interface RunOpenMeta {
@@ -48,14 +51,14 @@ export function listRuns(dataDir: string): string[] {
 function gitSha(repoRoot: string | undefined): string | null {
   if (!repoRoot) return null;
   try {
-    const head = readFileSync(join(repoRoot, '.git', 'HEAD'), 'utf8').trim();
+    const head = readTextFile(join(repoRoot, '.git', 'HEAD')).trim();
     if (!head.startsWith('ref:')) return head.slice(0, 12);
     const ref = head.slice(4).trim();
     const refFile = resolve(repoRoot, '.git', ref);
-    if (existsSync(refFile)) return readFileSync(refFile, 'utf8').trim().slice(0, 12);
+    if (existsSync(refFile)) return readTextFile(refFile).trim().slice(0, 12);
     const packed = join(repoRoot, '.git', 'packed-refs');
     if (!existsSync(packed)) return null;
-    for (const line of readFileSync(packed, 'utf8').split('\n')) {
+    for (const line of readTextFile(packed).split('\n')) {
       const [sha, name] = line.trim().split(' ');
       if (name === ref) return sha.slice(0, 12);
     }
@@ -69,7 +72,7 @@ function gitSha(repoRoot: string | undefined): string | null {
 function lastIndexedRun(runsDir: string): string | null {
   const file = join(runsDir, 'index.jsonl');
   if (!existsSync(file)) return null;
-  const lines = readFileSync(file, 'utf8').split('\n');
+  const lines = retryBusy(() => readTextFile(file)).split('\n');
   for (let i = lines.length - 1; i >= 0; i--) {
     if (!lines[i].trim()) continue;
     try {
@@ -92,20 +95,30 @@ export function openRun(dataDir: string, meta: RunOpenMeta): RunInfo {
   const id = `r-${stamp.slice(0, 8)}-${stamp.slice(8, 14)}-${randomBytes(2).toString('hex')}`;
   const dir = join(runsDir, id);
   mkdirSync(dir, { recursive: true });
-  appendFileSync(join(runsDir, 'index.jsonl'), JSON.stringify({
+  const indexError = appendIndex(runsDir, {
     run: id,
     startedAt,
     bot: meta.bot,
     pid: process.pid,
     gitSha: gitSha(meta.repoRoot),
     previousRun,
-  }) + '\n', 'utf8');
-  return { id, dir, runsDir, startedAt, previousRun };
+  });
+  return { id, dir, runsDir, startedAt, previousRun, ...(indexError ? { indexError } : {}) };
 }
 
-/** 追加关机记录；进程异常结束时可能没有该行，查询方需从已有记录推算结束时间。 */
-export function closeRun(run: RunInfo, summary: RunCloseSummary): void {
-  appendFileSync(join(run.runsDir, 'index.jsonl'), JSON.stringify({ run: run.id, ...summary }) + '\n', 'utf8');
+/** 追加关机记录，写不进时返回原因；进程异常结束时可能没有该行，查询方需从已有记录推算结束时间。 */
+export function closeRun(run: RunInfo, summary: RunCloseSummary): string | undefined {
+  return appendIndex(run.runsDir, { run: run.id, ...summary });
+}
+
+/** 文件被别的程序占着时按 retryBusy 退避，仍写不进就返回原因，不抛出。 */
+function appendIndex(runsDir: string, line: Record<string, unknown>): string | undefined {
+  try {
+    retryBusy(() => appendFileSync(join(runsDir, 'index.jsonl'), JSON.stringify(line) + '\n', 'utf8'));
+    return undefined;
+  } catch (e) {
+    return e instanceof Error ? e.message : String(e);
+  }
 }
 
 /** run.json 保存本次运行的 World 清单与配置指纹。 */

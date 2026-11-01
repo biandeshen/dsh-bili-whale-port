@@ -35,7 +35,7 @@ export interface UsagePoint extends UsageAccum {
  * 按 role / model 分组的合计。
  *
  * `key` 是不透明 id（角色 id 由Persona定义，模型名由供应商定义），
- * `label` 是**声明方随数据给的人话名**。WebUI 不为任何一个 id 备一张中文名表——
+ * `label` 是**声明方随数据给的人话名**。控制台不为任何一个 id 备一张中文名表——
  * 备了就等于把某个具体 bot 的角色集写进了框架。给不出 label 时原样显示 `key`。
  */
 export interface UsageGroupStat extends UsageAccum {
@@ -50,13 +50,19 @@ export type UsageBucketUnit = 'minute' | 'hour' | 'day' | 'week' | 'month';
 /** 请求粒度：具体粒度或 `auto`（按跨度自适应）。 */
 export type UsageBucketOption = UsageBucketUnit | 'auto';
 
+export type UsageRateSource =
+  | { kind: 'live'; feed: string; site: string; date: string }
+  | { kind: 'builtin'; date: string };
+
 export interface UsageAggregate {
   ledger?: { pending: number; error: string | null };
   currency?: string;
   /** 这个计价基础下能显示的币种：有原价的，加上能换算到的。 */
   currencies?: string[];
-  /** 1 USD 合多少该币种，来自 Core 配置 `usage.rates`。 */
+  /** 1 USD 合多少该币种。 */
   rates?: Record<string, number>;
+  /** 各币种汇率的出处：实时接口或内置值。 */
+  rateSources?: Record<string, UsageRateSource>;
   basis?: 'marginal' | 'equivalent';
   balances?: Array<{ currency: string; basis: 'marginal' | 'equivalent'; knownAmount: number; pricedCalls: number; partialCalls: number }>;
   successful?: UsageAccum;
@@ -67,6 +73,8 @@ export interface UsageAggregate {
   timezone?: string | null;
   /** 首末桶之间连续,没有调用的桶也在。 */
   series?: UsagePoint[];
+  /** 逐日的输入加输出 token 合计；请求带 `dailyTokenDays` 时才有，窗口内没有记录时为空。 */
+  dailyTokens?: UsageDailyTokens[];
   /** `usage` 未挂载时为 null。 */
   totals?: UsageGroupStat | null;
   byRole?: UsageGroupStat[];
@@ -75,8 +83,6 @@ export interface UsageAggregate {
   byInstance?: UsageGroupStat[];
   /** 失败、丢弃和中断均计入 totals；此字段用于核对失败消耗。 */
   failed?: UsageAccum;
-  /** 逐日的输入加输出 token 合计；请求带 `dailyTokenDays` 时才有，窗口内没有记录时为空。 */
-  dailyTokens?: UsageDailyTokens[];
 }
 
 /** 一天的 token 合计，`day` 是部署时区的 `YYYY-MM-DD`。 */

@@ -1,4 +1,4 @@
-<!-- Owner: src/core/language.ts, src/web/server.ts, src/web/auth.ts, src/web/diagnostics.ts, src/web/shared/webui-protocol.ts, src/web/client/main.ts, src/web/client/core/language.ts, src/web/client/features/live/onboarding.ts, src/web/client/features/settings/general.ts -->
+<!-- Owner: src/core/language.ts, src/web/server.ts, src/web/auth.ts, src/web/diagnostics.ts, src/web/shared/webui-protocol.ts, src/web/client/main.ts, src/web/client/core/world-nav.ts, src/web/client/features/worlds/index.ts, src/web/client/shell/index.ts, src/web/client/core/language.ts, src/web/client/features/live/onboarding.ts, src/web/client/features/settings/general.ts -->
 
 # WebUI
 
@@ -61,6 +61,12 @@ WebUI 不终结 TLS。经公网使用时放在终结 HTTPS 的反向代理后面
 `mem:` 回应 `no-store`,认不出或已不在回 404。回应带 `X-Content-Type-Options: nosniff` 与
 `Content-Security-Policy: sandbox`。
 
+侧栏 World 的顺序跟随「我的 World」，分组中的 World 在分组所在位置展开。顺序保存在浏览器 localStorage，
+尚未记录的 World 排在前面。侧栏重排保留滚动位置，并用滑动动画显示位置变化；减少动态效果时不播放。
+
+「我的 World」中的扩展头像与名称都打开扩展详情，名称旁保留可用更新入口。没有扩展包的头像定位到对应 World 行。
+拖动头像会移动整行，松手不打开详情；头像图片禁用浏览器原生拖拽。
+
 左栏三组:Core(框架自己的页)、Persona & Memory(Persona 页、Memory 页、系统提示词)、World(总览与各实例)。
 左栏顶上是框架字标,底部是这一台 bot 的头像与展示名(`displayName`),展示名下面写运行中或已暂停。
 根 URL 不带 hash 时跳转到 `live`；未知路由不显示页面内容，侧栏仍可导航。
@@ -111,14 +117,14 @@ bot 的展示名。面板、配置组与提示词文档由贡献方声明;
 |---|---|
 | `GET /api/capabilities` | 框架级表面的挂载情况 |
 | `GET /api/status` | 运行状态快照与 `uptimeSec` |
-| `GET /api/config`、`POST /api/config` | 配置组;POST 体 `{ group, values }`,按 schema 校验 |
+| `GET /api/config`、`POST /api/config` | 配置组;POST 体 `{ group, values }`,按 schema 校验;`values` 里有组 schema 没声明的键时回 400、一项都不写，回执列出可写的键 |
 | `GET /api/config/options/:kind` | schema 里 `x-options` 为 `kind` 的配置项的当前候选值 |
 | `GET /api/blob?handle=` | 附件字节 |
 | `GET /api/worlds`、`POST /api/worlds/activation` | World 清单;激活或停用,体 `{ id, enabled }` |
 | `POST /api/storage/clear?owner=&key=` | 清除一个存储部分;`owner` 与 `key` 取自各页 manifest 的 `storageParts`,Core 自己的对话历史是 `core` 的 `session`。省略 `owner` 时 `key` 须只有一个归属,有多个时回 409 |
 | `GET /api/theme`、`POST /api/theme` | 部署的配色;GET 回 `{ defaultScheme, theme }`,POST 体是 `StoredTheme`(`src/web/shared/theme.ts`),回 `{ ok, theme }` |
 | `GET /api/avatar`、`POST /api/avatar` | bot 头像 PNG,没有时 404;POST 体是 `image/png` 原始字节，不是 PNG 时回 400 |
-| `GET /api/usage` | 用量聚合;查询参数 `bucket`(`auto`/`minute`/`hour`/`day`/`week`/`month`)、`currency`、`basis`(`marginal`/`equivalent`)、`from`、`to`、`days`(不小于 1 的整数)、`dailyTokenDays`(不小于 1 的整数)。带 `dailyTokenDays` 时回应多一个 `dailyTokens`,是从范围末日往前这么多天(范围更长时从范围起点起)逐日的 `{ day, tokens }`,`tokens` 为输入加输出 token,按部署时区分日 |
+| `GET /api/usage` | 用量聚合;查询参数 `bucket`(`auto`/`minute`/`hour`/`day`/`week`/`month`)、`currency`、`basis`(`marginal`/`equivalent`)、`from`、`to`、`days`(不小于 1 的整数)、`dailyTokenDays`(不小于 1 的整数)。带 `dailyTokenDays` 时回应多一个 `dailyTokens`,是从范围末日往前这么多天(范围更长时从范围起点起)逐日的 `{ day, tokens }`,`tokens` 为输入加输出 token,按部署时区分日。`rates` 是换算用的 1 USD 合多少该币种,`rateSources` 是各币种汇率的出处:`{ kind: 'live', feed, site, date }` 或 `{ kind: 'builtin', date }` |
 | `POST /api/run/pause`、`POST /api/run/resume`、`POST /api/run/shutdown` | 暂停、继续与关机，见「运行控制」 |
 | `GET /api/prompts`、`POST /api/prompts` | 固定提示词的列表与编辑;POST 体 `{ key, content, baseRevision? }`,带上的 `baseRevision` 过期时回 409 并带 `conflict: true`,成功回新的 `revision` |
 | `GET /api/prompts/prefix`、`POST /api/prompts/reset`、`POST /api/session/reload-prefix` | 整条系统前缀的分段预览，回 `{ segments: [{ title, text, sourceKey? }] }`;移除一条固定提示词的部署覆盖，体 `{ key }`,回 `{ ok, result }`;用当前提示词重载当前 session 的系统前缀，对话保留，回 `{ ok, result }`。服务没挂时回 503 |

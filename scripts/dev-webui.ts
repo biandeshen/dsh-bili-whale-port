@@ -13,7 +13,7 @@ import { functionCall, functionResult, message } from '../src/protocol/open-resp
  *   CORTICO_DEV_MINIMAL=1 npx tsx scripts/dev-webui.ts   → 只挂框架级那一套(见下方 MINIMAL)
  *   CORTICO_DEV_PASSWORD=xxx npx tsx scripts/dev-webui.ts → 带访问密码起,用来看登录页
  */
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -47,14 +47,15 @@ import { pageIdFor } from '../src/web/shared/webui-protocol.ts';
 import { deriveWebUiPageSources, ioPageContribution } from '../src/bot.ts';
 import { WorldAssembly } from '../src/world.ts';
 import { WebUiFixtureWorld } from '../src/worlds/webui-fixture/world.ts';
-import { CORE_CONFIG_GROUP, usageRates } from '../src/core/config.ts';
+import { CORE_CONFIG_GROUP } from '../src/core/config.ts';
 import { PERSONA_CONFIG_GROUP } from '../bots/corti-soulmate/persona/config.ts';
 import { readGroupValues, setByPath, type ConfigGroup } from '../src/core/config-schema.ts';
 import { WorkspaceGit, AUTHOR_SELF, AUTHOR_OPERATOR } from '../bots/cormini/persona/workspaceGit.ts';
 import { aggregateUsage } from '../src/core/cost.ts';
+import { createUsageRates } from '../src/core/usage-rates.ts';
 import { priceUsage, unknownMeters } from '../src/core/generation.ts';
 import { snapshotPrice } from '../src/providers/pricebook.ts';
-import { nullLogger } from '../src/core/util.ts';
+import { nullLogger, readTextFile } from '../src/core/util.ts';
 import type {
   World, WorldWebUiDecl, ToolSchema, ToolTag, UsageRecord,
 } from '../src/core/types.ts';
@@ -142,6 +143,8 @@ function genUsage(): UsageRecord[] {
   return recs;
 }
 const usageRecords = genUsage();
+/** 汇率走真实的公开接口，断网时页面显示内置汇率。 */
+const devRates = createUsageRates();
 
 const qq = new QQWorld({ wsUrl: 'ws://127.0.0.1:0', groups: [424242, 998877], privates: [10086], token: '', timezone: TZ });
 const consoleWorld = new ConsoleWorld({ timezone: TZ });
@@ -407,8 +410,8 @@ const devPromptDocs = [
       { name: 'memory.all', description: 'MEMORY 0~4 整块。', multiline: true },
     ],
   },
-  { key: 'worlds.console.envPrompt', title: '控制台 · 环境提示词', scope: 'world' as const, description: '控制台对话环境的常驻事实。', content: readFileSync(promptDocPathOf(consoleWorld), 'utf8'), revision: 'dev-web-1' },
-  { key: 'worlds.websearch.envPrompt', title: 'WebSearch · 环境提示词', scope: 'world' as const, description: '搜索工具 World 的可选常驻环境。', content: readFileSync(promptDocPathOf(websearch), 'utf8'), revision: 'dev-search-1' },
+  { key: 'worlds.console.envPrompt', title: '控制台 · 环境提示词', scope: 'world' as const, description: '控制台对话环境的常驻事实。', content: readTextFile(promptDocPathOf(consoleWorld)), revision: 'dev-web-1' },
+  { key: 'worlds.websearch.envPrompt', title: 'WebSearch · 环境提示词', scope: 'world' as const, description: '搜索工具 World 的可选常驻环境。', content: readTextFile(promptDocPathOf(websearch)), revision: 'dev-search-1' },
 ];
 
 const port = Number(process.env.CORTICO_PORT || 8848);
@@ -1417,7 +1420,12 @@ const app = new WebApp({
   }),
   sessions: { list: () => sessionsList, messages: (id) => (id === 'main' ? session : sessionsList.some((s) => s.id === id) ? session.slice(0, 4) : null), onChange: () => {} },
   storage: () => storage,
-  usage: { aggregate: (opts) => aggregateUsage(usageRecords, { ...opts, timezone: TZ, rates: usageRates(devCfg) }) },
+  usage: {
+    aggregate: async (opts) => {
+      const { rates, sources } = await devRates.resolve();
+      return { ...aggregateUsage(usageRecords, { ...opts, timezone: TZ, rates }), rateSources: sources };
+    },
+  },
 
   config: {
     groups: () => [...devConfigGroups,...devProviders.groups()].map((group) => ({ group, values: group.owner.startsWith('provider:') ? devProviders.values(group.id) : readGroupValues(devCfg, group) })),
@@ -1465,12 +1473,13 @@ const app = new WebApp({
         ...(decl?.badges ? { badges: decl.badges } : {}),
       };
     }))),
-// 模拟已安装但未激活的 World。
+// 模拟已安装但未激活的 World:启动期 start() 抛错后回到未激活,带理由。
     {
       id: 'sandbox',
       status: 'inactive' as const,
       label: '沙盒 World',
       declared: false,
+      reason: '启动失败: listen EADDRINUSE: address already in use 127.0.0.1:7797 (dev 假数据)',
     },
     // 截图夹具覆盖Persona已声明但未安装的 World 状态。
     {

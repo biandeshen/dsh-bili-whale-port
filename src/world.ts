@@ -3,16 +3,18 @@
  * 挂载状态与启动状态分开，实际启动由 Core 管理。定义实例在停用和重启时重新构造；
  * 预建实例重启时复用原对象。名称、标签与缺失原因来自定义或 bot 声明。
  */
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type {
   CoreConfig, DescribeText, EventDescribe, ToolDescribe, ToolSpec, World, WorldLifecycleEvent,
 } from './core/types.ts';
 import type { LoadedConfig } from './core/config.ts';
+import type { WorldFailure } from './core/core.ts';
 import type { BotDefinition } from './bot.ts';
 import { updateJsonObject, writeSecretFile } from './config-file.ts';
 import type { Language } from './core/language.ts';
 import { assemblyText as text } from './strings.ts';
+import { readTextFile } from './core/util.ts';
 
 /** 每个 World 配置段的最小形状。 */
 export interface WorldSection {
@@ -138,6 +140,11 @@ export interface WorldSlot {
   readonly definition: WorldDefinition<WorldSection> | null;
   instance: World;
   mounted: boolean;
+  /**
+   * 没能运行的理由:启动期 `start()` 抛错,或运行中读取环境段或 `tools()` 失败;按界面语言给,
+   * 挂载成功或停用后清掉。
+   */
+  failure?: (language: Language) => string;
 }
 
 export interface MissingWorld {
@@ -158,9 +165,10 @@ export interface PrebuiltOptions {
 
 /** Core 构造后绑定挂载与卸载方法。 */
 export interface WorldMountHost {
+  /** 前缀构建中卸载的实例须经 WorldAssembly.failed() 记录失败后返回。 */
   mount(mod: World): Promise<void>;
   unmount(id: string): Promise<void>;
-  /** 装配层改了一个槽位的挂载状态(激活 / 停用 / 重启)。启动期的初始挂载不报。 */
+  /** 装配层改变挂载状态或报告 World 失败；启动期初始挂载不报。 */
   lifecycle?(event: WorldLifecycleEvent): void;
   /**
    * Core 保留帧与 Persona 自有工具的名称。绑定时检查已挂载实例，
@@ -186,7 +194,7 @@ function assignDeep(target: Record<string, unknown>, patch: Record<string, unkno
 function writeEnvLine(envPath: string, name: string, value: string): void {
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) throw new Error(`storeSecret: "${name}" is not an environment variable name`);
   if (!value || /\s/.test(value)) throw new Error(`storeSecret: the value of ${name} is empty or holds whitespace`);
-  const prev = existsSync(envPath) ? readFileSync(envPath, 'utf8') : '';
+  const prev = existsSync(envPath) ? readTextFile(envPath) : '';
   const line = `${name}=${value}`;
   const pattern = new RegExp(`^[ \\t]*${name}\\s*=.*$`, 'm');
   const next = pattern.test(prev)
@@ -370,6 +378,40 @@ export class WorldAssembly {
     return this.queued(id, () => this.restartNow(id, language));
   }
 
+  /**
+   * Core 启动期报回的 `start()` 失败:槽位回到未激活并记下理由,`enabled` 不变,
+   * 定义实例重建,报一次 start-failed;Core 已把失败实例移出挂载表。
+   */
+  startFailed(id: string, detail: string): void {
+    const slot = this.slot(id);
+    const index = this.mounted.indexOf(slot.instance);
+    if (index >= 0) this.mounted.splice(index, 1);
+    slot.mounted = false;
+    if (slot.definition) slot.instance = slot.definition.create(this.context(slot.definition));
+    slot.failure = (language) => text(language).startFailed(detail);
+    this.host?.lifecycle?.({ kind: 'start-failed', id, label: slot.label, reason: detail });
+  }
+
+  /**
+   * Core 在运行中卸载的 World:槽位回到未激活并记下理由,`enabled` 不变,报一次 failed,换上新实例;
+   * 这在主循环建前缀时发生,`create()` 抛错时槽位移入 missing。
+   */
+  failed({ worldId, detail }: WorldFailure): void {
+    const slot = this.slot(worldId);
+    slot.mounted = false;
+    slot.failure = (language) => text(language).readFailed(detail);
+    this.host?.lifecycle?.({ kind: 'failed', id: worldId, label: slot.label, reason: detail });
+    const def = slot.definition;
+    if (!def) return;
+    try {
+      slot.instance = def.create(this.context(def));
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      this.slots.splice(this.slots.indexOf(slot), 1);
+      this.missing.push({ id: slot.id, label: slot.label, declared: slot.declared, reason: (language) => text(language).constructFailed(reason) });
+    }
+  }
+
   /** 按 worlds.<id>.enabled 同步状态，供 WorldContext.restart 调用。 */
   sync(id: string): Promise<void> {
     return this.queued(id, () => this.syncNow(id));
@@ -403,7 +445,13 @@ export class WorldAssembly {
       slot.instance = def.create(ctx);
       throw error;
     }
+    // 挂载时读取失败、已被卸载:和 start() 抛错一样回滚 enabled
+    if (!this.mounted.includes(slot.instance)) {
+      this.persist(id, { enabled: false });
+      throw new Error(slot.failure!(language));
+    }
     slot.mounted = true;
+    delete slot.failure;
     this.host?.lifecycle?.({ kind: 'mounted', id, label: slot.label });
     return t.activated(this.labelIn(id, language), id);
   }
@@ -413,6 +461,7 @@ export class WorldAssembly {
     const wasMounted = slot.mounted;
     if (wasMounted) await this.stopSlot(slot);
     this.persist(id, { enabled: false });
+    delete slot.failure;
     if (wasMounted) this.host?.lifecycle?.({ kind: 'unmounted', id, label: slot.label });
     return text(language).deactivated(this.labelIn(id, language), id);
   }
@@ -424,7 +473,9 @@ export class WorldAssembly {
     const clash = this.toolClash(slot.instance, this.mounted);
     if (clash) throw new Error(clash(language));
     await this.mountHost().mount(slot.instance);
+    if (!this.mounted.includes(slot.instance)) throw new Error(slot.failure!(language));
     slot.mounted = true;
+    delete slot.failure;
     this.host?.lifecycle?.({ kind: 'restarted', id, label: slot.label });
     return text(language).restarted(this.labelIn(id, language));
   }
@@ -447,9 +498,15 @@ export class WorldAssembly {
     if (slot.definition) slot.instance = slot.definition.create(this.context(slot.definition));
   }
 
-  /** 工具名在 bot 内唯一。与保留名称或已挂载 World 工具冲突时拒绝挂载。 */
+  /** 工具名在 bot 内唯一。与保留名称或已挂载 World 工具冲突,或读不出自己的 `tools()` 时拒绝挂载。 */
   private toolClash(mod: World, mounted: readonly World[]): ((language: Language) => string) | null {
-    const names = new Set(mod.tools().map((t) => t.name));
+    let names: Set<string>;
+    try {
+      names = new Set(mod.tools().map((t) => t.name));
+    } catch (error) {
+      const detail = `tools(): ${error instanceof Error ? error.message : String(error)}`;
+      return (language) => text(language).readFailed(detail);
+    }
     const reserved = (this.host?.reservedToolNames?.() ?? []).filter((n) => names.has(n));
     if (reserved.length) return (language) => text(language).toolReserved(reserved);
     for (const other of mounted) {

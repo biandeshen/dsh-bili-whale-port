@@ -1,7 +1,10 @@
 import { FixtureHandoffResult as ContextHandoffResult } from './fixture-protocol.ts';
 import { createResponse, type StreamEvent, type FunctionCall } from '../../src/protocol/open-responses/index.ts';
 import { unknownMeters, type ProviderAttempt } from '../../src/core/generation.ts';
-import { FixtureTap as OutputTap } from './fixture-protocol.ts';
+import { FixtureStream, FixtureTap as OutputTap } from './fixture-protocol.ts';
+import type { ResponseClient } from '../../src/core/generation.ts';
+import type { Request } from '../../src/protocol/open-responses/index.ts';
+import { ResponsesProvider } from '../../src/providers/openai-responses-compat/native.ts';
 import { existsSync, mkdirSync, readFileSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -73,7 +76,7 @@ interface RigOptions {
   preState?: (state: CoreState, store: JsonlEventStore) => void;
   /** 事件正文怎么进上下文(缺省=声明里不写,即 tool 帧投递) */
   eventDelivery?: 'tool' | 'user';
-  /** 输出旁路(缺省=声明里不写,即不流式) */
+  /** 输出旁路(缺省=声明里不写) */
   outputTap?: OutputTap;
   /** 模型工具调用流水(缺省=不接) */
   toolLog?: ToolCallLog;
@@ -84,6 +87,8 @@ interface RigOptions {
   resubmit?: ResubmitPolicy;
   /** 软轮数提醒；null 表示不提醒，缺省使用英文文本。 */
   softHint?: string | null;
+  /** 模型客户端(缺省=按脚本答复的 FakeLLM) */
+  llm?: ResponseClient;
 }
 
 function makeRig(opts: RigOptions = {}) {
@@ -104,6 +109,7 @@ function makeRig(opts: RigOptions = {}) {
   const worlds = opts.worlds ?? [
     makeFakeIO('qq', [makeTool('send', '已发送'), makeTool('noop', 'ok')]),
   ];
+  const worldFailures: Array<{ id: string; detail: string }> = [];
   const persona = makeFakePersona([], {
     cfg,
     worlds: worlds,
@@ -121,7 +127,7 @@ function makeRig(opts: RigOptions = {}) {
   const decl = persona.declareSessions()[0];
   const loop = new MainLoop({
     cfg,
-    llm,
+    llm: opts.llm ?? llm,
     persona,
     decl,
     spec: () => activeSpec(cfg),
@@ -136,6 +142,10 @@ function makeRig(opts: RigOptions = {}) {
     },
     blobs: fakeBlobIntern(),
     worlds: { all: () => worlds, visible: () => worlds.filter((m) => opts.hiddenWorlds?.includes(m.id) !== true) },
+    onWorldFailed: (world, detail) => {
+      worldFailures.push({ id: world.id, detail });
+      worlds.splice(worlds.indexOf(world), 1);
+    },
     bus,
     session,
     store,
@@ -176,6 +186,8 @@ function makeRig(opts: RigOptions = {}) {
     cfg,
     bus,
     session,
+    worlds,
+    worldFailures,
     store,
     state,
     llm,
@@ -896,6 +908,29 @@ describe('MainLoop user事件协议', () => {
     assertPairing(messages);
   });
 
+  it('没有 outputTap 时模型请求也是流式请求：只收流式请求的上游照常答复', async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    vi.stubGlobal('fetch', async (_url: unknown, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+      bodies.push(body);
+      if (body.stream !== true) return new Response('{"error":{"message":"stream must be true"}}', { status: 400 });
+      const frames: string[] = [];
+      const stream = new FixtureStream(body as Request, (event) => frames.push(`data: ${JSON.stringify(event)}
+
+`));
+      stream.feed({ type: 'content', text: 'pong' });
+      stream.finish(undefined);
+      return new Response(frames.join(''), { headers: { 'content-type': 'text/event-stream' } });
+    });
+    try {
+      rig = makeRig({ llm: new ResponsesProvider({ baseUrl: 'https://fixture.test/v1' }) });
+      rig.start();
+      await until(() => rig.session.messages.at(-1)?.content === 'pong');
+      expect(bodies[0].stream).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 
   it('思维链不进 runlog;transcript 只追加地留下 reasoning 项并带轮次锚点', async () => {
     const debugs: string[] = [];
@@ -1470,6 +1505,23 @@ describe('MainLoop user事件协议', () => {
     expect(results[2].content).toContain('acting for many rounds');
     expect(rig.session.messages.at(-1)?.role).toBe('tool');
     assertPairing(rig.session.messages);
+  });
+
+  it('软上限不小于硬上限时，提醒提前到硬上限前一轮', async () => {
+    rig = makeRig({ cfgPatch: (cfg) => (cfg.loop = { softCap: 5, hardCap: 3 }) });
+    rig.start();
+    await until(() => rig.llm.calls.length >= 1);
+    rig.llm.fallback = () => toolReply([{ name: 'noop' }]);
+
+    const before = rig.session.messages.length;
+    rig.pushEvent('开始');
+    await until(() => rig.loop.getStatus().batchesHandled >= 2);
+    await until(() => rig.loop.getStatus().roundsLastBatch === 3);
+
+    const results = rig.session.messages.slice(before).filter(
+      (message) => message.role === 'tool' && !message.content.startsWith('[1 new event]'),
+    );
+    expect(results.map((r) => r.content.includes('acting for many rounds'))).toEqual([false, true, false]);
   });
 
   it('工具异常、未知工具和坏JSON都成为配对结果', async () => {
@@ -3836,5 +3888,70 @@ describe('MainLoop 异步 onDelivery', () => {
     await sleep(50);
     expect(JSON.stringify(rig.session.messages)).toBe(sessionAfterStop);
     expect(rig.llm.calls).toHaveLength(callsAfterStop);
+  });
+});
+
+/**
+ * 构建前缀或工具表时读不出一个 World 的 `tools()`:只有它经 onWorldFailed 移出,其余 World 与主循环照常。
+ */
+describe('MainLoop · World 读取失败只卸载该 World', () => {
+  let rig: ReturnType<typeof makeRig>;
+  afterEach(async () => {
+    if (rig) await rig.cleanup();
+  });
+
+  it('恢复 session 时 tools() 失败:首个请求使用移除该 World 的前缀和工具表,历史保留', async () => {
+    const bad = makeFakeIO('bad', [makeTool('bad_act', 'x')], 'BAD 环境');
+    const history: ChatMessage[] = [
+      { role: 'user', content: '保留的问题' },
+      { role: 'assistant', content: '保留的回答' },
+    ];
+    rig = makeRig({
+      worlds: [bad, makeFakeIO('good', [makeTool('good_act', 'ok')], 'GOOD 环境')],
+      preSession: [{ role: 'system', content: '旧前缀\nBAD 环境\nGOOD 环境' }, ...history],
+    });
+    bad.tools = () => { throw new Error('catalog unavailable'); };
+    rig.start();
+    await until(() => rig.llm.calls.length >= 1);
+    const request = rig.llm.calls[0];
+    expect(request.messages[0].content).toContain('GOOD 环境');
+    expect(request.messages[0].content).not.toContain('BAD 环境');
+    expect(request.messages.slice(1, 3)).toMatchObject(history);
+    expect(request.tools?.map(tool => tool.name)).toContain('good_act');
+    expect(request.tools?.map(tool => tool.name)).not.toContain('bad_act');
+    expect(rig.worldFailures).toEqual([{ id: 'bad', detail: 'tools(): catalog unavailable' }]);
+    expect(rig.loop.modulePrefixDrift()).toEqual([]);
+    const saved = new SessionLog(rig.tmp.dir);
+    saved.load();
+    expect(saved.messages[0].content).not.toContain('BAD 环境');
+    expect(saved.messages.slice(1, 3)).toMatchObject(history);
+  });
+
+  it('恢复 session 时 World 正常:保留已有 system 前缀', async () => {
+    rig = makeRig({ preSession: [{ role: 'system', content: '已保存的前缀' }] });
+    rig.start();
+    await until(() => rig.llm.calls.length >= 1);
+    expect(rig.llm.calls[0].messages[0].content).toBe('已保存的前缀');
+    expect(rig.worldFailures).toEqual([]);
+  });
+
+  it('重载前缀时 tools() 抛错的 World 被移出:工具表与环境段都不含它,下一次请求照常', async () => {
+    const bad = makeFakeIO('bad', [makeTool('bad_act', 'x')], 'BAD 环境');
+    rig = makeRig({ worlds: [bad, makeFakeIO('good', [makeTool('good_act', 'ok')], 'GOOD 环境')] });
+    rig.start();
+    await until(() => rig.llm.calls.length >= 1);
+    bad.tools = () => { throw new Error('清单未加载'); };
+    await rig.loop.reloadSystemPrefix();
+
+    expect(rig.worldFailures).toEqual([{ id: 'bad', detail: 'tools(): 清单未加载' }]);
+    expect(rig.worlds.map((m) => m.id)).toEqual(['good']);
+    expect(rig.session.messages[0].content).toContain('GOOD 环境');
+    expect(rig.session.messages[0].content).not.toContain('BAD 环境');
+
+    rig.pushEvent('还在吗');
+    await until(() => rig.llm.calls.length >= 2);
+    const names = rig.llm.calls[1].tools?.map((t) => t.name) ?? [];
+    expect(names).toContain('good_act');
+    expect(names).not.toContain('bad_act');
   });
 });

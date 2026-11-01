@@ -40,10 +40,6 @@ export const coreGroupText: Partial<typeof coreGroupEn> = {
     title: 'Umbrales de archivo por área',
     description: '`área=nivel` separados por comas, por ejemplo `core.loop=trace,console=warn`; se admite `.*`. Se aplica el prefijo coincidente más largo. Las áreas sin coincidencia usan el umbral predeterminado.',
   },
-  usageRate: {
-    title: (code: string) => `Tipo de cambio del informe de uso: ${code}`,
-    description: 'Tipo con el que el informe de uso convierte entre USD y esta moneda: cuánto vale 1 USD en ella, al inicio el tipo medio del 2026-10-10. 0 deja esta moneda fuera de la conversión.',
-  },
 };
 
 export const validationText: Partial<typeof validationEn> = {
@@ -56,4 +52,6 @@ export const validationText: Partial<typeof validationEn> = {
   second: (label: string) => `${label} (segundo valor)`,
   pairOrder: (label: string) => `${label}: el primer valor no puede superar al segundo`,
   empty: (label: string) => `${label} no puede estar vacío`,
+  unknownKeys: (group: string, keys: string, declared: string) => `El grupo de configuración ${group} no declara ${keys}; claves que se pueden escribir: ${declared}`,
+  didYouMean: (key: string, path: string) => `${key} (¿quisiste decir ${path}?)`,
 };

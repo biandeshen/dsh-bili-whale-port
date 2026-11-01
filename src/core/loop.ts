@@ -44,7 +44,7 @@ import type { WakeBus } from './bus.ts';
 import type { SessionLog } from './session.ts';
 import type { CoreState } from './state.ts';
 import type { SessionHandle, SessionTracker } from './sessions.ts';
-import { assembleSystem, type EnvPromptDirs } from './prefix.ts';
+import { collectWorldContexts, joinSegments, type EnvPromptDirs } from './prefix.ts';
 import { recordToolCall, type ToolCallLog } from './tool-log.ts';
 import type { Transcript } from './transcript.ts';
 import { setAnchors, withAnchors } from './log-context.ts';
@@ -84,12 +84,16 @@ export interface WorldView {
   visible(): World[];
 }
 
-/** 当前工具名称，用于检查工具表是否需要重建。 */
-function toolSignature(mod: World): string {
-  return mod
-    .tools()
-    .map((t) => t.name)
-    .join(',');
+/** 当前工具名称，用于检查工具表是否需要重建；`tools()` 抛错时为 null。 */
+function toolSignature(mod: World): string | null {
+  try {
+    return mod
+      .tools()
+      .map((t) => t.name)
+      .join(',');
+  } catch {
+    return null;
+  }
 }
 
 /** 按当前活跃端点读取上下文容量与计数，支持模型和端点热更新。 */
@@ -115,6 +119,11 @@ export interface MainLoopDeps {
   blobs: { intern(inputs: readonly (BlobInput | BlobRef)[] | undefined): BlobRef[] | undefined };
   /** 已挂载 World 的**实时**视图(可见性可被运维改;见 WorldView) */
   worlds: WorldView;
+  /**
+   * 构建前缀或工具表时读取一个已挂载 World 的 `envPromptVars()` 或 `tools()` 失败。
+   * 返回前须把它移出 `worlds.all()`;这次构建不含它,其余 World 照常。
+   */
+  onWorldFailed(world: World, detail: string): void;
   /** 环境提示词的两个覆盖层(包 / 部署);缺席 = 只用 World 自带的模板。 */
   dirs?: EnvPromptDirs;
   bus: WakeBus;
@@ -128,8 +137,6 @@ export interface MainLoopDeps {
   toolLog?: ToolCallLog;
   /** 主 session 的只追加副本;交接、清空、前缀重载在这里留边界记录 */
   transcript?: Transcript;
-  /** 工具归属的 World id(工具流水的 mod 列);认不出的是Persona自己的工具 */
-  toolOwner?: (name: string) => string | undefined;
   /** 同一批内模型失败后重新请求的预算，缺省使用 DEFAULT_RESUBMIT。 */
   resubmit?: ResubmitPolicy;
 }
@@ -329,6 +336,8 @@ export class MainLoop {
   private appliedVisibleWorlds: Set<string> | null = null;
   /** 当前前缀中各可见 World 的工具签名，用于检测工具表漂移。 */
   private appliedWorldTools = new Map<string, string>();
+  /** 当前工具表里 World 工具的归属(工具流水的 mod 列);不在表里的是 Persona 自己的工具。 */
+  private worldToolOwners = new Map<string, string>();
   /**
    * 当前轮，从模型请求到工具全部返回。model 阶段可被 preempt 取消(尚未外化时)或被 interrupt
    * 取消；tools 阶段只有 interrupt 生效，停止 interruptible 工具并跳过尚未开始的调用。
@@ -487,37 +496,57 @@ export class MainLoop {
   /** 空 tags 只报告一次。 */
   private readonly warnedUntagged = new Set<string>();
 
-  /** 按当前可见性重建工具表并记录所用 World 集合；重启恢复前缀时也执行。 */
-  private bindWorlds(): World[] {
+  /**
+   * 按当前可见性重建工具表并记录所用 World 集合；重启恢复前缀时也执行。
+   * 先逐个读取 World 的 `tools()`,抛错的经 onWorldFailed 移出挂载表,Persona 组工具表时已看不到它。
+   */
+  private bindWorlds(): { visible: World[]; failed: boolean } {
     const { worlds } = this.d;
+    const toolNames = new Map<World, string[]>();
+    let failed = false;
+    for (const m of [...worlds.all()]) {
+      try {
+        toolNames.set(m, m.tools().map((t) => t.name));
+      } catch (error) {
+        failed = true;
+        this.d.onWorldFailed(m, `tools(): ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
     const visible = worlds.visible();
     const visibleIds = new Set(visible.map((m) => m.id));
     const hiddenToolNames = new Set(
       worlds
         .all()
         .filter((m) => !visibleIds.has(m.id))
-        .flatMap((m) => m.tools().map((t) => t.name)),
+        .flatMap((m) => toolNames.get(m) ?? []),
     );
     this.assembleTools(hiddenToolNames);
     this.appliedVisibleWorlds = visibleIds;
-    this.appliedWorldTools = new Map(visible.map((m) => [m.id, toolSignature(m)]));
-    return visible;
+    this.appliedWorldTools = new Map(visible.map((m) => [m.id, (toolNames.get(m) ?? []).join(',')]));
+    this.worldToolOwners = new Map(visible.flatMap((m) => (toolNames.get(m) ?? []).map((name) => [name, m.id] as const)));
+    return { visible, failed };
   }
 
   /**
    * 组装 system 前缀,并在同一时刻换成匹配的工具表。两者同属请求缓存前缀,
-   * 必须同步更新。
+   * 必须同步更新。环境段读取失败的 World 移出挂载表后重组工具表。
    */
   private async buildSystem(): Promise<ContextRecord> {
-    const { persona, cfg, dirs } = this.d;
-    const content = await assembleSystem({
-      persona,
-      worlds: this.bindWorlds(),
-      now: new Date(),
+    const { persona, cfg, dirs, worlds } = this.d;
+    const now = new Date();
+    let { visible } = this.bindWorlds();
+    const { contexts, failed } = await collectWorldContexts(visible, dirs);
+    // 等待期间已被卸载的 World 不再报失败
+    const stillMounted = failed.filter(({ world }) => worlds.all().includes(world));
+    for (const { world, detail } of stillMounted) this.d.onWorldFailed(world, detail);
+    if (stillMounted.length > 0) ({ visible } = this.bindWorlds());
+    const bound = new Set(visible.map((m) => m.id));
+    const segments = await persona.systemSegments({
+      now,
       timezone: cfg.timezone,
-      dirs,
+      worlds: contexts.filter((context) => bound.has(context.id)),
     });
-    return message('system', content);
+    return message('system', joinSegments(segments));
   }
 
   /**
@@ -996,6 +1025,10 @@ export class MainLoop {
       return;
     }
 
+    if (this.bindWorlds().failed) {
+      await this.performSystemPrefixReload(generation);
+      if (!this.active(generation)) return;
+    }
     this.dropOrphanResults();
     const unanswered = new Set<string>();
     for (const { item } of session.records) {
@@ -1018,7 +1051,6 @@ export class MainLoop {
         id: decl.id,
         messagesRef: () => this.d.session.records,
       }) ?? null;
-      this.bindWorlds();
       await this.bootstrap(generation);
       if (!this.active(generation)) return;
 
@@ -1167,7 +1199,7 @@ export class MainLoop {
         ? new EagerDispatch(
             () => this.toolDefs, ctx, log, decl.id, this.d.toolLog,
             () => this.active(generation),
-            (name) => this.d.toolOwner?.(name),
+            (name) => this.worldToolOwners.get(name),
             flight.interrupt.signal,
             () => (flight.interrupted ? NOT_EXECUTED_INTERRUPTED : null),
             this.toolStarted,
@@ -1199,17 +1231,17 @@ export class MainLoop {
           round: roundNo, outcome, llmMs, ttftMs, outputTokens: meters?.output ?? null, toolMs, ...extra,
         } });
       };
-      const tapEvents = tap ? {
-        onEvent: (event: StreamEvent): void => {
-          if (!this.active(generation) || flight.controller.signal.aborted) return;
-          if (event.type === 'response.created') setAnchors({ resp: event.response.id });
-          if (ttftMs === null && ('delta' in event || event.type === 'response.output_item.added')) ttftMs = Date.now() - roundStart;
-          const tappedEffect = tap.externalizes ? tap.externalizes(event) : defaultExternalizes(event);
-          if (tappedEffect || (event.type === 'response.output_item.done' && event.item?.type === 'function_call' && event.item.status === 'completed')) flight.externalized = true;
-          eager?.onEvent(event);
-          try { tap.onEvent(event); } catch (error) { log.warn('outputTap.onEvent异常', { err: error }); }
-        },
-      } : undefined;
+      // 生成请求一律流式:onEvent 总是传给 provider。外化判定、提前派发和 tap 只在有 tap 时运行。
+      const onEvent = (event: StreamEvent): void => {
+        if (!this.active(generation) || flight.controller.signal.aborted) return;
+        if (event.type === 'response.created') setAnchors({ resp: event.response.id });
+        if (ttftMs === null && ('delta' in event || event.type === 'response.output_item.added')) ttftMs = Date.now() - roundStart;
+        if (!tap) return;
+        const tappedEffect = tap.externalizes ? tap.externalizes(event) : defaultExternalizes(event);
+        if (tappedEffect || (event.type === 'response.output_item.done' && event.item?.type === 'function_call' && event.item.status === 'completed')) flight.externalized = true;
+        eager?.onEvent(event);
+        try { tap.onEvent(event); } catch (error) { log.warn('outputTap.onEvent异常', { err: error }); }
+      };
       let assistant: ContextRecord[];
       let meters: TokenMeters | null = null;
       const outbound = this.outboundMessages();
@@ -1220,8 +1252,7 @@ export class MainLoop {
         let res: Awaited<ReturnType<typeof llm.respond>>;
         try {
           res = await llm.respond(responseRequest(spec, outbound, schemas), {
-            context: outbound, nativeSpec: spec,
-            ...(tapEvents ?? {}),
+            context: outbound, nativeSpec: spec, onEvent,
             role: decl.id,
             sessionId: this.mainTrack?.id,
             signal: flight.controller.signal,
@@ -1400,14 +1431,14 @@ export class MainLoop {
             if (args === null) {
               out = { text: TOOL_FAILED_BAD_ARGS, failed: true };
               withAnchors({ call: call.call_id }, () =>
-                recordToolCall(this.d.toolLog, decl.id, def.name, null, Date.now(), out, this.d.toolOwner?.(def.name)));
+                recordToolCall(this.d.toolLog, decl.id, def.name, null, Date.now(), out, this.worldToolOwners.get(def.name)));
               results.push(functionResult(call.call_id, out.text));
               if (def.barrierAfter) barrierHit = true;
               continue;
             }
             out = await runToolHandler(
               def, args, ctx, call.call_id, decl.id, log, this.d.toolLog,
-              () => this.active(generation), this.d.toolOwner?.(def.name), flight.interrupt.signal, this.toolStarted,
+              () => this.active(generation), this.worldToolOwners.get(def.name), flight.interrupt.signal, this.toolStarted,
             );
             if (!this.active(generation)) return;
           }
@@ -1422,7 +1453,8 @@ export class MainLoop {
       toolMs = Date.now() - toolsStart;
       flight.phase = 'done';
 
-      if (round === caps.soft && results.length > 0) {
+      // soft 大于 hard 时永远到不了，等于 hard 时提示只进最后一条回执、没有下一轮照着收尾;两种都提前到 hard 的前一轮。
+      if (round === Math.min(caps.soft, caps.hard - 1) && results.length > 0) {
         const hint = caps.softHint?.();
         if (hint) results[results.length - 1] = withText(results[results.length - 1], `${textOf(results[results.length - 1])}\n${hint}`);
       }

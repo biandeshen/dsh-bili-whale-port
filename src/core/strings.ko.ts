@@ -40,10 +40,6 @@ export const coreGroupText: Partial<typeof coreGroupEn> = {
     title: '영역별 파일 기록 기준 재정의',
     description: '쉼표로 구분한 `영역=수준` 형식입니다. 예: `core.loop=trace,console=warn`. `.*`를 지원합니다. 가장 길게 일치하는 접두사가 우선하며, 일치하지 않는 영역은 기본 기준을 씁니다.',
   },
-  usageRate: {
-    title: (code: string) => `사용량 보고 환율: ${code}`,
-    description: '사용량 보고에서 USD와 이 통화를 환산할 때 쓰는 환율입니다. 1 USD가 이 통화로 얼마인지이며, 초깃값은 2026-10-10 중간 환율입니다. 0이면 이 통화는 환산하지 않습니다.',
-  },
 };
 
 export const validationText: Partial<typeof validationEn> = {
@@ -56,4 +52,6 @@ export const validationText: Partial<typeof validationEn> = {
   second: (label: string) => `${label}(둘째 값)`,
   pairOrder: (label: string) => `${label}: 첫째 값은 둘째 값보다 클 수 없습니다`,
   empty: (label: string) => `${label}은(는) 비워 둘 수 없습니다`,
+  unknownKeys: (group: string, keys: string, declared: string) => `설정 그룹 ${group}에 선언되지 않은 키: ${keys}. 쓸 수 있는 키: ${declared}`,
+  didYouMean: (key: string, path: string) => `${key}(${path}을(를) 의미했나요?)`,
 };

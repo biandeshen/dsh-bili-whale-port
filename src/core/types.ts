@@ -283,8 +283,8 @@ export interface ToolDef extends ToolSchema {
 export type ToolSpec = ToolSchema & { usage?: string; tags: readonly ToolTag[] };
 
 /**
- * Persona 提供的 Memory 二进制存储。句柄以 mem: 开头，其余格式由后端定义。
- * nameHint 仅供参考，最终句柄由后端决定。
+ * Persona 提供的 Memory 二进制存储。句柄以 mem: 开头，其余格式由后端定义，但要能原样当工具参数传：
+ * 可打印字符,用 / 分隔，不含 .. 和空段。nameHint 仅供参考，最终句柄由后端决定。
  */
 export interface BlobStore {
   put(nameHint: string, bytes: Uint8Array, mime: string): string;
@@ -999,10 +999,15 @@ export interface MemoryAssemblyContext {
   timezone: string;
 }
 
-/** 一个 World 的挂载或可见状态被装配层改变。`label` 是 WebUI 显示名。 */
+/**
+ * 一个 World 的挂载或可见状态被装配层改变,启动期 `start()` 抛错(`start-failed`),或运行中读取它的
+ * 环境段或 `tools()` 失败而被卸载(`failed`)。`label` 是 WebUI 显示名;`reason` 是原始错误文本,
+ * `failed` 的带上出错的成员名。
+ */
 export type WorldLifecycleEvent =
   | { kind: 'mounted' | 'unmounted' | 'restarted'; id: string; label: string }
-  | { kind: 'visibility'; id: string; label: string; visible: boolean };
+  | { kind: 'visibility'; id: string; label: string; visible: boolean }
+  | { kind: 'start-failed' | 'failed'; id: string; label: string; reason: string };
 
 /**
  * Persona 定义上下文内容、session 和 Memory 操作。Core 在生命周期边界调用可选钩子。
@@ -1035,7 +1040,7 @@ export interface Persona {
   onIdle?(): void | Promise<void>;
   /** 连续模型调用失败后恢复时调用；返回待注入文本，null 表示不注入。 */
   onStallsRecovered?(info: { count: number; quietMs: number }): string | null;
-  /** World 被激活、停用、重启或可见性改变时调用；启动期初始挂载不通知。 */
+  /** World 被激活、停用、重启、可见性改变,启动期 `start()` 抛错或运行中被卸载时调用；启动期初始挂载不通知。 */
   onWorldLifecycle?(event: WorldLifecycleEvent): void;
   /**
    * Persona 的工具名，用于拒绝重名 World。
@@ -1255,10 +1260,6 @@ export interface CoreConfig {
     memory: string;
 
     data: string;
-  };
-  usage?: {
-    /** 1 USD 合多少该币种(ISO 代码为键)。用量报告选的币种没有原价时，按它从别的币种换算;0 表示不换算。 */
-    rates?: Record<string, number>;
   };
   logging: {
     /** 低于此级别的记录不写入 log.jsonl。 */

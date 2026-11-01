@@ -9,6 +9,12 @@ import { responseTimelineFixture } from './response-timeline-fixture.ts';
 import { records } from '../core/fixture-protocol.ts';
 import {record,message,functionCall,functionResult}from'../../src/protocol/open-responses/context.ts';
 import {estimateMessagesTokens}from'../../src/protocol/open-responses/tokens.ts';
+import { extendMiniElement, miniWindow } from './mini-dom.ts';
+
+// 控制台的输入器直接取自 prompt-input(为了草稿保留),这里改道到每个用例装的桩上。
+vi.mock('../../src/web/client/ui/prompt-input.tsx', () => ({
+  promptInput: (_doc: unknown, _signal: unknown, opts: unknown) => (globalThis as { __promptInput?: (o: unknown) => unknown }).__promptInput!(opts),
+}));
 
 const UI_ENTRY = '../../src/web/client/ui/index.ts';
 const LIFECYCLE_ENTRY = '../../src/web/client/core/lifecycle.ts';
@@ -194,11 +200,13 @@ class FakeEl {
   }
 }
 
+extendMiniElement(FakeEl);
+
 class FakeDoc {
   listeners = new Listeners();
   body: FakeEl;
   title = '';
-  defaultView: Any = undefined;
+  defaultView: Any = miniWindow();
   constructor() {
     this.body = new FakeEl('body', this);
   }
@@ -353,7 +361,7 @@ function mkCtx(capabilities: Record<string, boolean>, hash = '#/live'): Ctx {
     },
   };
   const ui = createWebUi({ memo, overlayHost: doc.body, doc, signal: lifecycle.signal });
-  ui.promptInput = (opts: Any): Any => {
+  ui.promptInput = (globalThis as Any).__promptInput = (opts: Any): Any => {
     const el = ui.h('div', 'prompt-input-host');
     el.appendChild(ui.h('textarea', 'prompt-textarea'));
     if (opts.leading) el.appendChild(opts.leading);
@@ -1018,7 +1026,7 @@ describe('导出诊断', () => {
     live.createLiveFeature({ env }).mount(ctx);
     sockets[0].emit({ t: 'hello', session: [message('user', '在吗')] });
 
-    const button = root.find('btn-ico') as FakeEl;
+    const button = root.find('live-export') as FakeEl;
     expect(button.textContent).not.toBe('');
     button.dispatchEvent({ type: 'click' });
     expect(fetched).not.toContain('/api/diagnostics');
@@ -1039,7 +1047,7 @@ describe('导出诊断', () => {
     const { env } = fakeEnv();
     const { ctx, root, doc, errors } = mkCtx({ debug: true });
     live.createLiveFeature({ env }).mount(ctx);
-    (root.find('btn-ico') as FakeEl).dispatchEvent({ type: 'click' });
+    (root.find('live-export') as FakeEl).dispatchEvent({ type: 'click' });
     confirmExport(doc);
     await flush();
     expect(fetched).toContain('/api/diagnostics');
@@ -1082,6 +1090,42 @@ describe('fork 视图', () => {
 
     lifecycle.dispose();
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('看着 fork 时顶栏的 token 三项报它的，前面写它的名字;运行状态不变，回主视图恢复 main', async () => {
+    stubFetch(() => ({ messages: [{ role: 'user', content: 'x' }], estTokens: 4200 }));
+    const { env, sockets } = fakeEnv();
+    const { ctx, root, lifecycle } = mkCtx({ debug: true, sessions: true });
+    live.createLiveFeature({ env }).mount(ctx);
+    sockets[0].up();
+    sockets[0].emit({
+      ...helloWithSessions(null),
+      sessions: [
+        { id: 'main', label: '主意识', role: 'main', promptTokens: 50000, completionTokens: 0, cacheHitTokens: 0, cacheHitRate: 0.9, calls: 3, messageCount: 1, endedAt: null },
+        { id: 'f1', label: '梦', role: 'dream', promptTokens: 1500, completionTokens: 0, cacheHitTokens: 0, cacheHitRate: 0.66, calls: 1, messageCount: 2, endedAt: null },
+      ],
+    });
+    sockets[0].emit({ t: 'status', status: { loop: { estTokens: 12345, paused: true } } });
+    const band = (): string => ((root.find('live-summary') as FakeEl).children[0]).textContent;
+    expect(band()).toContain('下次提交 12.3k tok');
+    expect(band()).toContain('累计输入 50.0k tok');
+    // 会话卡写缓存与累计输入
+    expect((root.find('sesscards') as FakeEl).children[1].textContent).toContain('缓存 66% · 累计 1500');
+
+    (root.find('sesscards') as FakeEl).children[1].dispatchEvent({ type: 'click' });
+    await flush();
+    expect(band()).toContain('梦 · 下次提交 4200 tok');
+    expect(band()).toContain('梦 · 累计输入 1500 tok');
+    expect(band()).toContain('梦 · 缓存 66%');
+    expect(band()).not.toContain('12.3k');
+    // 运行状态各项仍是整个 bot 的
+    expect(band()).toContain('暂停');
+
+    (root.find('forkbanner') as FakeEl).findAll('btn')[0].dispatchEvent({ type: 'click' });
+    await flush();
+    expect(band()).toContain('下次提交 12.3k tok');
+    expect(band()).not.toContain('梦 ·');
+    lifecycle.dispose();
   });
 
   it('消息条数不变时仍刷新生成中的思维链', async () => {

@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { assembleSystem, envPromptOverridePath, envPromptTemplateSource, renderWorldEnvPrompt } from '../../src/core/prefix.ts';
+import { assembleSystem, collectWorldContexts, envPromptOverridePath, envPromptTemplateSource, renderWorldEnvPrompt } from '../../src/core/prefix.ts';
 import { makeFakeIO, makeFakePersona, makeTool } from './helpers.ts';
 
 describe('assembleSystem', () => {
@@ -145,5 +145,17 @@ describe('环境提示词的三层覆盖', () => {
     mod.envPromptVars = () => ({ 'qq.name': '测试群' });
     putOverride(deploymentDir, 'qq', '现在在{{qq.name}}里');
     expect(await renderWorldEnvPrompt(mod, { deploymentDir })).toEqual({ text: '现在在测试群里', sourceKey: 'worlds.qq.envPrompt' });
+  });
+});
+
+describe('collectWorldContexts', () => {
+  it('envPromptVars() 抛错的 World 列入 failed,其余照常进 contexts', async () => {
+    const thrown = makeFakeIO('thrown');
+    thrown.envPromptVars = () => { throw new Error('状态未就绪'); };
+    const { contexts, failed } = await collectWorldContexts([thrown, makeFakeIO('ok', [], 'ok 环境')]);
+    expect(contexts).toEqual([{ id: 'ok', envPrompt: 'ok 环境', sourceKey: 'worlds.ok.envPrompt' }]);
+    expect(failed.map(({ world, detail }) => [world.id, detail])).toEqual([
+      ['thrown', 'envPromptVars(): 状态未就绪'],
+    ]);
   });
 });

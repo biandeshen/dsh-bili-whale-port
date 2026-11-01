@@ -40,10 +40,6 @@ export const coreGroupText: Partial<typeof coreGroupEn> = {
     title: '依區域覆蓋寫入磁碟門檻',
     description: '以逗號分隔 `區域=層級`，例如 `core.loop=trace,console=warn`；支援 `.*`。最長符合前綴優先，未符合的區域使用預設門檻。',
   },
-  usageRate: {
-    title: (code: string) => `用量報告匯率 ${code}`,
-    description: '用量報告在 USD 與該貨幣之間換算時用這個匯率：1 美元可兌換多少該貨幣，初始值取 2026-10-10 的中間價。0 表示該貨幣不參與換算。',
-  },
 };
 
 export const validationText: Partial<typeof validationEn> = {
@@ -56,4 +52,6 @@ export const validationText: Partial<typeof validationEn> = {
   second: (label: string) => `${label} 第二項`,
   pairOrder: (label: string) => `${label} 的第一項不能大於第二項`,
   empty: (label: string) => `${label} 不能為空`,
+  unknownKeys: (group: string, keys: string, declared: string) => `設定組 ${group} 沒有宣告 ${keys};可寫入的鍵: ${declared}`,
+  didYouMean: (key: string, path: string) => `${key}(是否指 ${path})`,
 };

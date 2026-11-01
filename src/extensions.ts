@@ -7,11 +7,12 @@
  * 扩展提供包内相对产物路径，服务端校验后分配 URL，只提供已声明文件。
  */
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { CoreConfig, Logger } from './core/types.ts';
 import { LocalizedError, type Language } from './core/language.ts';
+import { readTextFile } from './core/util.ts';
 import type { BotDefinition } from './bot.ts';
 import type { WorldDefinition, WorldSection } from './world.ts';
 import type { ProviderModule } from './providers/base.ts';
@@ -23,6 +24,7 @@ import type {
   ExtensionUpdateResult,
 } from './web/server.ts';
 import {
+  authorLanguage,
   EXTENSION_API_VERSIONS,
   EXTENSION_KEYWORDS,
   ICON_TYPES,
@@ -101,9 +103,14 @@ export function extensionsDir(repoRoot: string, env: NodeJS.ProcessEnv = process
   return raw ? resolve(raw) : join(repoRoot, EXTENSIONS_DIRNAME);
 }
 
+/** 读一份 package.json;清单可能被 Windows 的工具写成带 BOM 的文本。解析失败的错误带上文件路径。 */
 function readPackageJson(file: string): ExtensionPackageJson | null {
   if (!existsSync(file)) return null;
-  return JSON.parse(readFileSync(file, 'utf8')) as ExtensionPackageJson;
+  try {
+    return JSON.parse(readTextFile(file)) as ExtensionPackageJson;
+  } catch (e) {
+    throw new Error(`${file}: ${e instanceof Error ? e.message : String(e)}`);
+  }
 }
 
 /** 读取 extensions/package.json 的直接依赖；目录不存在时返回空列表。 */
@@ -350,6 +357,7 @@ export async function loadExtensions(
       if (taken.world.has(exported.id)) {
         const { id } = exported;
         record.reason = (language) => text(language).worldIdTaken(id);
+        opts.log?.warn(`World id 已被占用,扩展未加载: ${name}`, { id });
         continue;
       }
       taken.world.add(exported.id);
@@ -365,6 +373,7 @@ export async function loadExtensions(
       if (taken.provider.has(exported.id)) {
         const { id } = exported;
         record.reason = (language) => text(language).providerIdTaken(id);
+        opts.log?.warn(`供应商 id 已被占用,扩展未加载: ${name}`, { id });
         continue;
       }
       taken.provider.add(exported.id);
@@ -473,7 +482,7 @@ function ignoredBuilds(dir: string): string[] {
   const file = join(dir, 'node_modules', '.modules.yaml');
   if (!existsSync(file)) return [];
   let state: { ignoredBuilds?: unknown };
-  try { state = JSON.parse(readFileSync(file, 'utf8')) as typeof state; } catch { return []; }
+  try { state = JSON.parse(readTextFile(file)) as typeof state; } catch { return []; }
   if (!Array.isArray(state.ignoredBuilds)) return [];
   return state.ignoredBuilds.filter((e): e is string => typeof e === 'string').map((e) => /^(@?[^@]+)@/.exec(e)?.[1] ?? e);
 }
@@ -484,7 +493,7 @@ function ignoredBuilds(dir: string): string[] {
  */
 function pendingBuilds(dir: string): string[] {
   const file = join(dir, WORKSPACE_FILE);
-  const entries = existsSync(file) ? allowBuildsEntries(readFileSync(file, 'utf8').split(/\r?\n/)) : [];
+  const entries = existsSync(file) ? allowBuildsEntries(readTextFile(file).split(/\r?\n/)) : [];
   const undecided = entries.filter(({ value }) => value !== 'true' && value !== 'false').map(({ name }) => name);
   const unrecorded = ignoredBuilds(dir).filter((name) => !entries.some((e) => e.name === name));
   return [...new Set([...undecided, ...unrecorded])];
@@ -494,7 +503,7 @@ function pendingBuilds(dir: string): string[] {
 function setAllowBuilds(dir: string, names: readonly string[], value: string): void {
   if (!names.length) return;
   const file = join(dir, WORKSPACE_FILE);
-  const raw = readFileSync(file, 'utf8');
+  const raw = readTextFile(file);
   const lines = raw.split(/\r?\n/);
   const entries = allowBuildsEntries(lines);
   for (const { line, indent, quote, name } of entries) {
@@ -514,7 +523,7 @@ function setAllowBuilds(dir: string, names: readonly string[], value: string): v
 }
 /** Cortico 自己 package.json 的 `packageManager`;发布到 npm 的 cortico 包没有这个字段。 */
 function corticoPackageManager(): string | undefined {
-  const { packageManager } = JSON.parse(readFileSync(join(repoRoot(), 'package.json'), 'utf8')) as { packageManager?: unknown };
+  const { packageManager } = JSON.parse(readTextFile(join(repoRoot(), 'package.json'))) as { packageManager?: unknown };
   return typeof packageManager === 'string' ? packageManager : undefined;
 }
 /** .npmrc 里设默认源的那一行;`@scope:registry=` 不算。 */
@@ -557,7 +566,6 @@ interface RegistrySearchResponse {
     };
     /** 被依赖的包数。热门包回字符串,新包回数字。 */
     dependents?: number | string;
-    downloads?: { monthly?: number };
   }>;
   total?: number;
 }
@@ -628,13 +636,14 @@ export function packageAuthor(pkg: ExtensionPackageJson): string | undefined {
   return (typeof pkg.author === 'string' ? pkg.author.match(/^[^(<]*/)![0].trim() : pkg.author?.name) || undefined;
 }
 
-/** 本机 package.json 里详情页显示的字段,与 npm 包文档同形;不联网就能给出。 */
-export function packageMetadata(pkg: ExtensionPackageJson): Partial<ExtensionPackageDetail> {
+/** 本机 package.json 里详情页显示的字段,与 npm 包文档同形;不联网就能给出。显示名按 `authorLanguage` 取 `locales`。 */
+export function packageMetadata(pkg: ExtensionPackageJson, language: Language): Partial<ExtensionPackageDetail> {
   const parsed = parseExtensionManifest(pkg);
+  const displayName = parsed.ok ? parsed.manifest.locales?.[authorLanguage(language)]?.displayName ?? parsed.manifest.displayName : undefined;
   const repository = urlOf(pkg.repository);
   const bugs = urlOf(pkg.bugs);
   return {
-    ...(parsed.ok && parsed.manifest.displayName ? { displayName: parsed.manifest.displayName } : {}),
+    ...(displayName ? { displayName } : {}),
     ...(pkg.description ? { description: pkg.description } : {}),
     ...(pkg.license ? { license: pkg.license } : {}),
     ...(pkg.engines?.node ? { engines: pkg.engines.node } : {}),
@@ -712,7 +721,7 @@ export class ExtensionManager {
   configuredRegistry(): string | null {
     const file = join(this.dir, NPMRC);
     if (!existsSync(file)) return null;
-    const values = readFileSync(file, 'utf8').split(/\r?\n/).flatMap((line) => REGISTRY_LINE.exec(line)?.[1].trim() ?? []);
+    const values = readTextFile(file).split(/\r?\n/).flatMap((line) => REGISTRY_LINE.exec(line)?.[1].trim() ?? []);
     return values.at(-1) ?? null;
   }
 
@@ -724,7 +733,7 @@ export class ExtensionManager {
     const value = url.trim();
     if (value && !(/^https?:\/\/\S+$/i.test(value) && URL.canParse(value))) throw extensionError((t) => t.badRegistry(value));
     const file = join(this.prepareDir(), NPMRC);
-    const raw = existsSync(file) ? readFileSync(file, 'utf8') : '';
+    const raw = existsSync(file) ? readTextFile(file) : '';
     const eol = raw.includes('\r\n') ? '\r\n' : '\n';
     const lines = raw ? raw.replace(/\r?\n$/, '').split(/\r?\n/) : [];
     const at = lines.findIndex((line) => REGISTRY_LINE.test(line));
@@ -744,7 +753,7 @@ export class ExtensionManager {
     const pkgFile = join(this.dir, 'package.json');
     const existing = existsSync(pkgFile);
     const pkg = existing
-      ? JSON.parse(readFileSync(pkgFile, 'utf8')) as Record<string, unknown>
+      ? readPackageJson(pkgFile) as Record<string, unknown>
       : { name: 'cortico-extensions', private: true, dependencies: {} };
     const packageManager = corticoPackageManager();
     if (!existing || (packageManager && pkg.packageManager !== packageManager)) {
@@ -794,7 +803,7 @@ export class ExtensionManager {
         ...r,
         reason: r.reason?.(language),
         warnings: r.warnings?.(language),
-        ...(pkg ? { metadata: packageMetadata(pkg) } : {}),
+        ...(pkg ? { metadata: packageMetadata(pkg, language) } : {}),
         ...(author ? { author } : {}),
         ...(pkg && extensionIconFile(pkgDir, pkg) ? { icon: true } : {}),
         ...(spec === undefined ? {} : { installedVersion }),
@@ -818,7 +827,7 @@ export class ExtensionManager {
         loaded: false,
         state: 'pending-restart',
         ...(pkg?.description ? { description: pkg.description } : {}),
-        ...(pkg ? { metadata: packageMetadata(pkg) } : {}),
+        ...(pkg ? { metadata: packageMetadata(pkg, language) } : {}),
         ...(pkg && packageAuthor(pkg) ? { author: packageAuthor(pkg) } : {}),
         ...(pkg && extensionIconFile(join(this.dir, 'node_modules', ...name.split('/')), pkg) ? { icon: true } : {}),
       });
@@ -898,7 +907,7 @@ export class ExtensionManager {
             ...(p.maintainers?.length ? { maintainers: p.maintainers.flatMap((m) => m.username ? [m.username] : []) } : {}),
             ...(p.license ? { license: p.license } : {}),
             ...(p.keywords?.length ? { keywords: p.keywords } : {}),
-            downloads: { month: obj.downloads?.monthly ?? 0 },
+            downloads: {},
             dependents: Number(obj.dependents) || 0,
             links: {
               ...(p.links?.npm ? { npm: p.links.npm } : {}),
@@ -920,7 +929,8 @@ export class ExtensionManager {
   }
 
   /**
-   * 向 npm 下载统计问每个包的近 7 天、近 30 天与累计下载量。不带 scope 的合批问,带 scope 的逐个问。
+   * 向 npm 下载统计问每个包的近 7 天、近 30 天与累计下载量,都按截至 UTC 昨天的日期区间问。
+   * 不带 scope 的合批问,带 scope 的逐个问。
    * 累计按 365 天一段往前加,一个包某段为 0 就不再往前问;中间有整年无下载的包因此少计更早的下载。
    * 某次请求失败,涉及的包就缺那一项;统计接口整个不可达时返回空表,列表照常出。
    */
@@ -947,10 +957,12 @@ export class ExtensionManager {
       return counts;
     };
     const day = (date: Date) => date.toISOString().slice(0, 10);
-    const [week, month, total] = await Promise.all([point('last-week', names), point('last-month', names), (async () => {
+    const yesterday = Date.now() - 86_400_000;
+    const last = (days: number) => `${day(new Date(yesterday - (days - 1) * 86_400_000))}:${day(new Date(yesterday))}`;
+    const [week, month, total] = await Promise.all([point(last(7), names), point(last(30), names), (async () => {
       const sums = new Map<string, number>();
       let pending = names;
-      for (let end = new Date(); pending.length && day(end) >= DOWNLOADS_EPOCH;) {
+      for (let end = new Date(yesterday); pending.length && day(end) >= DOWNLOADS_EPOCH;) {
         const start = new Date(end.getTime() - (DOWNLOADS_WINDOW_DAYS - 1) * 86_400_000);
         const from = day(start) < DOWNLOADS_EPOCH ? DOWNLOADS_EPOCH : day(start);
         const counts = await point(`${from}:${day(end)}`, pending);
@@ -984,6 +996,7 @@ export class ExtensionManager {
     if (!latest || !v) throw extensionError((t) => t.registryNoVersion(name, version ?? 'latest'), 502);
 
     const parsed = parseExtensionManifest(v, language);
+    const displayName = parsed.ok ? parsed.manifest.locales?.[authorLanguage(language)]?.displayName ?? parsed.manifest.displayName : undefined;
     const times = Object.keys(doc.versions ?? {}).map((version) => [version, doc.time?.[version] ?? ''] as const);
     const history = times
       .sort((a, b) => (a[1] < b[1] ? 1 : -1))
@@ -1004,7 +1017,7 @@ export class ExtensionManager {
     return {
       name,
       version: latest,
-      ...(parsed.ok && parsed.manifest.displayName ? { displayName: parsed.manifest.displayName } : {}),
+      ...(displayName ? { displayName } : {}),
       ...(v.description ? { description: v.description } : {}),
       ...(v.license ? { license: v.license } : {}),
       ...(v.keywords?.length ? { keywords: v.keywords } : {}),

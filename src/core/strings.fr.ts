@@ -40,10 +40,6 @@ export const coreGroupText: Partial<typeof coreGroupEn> = {
     title: 'Seuils fichier par zone',
     description: "`zone=niveau` séparés par des virgules, par exemple `core.loop=trace,console=warn` ; `.*` est pris en charge. Le préfixe correspondant le plus long s'applique. Les zones sans correspondance utilisent le seuil par défaut.",
   },
-  usageRate: {
-    title: (code: string) => `Taux du rapport d'utilisation : ${code}`,
-    description: "Taux auquel le rapport d'utilisation convertit entre l'USD et cette devise : valeur de 1 USD dans cette devise, au départ le cours médian du 2026-10-10. 0 exclut cette devise de la conversion.",
-  },
 };
 export const validationText: Partial<typeof validationEn> = {
   notNumber: (label: string) => `${label} doit être un nombre`,
@@ -55,4 +51,6 @@ export const validationText: Partial<typeof validationEn> = {
   second: (label: string) => `${label} (2e valeur)`,
   pairOrder: (label: string) => `${label} : la première valeur ne peut pas dépasser la seconde`,
   empty: (label: string) => `${label} ne peut pas être vide`,
+  unknownKeys: (group: string, keys: string, declared: string) => `Le groupe de réglages ${group} ne déclare pas ${keys} ; clés modifiables : ${declared}`,
+  didYouMean: (key: string, path: string) => `${key} (vouliez-vous dire ${path} ?)`,
 };

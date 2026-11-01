@@ -3,7 +3,7 @@
  * World environment text is rendered from templates and supplied to that hook.
  * Core joins the returned segments in order; their text remains opaque to Core.
  */
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { renderTemplate } from './template.ts';
 import type {
@@ -13,6 +13,7 @@ import type {
   PrefixSegment,
   PromptDocDecl,
 } from './types.ts';
+import { readTextFile } from './util.ts';
 
 export interface AssembleSystemDeps {
   persona: Persona;
@@ -76,46 +77,77 @@ export async function renderWorldEnvPrompt(
   mod: World,
   dirs?: EnvPromptDirs,
 ): Promise<{ text: string; sourceKey?: string }> {
+  return renderEnvTemplate(mod, await mod.envPromptVars(), dirs);
+}
+
+function renderEnvTemplate(
+  mod: World,
+  vars: Record<string, string> | null,
+  dirs: EnvPromptDirs | undefined,
+): { text: string; sourceKey?: string } {
   // null 表示省略整段，不读取模板。
-  const vars = await mod.envPromptVars();
   const doc = vars === null ? undefined : envPromptDocOf(mod);
   if (!doc) return { text: '' };
   const { path } = envPromptTemplateSource(doc, mod.id, dirs);
-  const text = renderTemplate(readFileSync(path, 'utf8'), vars ?? {}).trim();
+  const text = renderTemplate(readTextFile(path), vars ?? {}).trim();
   // 空段不提供模板编辑来源。
   return text ? { text, sourceKey: doc.key } : { text: '' };
 }
 
-/** 环境模板提供 World 的前缀文本；工具 description 随工具定义发送。 */
+/** 读取一个 World 的 `envPromptVars()` 时出的错,`detail` 前带上成员名。 */
+export interface WorldReadFailure {
+  world: World;
+  detail: string;
+}
+
+/**
+ * 环境模板提供 World 的前缀文本；工具 description 随工具定义发送。
+ * `envPromptVars()` 抛错的 World 不进 `contexts`,列入 `failed`,其余 World 照常。
+ */
 export async function collectWorldContexts(
   worlds: World[],
   dirs?: EnvPromptDirs,
-): Promise<WorldPrefixContext[]> {
+): Promise<{ contexts: WorldPrefixContext[]; failed: WorldReadFailure[] }> {
   const sorted = [...worlds].sort((a, b) => a.id.localeCompare(b.id));
-  return Promise.all(
-    sorted.map(async (mod) => {
-      const { text, sourceKey } = await renderWorldEnvPrompt(mod, dirs);
-      return {
-        id: mod.id,
-        envPrompt: text,
-        ...(sourceKey ? { sourceKey } : {}),
-      };
+  const read = await Promise.all(
+    sorted.map(async (mod): Promise<WorldPrefixContext | WorldReadFailure> => {
+      let vars: Record<string, string> | null;
+      try {
+        vars = await mod.envPromptVars();
+      } catch (error) {
+        return { world: mod, detail: `envPromptVars(): ${error instanceof Error ? error.message : String(error)}` };
+      }
+      const { text, sourceKey } = renderEnvTemplate(mod, vars, dirs);
+      return { id: mod.id, envPrompt: text, ...(sourceKey ? { sourceKey } : {}) };
     }),
   );
+  const contexts: WorldPrefixContext[] = [];
+  const failed: WorldReadFailure[] = [];
+  for (const item of read) {
+    if ('world' in item) failed.push(item);
+    else contexts.push(item);
+  }
+  return { contexts, failed };
 }
 
-/** 供 WebUI 观察:前缀的分段视图(与实际发出的前缀同一来源) */
+/**
+ * 供 WebUI 观察:前缀的分段视图,和主循环组前缀走同一条 collectWorldContexts 与 Persona.systemSegments。
+ * 环境段读取失败的 World 在这里只省略、不卸载,所以视图可能和 session 里上一次发出的前缀不同。
+ */
 export async function assembleSystemSegments(deps: AssembleSystemDeps): Promise<PrefixSegment[]> {
   const { persona, worlds, now, timezone, dirs } = deps;
   return persona.systemSegments({
     now,
     timezone,
-    worlds: await collectWorldContexts(worlds, dirs),
+    worlds: (await collectWorldContexts(worlds, dirs)).contexts,
   });
 }
 
 /** 按顺序直接拼接各段，分隔符由 Persona 的段文本提供。 */
-export async function assembleSystem(deps: AssembleSystemDeps): Promise<string> {
-  const segments = await assembleSystemSegments(deps);
+export function joinSegments(segments: readonly PrefixSegment[]): string {
   return segments.map((segment) => segment.text).join('');
+}
+
+export async function assembleSystem(deps: AssembleSystemDeps): Promise<string> {
+  return joinSegments(await assembleSystemSegments(deps));
 }
