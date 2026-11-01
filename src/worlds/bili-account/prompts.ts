@@ -7,7 +7,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { describeStateWithTrace, applyRecall, saveState, remember, rememberFirst, applyEffects, PRESETS } from './personaAdapter.ts'
-import { dayKey } from '../../../persona-core/src/rhythm.ts'
+import { dayKey } from '@xiaoyu/persona-core/rhythm'
 import { FIELDS_FILE, PUBLIC_DIARY, resolveDraftsDir } from './paths.ts'
 
 /** 从 debrief 回执里抠出能当记忆的内容：标题 + UP 主。解析不出来就返回空。 */

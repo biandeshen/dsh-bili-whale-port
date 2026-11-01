@@ -346,7 +346,7 @@ export function settingsState(): { ok: boolean; file: string; total: number; und
  */
 const DENY_KEYS = new Set(['home', 'toolsPath'])
 const DENY_PREFIX = ['publish.', 'permissions.']
-/** 名字类：与 persona-core/src/naming.ts 一样 24 字封顶，别把叙事提示词撑爆。 */
+/** 名字类：与 @xiaoyu/persona-core/naming 一样 24 字封顶，别把叙事提示词撑爆。 */
 const NAME_KEYS = new Set(['self.name', 'owner.displayName'])
 /**
  * 次数/额度/间隔类：这类值负数没有意义。命名尾巴必须覆盖实际配置里的写法——

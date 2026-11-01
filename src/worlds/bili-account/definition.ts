@@ -12,9 +12,9 @@ import { upsertDiarySection, sectionStats, diaryDefaultHeader, paginateDiary, di
 import { loadState, saveState, applyEffects, remember, recentWatch, annotateFeed, findMemories, voidMemory, PRESETS, WATCH_VERDICTS } from './personaAdapter.ts'
 import type { WatchVerdict } from './personaAdapter.ts'
 import type { PresetEffect } from './personaAdapter.ts'
-import { buildVoiceBrief } from '../../../persona-core/src/voice-brief.ts'
-import { pickActivities, ACTIVITY_LABELS } from '../../../persona-core/src/life-activities.ts'
-import { ownerName, setOwnerName } from '../../../persona-core/src/naming.ts'
+import { buildVoiceBrief } from '@xiaoyu/persona-core/voice-brief'
+import { pickActivities, ACTIVITY_LABELS } from '@xiaoyu/persona-core/life-activities'
+import { ownerName, setOwnerName } from '@xiaoyu/persona-core/naming'
 import { readQueue, writeQueue, newTask, dueTasks, markDelivered, markAttempt, prune, expireStale, type QueueTask } from './task-queue.ts'
 import { parseDmPeek } from './dm.ts'
 import { dmAutoPlan, noteInboxRead, noteInbound } from './dm-reply.ts'
@@ -25,7 +25,7 @@ import {
   policyState, policySet, policyInWindow, autoSentToday, draftForDay, freshAckToken, ownerNameFromConfig, personaNameFromConfig, hostDisplayName, settingsState, settingsSet, renameSelf,
   consolePaths,
 } from './tank.ts'
-import { decideAction, restRecoveryDelta, actionCost, nextCheckDelay, dayKey, MIN_GAP_MS } from '../../../persona-core/src/rhythm.ts'
+import { decideAction, restRecoveryDelta, actionCost, nextCheckDelay, dayKey, MIN_GAP_MS } from '@xiaoyu/persona-core/rhythm'
 
 const ROOT = process.env.BILI_WHALE_ROOT || 'E:/WorkSpace_Qoder/dsh-bili-whale'
 const ENV_PROMPT_FILE = fileURLToPath(new URL('./ENV_PROMPT.md', import.meta.url))

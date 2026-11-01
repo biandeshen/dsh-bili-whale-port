@@ -7,17 +7,17 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
-import { EffectBus } from '../../../persona-core/src/effect-bus.ts'
-import type { AtomicFields, CausalEvent, Memory } from '../../../persona-core/src/types.ts'
-import { DEFAULT_ATOMIC_FIELDS } from '../../../persona-core/src/types.ts'
-import { recordFieldChangeL0 } from '../../../persona-core/src/causal-chain.ts'
-import { decayMemory, calculateEncodingStrength, recallMemory, voidMemories } from '../../../persona-core/src/memory.ts'
-import { recallMemories, watchedFromMemories } from '../../../persona-core/src/retrieval.ts'
-import { simulateOfflineTime } from '../../../persona-core/src/decay.ts'
-import { createInitialState, deriveNPCState } from '../../../persona-core/src/npc-state-machine.ts'
-import { readMood } from '../../../persona-core/src/emotion.ts'
-import type { MoodLabel } from '../../../persona-core/src/emotion.ts'
-import { applyBudgets, emptyBudget, type BudgetLedger } from '../../../persona-core/src/budget.ts'
+import { EffectBus } from '@xiaoyu/persona-core/effect-bus'
+import type { AtomicFields, CausalEvent, Memory } from '@xiaoyu/persona-core/types'
+import { DEFAULT_ATOMIC_FIELDS } from '@xiaoyu/persona-core/types'
+import { recordFieldChangeL0 } from '@xiaoyu/persona-core/causal-chain'
+import { decayMemory, calculateEncodingStrength, recallMemory, voidMemories } from '@xiaoyu/persona-core/memory'
+import { recallMemories, watchedFromMemories } from '@xiaoyu/persona-core/retrieval'
+import { simulateOfflineTime } from '@xiaoyu/persona-core/decay'
+import { createInitialState, deriveNPCState } from '@xiaoyu/persona-core/npc-state-machine'
+import { readMood } from '@xiaoyu/persona-core/emotion'
+import type { MoodLabel } from '@xiaoyu/persona-core/emotion'
+import { applyBudgets, emptyBudget, type BudgetLedger } from '@xiaoyu/persona-core/budget'
 
 export { readMood }
 export type { MoodLabel }

@@ -8,8 +8,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { loadState } from '../src/worlds/bili-account/personaAdapter.ts'
 import { consumeDraftResults } from '../src/worlds/bili-account/definition.ts'
-import { createInitialState } from '../persona-core/src/npc-state-machine.ts'
-import { DEFAULT_ATOMIC_FIELDS } from '../persona-core/src/types.ts'
+import { createInitialState } from '@xiaoyu/persona-core/npc-state-machine'
+import { DEFAULT_ATOMIC_FIELDS } from '@xiaoyu/persona-core/types'
 
 const HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'apr-reason-host-'))
 fs.mkdirSync(path.join(HOME, 'bili-whale'), { recursive: true })

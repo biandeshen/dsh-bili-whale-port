@@ -1,0 +1,11 @@
+{
+  "name": "@xiaoyu/persona-core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Persona logic shared by the host World: rhythm, memory, emotion, naming. No dependency on Cortico's src/.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  }
+}

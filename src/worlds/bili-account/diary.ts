@@ -1,5 +1,5 @@
 /** 两本日记的写入与分页读取：按日期块、按小节"有则替换、无则追加"，纯函数。 */
-import { ownerName } from '../../../persona-core/src/naming.ts'
+import { ownerName } from '@xiaoyu/persona-core/naming'
 
 export type DiaryBook = 'public' | 'private'
 
@@ -10,7 +10,7 @@ export interface DiarySectionInput {
   date: string
 }
 
-/** 日记本的空文件抬头。公开本的收件人是主人，称呼跟着配置走（`persona-core/src/naming.ts`）。 */
+/** 日记本的空文件抬头。公开本的收件人是主人，称呼跟着配置走（`@xiaoyu/persona-core/naming`）。 */
 export function diaryDefaultHeader(book: DiaryBook): string {
   return book === 'public' ? `# 鲸鱼日记 · 给${ownerName()}\n\n` : '# 私人日记 · 偏好校准\n\n'
 }

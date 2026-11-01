@@ -6,3 +6,9 @@ allowBuilds:
 # 所有 prismarine 依赖必须解析到同一 vec3 版本,否则同名 Vec3 类型互不兼容。
 overrides:
   vec3: ^0.2.0
+
+# persona-core 是本仓内的独立单元：只依赖标准库，不依赖 Cortico 的 src/。
+# 声明成 workspace 包，宿主与脚本才能用包名 import，而不是 '../../../persona-core/src/x.ts'。
+packages:
+  - '.'
+  - 'persona-core'

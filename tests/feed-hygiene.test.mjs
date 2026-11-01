@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { annotateFeed, recentWatch, remember, emptyState } from '../src/worlds/bili-account/personaAdapter.ts'
-import { watchedFromMemories } from '../persona-core/src/retrieval.ts'
+import { watchedFromMemories } from '@xiaoyu/persona-core/retrieval'
 
 const FEED = [
   '今天可以看这几条（每词最多 3 条，共 3 条）：',
