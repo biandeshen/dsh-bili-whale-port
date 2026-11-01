@@ -87,18 +87,45 @@ export function stateDir(env = process.env) {
 /** 某个状态文件的写入路径 —— 永远是新家。 */
 export function statePath(...parts) { return path.join(stateDir(), ...parts) }
 
+/**
+ * 旧家兜底的退场日。到期后读列表不再含旧家（旧文件仍在盘上，只是不读了）。
+ * 这一条判断只在这里实现：`stateReadPath` 与 `state-roots.resolve()` 都调它，
+ * 免得"路径给不给旧家"和"读不读旧家"两处各写一份、到期那天只改了一处。
+ */
+export const LEGACY_UNTIL = () => process.env.BILI_LEGACY_UNTIL || '2026-12-01'
+
+/** 现在还算不算兼容期内。配错了当没配——宁可继续兜底，也不要某天突然读不到。 */
+export function legacyAllowed(now = Date.now()) {
+  const until = Date.parse(LEGACY_UNTIL())
+  if (Number.isNaN(until)) return true
+  return now < until
+}
+
+/** 给一次"读到旧家了"的告警只报一次（兼容期结束前要看见还有谁在旧家）。 */
+const legacyWarned = new Set()
+export function noteLegacyRead(file) {
+  const key = String(file)
+  if (legacyWarned.has(key)) return
+  legacyWarned.add(key)
+  console.warn(`[legacy] 读到旧家状态：${key}（退场日 ${LEGACY_UNTIL()}；之后不再读）`)
+}
+
 /** 某个状态文件此刻该从哪读：新家存在读新家，否则旧家存在读旧家，都没有则给新家（读出来是 ENOENT）。 */
 export function stateReadPath(...parts) {
   const fresh = statePath(...parts)
   try { if (fs.existsSync(fresh)) return fresh } catch {}
+  if (!legacyAllowed()) return fresh
   const legacy = path.join(legacyStateDir(), ...parts)
-  try { if (fs.existsSync(legacy)) return legacy } catch {}
+  try {
+    if (fs.existsSync(legacy)) { noteLegacyRead(legacy); return legacy }
+  } catch {}
   return fresh
 }
 
-/** 状态文件是否存在（新家或旧家任一处）。 */
+/** 状态文件是否存在（新家或旧家任一处；兼容期结束后只认新家）。 */
 export function stateExists(...parts) {
   try { if (fs.existsSync(statePath(...parts))) return true } catch {}
+  if (!legacyAllowed()) return false
   try { return fs.existsSync(path.join(legacyStateDir(), ...parts)) } catch { return false }
 }
 
@@ -111,20 +138,29 @@ export function stateExists(...parts) {
 export function stateReadPathFrom(home, ...parts) {
   const fresh = statePath(...parts)
   try { if (fs.existsSync(fresh)) return fresh } catch {}
+  if (!legacyAllowed()) return fresh
   const legacy = path.join(home ? path.join(home, '.bili-ai') : legacyStateDir(), ...parts)
-  try { if (fs.existsSync(legacy)) return legacy } catch {}
+  try {
+    if (fs.existsSync(legacy)) { noteLegacyRead(legacy); return legacy }
+  } catch {}
   return fresh
 }
 
-/** 读状态文件（utf8）：新→旧；两处都没有时抛 code=ENOENT 的错，并列出两个找过的路径。 */
+/** 读状态文件（utf8）：新→旧（兼容期内）；两处都没有时抛 code=ENOENT 的错，并列出找过的路径。 */
 export function readStateText(...parts) {
-  const fresh = statePath(...parts), legacy = path.join(legacyStateDir(), ...parts)
-  for (const p of [fresh, legacy]) {
-    try { return fs.readFileSync(p, 'utf8') } catch (e) {
+  const fresh = statePath(...parts)
+  const legacy = path.join(legacyStateDir(), ...parts)
+  const tried = legacyAllowed() ? [fresh, legacy] : [fresh]
+  for (const p of tried) {
+    try {
+      const text = fs.readFileSync(p, 'utf8')
+      if (p === legacy) noteLegacyRead(p)
+      return text
+    } catch (e) {
       if (e.code !== 'ENOENT' && e.code !== 'ENOTDIR') throw e
     }
   }
-  const err = Error(`读不到 ${parts.join('/')}：${fresh} 与 ${legacy} 都不存在`)
+  const err = Error(`读不到 ${parts.join('/')}：${tried.join(' 与 ')} 都不存在`)
   err.code = 'ENOENT'
   throw err
 }

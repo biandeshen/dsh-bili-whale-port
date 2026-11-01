@@ -99,10 +99,14 @@ console.log('     否则她起来后跑不了命令、发不了评论、写不�
 console.log('')
 // 2026-10-20：全绿时落个标记 —— 设置页和她的唤醒提示会用它在"还没测过"时提醒
 if (bad === 0) {
+  // 写失败要说出来：这个标记是"装好了"的唯一凭据，静默丢掉会让设置页永远显示未测试。
   try {
     fs.mkdirSync(stateDir(), { recursive: true })
     fs.writeFileSync(statePath('selftest-passed.json'), JSON.stringify({ at: new Date().toISOString() }, null, 2))
-  } catch {}
+  } catch (err) {
+    console.error(`\n  ⚠ 自检全过了，但"已测过"的标记没写进去（${statePath('selftest-passed.json')}）：${String(err)}`)
+    console.error('    设置页因此会继续显示「还没测过」。多半是目录权限问题。\n')
+  }
   console.log('══════════ 全部通过 ✓ 可以用了 ══════════')
   console.log('  想立刻看她跑一轮：设置页 →「生物钟」→ 把窗口改成现在之后 2 分钟 → 等她自己醒\n')
 } else {

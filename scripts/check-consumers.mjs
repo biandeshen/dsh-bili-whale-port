@@ -2,13 +2,19 @@
  * 生产调用点检查：核心导出必须真的被非测试代码调用。
  * 防的是"写了但没接线"——三次外审抓到的都是这一类。
  *
- *   node scripts/check-consumers.mjs
+ *   node scripts/check-consumers.mjs [--cortico <检出目录>]
+ *
+ * 落线之后功能在 `Cortico-up`（reanchor/replay），`Cortico` 只做 hotfix；
+ * 默认查落线那一侧，临时要看 live 就用 --cortico ../Cortico 显式指定。
  */
 import fs from 'node:fs'
 import path from 'node:path'
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..')
-const CORTICO = path.resolve(ROOT, '..', 'Cortico')
+const argAt = process.argv.indexOf('--cortico')
+const CORTICO = argAt > 0 && process.argv[argAt + 1]
+  ? path.resolve(ROOT, process.argv[argAt + 1])
+  : path.resolve(ROOT, '..', 'Cortico-up')
 
 const TARGETS = [
   { symbol: 'buildText', home: ROOT },

@@ -12,11 +12,14 @@
  *   R4 探测"存在即用"，不因目录不存在改变读取语义
  *   R5 每个文件只有一个写者，或显式 `both-with-lock`
  *
- * 调用方一律走 `resolve(kind)`，不要自己拼 `.bili-ai`。
+ * 调用方一律走 `resolve(kind)`，不要自己拼旧家目录名。
  */
 import fs from 'node:fs'
 import path from 'node:path'
-import { credentialsPath, draftsDir, legacyStateDir, stateDir, statePath, whaleHome } from './paths.mjs'
+import {
+  credentialsPath, draftsDir, legacyAllowed, legacyStateDir, LEGACY_UNTIL,
+  stateDir, statePath, whaleHome,
+} from './paths.mjs'
 
 /**
  * 写者身份，由进程入口注入：CLI 进程是 `cli`，宿主（World）是 `host`。
@@ -30,13 +33,11 @@ export function setWriter(who) {
   writer = who
 }
 
-/** 旧家兜底的退场日。到期后读列表不再含旧家（旧文件仍在盘上，只是不读了）。 */
-export const LEGACY_UNTIL = process.env.BILI_LEGACY_UNTIL || '2026-12-01'
+/** 旧家兜底的退场日（判断在 paths.mjs，这里只是转出，别各存一份）。 */
+export { LEGACY_UNTIL }
 
 function legacyStillAllowed(now = Date.now()) {
-  const until = Date.parse(LEGACY_UNTIL)
-  if (Number.isNaN(until)) return true // 配错了就当没配，宁可继续兜底也不突然读不到
-  return now < until
+  return legacyAllowed(now)
 }
 
 /**
@@ -56,6 +57,8 @@ const KINDS = {
   feedback: { owner: 'cli' },
   'likes-sent': { owner: 'cli' },
   'liked-videos': { owner: 'cli' },
+  favorites: { owner: 'cli' },            // 收藏账本：`fav` 写、`feed` 回流读
+  'feed-search-cache': { owner: 'cli' },
   'replied': { owner: 'cli' },
   'commented-videos': { owner: 'cli' },
   'selftest-passed': { owner: 'cli' },
@@ -117,7 +120,7 @@ export function resolve(kind, opts = {}) {
   const legacy = path.join(legacyStateDir(), name)
   // R1 + R4：读按"新家优先、旧家兜底"，兜底是否还算数看退场日。
   const read = legacyStillAllowed(now) ? [fresh, legacy] : [fresh]
-  return { kind, owner: spec.owner, write: fresh, read, legacyUntil: LEGACY_UNTIL }
+  return { kind, owner: spec.owner, write: fresh, read, legacyUntil: LEGACY_UNTIL() }
 }
 
 /**

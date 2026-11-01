@@ -80,7 +80,7 @@ test('R5 附带：没说身份的进程只放行 both-with-lock', () => {
 })
 
 test('退场日：过了 legacyUntil 读列表里不再有旧家，且不静默当空', () => {
-  const after = Date.parse(R.LEGACY_UNTIL) + 86400_000
+  const after = Date.parse(R.LEGACY_UNTIL()) + 86400_000
   const f = R.resolve('feedback', { now: after })
   assert.deepEqual(f.read, [f.write], '到期后只读新家')
   assert.equal(R.readHitsLegacy('feedback', after), false)
