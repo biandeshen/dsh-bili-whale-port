@@ -1,6 +1,7 @@
 import { guardedFetch as fetch } from '../lib/traffic.mjs'
 import { keepCandidate, snapshotRow, numOf, dislikeHit } from '../lib/feed-quality.mjs'
 import { collectLearnedTokens, likedEventsFromLedger, favItemsFromLedger } from '../lib/feed-feedback.mjs'
+import { activeJudgments } from '../lib/judgment.mjs'
 // 选题器：照"她自己的偏好"挑今天该看什么。**只读**，不产生任何对外动作。
 //
 // 用法: node feed.mjs [--n 6] [--per 2] [--pool 30] [--allow-seen]
@@ -33,7 +34,7 @@ const POOL = Number(opt.pool ?? 60)
 const HOME = (process.env.USERPROFILE || process.env.HOME || '/')
 const diary = whalePath('whale-diary.md')
 // 2026-10-18：审计表挪到 `~/.bili-ai/` ✓（原来写死作者机器路径 ✗ 换机器就写不进去，静默失效 ✗）
-const audit = path.join(HOME, '.bili-ai', 'commented-videos.md')
+const audit = stateReadPath('commented-videos.md')
 
 // ── 偏好：统一配置首选，日记「爱看」只在配置为空时兜底 ────────────────────
 // 「看过」名单：三源合并（f-a2142e，2026-11-01 意见箱）──────────────────────
@@ -44,6 +45,10 @@ const audit = path.join(HOME, '.bili-ai', 'commented-videos.md')
 let prefs = [...(config().preferences?.like ?? [])]   // 偏好来自统一配置（首选）
 let prefsFrom = '统一配置'
 let dislike = [...(config().preferences?.dislike ?? [])]
+// 判断卡（方案 A）：主人采纳过的卡才生效；avoid 并入硬拦，prefer 只加权。
+// 主人的 like/dislike 永远优先——冲突时配置赢，冲突逐条写进快照给她看。
+const judgment = activeJudgments()
+dislike = [...new Set([...dislike, ...judgment.avoid])]
 const seenDiary = new Set()
 const seenAudit = new Set()
 const seenWatched = new Set()
@@ -221,8 +226,10 @@ try {
 const ownerName = String(config().owner?.name ?? '')
 const learnedTokens = collectLearnedTokens({ likedEvents, favItems, sentDrafts, ownerName })
 const learnedHitsOf = (title) => learnedTokens.filter((tok) => title.toLowerCase().includes(tok)).length
+// 判断卡的 prefer：与学到的词同一数量级，封顶 2.5——它调排序，不压倒主人词表的 4 分命中。
+const judgedHitsOf = (title) => judgment.prefer.filter((tok) => title.includes(tok)).length
 // 每条命中 +2.5，最多 +7.5（不压过偏好命中的主权重 ✓）
-const boostOf = (title) => Math.min(7.5, learnedHitsOf(title) * 2.5)
+const boostOf = (title) => Math.min(7.5, learnedHitsOf(title) * 2.5) + Math.min(2.5, judgedHitsOf(title) * 2.5)
 
 // ── 偏好命中与排序（2026-10-20 重写，主人定：不要对高播放量有偏向 ✗）────────────
 //   旧：弹幕密度 + log10(播放)×3  → 大 UP 的爆款永远霸榜 ✗
@@ -299,6 +306,7 @@ for (const x of uniq) {
 }
 
 console.log(`偏好（来自${prefsFrom}）: ${prefs.join(' · ')}`)
+console.log(`判断卡（已采纳）: avoid ${judgment.avoid.length} 个词 · prefer ${judgment.prefer.length} 个词${judgment.conflicts.length ? ` · 与你的词表冲突 ${judgment.conflicts.length} 条（按你的来）` : ''}`)
 console.log(`反馈回流: 被赞 ${likedEvents.length} 条 · 她收藏 ${favItems.length} 条 · 已发稿 ${sentDrafts.length} 条 → 学会 ${learnedTokens.length} 个主题词`)
 console.log(`已看过（日记 ${seenDiary.size} + 评论审计 ${seenAudit.size} + 近 7 天观看记录 ${seenWatched.size} → 去重 ${seen.size} 个 BV）：${ALLOW_SEEN ? '--allow-seen 显式放回，行内标 [已看过]' : '默认排除'}`)
 console.log(`候选池: ${pool.length} 条 → ${ALLOW_SEEN ? '去重后' : '去重去已看后'} ${uniq.length} 条（质量下限丢掉 ${dropped.length} 条 · dislike 拦下 ${droppedDislike.length} 条）\n`)
@@ -328,7 +336,8 @@ try {
   ]
   const file = path.join(dir, day + '.json')
   fs.writeFileSync(file + '.' + process.pid + '.tmp', JSON.stringify({
-    at: new Date().toISOString(), day, prefs, pool: pool.length, kept: uniq.length, dropped: dropped.length, rows,
+    at: new Date().toISOString(), day, prefs, pool: pool.length, kept: uniq.length, dropped: dropped.length,
+    judgments: { avoid: judgment.avoid, prefer: judgment.prefer, conflicts: judgment.conflicts }, rows,
   }, null, 1))
   fs.renameSync(file + '.' + process.pid + '.tmp', file)
 } catch (e) { console.error(`（候选快照没写成：${String(e.message).slice(0, 80)}）`) }

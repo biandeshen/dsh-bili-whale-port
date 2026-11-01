@@ -49,6 +49,7 @@ const map = {
   'dynamic-image': ['commands/dynamic-image.mjs', '发图文动态（上传图片 + 可带 @节点）'],
   'dynamic-edit': ['commands/edit-dynamic.mjs', '编辑已存在的动态（文字/图片都能改，id 不变、评论与点赞保留）：<dyn_id> <文本文件> [--go]'],
   feedback: ['commands/feedback.mjs', '她的意见箱：add --issue "..." [--severity high] [--self] [--note ...] / list [--json] [--all] / resolve <id> [--by whale|owner]（本地文件，不联网）'],
+  judgment: ['commands/judgment.mjs', '她的判断卡：add --tokens "a,b" --reason "…" [--stance avoid|prefer] [--scope feed|draft|dm|any] / list；采纳只有面板能点（本地文件，不联网）'],
   rename: ['commands/rename.mjs', '改 B站 昵称（真实账号写）：--to "新名字" --dry|--go / --status；改完用 nav 复核平台真记了什么'],
   danmaku: ['commands/danmaku.mjs', '直播间弹幕：pre 预检 / send 发送 / history 回读 / live 实时流'],
   await: ['commands/danmaku-await.mjs', '直播间"叫我起床"：出现该回的弹幕就退出，交给 agent 回（质量优先）'],

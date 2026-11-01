@@ -36,6 +36,8 @@ export const DEFAULTS = {
   preferences: {
     like: ['AI 工具与插件', '鬼畜与怀旧向剪辑', '猫咪', 'Live2D/模型'],
     dislike: ['带货', '擦边', '标题党', '纯搬运'],
+    // 她自己的判断卡，采纳后落在这里（与主人手写的 like/dislike 分开命名空间）。
+    judgments: [],
   },
   notify: { type: 'none', url: '', template: 'text', cmd: '' },   // none | desktop | webhook | command（见 commands/notify.mjs）
   aliases: [],                  // 历史昵称（兜底用；当前昵称仍从 nav 动态读）
@@ -71,4 +73,28 @@ export function config() {
   cache = merge(DEFAULTS, user)
   cache.__hasUserFile = Object.keys(user).length > 0
   return cache
+}
+
+/**
+ * 只改一个点路径上的键，其余原样保留：先读**用户文件**（不是合并后的视图，否则默认值会被写成用户配置），
+ * 按 `a.b.c` 落到该处，临时文件 + 改名落盘。面板的整份保存仍走自己的路由；
+ * 这里给的是"只允许动一个键"的写入面（判断卡采纳就用它）。
+ */
+export function saveConfigKey(keyPath, value) {
+  const parts = String(keyPath).split('.')
+  if (!parts.length || parts.some((p) => !p)) throw new Error(`非法配置路径：${keyPath}`)
+  let raw = {}
+  try { raw = JSON.parse(fs.readFileSync(configPath, 'utf8')) } catch { raw = {} }
+  let node = raw
+  for (const key of parts.slice(0, -1)) {
+    if (!node[key] || typeof node[key] !== 'object' || Array.isArray(node[key])) node[key] = {}
+    node = node[key]
+  }
+  node[parts.at(-1)] = value
+  fs.mkdirSync(path.dirname(configPath), { recursive: true })
+  const tmp = `${configPath}.${process.pid}.tmp`
+  fs.writeFileSync(tmp, JSON.stringify(raw, null, 2) + '\n')
+  fs.renameSync(tmp, configPath)
+  cache = null
+  return configPath
 }
