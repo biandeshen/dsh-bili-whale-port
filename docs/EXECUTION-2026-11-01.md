@@ -45,13 +45,31 @@
 | #27 词表效果观察 | 时间性：需要 3–5 天真实候选，不能加速 |
 | 14 天观测窗 | 11-02 00:00 起算，但**不再冻结改动**；K1 的 tainted 计数照记 |
 
-## 需要你的四件事（不给就按推荐默认走）
-
-1. **你的名字**（`owner.displayName` 已做成一处配置，随时可换）；她的名字要不要换。
-2. **通知**：默认不推；要不要开本机 Toast / 给 ntfy topic。
-3. **上游**：跟不跟（推荐：今晚先建对账脚本出报告，本周内决定跟哪几批）。
-4. **registry**：选 `registry.npmjs.org`（现在实测可用）还是 `npmmirror`（国内更稳）——页面扩展页有下拉，你自己点。
-
 ## 已完成（今晚，供对账）
 
 记忆闭环 #30、私信死循环 #37、假"喜欢"记忆 #38、聊天=鱼缸 #35、词表回执 #36、《》取位 #32、配置全量可见（只读 58 项）、市场/上游出网根因（302 hosts + `--use-system-ca`）、扩展启用（figure + pet-diary 已挂载）、npm 源可选列表、回信时效窗默认不限、意见箱 25→21（4 条核到证据后标解决）。
+
+## 第一批收尾（11-01 13:00 后，全部已合并 + 门禁绿 + 真机验过）
+
+| 项 | 落点 | 真机证据 |
+|---|---|---|
+| **#56 日记分页** | Cortico `paginateDiary` + `bili_diary_read(book/page/days/budget/date)` | 她在控制台照抄回执："公开共 6 块 14737 字…还剩 5 块 10737 字"。旧版是两本拼接后 `slice(0,12000)`，**公开本 14737 字根本放不下** |
+| **#54 debrief 两条 high** | dsh `BILI_VISION=1/0` + 字幕内联 + `--from/--to` 时段 | `node tools/bili.mjs debrief BV1Sw41187j4` 实跑：`封面：本会话**没有读图工具**…这不是你的失误`、`字幕 262 行 → 内联 105 行/1999 字（写明还剩 157 行）` |
+| **#55 记忆更正通道** | Cortico `bili_memory_void`（voided 章 + 召回排除 + 一次只准点一条）；dsh `scripts/repair-memory-source.mjs` | 她调 `bili_capabilities` 后自己复述"更正记忆…只准点名一条"；存量 17 条 `sender=npc` 却挂 `source=user_said` 已改回，7 条真私信未动，备份 `fields.json.bak-1793508964723` |
+| **#41 审批回传理由** | dsh `--why`（草稿 + draft-result 因果账）+ 面板弹窗 + Cortico 结算进记忆 | 354/354 + 98/98 门禁；记忆行形如「主人没让发那条草稿（主人的理由：…）」，没写理由则明说"别替他想一个" |
+| **#49 配置总览开写** | Cortico `settingsSet` + 页面每行一个输入框与「改」 | 页面上把 `listen.commentIntervalSec` 60→61 真写进配置并留 `settings-change` 账；`-5` 当场被拒（真机点出一个范围表漏了 `Sec/Interval/Gap` 的洞，已补并钉进测试），最后已恢复成 60 |
+| **#42 手脚清单** | `bili_capabilities`（工具/扩展/开关三段，只读） | 实调返回 31 个工具，按提供方分组 |
+
+**顺带纠一条我自己的错话**：#55 提交说明里我写过"误标的 `user_said` 会让召回以『主人说过』的口吻浮上来"。查了消费方才确认：口吻取的是 `sender`（当时已经是对的），`source` 只进衰减率（0.9 vs 1.0）。所以这次修的实际是**来源记录的正确性 + 衰减权重**，不是措辞。原文照留在 commit 里，这里更正。
+
+## 还欠的（下一批）
+
+- **#34 写接口认证**：席 cortico-catalog-auth 的结论是"真招不是新写一套，是给正式部署开 `CORTICO_WEB_PASSWORD`"（未登录写路由 401、WS 断），代价是两处合法盲 POST（`scripts/start-cortico.mjs`、`scripts/c2-window.mjs`）要先登录。**等 #53 那条席把 dsh 交卷再动这两个文件**，否则两边同仓打架。
+- **#48 她的名字**：`self.name` / `owner.displayName` 现在页面可改（标"改后要重启"）。剩下的两处联动没做：① `definition.ts` 里写死的 `Xiaoyu's current emotion` 这类工具描述文案；② B站 昵称是账号字段，真改要一次账号写操作 + 二次确认，目前页面上明确不改账号名。
+- **#53 + #45 迁移**：席正在跑（72 行半成品已接成 `stateDir/stateReadPath/writeStateText`，87 个 `.bili-ai` 调用点逐个换）。
+- **#50 回归（新发现）**：`bili_capabilities` 报出 `figure · 开 · 这轮没挂` —— 配置开了但没装配上，需要查是加载失败还是 API 版本不符。
+- 其余：#31 #33 #40 #46 #47 #51 #52 #57 #58（#58 后半受限于第三方包 `coo-world-petdiary` 自己发的 `alarm_set`，我们改不了它的包）。
+
+## 原本"需要你的四件事"已作废
+
+名字 / 通知 / registry / 上游这四件不再问：名字与通知已进配置页（一格一改，含 `notify.type`），registry 在扩展页有下拉可选也可输入，上游对账脚本属于我能自己先做出报告的活。
