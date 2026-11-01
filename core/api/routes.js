@@ -15,6 +15,7 @@ import path from 'node:path'
 import { json, readBody, isLoopbackReq, merge, DEFAULTS, KNOWN_CONFIG_KEYS } from './support.js'
 // M1e：panel 放行前必须重建 argv（审批对象 = 执行对象），不重放模型可写的队列 argv
 import { rebuildApproveArgs } from '../../tools/lib/go-rebuild.mjs'
+import { stateReadPathFrom } from '../../tools/lib/paths.mjs'
 
 const readJson = (p) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')) } catch { return null } }
 
@@ -46,7 +47,9 @@ export function makeRoutes(deps) {
   const resolveBiliMjs = () => readConfig().toolsPath || path.join(toolsRoot, 'tools', 'bili.mjs')
 
   const PERSONA_FILE = path.join(home, '.bili-ai', 'persona.md')
-  const PENDING = path.join(home, '.bili-ai', 'pending-replies.json')
+  // go-gate 现在往新家写，这里每次读都重新判（新家→<注入 home>/.bili-ai），
+  // 定死路径会让服务启动后新增的待审回信在面板与审批视图里永远看不见。
+  const pendingFile = () => stateReadPathFrom(home, 'pending-replies.json')
 
   const guard = (req, res) => {
     if (isLoopbackReq(req) === false) { json(res, 403, { ok: false, error: '只接受本机回环访问' }); return true }
@@ -205,7 +208,7 @@ export function makeRoutes(deps) {
   routes['/dsh-bili/api/pending'] = async (req, res) => {
     if (guard(req, res)) return
     let items = []
-    try { items = JSON.parse(fs.readFileSync(PENDING, 'utf8')).items ?? [] } catch {}
+    try { items = JSON.parse(fs.readFileSync(pendingFile(), 'utf8')).items ?? [] } catch {}
     json(res, 200, { ok: true, items })
   }
 

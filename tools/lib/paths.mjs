@@ -102,6 +102,20 @@ export function stateExists(...parts) {
   try { return fs.existsSync(path.join(legacyStateDir(), ...parts)) } catch { return false }
 }
 
+/**
+ * 给"`home` 由外面注入"的老读点用（core/api/routes.js、panel/data.js）：新家优先，
+ * 再退到 `<home>/.bili-ai`。这里的 `home` 是**用户主目录**（这两处一直是自己拼
+ * `.bili-ai` 的），不是状态目录本身。必须每次调用都重新判——服务启动时定死的话，
+ * "启动之后才产生的第一条待审回信"会永远读不到（go-gate 现在往新家写）。
+ */
+export function stateReadPathFrom(home, ...parts) {
+  const fresh = statePath(...parts)
+  try { if (fs.existsSync(fresh)) return fresh } catch {}
+  const legacy = path.join(home ? path.join(home, '.bili-ai') : legacyStateDir(), ...parts)
+  try { if (fs.existsSync(legacy)) return legacy } catch {}
+  return fresh
+}
+
 /** 读状态文件（utf8）：新→旧；两处都没有时抛 code=ENOENT 的错，并列出两个找过的路径。 */
 export function readStateText(...parts) {
   const fresh = statePath(...parts), legacy = path.join(legacyStateDir(), ...parts)

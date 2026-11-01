@@ -92,3 +92,24 @@ test('读兜底 + 写新家 不会丢队列项：旧家待审的 argv 会被整�
   assert.deepEqual(now.items.map((i) => i.kind), ['comment', 'fav'])
   assert.deepEqual(now.items[0].argv, ['comment', '--go'])
 })
+
+/**
+ * core/api/routes.js 与 panel/data.js 的 `home` 是外面注进来的，不能直接用 stateReadPath
+ * （那一对走 env 解析的旧家），所以有 stateReadPathFrom。这里锁的是"写的一侧换了家，
+ * 读的一侧不能还守着旧家"——否则面板与审批视图会把新待审显示成 0 条。
+ */
+test('注入 home 的读点：新家有就用新家，新家没有才退到 <home>/.bili-ai', () => {
+  const one = (tag) => JSON.stringify({ items: [{ id: tag, kind: 'fav', argv: ['fav', '--go'] }] })
+  fs.mkdirSync(P.stateDir(), { recursive: true })
+  fs.writeFileSync(P.statePath('pending-replies.json'), one('new'))
+  fs.writeFileSync(path.join(legacy, 'pending-replies.json'), one('legacy'))
+  // 两边都有：读必须跟着写的一侧（go-gate 往新家写）
+  assert.equal(P.stateReadPathFrom(home, 'pending-replies.json'), P.statePath('pending-replies.json'))
+  assert.equal(JSON.parse(fs.readFileSync(P.stateReadPathFrom(home, 'pending-replies.json'), 'utf8')).items[0].id, 'new')
+  // 新家没了：退回旧家，兼容期不能把老队列当空的
+  fs.rmSync(P.statePath('pending-replies.json'))
+  assert.equal(P.stateReadPathFrom(home, 'pending-replies.json'), path.join(legacy, 'pending-replies.json'))
+  // 两处都没有时给新家（读出来是 ENOENT），不许返回一个"看起来像旧家"的空文件
+  fs.rmSync(path.join(legacy, 'pending-replies.json'))
+  assert.equal(P.stateReadPathFrom(home, 'pending-replies.json'), P.statePath('pending-replies.json'))
+})

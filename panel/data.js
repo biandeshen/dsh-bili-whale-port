@@ -10,6 +10,7 @@ import path from 'node:path'
 import { riskSettings } from '../tools/lib/traffic.mjs'
 import { causalFile, normalizeCausalEntry, readCausalLines } from './causal.mjs'
 import { collectDrafts, NEEDS } from './drafts.mjs'
+import { stateReadPathFrom } from '../tools/lib/paths.mjs'
 
 const readJson = (p) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')) } catch { return null } }
 
@@ -60,7 +61,8 @@ export function vitals({ whaleHome, home, traffic, schedStatusGetter }) {
     writeHour: Math.max(0, RISK.writeHourly - (inHour ? acct.writeHour ?? 0 : 0)),
     writeDay: Math.max(0, RISK.writeDaily - (isToday ? acct.writeDay ?? 0 : 0)),
   } : null
-  const pending = readJson(path.join(home, '.bili-ai', 'pending-replies.json'))
+  // 待审回信：go-gate 往新家写，面板按"新家→旧家"每次重读（写读两头不能各认一个家）
+  const pending = readJson(stateReadPathFrom(home, 'pending-replies.json'))
   const gogate = (pending?.items ?? []).length
   // M1a：bubble 的“等你审”必须是三队列合计 —— 只算 go-gate 会让有 3 条动态稿的面板说“没事”
   const d = collectDrafts({ whaleHome })
