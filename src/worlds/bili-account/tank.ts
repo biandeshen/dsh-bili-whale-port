@@ -30,7 +30,7 @@ type Mods = {
   data?: { timeline: (h: string, o?: object) => any; diary: (h: string) => any; vitals: (o: any) => any }
   drafts?: { collectDrafts: (o: any) => any }
   feedback?: { listFeedback: () => any; resolveFeedback: (id: string, by: string) => any }
-  approve?: { approveFromPanel: (o: any) => Promise<any>; reject: (id: string) => any }
+  approve?: { approveFromPanel: (o: any) => Promise<any>; reject: (id: string, reason?: string) => any }
   traffic?: { trafficGuard: () => any }
   /** dsh 的统一配置层，只为「全部配置」页签取 DEFAULTS（哪些键是声明过的）。缺它不降级报错，只标"未声明"。 */
   cfg?: { DEFAULTS: any; configPath?: string }
@@ -317,12 +317,14 @@ export async function draftsState() {
   if (!mods.drafts) return { ok: false, error: 'panel/drafts 未加载' }
   return mods.drafts.collectDrafts({ whaleHome: WHALE })
 }
-export async function draftAction(id: string, action: 'approve' | 'reject') {
+export async function draftAction(id: string, action: 'approve' | 'reject', reason = '') {
   await warm()
   if (!mods.approve) return { ok: false, error: 'dynamic-approve 未加载' }
+  // #41：主人写的那句话要一路传到她能看到的地方（草稿 + 因果账），留空就如实是留空。
+  const why = String(reason ?? '').trim().slice(0, 300)
   return action === 'reject'
-    ? mods.approve.reject(id)
-    : await mods.approve.approveFromPanel({ id })
+    ? mods.approve.reject(id, why)
+    : await mods.approve.approveFromPanel({ id, why })
 }
 export async function feedbackResolve(id: string) {
   await warm()

@@ -249,7 +249,11 @@ export function consumeDraftResults(state: any, entries: any[], cursor: number):
     if (preset) applied.push(preset)
     // 四种结果都进记忆：以前 failed/cooldown 等于没发生，她既记不住"发不出去"，也不会去查原因。
     // 只有第一次点亮 flashbulb，之后同类结果是重复刺激，不该一直"刻在心里"。
-    const line = RESULT_LINE[String(e.result)]
+    const base = RESULT_LINE[String(e.result)]
+    // #41：她要从被拒里学习，光知道"没通过"学不到东西。理由来自主人放行/拒绝时写的那句
+    // （dsh 把它记进 draft-result 因果账）。没写就如实说没写，绝不替主人编一个原因。
+    const reason = String((e as any).reason ?? '').trim()
+    const line = base ? (reason ? `${base}（主人的理由：${reason}）` : (e.result === 'rejected' ? `${base}（主人没写理由——别替他想一个）` : base)) : ''
     if (line) next = rememberFirst(next, `${line}（${e.draftId ?? ''}）`, `draft-${e.result}`, { sender: 'npc', intensity: 0.6, source: 'npc_self' })
   }
   const last = applied[applied.length - 1]
@@ -271,9 +275,12 @@ function latestDraftFeedback(state: any): string {  try {
     const at = Date.parse(done.result?.at || done.rejectedAt || '')
     const last = [...state.chain].reverse().find((e: any) => e.source === 'draftApproved' || e.source === 'draftRejected')
     if (last && last.timestamp.getTime() >= at) return ''
+    // #41：提醒里也带理由——她醒来第一眼看到的就该是"主人为什么没让发"。
+    const why = String((done as any).rejectReason ?? '').trim()
+    const note = String((done as any).ownerNote ?? '').trim()
     return done.status === 'sent'
-      ? `上次那条草稿（${done.id}）主人放行了——记得用 bili_mood_apply {"preset":"draftApproved"} 记下来。`
-      : `上次那条草稿（${done.id}）主人没让发——用 bili_mood_apply {"preset":"draftRejected"} 记下来，想想是不是选题偏了。`
+      ? `上次那条草稿（${done.id}）主人放行了${note ? `，他说：「${note}」` : ''}——记得用 bili_mood_apply {"preset":"draftApproved"} 记下来。`
+      : `上次那条草稿（${done.id}）主人没让发${why ? `，理由：「${why}」` : '（他没写理由，别自己编一个）'}——用 bili_mood_apply {"preset":"draftRejected"} 记下来，想想是不是选题偏了。`
   } catch { return '' }
 }
 
@@ -556,8 +563,9 @@ class BiliAccountWorld {
         }
         if (panel === 'drafts') {
           if (method === 'state') return draftsState()
-          if (method === 'approve') return draftAction(String(args[0]), 'approve')
-          if (method === 'reject') return draftAction(String(args[0]), 'reject')
+          // args[1] = 主人放行/拒绝时写的那句话（#41，可留空）
+          if (method === 'approve') return draftAction(String(args[0]), 'approve', String(args[1] ?? ''))
+          if (method === 'reject') return draftAction(String(args[0]), 'reject', String(args[1] ?? ''))
           throw new Error('unknown method ' + method)
         }
         if (panel === 'timeline') {
