@@ -799,6 +799,16 @@ const barePort = (h: string): string => h.replace(/:\d+$/, '');
 const DEFAULT_PORTS: Record<string, string> = { 'http:': '80', 'https:': '443' };
 
 /**
+ * 哪些写接口算"改她人生"：配置文件、系统提示词、面板放行/改档位、扩展装卸与开关、
+ * World 激活/重启、WebUI 面板 invoke（`/api/webui/...` 是所有 World 面板写操作的路由）。
+ * 这些一律要求浏览器同源请求；运维控制（run/*）不在里面。
+ */
+const LIFE_CONFIG_WRITE = /^\/api\/(config|prompts(?:\/|$)|extensions\/(install|uninstall|registry|check|index-base|vote)|worlds\/(activation|restart)|webui\/)/;
+function isLifeConfigWrite(path: unknown): boolean {
+  return typeof path === 'string' && LIFE_CONFIG_WRITE.test(path);
+}
+
+/**
  * 按 Host 校验 Origin；缺失 Origin 时放行，null、非法或主机不匹配时拒绝。省掉的端口按 Origin 的协议补成默认端口再比:
  * `http://localhost` 是 80 端口上的页面，不是 `localhost:17788` 上的本 WebUI。
  */
@@ -1570,6 +1580,28 @@ export class WebApp {
       }
       this.deps.log.warn('拒绝跨站写请求', { path: req.path, origin: String(req.headers.origin) });
       res.status(403).json({ error: serverText(this.languageOf(req)).crossSiteRejected });
+    });
+
+    // 改她人生的写接口只认"浏览器发出的同源请求"。上一道闸对**没有 Origin 头**是放行的
+    // （isForeignOrigin 里 origin 缺失 = false），而 Node/curl/Python 根本不送 Origin——
+    // 2026-11-01 01:23 那次 `publish.draftMode` 被本机一个盲 POST 从 review 改成 auto，
+    // 走的就是这条缝。这一道把"无 Origin 的配置写"也拦掉。
+    // run/resume、run/shutdown、pause 这类运维控制不在拦截名单里：本机启动器与看门狗要能叫得动她。
+    app.use((req, res, next) => {
+      if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
+        next();
+        return;
+      }
+      if (!isLifeConfigWrite(req.path)) {
+        next();
+        return;
+      }
+      if (typeof req.headers.origin === 'string' && req.headers.origin !== '') {
+        next();
+        return;
+      }
+      this.deps.log.warn('拒绝没有 Origin 的配置写请求', { path: req.path, method: req.method });
+      res.status(403).json({ error: serverText(this.languageOf(req)).browserOnlyWrite });
     });
 
     // Express 4 不接 handler 返回的 promise;async handler 的拒绝与同步异常一样记日志、回 500。

@@ -9,6 +9,14 @@
 `web.allowedHosts` 里的名字作 Origin 时算本站,反向代理改写 Host 时靠它放行。监听 `0.0.0.0` 或 `::`
 时不校验 Host。监听非回环地址而没有设访问密码时,启动记一条 warn。
 
+改她人生的写接口还要多一道:非安全方法打到 `/api/config`、`/api/prompts*`、`/api/webui/*`（所有 World
+面板的 invoke 都走这条）、`/api/extensions/{install,uninstall,registry,check,index-base,vote}`、
+`/api/worlds/{activation,restart}` 时,**没有 `Origin` 头也拒**（403）。上一段那条闸门对"省掉 Origin"
+是放行的,而 curl / Node / Python 根本不发这个头——2026-11-01 01:23 本机一个盲 POST 就把
+`publish.draftMode` 从 review 改成了 auto。这一道拦的是"没看过页面的程序化盲写",不是认证:
+同机进程先 `GET /` 再带 Origin 发 POST 仍然通得过,真正的凭据闸在下一节的访问密码。
+运维控制 `/api/run/{resume,pause,shutdown,restart}` 不在此列——本机启动器与看门狗要能叫得动她。
+
 ## 访问密码
 
 `web.password` 或密钥 `CORTICO_WEB_PASSWORD`(进程环境或 `<部署>/.env`,非空时优先)为空时不要求登录。设了之后,
