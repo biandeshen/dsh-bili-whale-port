@@ -4,9 +4,8 @@ import { get, post, pickPath } from '../../core/api.ts';
 import { icon, brandMark } from '../../ui/icons.ts';
 import { notice } from '../../ui/index.ts';
 import { renderMarkdown } from './markdown.ts';
-import { createConfigView } from '../config/view.ts';
 import { gallery, takeImages } from './gallery.ts';
-import type { FeatureContext, FrameworkFeature } from '../feature.ts';
+import type { FeatureContext } from '../feature.ts';
 import { S } from './strings.ts';
 import { CATALOG_CATEGORY_IDS, inCatalogCategory, isFunctionTag, type CatalogCategory } from './catalog.ts';
 import { problemPopover, scrollerOf, wheelDelta } from '../../ui/problem.ts';
@@ -179,13 +178,6 @@ interface UpdateResultView {
   updates: UpdateView[];
   errors: Array<{ name: string; error: string }>;
 }
-
-/** npm 源的常用候选：官方 + 两个国内镜像（npmmirror 本机实测 200，能搜到 cortico-world-* 包）。 */
-const REGISTRY_CHOICES = [
-  'https://registry.npmjs.org',
-  'https://registry.npmmirror.com',
-  'https://mirrors.cloud.tencent.com/npm/',
-];
 
 /** `/api/extensions/registry` 的回应:.npmrc 的 registry 行,与 pnpm 实际用的源或读不出它的原因。 */
 interface RegistryView {
@@ -559,13 +551,6 @@ export function mountExtensionContent(ctx: FeatureContext, kind: Category, works
   };
   /** 正在安装或删除的包;同一个包的第二次操作等前一次回来。 */
   const busy = new Set<string>();
-  /**
-   * 激活失败的包 → 那句原话。它必须留在卡片上：激活被配置项卡住时，
-   * 只闪一条 toast 就等于"点了没反应"。
-   */
-  const activationErrors = new Map<string, string>();
-  let armed: (() => void) | null = null;
-  const disarm = () => { armed?.(); armed = null; };
   const doc = root.ownerDocument;
   const scrollRoot = ui.h('div', 'world-catalog-scroll');
   root.addEventListener('wheel', event => {
@@ -1161,176 +1146,47 @@ export function mountExtensionContent(ctx: FeatureContext, kind: Category, works
     const hit = states[kind].hits.find(hit => hit.name === name);
     if (hit) openDetail(hit, kind);
   }
-  /**
-   * 主人问的三件事：为什么"已安装未加载"、禁用怎么禁、启用怎么启——过去这一页只有装卸，
-   * 开关藏在 World 总览，而且状态只写"已加载/失败"不写为什么。这里一次补齐：
-   * 状态旁边给成人能懂的原因，World 的开关就放在卡片上（`/api/worlds/activation` 写回
-   * config.json 的 `worlds.<id>.enabled` 并热挂载/热卸，不需要重启进程）。
-   */
-  function stateReason(item: ExtensionView): string {
-    if (item.state === 'idle') return S.whyIdle;
-    if (item.state === 'failed') return S.whyFailed(item.reason ?? '');
-    if (item.state === 'pending-restart') return S.whyPendingRestart;
-    if (item.state === 'removed') return S.whyRemoved;
-    // 内建 World 的 state 一直是 loaded，靠 enabled 区分装没装上（宿主 decorate 写的是
-    // assembly.slots.mounted）——只看 state 会把"已安装，未加载"的原因漏掉。
-    if (item.kind === 'world' && item.worldId && item.enabled === false) return S.whyIdle;
-    return '';
+  function renderRestart() {
+    const pending = installed.some(item => (item.kind === kind || !item.kind) && (item.state === 'pending-restart' || item.state === 'removed'));
+    const button = restartRoot.querySelector<HTMLButtonElement>('.extension-restart');
+    if (button) { button.hidden = !pending; button.disabled = busy.size > 0 || restartRoot.classList.contains('is-restarting'); }
   }
-  async function activation(item: ExtensionView, want: boolean): Promise<void> {
-    const identity = item.name;
-    if (busy.has(identity) || !item.worldId) return;
-    const name = item.metadata?.displayName ?? item.label ?? identity;
-    busy.add(identity); renderMarket(); message(kind, 'management', S.progress(want ? S.activateAction : S.deactivateAction, name));
-    try {
-      await post('/api/worlds/activation', { id: item.worldId, enabled: want }, { signal });
-      if (signal.aborted) return;
-      activationErrors.delete(identity);
-      message(kind, 'management', want ? S.activatedDone(name) : S.deactivatedDone(name));
-      if (!await load()) message(kind, 'management', S.syncedFailed, true);
-    } catch (error) {
-      if (!signal.aborted) {
-        // 留在卡片上，不等下一轮重渲染就看不见：激活被配置项卡住时，这就是唯一的线索。
-        activationErrors.set(identity, errorText(error));
-        message(kind, 'management', S.activationFailed(errorText(error)), true);
-        renderMarket();
-      }
-    } finally { busy.delete(identity); if (!signal.aborted) renderMarket(); }
+  /** The market card's control; an installed package's leads to its row. */
+  function getButton(hit: SearchHitView & { installed: boolean }, owner: Category): HTMLButtonElement {
+    return installControl(hit, owner, {
+      anchor: () => marketGrid.querySelector(`.extension-market-card[data-name="${CSS.escape(hit.name)}"] .extension-get`),
+      onInstalled: () => { if (workspace) workspace.reveal(hit.name); else details(hit.name); },
+    });
   }
   /**
-   * 未启用 World 的配置就地给（复用运行诊断页那套 config 视图，按 owner 过滤）。
-   * 不这么做就是个死结：配置页只在自己的 World 页上画，而那个 World 不激活就没有页；
-   * 激活又要求先配好——主人在扩展页点「激活」于是只看到一个不动的按钮。
-   * 展开时才发请求（一张卡片一次），并且挡住卡片本身的点击，别填个字段就弹出抽屉。
+   * The install control the market cards and the detail page share: install, its progress, an
+   * available update, or the installed mark (a link when `onInstalled` is given). Errors open beside
+   * the control `anchor` finds; `blocked` keeps an install from starting.
    */
-  function worldConfigSection(item: ExtensionView, open: boolean): HTMLElement {
-    const box = doc.createElement('details');
-    box.className = 'extension-world-config';
-    box.open = open;
-    const sum = doc.createElement('summary');
-    sum.textContent = S.worldConfigTitle(item.worldId ?? '');
-    const holder = ui.h('div', 'extension-world-config-body');
-    let loaded = false;
-    box.addEventListener('toggle', () => {
-      if (!box.open || loaded) return;
-      loaded = true;
-      const view = createConfigView({ ui, lifecycle, signal, filter: (g) => g.owner === 'world:' + item.worldId, showOwner: false });
-      holder.replaceChildren(view.el);
-      void view.load();
-    }, { signal });
-    box.addEventListener('click', event => event.stopPropagation(), { signal });
-    if (open) {
-      loaded = true;
-      const view = createConfigView({ ui, lifecycle, signal, filter: (g) => g.owner === 'world:' + item.worldId, showOwner: false });
-      holder.replaceChildren(view.el);
-      void view.load();
+  function installControl(hit: SearchHitView & { installed: boolean }, owner: Category, opts: { anchor: Anchor; onInstalled?: () => void; blocked?: boolean }): HTMLButtonElement {
+    const update = updates.get(hit.name), working = busy.has(hit.name), { anchor } = opts;
+    if (hit.installed && !update && !working) {
+      const done = ui.h('button', 'extension-get is-installed') as HTMLButtonElement; done.type = 'button';
+      done.setAttribute('aria-label', S.alreadyInstalled); attachHint(done, S.alreadyInstalled); done.append(icon(doc, 'check'));
+      const open = opts.onInstalled;
+      if (open) done.addEventListener('click', event => { event.stopPropagation(); open(); }, { signal });
+      else done.classList.add('is-mark');
+      return done;
     }
-    box.append(sum, holder);
-    return box;
-  }
-
-  /**
-   * 装着但没启用的 World 一律就地给配置与开关；激活失败那句留在卡上。
-   */
-  function installedCard(item: ExtensionView) {
-    const card = ui.h('article', 'extension-card extension-installed-card' + (item.enabled ? ' is-enabled' : ''));
-    card.tabIndex = 0; card.setAttribute('aria-label', item.metadata?.displayName ?? item.label ?? item.name);
-    card.addEventListener('click', event => { if (!(event.target as Element).closest('button, a')) showLocal(item); }, { signal });
-    card.addEventListener('keydown', event => { if (event.target === card && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); showLocal(item); } }, { signal });
-    const heading = ui.h('div', 'extension-card-heading');
-    heading.append(packageAvatar(item.icon ? iconUrl(item.name, item.installedVersion ?? item.version) : undefined));
-    const title = ui.h('span', 'extension-card-title', item.metadata?.displayName ?? item.label ?? item.name); title.title = item.label ?? item.name;
-    heading.append(title); if (item.enabled) heading.append(ui.pill(item.kind === 'provider' ? S.alreadyInstalled : item.kind === 'bot' ? S.adopted : S.stateLoaded, 'on'));
-    card.append(heading);
-    const text = item.state === 'removed' || item.state === 'pending-restart' || item.state === 'failed' ? stateLabels[item.state] : item.kind === 'provider' ? S.alreadyInstalled : item.enabled ? (item.kind === 'bot' ? S.adopted : S.enabled) : stateLabels[item.state];
-    const failed = item.state === 'failed';
-    const symbol = failed ? '!' : item.state === 'pending-restart' ? '◷' : item.enabled ? '●' : '○';
-    const author = item.author ?? S.unknownAuthor;
-    card.append(ui.h('div', 'extension-meta', [item.builtin ? S.builtin : '', S.version(item.installedVersion ?? item.version ?? '—'), S.author(author)].filter(Boolean).join(' · ')));
-    const status = ui.h('div', 'extension-status' + (failed ? ' bad' : item.enabled ? ' on' : ' off'), `${symbol} ${text}`);
-    if (item.description) card.append(ui.h('p', 'extension-description', item.description));
-    if (item.blocked) card.append(ui.msgline(S.blocked(item.blocked), true));
-    const version = ui.h('div', 'extension-secondary');
-    const update = updates.get(item.name);
+    const label = working ? S.progress(hit.installed ? S.updatedAction : S.installedAction, hit.name) : update ? `${S.updateAction} ${S.updateVersions(update.installedVersion, update.latestVersion)}` : owner === 'world' ? S.addToLibrary : S.install;
+    const button = ui.h('button', 'extension-get' + (working ? ' is-working' : update ? ' is-update' : '')) as HTMLButtonElement; button.type = 'button';
+    button.setAttribute('aria-label', label);
+    if (working) {
+      const svg = 'http://www.w3.org/2000/svg';
+      const ring = doc.createElementNS(svg, 'svg'); ring.setAttribute('viewBox', '0 0 32 32'); ring.setAttribute('class', 'extension-get-ring'); ring.setAttribute('aria-hidden', 'true');
+      for (const cls of ['track', 'arc']) { const circle = doc.createElementNS(svg, 'circle'); for (const [key, value] of Object.entries({ cx: '16', cy: '16', r: '13', class: cls })) circle.setAttribute(key, value); ring.append(circle); }
+      button.append(ring); button.disabled = true; return button;
+    }
+    button.append(icon(doc, update ? 'update' : 'download'));
     if (update) {
-      version.classList.add('extension-update');
-      const alert = ui.h('span', 'extension-update-icon', '!'); alert.setAttribute('aria-hidden', 'true');
-      version.append(alert, ui.h('span', '', S.updateVersions(update.installedVersion, update.latestVersion)));
-      const button = ui.button(S.updateAction, { size: 'sm', onClick: () => void operate('install', { name: item.name, version: update.latestVersion }, 'management', kind) });
-      button.disabled = !!update.problems.length || busy.has(item.name); button.title = update.problems.join('\n');
-      const changelog = states[kind].hits.find(hit => hit.name === item.name)?.changelog;
-      const versions = changesBetween(changelog?.versions, update.installedVersion, update.latestVersion);
-      if (versions.length) {
-        const notes = ui.h('button', 'extension-update-notes', S.updateNotes) as HTMLButtonElement; notes.type = 'button';
-        const owner = kind;
-        notes.addEventListener('click', event => {
-          event.stopPropagation();
-          void fetchDetail(item.name).then(data => {
-            if (signal.aborted) return;
-            const changes = versions.flatMap(v => data.changelog?.[v] ? [[v, data.changelog[v]] as [string, string]] : []);
-            showChanges(item.metadata?.displayName ?? item.label ?? item.name, changes, changelog?.url);
-          }).catch(error => { if (!signal.aborted) message(owner, 'management', errorText(error), true); });
-        }, { signal });
-        version.append(notes);
-      }
-      version.append(button);
-    } else version.textContent = item.hidden ? S.hidden : item.installedVersion && item.version !== item.installedVersion ? S.runtimeVersion(item.version ?? '—') : '';
-    if (version.hasChildNodes()) card.append(version);
-    for (const problem of update?.problems ?? []) card.append(ui.msgline(problem, true));
-    const why = stateReason(item);
-    // 原因写成次级文本，不抢 `.msgline.bad`：那格留给"这次操作失败了"，
-    // 状态本身已经有 .extension-status.bad 的红色标记（测试也按这个约定在核）。
-    if (why) card.append(ui.h('div', 'extension-secondary extension-reason', why));
-    const footer = ui.h('div', 'extension-status-row'); footer.append(status);
-    const label = item.metadata?.displayName ?? item.label ?? item.name;
-    // 激活失败的原因留在卡片上（toast 会消失，"点了没反应"就是这么来的）
-    const actErr = activationErrors.get(item.name);
-    if (actErr) card.append(ui.msgline(S.activationOnCard(actErr), true));
-    if (item.kind === 'world' && item.worldId && item.enabled === false) card.append(worldConfigSection(item, !!actErr));
-    if (item.kind === 'world' && item.worldId && item.state !== 'removed') {
-      // 停用是"把她正在用的手脚撤下去"，所以与删除一样要按两次；启用一步就行。
-      const want = !item.enabled;
-      const toggle = ui.button(want ? S.activateAction : S.deactivateAction, { size: 'sm' });
-      const worldId = item.worldId;
-      toggle.title = want ? S.activateTitle(worldId) : S.deactivateTitle(worldId);
-      toggle.setAttribute('aria-label', (want ? S.activateAction : S.deactivateAction) + ' · ' + label);
-      const blockedByBoot = item.state === 'failed' || item.state === 'pending-restart';
-      toggle.disabled = busy.has(item.name) || blockedByBoot;
-      if (blockedByBoot) toggle.title = why || toggle.title;
-      toggle.addEventListener('click', event => {
-        event.stopPropagation();
-        if (!want) {
-          const wasArmed = toggle.classList.contains('is-armed'); disarm();
-          if (!wasArmed) {
-            toggle.classList.add('is-armed'); toggle.title = S.activateArm;
-            const warn = ui.msgline(S.activateArm, true); card.insertBefore(warn, footer);
-            armed = () => { toggle.classList.remove('is-armed'); toggle.title = S.deactivateTitle(worldId); warn.remove(); };
-            return;
-          }
-        }
-        void activation(item, want);
-      }, { signal });
-      footer.append(toggle);
-    } else if (item.kind === 'provider' || item.kind === 'bot') {
-      // 不给假按钮：这两类没有"启用/停用"这种开关，硬做一个点了没反应的比没有更糟。
-      footer.append(ui.h('span', 'extension-secondary', S.notToggleable + (item.kind === 'provider' ? S.providerKindNote : S.botKindNote)));
-    }
-    if (item.state !== 'removed') {
-      const remove = ui.h('button', 'connection-erase extension-erase') as HTMLButtonElement; remove.type = 'button';
-      const text = ui.h('span', 'connection-erase-text'); text.append(ui.h('span', '', S.eraseConfirm));
-      remove.append(icon(doc, 'trash'), text); remove.setAttribute('aria-label', S.remove); remove.title = S.removeBody;
-      if (item.builtin) { remove.disabled = true; remove.title = S.builtinNote; }
-      else if (item.enabled && item.kind !== 'provider') { remove.disabled = true; remove.title = S.removeInUse; }
-      else remove.disabled = busy.has(item.name);
-      const owner = kind;
-      remove.addEventListener('click', event => {
-        event.stopPropagation(); const wasArmed = remove.classList.contains('is-armed'); disarm();
-        if (wasArmed) { void operate('delete', { name: item.name }, 'management', owner); return; }
-        remove.classList.add('is-armed'); remove.setAttribute('aria-label', S.eraseConfirm);
-        const warning = ui.msgline(S.removeBody, true); card.insertBefore(warning, footer);
-        armed = () => { remove.classList.remove('is-armed'); remove.setAttribute('aria-label', S.remove); warning.remove(); };
-      }, { signal });
-      footer.append(remove);
+      button.disabled = !!update.problems.length; attachHint(button, label, update.problems.join('\n') || undefined);
+      button.addEventListener('click', event => { event.stopPropagation(); void operate('install', { name: hit.name, version: update.latestVersion }, 'market', owner, anchor); }, { signal });
+      return button;
     }
     attachHint(button, label);
     button.disabled = !!opts.blocked || !osSupported(hit.os ?? []);
@@ -1939,13 +1795,8 @@ export function mountExtensionContent(ctx: FeatureContext, kind: Category, works
     const registryBar = ui.rowbar(); registryBar.classList.add('extension-toolbar');
     const registryField = registryInput = ui.input({ value: registryDraft ?? registrySetting?.configured ?? '', placeholder: registrySetting?.registry ?? '', onInput: value => { registryDraft = value; } });
     registryField.setAttribute('aria-label', S.registryLabel);
-    // 可选列表：手打整条 URL 太费劲，也给不出这台机器上真能通的源。选项只有地址、没有文案，
-    // 所以不必往 8 份语言文件里加词；填进去仍可保存（datalist 不锁死输入）。
-    const registryChoices = ui.h('datalist'); registryChoices.id = 'registry-choices';
-    for (const url of REGISTRY_CHOICES) { const o = document.createElement('option'); o.value = url; registryChoices.append(o); }
-    registryField.setAttribute('list', registryChoices.id);
     const saveRegistryButton = ui.button(S.registrySave, { onClick: async () => { const lock = ui.disable(saveRegistryButton); try { await saveRegistry(registryField.value); } finally { lock.dispose(); } } });
-    registryBar.append(registryField, saveRegistryButton, registryChoices);
+    registryBar.append(registryField, saveRegistryButton);
     messageNodes.registry = ui.msgline(S.registryHelp); messageNodes.registry.setAttribute('role', 'status');
     const registryPanel = ui.h('div', 'extension-registry'); registryPanel.id = 'extension-registry'; registryPanel.hidden = !registryOpen;
     registryPanel.append(registryBar, messageNodes.registry);
