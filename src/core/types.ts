@@ -741,6 +741,12 @@ export interface WorldHost {
    * 只读快照，不改变工具表；未接入此查询的宿主可省略。
    */
   listTools?(): Array<{ name: string; description: string; tags: readonly ToolTag[]; owner: string }>;
+  /**
+   * 这一轮**装配了哪些 World**：id、是否对模型可见、它自己声明了几个工具。
+   * 与 listTools 不是一回事——只出画面/事件、不出工具的 World（如 figure）在工具表里根本不存在，
+   * 拿工具表反推"没挂上"会报假事实，所以挂载表要单独问。未接入此查询的宿主可省略。
+   */
+  listWorlds?(): Array<{ id: string; visible: boolean; tools: number }>;
   /** Persona 未实现、全局关闭或宿主未接入时为 undefined。 */
   cognition?: CognitionHost;
   log: Logger;

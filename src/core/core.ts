@@ -573,6 +573,8 @@ export class Core<C extends CoreConfig = CoreConfig> {
         tags: t.tags,
         owner: this.worlds.find((m) => m.tools().some((own) => own.name === t.name))?.id ?? 'persona',
       })),
+      // 挂载表与工具表分开问：只出画面/事件不出工具的 World，在工具表里根本不存在。
+      listWorlds: () => this.worlds.map((m) => ({ id: m.id, visible: this.isWorldVisible(m.id), tools: m.tools().length })),
       // 每次访问重新检查 Persona 开关，关闭后 getter 立即返回 undefined。
       get cognition(): CognitionHost | undefined {
         return lease.active ? self.makeCognition(mod, () => lease.active) : undefined;

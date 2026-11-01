@@ -329,6 +329,8 @@ function readJsonSafe(file: string): any {
 export function capabilityText(src: {
   /** 宿主没接入 listTools 时为 null：只能报自己声明的那一份，并说明看不见别的 World。 */
   assembled: readonly AssembledTool[] | null
+  /** Core 的装配表（id + 可见性 + 它自己声明的工具数）；宿主没接 listWorlds 时为 null，退回从工具表反推并自报是推断。 */
+  worlds: readonly { id: string; visible: boolean; tools: number }[] | null
   /** 本 World 的自描述（名字 + 给人看的一句话 + 标签）。 */
   mine: readonly ToolDescribe[]
   extDir: string
@@ -367,7 +369,21 @@ export function capabilityText(src: {
   }
 
   const cfg = src.configFile ? readJsonSafe(src.configFile) : null
-  const mounted = new Set((src.assembled ?? []).map((t) => t.owner))
+  const mountedByTools = new Set((src.assembled ?? []).map((t) => t.owner))
+  const mountTable = new Map((src.worlds ?? []).map((w) => [w.id, w]))
+  // 宿主没接挂载表时才退回"从工具表反推"，并且必须自报这是推断：只出画面/事件的 World
+  // 在工具表里根本不存在，反推会把"挂着"说成"没挂"（11-01 figure 实测报错过一次）。
+  const inferredMount = src.worlds == null
+  /** 这个 World 这轮挂没挂：挂载表优先；没表时只能看它在工具表里露过面没有。 */
+  const isMounted = (id: string): boolean => mountTable.has(id) || (inferredMount && mountedByTools.has(id))
+  /** 它露了几个工具：null = 说不清（既没挂载表，工具表里也没见过它）。 */
+  const toolCount = (id: string): number | null => mountTable.get(id)?.tools ?? (mountedByTools.has(id) ? 1 : null)
+  const mountLine = (id: string): string => {
+    if (!isMounted(id)) return inferredMount ? '这轮没挂（从工具表反推的，看不见它未必代表没挂）' : '这轮没装配'
+    const n = toolCount(id)
+    const vis = mountTable.get(id)?.visible
+    return `这轮挂着${n ? `，露 ${n} 个工具` : '，但它不出工具（画面/事件类），工具表里看不见它'}${vis === false ? '；对这轮模型不可见' : ''}`
+  }
   const providerKinds = new Set<string>(Object.values((cfg?.providers ?? {}) as Record<string, any>).map((p) => String(p?.kind ?? '')))
   const activeBot = src.configFile ? String(readJsonSafe(path.join(path.dirname(src.configFile), 'deployment.json'))?.bot ?? '') : ''
   const worldSwitches = new Map<string, boolean>()
@@ -393,8 +409,8 @@ export function capabilityText(src: {
     const guess = PKG_ID.exec(d.name)?.[1] ?? ''
     let state: string
     if (kind === 'world' && guess) {
-      if (mounted.has(guess)) state = '这轮挂上了（它给我的工具就在上面那张表里）'
-      else if (worldSwitches.get(guess) === true) state = `配置里 worlds.${guess}.enabled=true，但这轮没挂上：改动要重启，或它加载失败`
+      if (isMounted(guess)) state = toolCount(guess) ? '这轮挂上了（它给我的工具就在上面那张表里）' : '这轮挂上了，但它不出工具（画面/事件类），所以工具表里看不到它'
+      else if (worldSwitches.get(guess) === true) state = `配置里 worlds.${guess}.enabled=true，但这轮没装配：改动要重启，或它加载失败`
       else if (worldSwitches.get(guess) === false) state = `装了，但这份部署没启用（worlds.${guess}.enabled=false）`
       else state = `装了，但这份部署没有 worlds.${guess} 这一项 = 没启用`
     } else if (kind === 'provider' && guess) {
@@ -411,7 +427,7 @@ export function capabilityText(src: {
   if (!src.configFile) out.push('- 没拿到部署目录（ctx 缺席），读不到 config.json')
   else if (!cfg) out.push(`- 读不到 ${src.configFile}（这份部署还没写过配置文件）`)
   else if (worldSwitches.size === 0) out.push('- config.json 里没有 worlds 段：哪些 World 挂上由 bot 的默认值决定（这轮挂上的见第一节〔〕分组）')
-  for (const [id, on] of worldSwitches) out.push(`- ${id} · ${on ? '开' : '关'} · ${mounted.has(id) ? '这轮挂着' : '这轮没挂'}`)
+  for (const [id, on] of worldSwitches) out.push(`- ${id} · ${on ? '开' : '关'} · ${mountLine(id)}`)
 
   out.push('', `（来源：工具表=Core 这一轮装配的结果；扩展=${path.join(src.extDir, 'package.json')}；开关=${src.configFile ?? '无'}。`
     + '哪一项该开、哪个扩展想试，写一条 bili_feedback 给主人，别自己改。）')
@@ -1173,6 +1189,7 @@ class BiliAccountWorld {
       }),
       mk(DECLS[13], async () => capabilityText({
         assembled: typeof this.host?.listTools === 'function' ? this.host.listTools() : null,
+        worlds: typeof this.host?.listWorlds === 'function' ? this.host.listWorlds() : null,
         mine: BILI_TOOL_DECLS,
         extDir: extensionsDir(this.ctx?.repoRoot ?? repoRoot()),
         configFile: this.ctx ? path.join(this.ctx.botDir, 'config.json') : null,

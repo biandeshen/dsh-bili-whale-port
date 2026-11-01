@@ -69,7 +69,7 @@ test('真调用 handler：工具名+一句话+读/写，别的 World 给的手�
   assert.match(out, /cortico-world-lamp · world · 1\.2\.3 · 装了，但这份部署没有 worlds\.lamp 这一项 = 没启用/)
   assert.match(out, /cortico-world-gone · 登记在 package.json（\^0\.1\.0），但 node_modules 里没有这个包 = 没装上/)
   assert.match(out, /- bili-account · 开 · 这轮挂着/)
-  assert.match(out, /- qq · 关 · 这轮没挂/)
+  assert.match(out, /- qq · 关 · 这轮没挂（从工具表反推的/, '这个夹具的宿主没接 listWorlds：清单必须自报"这是反推的"')
   assert.match(out, /启用扩展、装扩展、改配置都不是我能做的事/)
 
   // 只读：调用完，两个依据文件一个字节都没变
@@ -114,4 +114,50 @@ test('宿主没给工具表，或没有部署目录时：说实话，不假装�
   noSurface.host = {}
   const second = await call(noSurface)
   assert.match(second.out, /别的 World 有什么我看不到/)
+})
+
+// 11-01 真机报过错：figure 只出画面/事件、不出工具，从工具表反推就把"挂着"说成"没挂上"。
+// 挂载表（listWorlds）和工具表是两件事，清单必须分开问，说不清时要自报是推断。
+test('挂了但不露面的 World：说"挂着，不出工具"，不许说成没挂（figure 那次报错的根）', async () => {
+  const root = tree({
+    'extensions/package.json': JSON.stringify({ dependencies: { 'cortico-world-figure': '^1.4.4' } }),
+    'extensions/node_modules/cortico-world-figure/package.json': JSON.stringify({ version: '1.4.4', cortico: { kind: 'world' } }),
+    'deploy/config.json': JSON.stringify({ worlds: { 'bili-account': { enabled: true }, figure: { enabled: true } } }),
+  })
+  const world = BILI_ACCOUNT.create({ repoRoot: root, botDir: path.join(root, 'deploy') })
+  world.host = {
+    listTools: () => [{ name: 'bili_feed', description: 'd', tags: ['read'], owner: 'bili-account' }],
+    listWorlds: () => [
+      { id: 'bili-account', visible: true, tools: 1 },
+      { id: 'figure', visible: true, tools: 0 },
+    ],
+  }
+  const { out } = await call(world)
+  assert.match(out, /cortico-world-figure · world · 1\.4\.4 · 这轮挂上了，但它不出工具/)
+  assert.equal(/figure[^\n]*没装配|figure[^\n]*没挂/.test(out), false, '挂着的东西不能被说成没挂')
+  assert.match(out, /- figure · 开 · 这轮挂着，但它不出工具（画面\/事件类）/)
+  assert.match(out, /- bili-account · 开 · 这轮挂着，露 1 个工具/)
+})
+
+test('不可见的 World 要说"对这轮模型不可见"，别只说挂着', async () => {
+  const root = tree({ 'deploy/config.json': JSON.stringify({ worlds: { qq: { enabled: true } } }) })
+  const world = BILI_ACCOUNT.create({ repoRoot: root, botDir: path.join(root, 'deploy') })
+  world.host = {
+    listTools: () => [],
+    listWorlds: () => [{ id: 'qq', visible: false, tools: 3 }],
+  }
+  const { out } = await call(world)
+  assert.match(out, /- qq · 开 · 这轮挂着，露 3 个工具；对这轮模型不可见/)
+})
+
+test('宿主没接挂载表：退回反推并自报"这是反推的"', async () => {
+  const root = tree({ 'deploy/config.json': JSON.stringify({ worlds: { qq: { enabled: true } } }) })
+  const world = BILI_ACCOUNT.create({ repoRoot: root, botDir: path.join(root, 'deploy') })
+  world.host = { listTools: () => [{ name: 'qq_say', description: 'd', tags: ['speak'], owner: 'qq' }] }
+  const { out } = await call(world)
+  assert.match(out, /- qq · 开 · 这轮挂着，露 1 个工具/, '工具表里见过它就该算挂着')
+  const bare = BILI_ACCOUNT.create({ repoRoot: root, botDir: path.join(root, 'deploy') })
+  bare.host = { listTools: () => [] }
+  const second = await call(bare)
+  assert.match(second.out, /- qq · 开 · 这轮没挂（从工具表反推的，看不见它未必代表没挂）/)
 })
