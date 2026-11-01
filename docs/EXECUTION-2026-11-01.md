@@ -79,8 +79,8 @@
 | 项 | 落点 | 真机证据 |
 |---|---|---|
 | **#34 写接口盲写洞** | Cortico `src/web/server.ts`：改她人生的写接口（`/api/config`、`/api/prompts*`、`/api/webui/*`、`/api/extensions/{install,uninstall,registry,check,index-base,vote}`、`/api/worlds/{activation,restart}`）**缺 Origin 就 403**；`/api/run/*` 不拦 | 本机 `curl -X POST /api/worlds/activation`（无 Origin）→ `403 这类写操作只接受浏览器发出的同源请求…`；带同源 Origin → 400 未知 World（说明闸门之后才到 handler）；`curl POST /api/run/resume` → 200（启动器照样叫得动她）；页面上再写一次 `listen.commentIntervalSec` 60→61→60 两次都 ✓ |
-| **扩展页开关与原因** | 每张卡片就地激活/停用（走 `/api/worlds/activation`，热生效）；四种"没加载"各写原因；provider/bot 不作假装有开关 | 点「停用」两次 → `config.json` 真变 `worlds.figure.enabled=false`、API `enabled=false`；再点「激活」→ 回 true；8 张已安装卡现在全列出来（原来默认每页 2 个，figure 与桌宠日记被分页藏掉，这就是"没有按钮"的真因） |
-| **#50 回归已闭环**（上一条我写的"需要查"结案） | 不是 figure 没挂：清单拿工具表反推挂载，而 figure 只出画面/事件、不出工具 → 报成"没挂"。加 `listWorlds` 挂载表 | 她现在照抄：`figure · 开 · 这轮挂着，但它不出工具（画面/事件类）` |
+| **扩展页开关与原因** | 每张卡片就地激活/停用（走 `/api/worlds/activation`，热生效）；四种"没加载"各写原因；provider/bot 不作假装有开关 | 点「停用」两次 → `config.json` 真变 `worlds.figure.enabled=false`、API `enabled=false`；8 张已安装卡现在全列出来（原来默认每页 2 个，figure 与桌宠日记被分页藏掉，这就是"没有按钮"的真因）。**现态：`worlds.figure.enabled` 是 `false`** —— 这是主人 2026-11-01 亲手停的，不是加载失败；要恢复就在同一张卡上点「激活」 |
+| **#50 回归已闭环**（上一条我写的"需要查"结案） | 不是 figure 没挂：清单拿工具表反推挂载，而 figure 只出画面/事件、不出工具 → 报成"没挂"。加 `listWorlds` 挂载表 | 挂载时她现在照抄：`figure · 开 · 这轮挂着，但它不出工具（画面/事件类）`。上面那条"现态 false"说的是配置开关——两者别混：**开关关着 = 这轮不挂；开关开着才轮到"挂着但不出工具"这句话** |
 | **#53+#45 两个家归一** | 席做完 87 个调用点（凭据按"留在旧家"处理，traffic 状态搬家前整份复制）；我补了它交出来的洞：`pending-replies.json` 写侧搬新家、读侧（`core/api/routes.js`、`panel/data.js`）还守旧家 | 门禁 363/363 + 一致 + 全部有生产调用；新增 `stateReadPathFrom` 每次读现判，测试锁"两边都有读新家 / 新家没了退旧家 / 都没了返回新家路径" |
 | **#48 她的名字**（半） | `personaNameFromConfig()` 读 `self.name`（24 字、空值回落），页面标题每次渲染现读；工具描述里的"小鱼/Xiaoyu"全部删掉 | 真机 self.name=恐怖深海鱼，标题跟着走；文案明说这一格是**本机称呼**，B 站昵称是账号字段、这一页不替主人动账号 |
 
