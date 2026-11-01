@@ -5,12 +5,15 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { BILI_ACCOUNT, exportPolicyNotice } from '../src/worlds/bili-account/definition.ts'
-import { readPolicyLite, policyInWindow, policySet, policyState, autoSentToday, draftForDay, freshAckToken, openFeedbackCount, settingsOverview, settingsState } from '../src/worlds/bili-account/tank.ts'
+import { readPolicyLite, policyInWindow, policySet, policyState, autoSentToday, draftForDay, freshAckToken, openFeedbackCount, settingsOverview, settingsState, personaNameFromConfig } from '../src/worlds/bili-account/tank.ts'
 
 const decl = BILI_ACCOUNT.create().webUi('zh')
 
 test('鱼缸页声明：7 块面板、id 合法且唯一、灯 ≤7', () => {
-  assert.equal(decl.label, '小鱼 · 鱼缸')
+  // 标题不再写死"小鱼"：它跟配置里的 self.name 走（#48），所以这里断言的是同一来源，
+  // 不把某一份具体配置当成规格。
+  assert.equal(decl.label, `${personaNameFromConfig()} · 鱼缸`)
+  assert.match(decl.label, /^.{1,24} · 鱼缸$/)
   const panels = decl.panels ?? []
   assert.deepEqual(panels.map((p) => p.id).sort(), ['diary', 'drafts', 'feedback', 'policy', 'tank', 'timeline', 'vitals'])
   for (const p of panels) assert.match(p.id, /^[a-z0-9-]+$/, `${p.id} id 合法性`)
@@ -171,4 +174,34 @@ test('auto 的痕迹：措辞由纯函数给；review 不留痕；测试上下�
   fs.writeFileSync(file, JSON.stringify({ home: 'D:/keep-me' }), 'utf8')
   assert.equal(policySet({ publish: { draftMode: 'review' } }, file).ok, true)
   assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).home, 'D:/keep-me', '别的键不许丢')
+})
+
+// #48 她的名字：主人要在页面上能改，不要散在代码里；但这一格改的是本机称呼，
+// B 站昵称是账号字段——这一页不替他动账号，所以文案必须把这条说清（不许假装一个开关管两头）。
+test('personaNameFromConfig：读 self.name，去空白、24 字封顶，空值回落默认称呼', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pname-'))
+  const file = path.join(dir, 'bili-whale.config.json')
+  const write = (self) => fs.writeFileSync(file, JSON.stringify({ self }), 'utf8')
+  write({ name: '恐怖深海鱼' })
+  assert.equal(personaNameFromConfig(file), '恐怖深海鱼')
+  write({ name: '  大肥鱼  ' })
+  assert.equal(personaNameFromConfig(file), '大肥鱼', '首尾空白不许进标题')
+  write({ name: '名'.repeat(40) })
+  assert.equal(personaNameFromConfig(file).length, 24, '与主人称呼同一道边界')
+  write({ name: '' })
+  assert.equal(personaNameFromConfig(file), '小鱼', '空值保持现名，不许把标题变成空白')
+  write(null)
+  assert.equal(personaNameFromConfig(file), '小鱼')
+  fs.rmSync(file)
+  assert.equal(personaNameFromConfig(path.join(dir, 'nope.json')), '小鱼', '读不到配置也要有名字')
+})
+
+test('世界页标题跟着 self.name 走；工具描述里不再写死名字', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pname-'))
+  const file = path.join(dir, 'bili-whale.config.json')
+  fs.writeFileSync(file, JSON.stringify({ self: { name: '深海大肥鱼' } }), 'utf8')
+  const zh = BILI_ACCOUNT.describe.tools.find((t) => t.name === 'bili_mood_read')
+  assert.equal(/Xiaoyu|小鱼/.test((zh.description ?? '') + JSON.stringify(zh.summary ?? '')), false, '改了名字之后这句话会变成假话')
+  const declared = BILI_ACCOUNT.describe.tools.map((t) => t.name).join(',')
+  assert.ok(declared.includes('bili_mood_read'))
 })

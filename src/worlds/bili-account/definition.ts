@@ -22,7 +22,7 @@ import type { Language } from '../../core/language.ts'
 import {
   warmConsole, consoleReady, tankLocal, killOn, lastTickAt, pendingDraftCount, openFeedbackCount,
   timelineState, diaryState, draftsState, draftAction, feedbackResolve, feedbackListSafe, vitalsState, avatarBinary, trafficStatus,
-  policyState, policySet, policyInWindow, autoSentToday, draftForDay, freshAckToken, ownerNameFromConfig, settingsState, settingsSet,
+  policyState, policySet, policyInWindow, autoSentToday, draftForDay, freshAckToken, ownerNameFromConfig, personaNameFromConfig, settingsState, settingsSet,
 } from './tank.ts'
 import { decideAction, restRecoveryDelta, actionCost, nextCheckDelay, dayKey, MIN_GAP_MS } from '../../../persona-core/src/rhythm.ts'
 
@@ -439,7 +439,7 @@ const TOOL_SUMMARIES: Record<string, DescribeText> = {
   bili_feed: { zh: '拉取候选视频（只读）', en: 'Fetch candidate videos (read-only).' },
   bili_debrief: { zh: '读懂一条视频（只读）', en: 'Understand one video (read-only).' },
   bili_diary_read: { zh: '分页读日记：一页几天，回执会写明整本还有多少没给（别把一页当全部）', en: 'Read diaries by page; the receipt states what is still unserved.' },
-  bili_mood_read: { zh: '读取小鱼的场值与当前情绪（含成因）', en: "Read Xiaoyu's fields and current emotion with cause." },
+  bili_mood_read: { zh: '读取她此刻的场值与情绪（含成因）', en: 'Read her fields and current emotion with cause.' },
   bili_mood_apply: { zh: '按事件更新场值（预设或自定义）', en: 'Apply emotional effects after an event.' },
   bili_draft_dynamic: { zh: '生成动态草稿（不发送）', en: 'Create a dynamic draft (never posts).' },
   bili_diary_append: { zh: '写日记（公开/私人两本）：同日同名小节整节替换（回执「已替换」），新小节才追加（回执「已追加」），没有增量模式', en: 'Write a diary section (replace-if-exists, append-if-new; receipt says which).' },
@@ -457,7 +457,7 @@ const DECLS = [
   { name: 'bili_feed', description: 'Fetch candidate videos from the feed (read-only).', tags: ['read'], parameters: { type: 'object', properties: { n: { type: 'number', description: 'How many candidates (1-6)' } }, additionalProperties: false } },
   { name: 'bili_debrief', description: 'Understand one video via subtitles, danmaku, comments (read-only).', tags: ['read'], parameters: { type: 'object', properties: { bvid: { type: 'string' } }, required: ['bvid'], additionalProperties: false } },
   { name: 'bili_diary_read', description: "Read her diaries BY PAGE (read-only). One call = one page of day-blocks (newest first) plus a header stating how many days/chars the whole book has and whether this page is the end. Never assume a page is the whole book: if the header says 还剩 N 块, ask for the next page or a date.", tags: ['read'], parameters: { type: 'object', properties: { book: { type: 'string', enum: ['public', 'private', 'both'], description: '默认 both' }, page: { type: 'number', description: '第几页（0 起，按天从新到旧）' }, days: { type: 'number', description: '每页几天（1-30，默认 3）' }, budget: { type: 'number', description: '每页字数上限（200-9000，默认 4000）' }, date: { type: 'string', description: '只取某一天 YYYY-MM-DD（给了就忽略 page）' } }, additionalProperties: false } },
-  { name: 'bili_mood_read', description: "Read Xiaoyu's current emotion (fields + cause + label) plus what she recalls. Recalling marks those memories as thought-of-again: they get clearer.", tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'bili_mood_read', description: "Read her current emotion (fields + cause + label) plus what she recalls. Recalling marks those memories as thought-of-again: they get clearer.", tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'bili_mood_apply', description: 'Apply emotional effects after an event. Optionally record which life activity you picked and a short note. For watchedVideo, say what you actually concluded with verdict (keep / drop / unclear); without it nothing is counted as a positive.', tags: ['write'], parameters: { type: 'object', properties: { preset: { type: 'string', description: 'watchedVideo | masterReplied | masterSilentDay | draftApproved | draftRejected | trafficPaused' }, verdict: { type: 'string', enum: ['keep', 'drop', 'unclear'], description: '只给 watchedVideo 用：你这条到底收不收。keep=收 / drop=不收 / unclear=无从判断（不传按 unclear 记，不替你判成喜欢）' }, custom: { type: 'array', items: { type: 'object', properties: { field: { type: 'string' }, delta: { type: 'number' }, source: { type: 'string' } }, required: ['field', 'delta', 'source'] } }, note: { type: 'string', description: '一句留给自己的话（会写进记忆）' }, activity: { type: 'string', enum: ['rest', 'explore', 'create', 'social', 'reflect', 'exercise', 'consume'], description: '这轮挑的生活活动 id' } }, additionalProperties: false } },
   { name: 'bili_draft_dynamic', description: "Create a dynamic draft from today's diary and an unused image. Never posts.", tags: ['write'], parameters: { type: 'object', properties: { force: { type: 'boolean' } }, additionalProperties: false } },
   { name: 'bili_diary_append', description: "Write a section into one of her diaries (public/private). Policy is FIXED: same day+heading = WHOLE-section replace (receipt says 已替换); a heading not yet present = append as a NEW section (receipt says 已追加). There is no incremental append — rewrite the whole section each time.", tags: ['write'], parameters: { type: 'object', properties: { book: { type: 'string', enum: ['public', 'private'], description: 'public = 给人看的；private = 只给自己看的偏好校准' }, heading: { type: 'string', description: '小节标题，如 看过 / 想说 / 今日指标 / 本轮留下的判断' }, text: { type: 'string', description: '这一节的正文（markdown）' } }, required: ['book', 'heading', 'text'], additionalProperties: false } },
@@ -536,7 +536,9 @@ class BiliAccountWorld {
       : traffic.paused ? 'error' : 'online'
 
     return {
-      label: t('小鱼 · 鱼缸', 'Xiaoyu · Tank'),
+      // 标题跟配置里的 self.name 走（每次渲染现读）；工具描述里一律不写名字，
+      // 否则改了名字那些句子就成了假话。
+      label: t(`${personaNameFromConfig()} · 鱼缸`, `${personaNameFromConfig()} · Tank`),
       lamps: [
         {
           label: t('生活循环', 'Life loop'),

@@ -166,6 +166,17 @@ export function ownerNameFromConfig(file = CONFIG_FILE): string {
   return String(readJson(file)?.owner?.displayName ?? '').trim()
 }
 
+/**
+ * 她在这一页叫什么：来自配置 `self.name`（现值是她 B 站账号名，主人也可能只当本机称呼用）。
+ * 每次渲染现读，改了不用重启就能看到标题跟着变；空/读不到时回落到默认称呼，不做二次判断。
+ * 注意：这一格改的是**本机称呼**。B 站昵称是账号字段，要真改必须一次账号写操作 + 二次确认，
+ * 这一页不替主人动账号；宿主导航上那个名字在 deployments/<bot>/config.json，是另一个来源。
+ */
+export function personaNameFromConfig(file = CONFIG_FILE): string {
+  const v = String(readJson(file)?.self?.name ?? '').trim()
+  return v.slice(0, 24) || '小鱼'
+}
+
 // ── 全部配置（只读总览）：主人要求"每一项都看得见"，不是去翻 JSON 文件 ──────────
 const GROUP_LABEL: Record<string, string> = {
   owner: '主人', self: '她自己', preferences: '口味词表', quota: '额度上限', risk: '风控节奏',
