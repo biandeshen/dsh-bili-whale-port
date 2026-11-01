@@ -31,7 +31,7 @@ interface JudgmentItem {
   scope: 'feed' | 'draft' | 'dm' | 'any';
   stance: 'prefer' | 'avoid' | 'noise';
   tokens: string[]; reason: string; bvid?: string;
-  status: 'proposed' | 'adopted' | 'rejected';
+  status: 'proposed' | 'adopted' | 'retired' | 'rejected';
   rejectedWhy?: string | null;
 }
 interface JudgmentState {
@@ -335,7 +335,10 @@ function mountJudgment(ctx: WebUiPanelContext): void {
       const meta = ui.h('div', 'fb-meta', [
         it.day ?? (it.at ?? '').slice(0, 10),
         `· ${it.scope}`,
-        it.status === 'adopted' ? '· 已采纳' : it.status === 'rejected' ? `· 已驳回${it.rejectedWhy ? `：${it.rejectedWhy}` : '（没写理由）'}` : '· 待采纳',
+        it.status === 'adopted' ? '· 已采纳（feed 正按它筛）'
+          : it.status === 'retired' ? '· 曾采纳，现已撤下（配置里没有它了）'
+          : it.status === 'rejected' ? `· 已驳回${it.rejectedWhy ? `：${it.rejectedWhy}` : '（没写理由）'}`
+          : '· 待采纳',
         it.bvid ? `· ${it.bvid}` : '',
       ].filter(Boolean).join(' '));
       const reason = ui.h('div', 'fb-meta', '理由：' + it.reason);
