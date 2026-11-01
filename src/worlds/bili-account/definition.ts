@@ -129,7 +129,26 @@ export function sanitizeEffects(input: any): PresetEffect[] {
   }
   return out
 }
-function causal(o: any) { try { fs.mkdirSync(path.dirname(CAUSAL_FILE), { recursive: true }); fs.appendFileSync(CAUSAL_FILE, JSON.stringify({ at: new Date().toISOString(), ...o }) + String.fromCharCode(10)) } catch {} }
+/**
+ * 因果账。写失败不许吞：autoSentToday 就是数这个文件里的条目，吞掉等于 autoDailyCap 形同虚设，
+ * 而且她/主人在时间线上都看不到"这件事发生过"。所以失败往上抛，由调用方决定是拒绝还是亮红。
+ */
+function causal(o: any): void {
+  fs.mkdirSync(path.dirname(CAUSAL_FILE), { recursive: true })
+  fs.appendFileSync(CAUSAL_FILE, JSON.stringify({ at: new Date().toISOString(), ...o }) + String.fromCharCode(10))
+}
+
+/**
+ * 正当"变更已经发生、只是记账失败"时用：手头的结果照常返回，同时把失败挂上去给主人看。
+ * 不能因为账本坏了就把已经改好的配置说成没改，也不能假装记上了。
+ */
+function withLedgerError<T extends { ok?: boolean; error?: string }>(result: T, entry: any): T {
+  try { causal(entry); return result }
+  catch (e: any) {
+    const note = `因果账写不进去：${String(e?.message ?? e)}（这次改动已经生效，但时间线上不会有这条）`
+    return { ...result, ok: false, error: result.error ? `${result.error}；${note}` : note }
+  }
+}
 function readCausal(): any[] {
   try {
     return fs.readFileSync(CAUSAL_FILE, 'utf8').split(String.fromCharCode(10)).slice(-2000)
@@ -635,28 +654,31 @@ class BiliAccountWorld {
           if (method === 'state') return { ...policyState(), autoSentToday: autoSentToday(), settings: settingsState() }
           if (method === 'set') {
             const r = policySet(args[0])
-            if (r.ok) {
-              causal({ kind: 'policy-change', policy: r.policy, atMs: Date.now() })
-              // 7799 是本机免口令端口：任何本地进程都能 POST 这里，一次盲写就把她从"要我审"变成"她自己发"。
-              // 所以 auto 一旦生效必须写进她自己的日记（主人和 her 都看得见），不能只留一条 causal。
-              if (r.policy?.draftMode === 'auto') {
-                const note = exportPolicyNotice(r.policy)
-                if (note) {
-                  try {
-                    const day = dayKey(Date.now())
-                    const cur = fs.existsSync(PRIVATE_DIARY) ? fs.readFileSync(PRIVATE_DIARY, 'utf8') : ''
-                    fs.writeFileSync(PRIVATE_DIARY, upsertDiarySection(cur, { book: 'private', heading: note.heading, body: note.body, date: day }))
-                  } catch {}
+            if (!r.ok) return r
+            let result = withLedgerError(r, { kind: 'policy-change', policy: r.policy, atMs: Date.now() })
+            // 7799 是本机免口令端口：任何本地进程都能 POST 这里，一次盲写就把她从"要我审"变成"她自己发"。
+            // 所以 auto 一旦生效必须写进她自己的日记（主人和 her 都看得见），不能只留一条 causal。
+            // 写失败要报出来：日记里没有这条，她就不知道自己已经被切到自动发送了。
+            if (r.policy?.draftMode === 'auto') {
+              const note = exportPolicyNotice(r.policy)
+              if (note) {
+                try {
+                  const day = dayKey(Date.now())
+                  const cur = fs.existsSync(PRIVATE_DIARY) ? fs.readFileSync(PRIVATE_DIARY, 'utf8') : ''
+                  fs.writeFileSync(PRIVATE_DIARY, upsertDiarySection(cur, { book: 'private', heading: note.heading, body: note.body, date: day }))
+                } catch (e: any) {
+                  const why = `私人日记写不进去：${String(e?.message ?? e)} —— auto 已生效，但她日记里没有这条记录`
+                  result = { ...result, ok: false, error: result.error ? `${result.error}；${why}` : why }
                 }
               }
             }
-            return r
+            return result
           }
           // #49：全部配置里除禁改项之外的每一项都能在这一页改，不用去翻 bili-whale.config.json。
           if (method === 'settings/set') {
             const r = settingsSet(args[0])
             if (r.ok && r.changed?.length) {
-              causal({ kind: 'settings-change', changed: r.changed, atMs: Date.now() })
+              return withLedgerError(r, { kind: 'settings-change', changed: r.changed, atMs: Date.now() })
             }
             return r
           }
@@ -676,7 +698,7 @@ class BiliAccountWorld {
           }
           if (method === 'name/local') {
             const r = renameSelf(String(args[0] ?? ''), undefined, this.botConfigFile())
-            if (r.ok) causal({ kind: 'name-change', scope: 'local', to: r.name, hostUpdated: r.hostUpdated, atMs: Date.now() })
+            if (r.ok) return withLedgerError(r, { kind: 'name-change', scope: 'local', to: r.name, hostUpdated: r.hostUpdated, atMs: Date.now() })
             return r
           }
           if (method === 'name/bili') {
@@ -684,8 +706,8 @@ class BiliAccountWorld {
             if (!to) return { ok: false, error: '新昵称不能是空的' }
             const r = await runNodeAsync(BILI, ['rename', '--to', to, '--go'], 60000)
             // 真的改成了才记因果账：退出码 0 表示平台复核后的名字就是它。
-            if (r.status === 0) causal({ kind: 'name-change', scope: 'bili', to, atMs: Date.now() })
-            return { ok: r.status === 0, out: String(r.out).trim().slice(0, 600), code: r.status }
+            const out = { ok: r.status === 0, out: String(r.out).trim().slice(0, 600), code: r.status }
+            return r.status === 0 ? withLedgerError(out, { kind: 'name-change', scope: 'bili', to, atMs: Date.now() }) : out
           }
           throw new Error('unknown method ' + method)
         }

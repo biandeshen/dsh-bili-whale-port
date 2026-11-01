@@ -257,3 +257,25 @@ test('世界页标题跟着 self.name 走；工具描述里不再写死名字', 
   const declared = BILI_ACCOUNT.describe.tools.map((t) => t.name).join(',')
   assert.ok(declared.includes('bili_mood_read'))
 })
+
+// ── 待审稿读数只此一处（2026-11-01 审计 P0-2） ─────────────────────────────
+// 症状：badge 报「待放行=0」、灯说「没有等放行的稿」，而同页面板列得出一条 pending 草稿。
+// 根因不是数错，是两处各解析一次草稿目录，第二份漏了 legacy 分支，于是 badge 读的是一个
+// 不存在的空目录。这条锁的是"面板、badge、灯、CLI 读的是同一个数"。
+test('草稿目录只有一处解析：面板与 badge 同源，badge 数得出现在面板里的 pending', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'drafts-one-'))
+  const prev = process.env.WHALE_DRAFTS
+  process.env.WHALE_DRAFTS = dir
+  try {
+    // 模块级 DRAFTS_DIR 在 import 时定值，所以带一个新的 query 重新加载一份拿新 env。
+    const fresh = await import(`../src/worlds/bili-account/tank.ts?drafts=${Date.now()}`)
+    fs.writeFileSync(path.join(dir, '2026-11-01.json'), JSON.stringify({ id: 'dyn-1', status: 'pending', text: 'x' }), 'utf8')
+    fs.writeFileSync(path.join(dir, '2026-10-31.json'), JSON.stringify({ id: 'dyn-0', status: 'sent', text: 'y' }), 'utf8')
+    assert.equal(fresh.pendingDraftCount(), 1, 'badge 数出的 pending 必须和面板看到的是同一批文件')
+    assert.equal(fresh.consolePaths.DRAFTS_DIR, dir, '面板、badge、CLI 用的是同一个目录')
+  } finally {
+    if (prev === undefined) delete process.env.WHALE_DRAFTS
+    else process.env.WHALE_DRAFTS = prev
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
