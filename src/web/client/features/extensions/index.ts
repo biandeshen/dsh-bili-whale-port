@@ -1047,6 +1047,33 @@ export function mountExtensions(ctx: FeatureContext): void {
     ui.drawer(S.changesTitle(title), box);
     box.closest('.modalcard')?.classList.add('extension-changes-card');
   }
+  /**
+   * 主人问的三件事：为什么"已安装未加载"、禁用怎么禁、启用怎么启——过去这一页只有装卸，
+   * 开关藏在 World 总览，而且状态只写"已加载/失败"不写为什么。这里一次补齐：
+   * 状态旁边给成人能懂的原因，World 的开关就放在卡片上（`/api/worlds/activation` 写回
+   * config.json 的 `worlds.<id>.enabled` 并热挂载/热卸，不需要重启进程）。
+   */
+  function stateReason(item: ExtensionView): string {
+    if (item.state === 'idle') return S.whyIdle;
+    if (item.state === 'failed') return S.whyFailed(item.reason ?? '');
+    if (item.state === 'pending-restart') return S.whyPendingRestart;
+    if (item.state === 'removed') return S.whyRemoved;
+    return '';
+  }
+  async function activation(item: ExtensionView, want: boolean): Promise<void> {
+    const identity = item.name;
+    if (busy.has(identity) || !item.worldId) return;
+    const name = item.metadata?.displayName ?? item.label ?? identity;
+    busy.add(identity); renderInstalled(); message(kind, 'management', S.progress(want ? S.activateAction : S.deactivateAction, name));
+    try {
+      await post('/api/worlds/activation', { id: item.worldId, enabled: want }, { signal });
+      if (signal.aborted) return;
+      message(kind, 'management', want ? S.activatedDone(name) : S.deactivatedDone(name));
+      if (!await load()) message(kind, 'management', S.syncedFailed, true);
+    } catch (error) {
+      if (!signal.aborted) message(kind, 'management', S.activationFailed(errorText(error)), true);
+    } finally { busy.delete(identity); if (!signal.aborted) renderInstalled(); }
+  }
   function installedCard(item: ExtensionView) {
     const card = ui.h('article', 'extension-card extension-installed-card' + (item.enabled ? ' is-enabled' : ''));
     card.tabIndex = 0; card.setAttribute('aria-label', item.metadata?.displayName ?? item.label ?? item.name);
@@ -1092,7 +1119,40 @@ export function mountExtensions(ctx: FeatureContext): void {
     } else version.textContent = item.hidden ? S.hidden : item.installedVersion && item.version !== item.installedVersion ? S.runtimeVersion(item.version ?? '—') : '';
     if (version.hasChildNodes()) card.append(version);
     for (const problem of update?.problems ?? []) card.append(ui.msgline(problem, true));
+    const why = stateReason(item);
+    // 原因写成次级文本，不抢 `.msgline.bad`：那格留给"这次操作失败了"，
+    // 状态本身已经有 .extension-status.bad 的红色标记（测试也按这个约定在核）。
+    if (why) card.append(ui.h('div', 'extension-secondary extension-reason', why));
     const footer = ui.h('div', 'extension-status-row'); footer.append(status);
+    const label = item.metadata?.displayName ?? item.label ?? item.name;
+    if (item.kind === 'world' && item.worldId && item.state !== 'removed') {
+      // 停用是"把她正在用的手脚撤下去"，所以与删除一样要按两次；启用一步就行。
+      const want = !item.enabled;
+      const toggle = ui.button(want ? S.activateAction : S.deactivateAction, { size: 'sm' });
+      const worldId = item.worldId;
+      toggle.title = want ? S.activateTitle(worldId) : S.deactivateTitle(worldId);
+      toggle.setAttribute('aria-label', (want ? S.activateAction : S.deactivateAction) + ' · ' + label);
+      const blockedByBoot = item.state === 'failed' || item.state === 'pending-restart';
+      toggle.disabled = busy.has(item.name) || blockedByBoot;
+      if (blockedByBoot) toggle.title = why || toggle.title;
+      toggle.addEventListener('click', event => {
+        event.stopPropagation();
+        if (!want) {
+          const wasArmed = toggle.classList.contains('is-armed'); disarm();
+          if (!wasArmed) {
+            toggle.classList.add('is-armed'); toggle.title = S.activateArm;
+            const warn = ui.msgline(S.activateArm, true); card.insertBefore(warn, footer);
+            armed = () => { toggle.classList.remove('is-armed'); toggle.title = S.deactivateTitle(worldId); warn.remove(); };
+            return;
+          }
+        }
+        void activation(item, want);
+      }, { signal });
+      footer.append(toggle);
+    } else if (item.kind === 'provider' || item.kind === 'bot') {
+      // 不给假按钮：这两类没有"启用/停用"这种开关，硬做一个点了没反应的比没有更糟。
+      footer.append(ui.h('span', 'extension-secondary', S.notToggleable + (item.kind === 'provider' ? S.providerKindNote : S.botKindNote)));
+    }
     if (item.state !== 'removed') {
       const remove = ui.h('button', 'connection-erase extension-erase') as HTMLButtonElement; remove.type = 'button';
       const text = ui.h('span', 'connection-erase-text'); text.append(ui.h('span', '', S.eraseConfirm));

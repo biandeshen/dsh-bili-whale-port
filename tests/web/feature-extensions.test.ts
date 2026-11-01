@@ -67,10 +67,12 @@ const DETAIL = {
 const LIFE = { deployment: 'this-deployment', bootId: 'boot-1', ready: true };
 
 let calls: Array<{ url: string; method: string; body: Any }> = [];
+let activations: Any[] = [];
 
 function stub(over: {
   list?: unknown; updates?: unknown; updateStatus?: number; installStatus?: number; checkStatus?: number;
   hits?: unknown; detail?: Any; detailStatus?: number; restart?: unknown; onInstall?: (body: Any) => void;
+  activationStatus?: number; activationError?: string; onActivation?: (body: Any) => void;
 } = {}): void {
   vi.stubGlobal('fetch', (url: unknown, init: Any) => {
     const u = String(url);
@@ -91,6 +93,14 @@ function stub(over: {
     }
     else if (u === '/api/extensions/install') { status = over.installStatus ?? 200; if (status === 200) over.onInstall?.(JSON.parse(init.body)); body = status === 200 ? { ok: true, result: '已安装 x。重启进程后加载。\n+ x 1.0.0' } : { error: 'pnpm add 退出码 1' }; }
     else if (u === '/api/extensions/uninstall') body = { ok: true, result: '已卸载 x。' };
+    else if (u === '/api/worlds/activation') {
+      const payload = JSON.parse(init.body);
+      status = over.activationStatus ?? 200;
+      if (status === 200) over.onActivation?.(payload);
+      body = status === 200
+        ? { ok: true, result: payload.enabled ? '已激活' : '已停用' }
+        : { error: over.activationError ?? '这个 World 不在本部署的定义里' };
+    }
     else if (u === '/api/run/lifecycle') body = LIFE;
     else if (u === '/api/run/restart') body = over.restart ?? { ok: true, result: '本地关机完成,进程即将退出', steps: [{ label: '按住事件投递', ok: true, elapsedMs: 2 }] };
     return Promise.resolve(new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }));
@@ -148,7 +158,7 @@ const cardOf = (root: ParentNode, title: string): HTMLElement => {
 const lives: Any[] = [];
 function mount(caps: Record<string, boolean> = { extensions: true, restart: true, supervised: true }) { const context = mkCtx(caps); lives.push(context.lifecycle); mountExtensions(context.ctx); return context; }
 const WIDTH = 1100;
-beforeEach(() => { calls = []; window.sessionStorage.clear(); window.history.replaceState(null, '', '#/extensions/world'); Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get: () => WIDTH }); HTMLElement.prototype.scrollIntoView = vi.fn(); });
+beforeEach(() => { calls = []; activations = []; window.sessionStorage.clear(); window.history.replaceState(null, '', '#/extensions/world'); Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get: () => WIDTH }); HTMLElement.prototype.scrollIntoView = vi.fn(); });
 afterEach(() => { lives.splice(0).forEach(life => life.dispose()); vi.unstubAllGlobals(); document.body.replaceChildren(); });
 const installedCards = (root: HTMLElement) => root.querySelector('.extension-grid')!;
 const marketCards = (root: HTMLElement) => root.querySelectorAll('.extension-grid')[1];
@@ -604,5 +614,53 @@ describe('extension card and history controls', () => {
     const actions = [...document.querySelectorAll<HTMLButtonElement>('.extension-version-action')];
     expect(actions.length).toBeGreaterThan(0);
     expect(actions.every(action => action.disabled)).toBe(true);
+  });
+
+  // 主人问的是："禁用怎么禁用？启用怎么启用？没有按钮啊。" 开关必须在这一页，且热生效。
+  it('装着但没启用的 World 卡片上有「激活」，点一次就写 worlds.<id>.enabled 并重载列表', async () => {
+    const idle = { ...LIST.extensions[0], name: 'idle-mod', worldId: 'idle', label: '戊扩展', loaded: false, enabled: false, state: 'idle' };
+    stub({ list: { ...LIST, extensions: [idle] }, onActivation: (payload: Any) => activations.push(payload) });
+    const { root } = mount(); await flush();
+    const card = cardOf(root, '戊扩展');
+    expect(card.textContent).toContain('这个 Bot 没启用它');
+    button(card, '激活').click(); await flush();
+    expect(activations).toEqual([{ id: 'idle', enabled: true }]);
+    expect(root.textContent).toContain('已激活「戊扩展」');
+    expect(calls.some(c => c.url === '/api/extensions')).toBe(true);
+    expect(card.textContent).not.toContain('重启进程');
+  });
+
+  it('停用要按两次；按第一次只出警告，不发请求', async () => {
+    const on = { ...LIST.extensions[0], enabled: true, label: '甲扩展' };
+    stub({ list: { ...LIST, extensions: [on] }, onActivation: (payload: Any) => activations.push(payload) });
+    const { root } = mount(); await flush();
+    const card = cardOf(root, '甲扩展');
+    button(card, '停用').click(); await flush();
+    expect(activations).toEqual([]);
+    expect(card.querySelector('.msgline.bad')?.textContent).toContain('再点一次确认停用');
+    button(card, '停用').click(); await flush();
+    expect(activations).toEqual([{ id: 'alpha', enabled: false }]);
+  });
+
+  it('加载失败与待重启的 World 不给能点的开关，并把原因写在卡片上', async () => {
+    stub();
+    const { root } = mount(); await flush();
+    expect(cardOf(root, 'beta-mod').textContent).toContain('默认导出不是 WorldDefinition');
+    expect(button(cardOf(root, '甲扩展'), '激活').disabled).toBe(false);
+    const pending = { ...LIST.extensions[0], label: '待启扩展', state: 'pending-restart' };
+    stub({ list: { ...LIST, extensions: [pending] } });
+    const second = mount(); await flush();
+    const pcard = cardOf(second.root, '待启扩展');
+    expect(pcard.textContent).toContain('刚装/刚更新');
+    expect(button(pcard, '激活').disabled).toBe(true);
+  });
+
+  it('provider/bot 不作假装有开关，只说清它的开关在哪一页', async () => {
+    window.history.replaceState(null, '', '#/extensions/provider');
+    stub();
+    const { root } = mount(); await flush();
+    const prov = cardOf(root, 'gamma-prov');
+    expect([...prov.querySelectorAll('button')].some(b => /激活|停用/.test(b.textContent ?? ''))).toBe(false);
+    expect(prov.textContent).toContain('模型供应商');
   });
 });
