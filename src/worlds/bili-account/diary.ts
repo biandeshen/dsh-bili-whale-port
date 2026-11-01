@@ -252,3 +252,70 @@ export function diaryHeadings(raw: string): string[] {
   return seen
 }
 
+
+/**
+ * 阶段性汇总（意见箱 f-f976ed）：她要回答"这一周判了多少条、收了几条、尺子改了几次"，
+ * 过去只能把日记一页页读回来手工数。
+ *
+ * 只数**她写下来的东西**，不做推断：日期块数、看过里出现几个 BV、想说写了几次、
+ * 判断小节里"收/不收"各多少、以及"今日指标"里分享与评论的合计。
+ * 数不出来就报 null，不拿 0 冒充"没有"。
+ */
+export interface DiaryRangeSummary {
+  from: string | null;
+  to: string | null;
+  days: number;
+  /** 「看过」里出现过的不同 BV 数。 */
+  watched: number;
+  /** 判定结论的粗略计数（正文里含「收」/「不收」小节的条数）；判不了的写 null。 */
+  verdicts: { keep: number; drop: number } | null;
+  /** 「想说」小节写了多少次。 */
+  notes: number;
+  /** 提到尺子/规则的次数（粗略：含「尺子」「judgment」「判断」的段）。 */
+  yardstickMentions: number;
+  chars: number;
+}
+
+const DIARY_DATE_RE = /^##\s+(\d{4}-\d{2}-\d{2})/
+
+export function summarizeDiaryRange(raw: string, opts: { from?: string; to?: string } = {}): DiaryRangeSummary {
+  const { blocks } = splitBlocks(raw)
+  const from = opts.from ?? null
+  const to = opts.to ?? null
+  const picked = blocks.filter((b) => {
+    const d = (b.date.match(DIARY_DATE_RE)?.[1]) ?? b.date
+    if (from && d < from) return false
+    if (to && d > to) return false
+    return true
+  })
+  const dates = picked.map((b) => (b.date.match(DIARY_DATE_RE)?.[1]) ?? b.date).sort()
+  const texts = picked.map((b) => b.text).join('\n')
+  const bvs = new Set(texts.match(/BV[0-9A-Za-z]{10}/g) ?? [])
+  const sections = picked.flatMap((b) => splitSections(b.text))
+  const noteSections = sections.filter((s) => /想说/.test(s.heading))
+  const judgeSections = sections.filter((s) => /判断|尺子/.test(s.heading))
+
+  // "收/不收"只在判断小节里数，避免把正文里所有"收"字都算进去。
+  let keep = 0
+  let drop = 0
+  let sawVerdict = false
+  for (const s of judgeSections) {
+    // 先数「不收」，再数单独的「收」，否则「不收」会被算成一次「收」。
+    const drops = (s.text.match(/不收|放弃|没留|不分享/g) ?? []).length
+    const keeps = (s.text.replace(/不收|放弃|没留|不分享/g, '').match(/(?:^|[^\u4e00-\u9fa5])(收|留下|分享)(?:[^\u4e00-\u9fa5]|$)/g) ?? []).length
+    if (drops + keeps > 0) sawVerdict = true
+    drop += drops
+    keep += keeps
+  }
+
+  return {
+    from: dates[0] ?? null,
+    to: dates[dates.length - 1] ?? null,
+    days: picked.length,
+    watched: bvs.size,
+    verdicts: sawVerdict ? { keep, drop } : null,
+    notes: noteSections.length,
+    yardstickMentions: judgeSections.length,
+    chars: texts.length,
+  }
+}

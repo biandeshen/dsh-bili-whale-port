@@ -8,7 +8,7 @@ import { extensionsDir, readInstalled } from '../../extensions.ts'
 import { repoRoot } from '../../paths.ts'
 import type { DescribeText, ToolDescribe, WorldWebUiDecl } from '../../core/types.ts'
 import { canDraft, draftRefusal, canApplyWatched, watchedRefusal, violationNotice, diaryFresh, diaryRefusal } from './gates.ts'
-import { upsertDiarySection, sectionStats, diaryDefaultHeader, paginateDiary, diaryHeadings } from './diary.ts'
+import { upsertDiarySection, sectionStats, diaryDefaultHeader, paginateDiary, diaryHeadings, summarizeDiaryRange } from './diary.ts'
 import { loadState, saveState, applyEffects, remember, rememberFirst, describeStateWithTrace, applyRecall, recentWatch, annotateFeed, findMemories, voidMemory, PRESETS, WATCH_VERDICTS } from './personaAdapter.ts'
 import type { WatchVerdict } from './personaAdapter.ts'
 import type { PresetEffect } from './personaAdapter.ts'
@@ -479,7 +479,7 @@ const DECLS = [
   { name: 'bili_traffic', description: 'Bilibili request-budget state (read-only).', tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'bili_feed', description: 'Fetch candidate videos from the feed (read-only).', tags: ['read'], parameters: { type: 'object', properties: { n: { type: 'number', description: 'How many candidates (1-6)' } }, additionalProperties: false } },
   { name: 'bili_debrief', description: 'Understand one video via subtitles, danmaku, comments (read-only).', tags: ['read'], parameters: { type: 'object', properties: { bvid: { type: 'string' } }, required: ['bvid'], additionalProperties: false } },
-  { name: 'bili_diary_read', description: "Read her diaries BY PAGE (read-only). One call = one page of day-blocks (newest first) plus a header stating how many days/chars the whole book has and whether this page is the end. Never assume a page is the whole book: if the header says 还剩 N 块, ask for the next page or a date. Call it without filters first: the receipt lists the section headings this book has.", tags: ['read'], parameters: { type: 'object', properties: { book: { type: 'string', enum: ['public', 'private', 'both'], description: '默认 both' }, page: { type: 'number', description: '第几页（0 起，按天从新到旧）' }, days: { type: 'number', description: '每页几天（1-30，默认 3）' }, budget: { type: 'number', description: '每页字数上限（200-9000，默认 4000）' }, date: { type: 'string', description: '只取某一天 YYYY-MM-DD（给了就忽略 page）' }, heading: { type: 'string', description: '只要这个小节（如 看过 / 想说 / 今日指标），可与 date 一起用；回执会写清有多少天有这一节' } }, additionalProperties: false } },
+  { name: 'bili_diary_read', description: "Read her diaries BY PAGE (read-only). One call = one page of day-blocks (newest first) plus a header stating how many days/chars the whole book has and whether this page is the end. Never assume a page is the whole book: if the header says 还剩 N 块, ask for the next page or a date. Call it without filters first: the receipt lists the section headings this book has.", tags: ['read'], parameters: { type: 'object', properties: { book: { type: 'string', enum: ['public', 'private', 'both'], description: '默认 both' }, page: { type: 'number', description: '第几页（0 起，按天从新到旧）' }, days: { type: 'number', description: '每页几天（1-30，默认 3）' }, budget: { type: 'number', description: '每页字数上限（200-9000，默认 4000）' }, date: { type: 'string', description: '只取某一天 YYYY-MM-DD（给了就忽略 page）' }, heading: { type: 'string', description: '只要这个小节（如 看过 / 想说 / 今日指标），可与 date 一起用；回执会写清有多少天有这一节' }, summary: { type: 'boolean', description: '只给统计不给正文：区间内的天数、看过几个 BV、想说几节、判断小节里收/不收各几条。用来回答「这周判了多少」' }, from: { type: 'string', description: 'summary 用：起始日 YYYY-MM-DD' }, to: { type: 'string', description: 'summary 用：截止日 YYYY-MM-DD' } }, additionalProperties: false } },
   { name: 'bili_mood_read', description: "Read her current emotion (fields + cause + label) plus what she recalls. Recalling marks those memories as thought-of-again: they get clearer.", tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'bili_mood_apply', description: 'Apply emotional effects after an event. Optionally record which life activity you picked and a short note. For watchedVideo, say what you actually concluded with verdict (keep / drop / unclear); without it nothing is counted as a positive.', tags: ['write'], parameters: { type: 'object', properties: { preset: { type: 'string', description: 'watchedVideo | masterReplied | masterSilentDay | draftApproved | draftRejected | trafficPaused' }, verdict: { type: 'string', enum: ['keep', 'drop', 'unclear'], description: '只给 watchedVideo 用：你这条到底收不收。keep=收 / drop=不收 / unclear=无从判断（不传按 unclear 记，不替你判成喜欢）' }, custom: { type: 'array', items: { type: 'object', properties: { field: { type: 'string' }, delta: { type: 'number' }, source: { type: 'string' } }, required: ['field', 'delta', 'source'] } }, note: { type: 'string', description: '一句留给自己的话（会写进记忆）' }, activity: { type: 'string', enum: ['rest', 'explore', 'create', 'social', 'reflect', 'exercise', 'consume'], description: '这轮挑的生活活动 id' } }, additionalProperties: false } },
   { name: 'bili_draft_dynamic', description: "Create a dynamic draft from today's diary and an unused image. Never posts.", tags: ['write'], parameters: { type: 'object', properties: { force: { type: 'boolean' } }, additionalProperties: false } },
@@ -979,6 +979,23 @@ class BiliAccountWorld {
             return `【${s.label} · ${s.file}】\n这个文件不存在 —— 是"真的还没有"，不是"被截断没给你"。`
           }
           const heading = a?.heading ? String(a.heading).trim() : undefined
+          // 汇总模式（意见箱 f-f976ed）：她要"这一周判了多少条、收了几条、尺子改了几次"，
+          // 过去只能一页页读回来手工数。这里只数她自己写下的东西，不替她推断结论。
+          if (a?.summary) {
+            const sum = summarizeDiaryRange(raw, {
+              ...(a?.from ? { from: String(a.from) } : {}),
+              ...(a?.to ? { to: String(a.to) } : {}),
+            })
+            return [
+              `【${s.label} · 汇总】${sum.from ?? '?'} → ${sum.to ?? '?'}（${sum.days} 天 · ${sum.chars} 字）`,
+              `看过里出现 ${sum.watched} 个不同的 BV`,
+              `「想说」写了 ${sum.notes} 节`,
+              sum.verdicts
+                ? `判断小节里：收 ${sum.verdicts.keep} · 不收 ${sum.verdicts.drop}`
+                : '判断小节：这本里没有以「判断」或「尺子」开头的小节，所以数不出收/不收（不是 0，是没这么写）',
+              sum.yardstickMentions ? `涉及尺子/判断的小节 ${sum.yardstickMentions} 节` : '',
+            ].filter(Boolean).join('\n')
+          }
           const p = paginateDiary(raw, {
             page: Number(a?.page ?? 0), days: Number(a?.days ?? 3), budget: Number(a?.budget ?? 4000),
             date: a?.date ? String(a.date) : undefined,
