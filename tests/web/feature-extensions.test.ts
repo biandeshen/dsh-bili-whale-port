@@ -181,15 +181,19 @@ describe('extension categories', () => {
     expect(document.activeElement).toBe(tabs[1]); expect(tabs[0].getAttribute('aria-selected')).toBe('true');
     tabs[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true })); expect(document.activeElement).toBe(tabs[2]);
   });
-  it('caps installed cards at two rows and market at four rows at every column count', async () => {
+  it('已安装默认全给（不再按视口列数砍成两行），市场仍按四行；主人仍可自己限定每页几个', async () => {
     const many = { ...LIST, extensions: Array.from({ length: 15 }, (_, i) => ({ ...LIST.extensions[0], name: `item-${String(i).padStart(2, '0')}`, label: `Item ${i}` })) };
     for (const width of [1100, 800, 500]) {
       const perRow = extensionColumns(width);
       Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get: () => width }); stub({ list: many });
       const { root, lifecycle } = mount(); await flush();
-      expect(installedCards(root).querySelectorAll('.extension-card')).toHaveLength(perRow * 2);
+      // 卡片被分页藏起来过：主人因此以为"这一页没有启用/停用按钮"。
+      expect(installedCards(root).querySelectorAll('.extension-card')).toHaveLength(15);
       expect(marketCards(root).querySelectorAll('.extension-card')).toHaveLength(perRow * 4);
-      button(sheets(root)[0], '下一页 ›').click(); expect(installedCards(root).textContent).toContain(`Item ${perRow * 2}`);
+      const picker = root.querySelector('label[data-area="installed"] select') as HTMLSelectElement;
+      picker.value = '3'; picker.dispatchEvent(new Event('change', { bubbles: true }));
+      expect(installedCards(root).querySelectorAll('.extension-card')).toHaveLength(3);
+      button(sheets(root)[0], '下一页 ›').click(); expect(installedCards(root).textContent).toContain(`Item 3`);
       lifecycle.dispose(); root.remove(); window.sessionStorage.clear();
     }
   });
@@ -516,14 +520,18 @@ describe('extension review interactions', () => {
 
 it('keeps the installed grid height and scroll position when the last page has one card', async () => {
   stub({ list: { dir: LIST.dir, extensions: Array.from({length: 7}, (_, i) => ({ ...LIST.extensions[0], name: `page-${i}` })) } });
-  const { root } = mount(); await flush(); const grid = installedCards(root) as HTMLElement;
+  const { root } = mount(); await flush();
+  // 默认不分页了，所以这里显式把每页限定成 3 个，再验末页的高度与滚动保持
+  const picker = root.querySelector('label[data-area="installed"] select') as HTMLSelectElement;
+  picker.value = '3'; picker.dispatchEvent(new Event('change', { bubbles: true })); await flush();
+  const grid = installedCards(root) as HTMLElement;
   const measured = 576;
   vi.spyOn(grid, 'getBoundingClientRect').mockReturnValue({ height: measured } as DOMRect);
   root.scrollTop = 200; const pager = root.querySelector('.extension-pager')!;
-  button(pager, '下一页 ›').click();
+  button(pager, '下一页 ›').click(); button(pager, '下一页 ›').click();
   expect(grid.children).toHaveLength(1); expect(grid.style.minHeight).toBe(`${measured}px`); expect(root.scrollTop).toBe(200);
-  expect(pager.textContent).toContain('2 / 2');
-  button(pager, '‹ 上一页').click(); expect(grid.children).toHaveLength(extensionColumns(WIDTH) * 2); expect(root.scrollTop).toBe(200);
+  expect(pager.textContent).toContain('3 / 3');
+  button(pager, '‹ 上一页').click(); expect(grid.children).toHaveLength(3); expect(root.scrollTop).toBe(200);
 });
 
 describe('feature contract', () => {

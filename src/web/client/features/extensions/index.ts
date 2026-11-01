@@ -519,11 +519,13 @@ export function mountExtensions(ctx: FeatureContext): void {
     states[owner].messages[area] = { text, bad };
     if (owner === kind && messageNodes[area]) { messageNodes[area].textContent = text; messageNodes[area].className = 'msgline' + (bad ? ' bad' : ''); }
   }
-  const pageSize = (area: 'installed' | 'market', owner = kind) => area === 'installed' ? states[owner].installedSize || columns * 2 : states[owner].marketSize || columns * 4;
+  // 已安装的一律默认全给（主人要找的就是自己装的那几个），别再按视口列数砍成 2 个一页——
+  // 窄窗口下 figure/桌宠日记被分页藏掉，看起来就像"这页没有开关"。市场列表仍按列数分页。
+  const pageSize = (area: 'installed' | 'market', owner = kind) => area === 'installed' ? states[owner].installedSize || Math.max(installed.length, columns * 2) : states[owner].marketSize || columns * 4;
   function sizePicker(area: 'installed' | 'market') {
     const state = states[kind], key = area === 'installed' ? 'installedSize' : 'marketSize';
     const label = ui.h('label', 'extension-size'); label.dataset.area = area; label.append(ui.h('span', '', S.perPage));
-    label.append(ui.select({ value: String(state[key]), options: [0, 3, 6, 12, 24, 48].map(value => ({ value: String(value), label: value ? String(value) : S.automaticCount(columns * (area === 'installed' ? 2 : 4)) })), onChange: value => {
+    label.append(ui.select({ value: String(state[key]), options: [0, 3, 6, 12, 24, 48].map(value => ({ value: String(value), label: value ? String(value) : area === 'installed' ? S.allItems : S.automaticCount(columns * 4) })), onChange: value => {
       state[key] = Number(value); (area === 'installed' ? installedGrid : marketGrid).style.minHeight = ''; if (area === 'installed') { state.installedPage = 0; renderInstalled(); } else { state.page = 0; renderMarket(); } save();
     } })); return label;
   }
