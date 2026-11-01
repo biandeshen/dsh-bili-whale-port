@@ -20,7 +20,7 @@ function versionParts(version: string): bigint[] | null {
 
 /** 本地版本：查更新失败时也要能返回，界面字标不依赖网络。 */
 export async function readCurrentVersion(root = repoRoot()): Promise<string> {
-  const { version } = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')) as { version: string };
+  const { version } = JSON.parse(readTextFile(join(root, 'package.json'))) as { version: string };
   return version;
 }
 

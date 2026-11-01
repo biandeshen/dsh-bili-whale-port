@@ -22,7 +22,7 @@ describe('parseRetryAfter', () => {
 
 describe('StreamErrorEvent', () => {
   it('带上游自己的失败原因,状态 0 表示流内失败,消息压成一行', async () => {
-    const { StreamErrorEvent, LLMError, upstreamText } = await import('../../../src/providers/transport/errors.ts');
+    const { StreamErrorEvent, LLMError } = await import('../../../src/providers/transport/errors.ts');
     const event = new StreamErrorEvent(JSON.stringify({ error: { message: 'model   overloaded\n try later' } }));
     expect(event).toBeInstanceOf(LLMError);
     expect(event.name).toBe('StreamErrorEvent');

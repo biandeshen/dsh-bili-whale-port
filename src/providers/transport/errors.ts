@@ -9,25 +9,6 @@ export class LLMError extends Error {
   }
 }
 
-/** An `error` event in a stream: the upstream's own failure report, which the transport does not retry. */
-export class StreamErrorEvent extends LLMError {
-  constructor(body: string) {
-    super(`Stream error event: ${upstreamText(body)}`, 0, body);
-    this.name = 'StreamErrorEvent';
-  }
-}
-
-/** The upstream's error text: `error.message` or `message` of a JSON body, else the body, on one line. */
-export function upstreamText(body: string): string {
-  let text = body;
-  try {
-    const parsed = JSON.parse(body) as { error?: { message?: unknown }; message?: unknown };
-    const message = parsed.error?.message ?? parsed.message;
-    if (typeof message === 'string') text = message;
-  } catch { /* not JSON: the body as it came */ }
-  return text.replace(/\s+/g, ' ').trim();
-}
-
 /**
  * 流内的 `error` 事件:上游自己报的失败,传输层不再重试。
  * 沿用上游的导出名与构造函数形状(只收 body),扩展包按名字导入它。
