@@ -36,6 +36,7 @@ globalThis.fetch = async (url, opts = {}) => {
   else if(String(url).includes('comment.bilibili.com')&&process.env.TEST_DANMAKU_FILE)return new Response(fs.readFileSync(process.env.TEST_DANMAKU_FILE,'utf8'),{status:200})
   else if(String(url).includes('/x/player/wbi/v2')&&process.env.TEST_PLAYER_FILE)data=JSON.parse(fs.readFileSync(process.env.TEST_PLAYER_FILE,'utf8'))
   else if(String(url).includes('/x/player/wbi/v2'))data={code:0,data:{subtitle:{subtitles:[]}}}
+  else if(process.env.TEST_SUBTITLE_FILE&&String(url).includes('subs.example'))data=JSON.parse(fs.readFileSync(process.env.TEST_SUBTITLE_FILE,'utf8'))
   else if(String(url).includes('wbi/search/type')&&process.env.TEST_SEARCH_FILE)data=JSON.parse(fs.readFileSync(process.env.TEST_SEARCH_FILE,'utf8'))
   else if(String(url).includes('/x/web-interface/archive/like'))data={code:0,data:{}}
   else if(String(url).includes('/x/v3/fav/resource'))data={code:0,data:{}}

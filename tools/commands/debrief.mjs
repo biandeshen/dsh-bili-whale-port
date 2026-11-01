@@ -3,7 +3,9 @@ import { apiGet } from '../lib/bili-api.mjs'
 // 「看懂视频」一条龙：封面 + 简介 + 官方字幕 + 弹幕热区 + 热评 + 画面抽帧，六路齐出。
 //
 // 用法: node debrief.mjs <BV> [--bucket 30] [--top 5] [--grid 3x3] [--no-frames] [--substrip 每N秒] [--comments 8]
-// 产出: 终端摘要 + 封面图 + 字幕 TXT + 弹幕对齐表 + 九宫格/字幕带（后三者交给 read_image / 模型合成）
+//       [--from 时段] [--to 时段] [--subs-chars 2000]   ← 时段用于只看头/尾；预算用于字幕内联长度
+// 产出: 终端摘要 + 封面图 + 字幕 TXT（正文同时**内联在回执里**）+ 弹幕对齐表 + 九宫格/字幕带
+//       图片类素材能不能看**取决于本会话有没有读图工具**，回执按 BILI_VISION=1/0 如实标注，不假装有。
 //
 // 设计（2026-10-14，主人定义为「看懂视频」大模块）：
 //   目标是**最大程度还原一条视频讲了什么**，所以不押注单一路径，而是六路互补：
@@ -36,6 +38,43 @@ const TOP = Number(opt.top ?? 5)
 const GRID = String(opt.grid ?? '3x3')
 const NCOM = Number(opt.comments ?? 8)
 const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`
+
+// ── 读图能力回执（f-17767a，2026-11-01 意见箱 high）────────────────────────
+//   旧版每条都写「交给 read_image 看」，但她的工具清单里从来没有 read_image
+//   → 她以为漏了一步，在十几轮日记里反复标「画面未核对」，这条路从未存在过。
+//   宿主知道模型有没有读图工具，用 BILI_VISION=1/0 传进来；没传 = 未知。
+//   三种情况下都不再假装能力存在：能读才让读，不能读就明说这一路缺。
+const VISION = (() => {
+  const v = String(process.env.BILI_VISION ?? '').trim()
+  return v === '1' ? true : v === '0' ? false : null
+})()
+const imgHint = (what) => VISION === true
+  ? `${what}：本会话有读图工具，可以用它看。`
+  : VISION === false
+    ? `${what}：本会话**没有读图工具**，画面这一路本轮拿不到 —— 别去试，直接在日记里写「画面未核对（本会话不可读图）」，这不是你的失误。`
+    : `${what}：只有你的工具清单里**确实有**读图工具才看得了；没有就按上面几路的文字素材判断，并写明「画面未核对」，不要为不存在的工具反复撞墙。`
+
+// 字幕内联（f-54fb32，2026-11-01 意见箱 high）：字幕落在工作区外的文件里，
+//   read_file 报 not found → 这条"最准最省"的通道等于没有。她要求的修法就是
+//   "字幕内容直接随回执返回"，所以现在正文直接打出来（带预算与剩余说明），
+//   文件仍写，只当留档，不再当读取入口。
+const SUB_INLINE_BUDGET = Number(opt['subs-chars'] ?? 2000)
+
+// 时段窗口（f-aec73f / f-f976ed，2026-11-01 意见箱：「debrief 只给热区前 3 段，
+//   判尾部热区时无法指定时间段」）。--from/--to 支持 秒 或 MM:SS / HH:MM:SS，
+//   只裁展示范围，不改变采样口径（桶数/采样比仍按全片算，避免口径漂移）。
+const toSec = (v) => {
+  if (v === undefined || v === true) return null
+  const parts = String(v).split(':').map(Number)
+  if (parts.some((n) => !Number.isFinite(n))) return null
+  return parts.length === 3 ? parts[0] * 3600 + parts[1] * 60 + parts[2]
+    : parts.length === 2 ? parts[0] * 60 + parts[1] : parts[0]
+}
+const FROM = toSec(opt.from)
+const TO = toSec(opt.to)
+const inWin = (t) => (FROM === null || t >= FROM) && (TO === null || t <= TO)
+const WIN_NOTE = (FROM === null && TO === null) ? '' : ` · 展示窗口 ${FROM === null ? '0:00' : fmt(FROM)}–${TO === null ? '片尾' : fmt(TO)}`
+
 
 // ── 防提示注入（2026-10-17 加，Kimi 评审指出：只靠 prompt 层不够）──────────
 // 这个脚本每天都在把**上千条陌生人文本**（弹幕/评论/字幕）原样吐给模型。
@@ -93,7 +132,7 @@ const coverFile = path.join(shots, 'covers', `${bvid}.jpg`)
 try {
   const r = await fetch(d.pic, { headers: { 'user-agent': UA, referer: `https://www.bilibili.com/video/${bvid}/` } })
   fs.writeFileSync(coverFile, Buffer.from(await r.arrayBuffer()))
-  console.log(`\n══════════ ② 封面 ══════════\n${coverFile}（交给 read_image 看）`)
+  console.log(`\n══════════ ② 封面 ══════════\n${coverFile}\n${imgHint('封面')}`)
 } catch (e) { console.log(`\n封面下载失败：${e.message}`) }
 
 // ── ③ 官方字幕 ──
@@ -109,7 +148,21 @@ const subFile = path.join(shots, 'subs', `${bvid}-debrief.txt`)
 console.log('\n══════════ ③ 官方字幕（它到底说了什么）══════════')
 if (body.length) {
   fs.writeFileSync(subFile, body.map((l) => `[${fmt(l.from)}] ${l.content}`).join('\n'))
-  console.log(`有字幕：${body.length} 行（${fmt(body[0].from)} → ${fmt(body.at(-1).to ?? body.at(-1).from)}）→ ${subFile}`)
+  console.log(`有字幕：${body.length} 行（${fmt(body[0].from)} → ${fmt(body.at(-1).to ?? body.at(-1).from)}）`)
+  console.log(`留档: ${subFile}（工作区外的路径 read_file 读不到，所以正文直接打在下面，别去读这个文件）`)
+  let used = 0
+  const shown = []
+  const winBody = body.filter((l) => inWin(l.from))
+  for (const l of winBody) {
+    const line = `[${fmt(l.from)}] ${l.content}`
+    if (used + line.length + 1 > SUB_INLINE_BUDGET) break
+    shown.push(line); used += line.length + 1
+  }
+  console.log(`\n--- 字幕正文${WIN_NOTE ? `（窗口内 ${winBody.length} 行` : `（共 ${winBody.length} 行`} · 内联 ${shown.length} 行 · ${used} 字 · 预算 ${SUB_INLINE_BUDGET} 字，--subs-chars 可调，--from/--to 可切时段）---`)
+  console.log(shown.join('\n'))
+  if (shown.length < winBody.length) {
+    console.log(`（窗口内还剩 ${winBody.length - shown.length} 行没内联：回执总长受宿主截断，用 --from/--to 取你要的那一段，或 --subs-chars 8000 放宽）`)
+  }
 } else {
   console.log('✗ 无官方字幕轨道 → 这一路缺失，只能靠弹幕 + 热评 + 画面（这正是要六路互补的原因）')
 }
@@ -176,15 +229,15 @@ if (!danmaku.length) {
   // ⚠️ 峰值按**剔刷屏后**排序：否则开场仪式弹幕会把真正的名场面挤下去
   const realTotal = [...buckets.values()].reduce((n, b) => n + b.real.length, 0)
   const avgReal = realTotal / Math.max(1, buckets.size)
-  const peaks = [...buckets.entries()].sort((a, b) => b[1].real.length - a[1].real.length).slice(0, TOP)
+  const peaks = [...buckets.entries()].filter(([k]) => inWin(k)).sort((a, b) => b[1].real.length - a[1].real.length).slice(0, TOP)
   console.log(`覆盖 ${buckets.size} 桶；剔刷屏后共 ${realTotal} 条，平均 ${avgReal.toFixed(1)} 条/桶`)
   // 采样口径回执（f-a2142e，2026-11-01 意见箱）：同类视频实测出现过 1/3、1/20、1/49 的
   //   采样比，而"条/桶"密度以前不写口径 → 跨片不可比，她每轮自己补规则。
   //   现在固定一行写明 采样数/标称总数/桶数/采样比；桶数 <15 时明说密度不可横向比较（她立的线）。
   const ratio = claimed && danmaku.length ? `1/${Math.max(1, Math.round(claimed / danmaku.length))}` : '未知（接口没给标称总数）'
-  console.log(`[采样口径] 采样数 ${danmaku.length} · 标称总数 ${claimed || '未知'} · 桶数 ${buckets.size} · 采样比 ${ratio}`)
+  console.log(`[采样口径] 采样数 ${danmaku.length} · 标称总数 ${claimed || '未知'} · 桶数 ${buckets.size} · 采样比 ${ratio}${WIN_NOTE ? `${WIN_NOTE}（窗口只裁展示，口径按全片算）` : ''}`)
   if (buckets.size < 15) console.log(`⚠️ 桶数 <15：条/桶密度不可用于横向比较，只看热区在头在尾。`)
-  console.log(`\n--- 最热的 ${TOP} 段（按有效条数排序；≥平均 1.5 倍标 🔥）---`)
+  console.log(`\n--- 最热的 ${peaks.length} 段${WIN_NOTE}（按有效条数排序；≥平均 1.5 倍标 🔥）---`)
   for (const [k, b] of peaks) {
     const line = subAt(k + BUCKET / 2)
     const hot = b.real.length >= avgReal * 1.5 ? '🔥' : '  '
@@ -196,7 +249,7 @@ if (!danmaku.length) {
     console.log(`     弹幕: ${ranked.length ? ranked.map(([t, c]) => (c > 1 ? `${t}×${c}` : t)).join(' | ') : '（无有效内容）'}`)
   }
   const all = {}
-  for (const x of danmaku) if (!isSpam(x.text) && x.text.length >= 2) all[x.text] = (all[x.text] ?? 0) + 1
+  for (const x of danmaku) if (!isSpam(x.text) && x.text.length >= 2 && inWin(x.t)) all[x.text] = (all[x.text] ?? 0) + 1
   const topAll = Object.entries(all).sort((a, b2) => b2[1] - a[1]).slice(0, 12)
   console.log(`\n全程高频弹幕（已剔刷屏）: ${topAll.map(([t, c]) => `${t}×${c}`).join(' | ')}`)
 }
@@ -251,7 +304,7 @@ if (!opt['no-frames']) {
           '-frames:v', '1', outPng], { stdio: 'ignore' })
         console.log(`STRIP: ${outPng}`)
         console.log(`取帧方式: 每 ${every} 秒一帧 × ${rows} 行 · 裁下画面下方 32% 的字幕带`)
-        console.log('（用 read_image 看它 —— 整片台词基本都在这一张图里）')
+        console.log(imgHint('字幕条拼图'))
       }
     } catch (e) { console.log(`（字幕条失败：${String(e.message).slice(0, 200)}）`) }
   }
@@ -270,4 +323,4 @@ if (opt.score) {
   console.log('  （填完写进日记：日期 + BV + 分数 + 一句理由）')
 }
 console.log('\n══════════ 下一步（交给模型）══════════')
-console.log('用 read_image 看封面与九宫格，再把上面五路合起来写成结论 —— 脚本只备素材，不作判断。')
+console.log(`把上面几路合起来写成结论 —— 脚本只备素材，不作判断。${imgHint('画面（封面/九宫格）')}`)
