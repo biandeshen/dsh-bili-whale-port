@@ -279,3 +279,45 @@ test('草稿目录只有一处解析：面板与 badge 同源，badge 数得出�
     fs.rmSync(dir, { recursive: true, force: true })
   }
 })
+
+// 同一类症状的第二半：待审回信队列（go-gate 写的 pending-replies.json）不在草稿目录里。
+// 实测 2026-11-02：面板说 13（9 回信 + 4 草稿），世界页徽标只说 4 —— 少算的那 9 条
+// 正好在旧家状态目录。这条锁的是"徽标 = 面板 = CLI"这个等式。
+test('待放行 = 草稿 + 待审回信：徽标与面板同一口径，且新旧状态目录都认', async () => {
+  const whale = fs.mkdtempSync(path.join(os.tmpdir(), 'pending-total-'))
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'pending-home-'))
+  const drafts = path.join(whale, 'bili-whale', 'drafts')
+  fs.mkdirSync(drafts, { recursive: true })
+  fs.writeFileSync(path.join(drafts, '2026-11-01.json'), JSON.stringify({ status: 'pending' }), 'utf8')
+  fs.writeFileSync(path.join(drafts, '2026-10-31.json'), JSON.stringify({ status: 'sent' }), 'utf8')
+
+  const prevDrafts = process.env.WHALE_DRAFTS
+  const prevWhale = process.env.WHALE_HOME
+  const prevDsh = process.env.DSH_HOME
+  const prevProfile = process.env.USERPROFILE
+  process.env.WHALE_DRAFTS = drafts
+  process.env.WHALE_HOME = whale
+  delete process.env.DSH_HOME
+  process.env.USERPROFILE = home
+  try {
+    // 先只放旧家：读取要能退到旧家（go-gate 在迁移前写的就是这里）
+    fs.mkdirSync(path.join(home, '.bili-ai'), { recursive: true })
+    fs.writeFileSync(path.join(home, '.bili-ai', 'pending-replies.json'), JSON.stringify({ items: [{}, {}, {}] }), 'utf8')
+    let fresh = await import(`../src/worlds/bili-account/tank.ts?pending=${Date.now()}`)
+    assert.equal(fresh.pendingReplyCount(), 3, '旧家那 3 条也要算进待放行')
+    assert.equal(fresh.pendingTotal(), 4, '1 条草稿 + 3 条回信')
+
+    // 再放新家：新家优先，旧家作废（两边都有时不叠加）
+    fs.mkdirSync(path.join(whale, 'bili-ai'), { recursive: true })
+    fs.writeFileSync(path.join(whale, 'bili-ai', 'pending-replies.json'), JSON.stringify({ items: [{}, {}] }), 'utf8')
+    fresh = await import(`../src/worlds/bili-account/tank.ts?pending=${Date.now()}b`)
+    assert.equal(fresh.pendingReplyCount(), 2, '新家存在就只认新家')
+    assert.equal(fresh.pendingTotal(), 3, '1 条草稿 + 2 条回信')
+  } finally {
+    const restore = (k, v) => { if (v === undefined) delete process.env[k]; else process.env[k] = v }
+    restore('WHALE_DRAFTS', prevDrafts); restore('WHALE_HOME', prevWhale)
+    restore('DSH_HOME', prevDsh); restore('USERPROFILE', prevProfile)
+    fs.rmSync(whale, { recursive: true, force: true })
+    fs.rmSync(home, { recursive: true, force: true })
+  }
+})

@@ -20,7 +20,7 @@ import { parseDmPeek } from './dm.ts'
 import { dmAutoPlan, noteInboxRead, noteInbound } from './dm-reply.ts'
 import type { Language } from '../../core/language.ts'
 import {
-  warmConsole, consoleReady, tankLocal, killOn, lastTickAt, pendingDraftCount, openFeedbackCount,
+  warmConsole, consoleReady, tankLocal, killOn, lastTickAt, pendingTotal, openFeedbackCount,
   timelineState, diaryState, draftsState, draftAction, feedbackResolve, feedbackListSafe, judgmentList, judgmentAdopt, judgmentReject, judgmentActive, vitalsState, avatarBinary, trafficStatus,
   policyState, policySet, policyInWindow, autoSentToday, draftForDay, freshAckToken, ownerNameFromConfig, personaNameFromConfig, hostDisplayName, settingsState, settingsSet, renameSelf,
   consolePaths,
@@ -473,6 +473,7 @@ const TOOL_SUMMARIES: Record<string, DescribeText> = {
   bili_alarm: { zh: '给自己设闹钟：到点带着那句话醒来，重启后也照响', en: 'Set an alarm for herself that survives restarts.' },
   bili_memory_void: { zh: '更正记忆：写错的那条可以盖作废章（不再被想起，但原文留着可复盘）；只准点名一条', en: 'Void one wrongly-recorded memory (it stops being recalled; text kept for review).' },
   bili_judgment: { zh: '判断卡：把你对片子的判断落成结构化的一条（立场+词+理由），主人在世界页采纳后才影响 feed；采纳与驳回只有主人能点', en: 'File a structured judgment card (stance + tokens + reason); it affects the feed only after the owner adopts it.' },
+  bili_look: { zh: '真的看一眼片子的画面：封面 / 九宫格 / 字幕条，图随回执一起交回；模型不收图时回执会明说，别描述没看见的东西', en: 'Actually look at a video\'s pictures (cover / frame sheet / subtitle strip); images come back with the receipt. If the model does not accept images the receipt says so — do not describe what you did not see.' },
 }
 
 const DECLS = [
@@ -558,7 +559,7 @@ class BiliAccountWorld {
 
     const tick = lastTickAt()
     const tickAgeMin = tick ? Math.max(0, Math.round((Date.now() - Date.parse(tick)) / 60000)) : null
-    const pending = pendingDraftCount()
+    const pending = pendingTotal()
     const kill = killOn()
     const tank = tankLocal()
     const ready = consoleReady()

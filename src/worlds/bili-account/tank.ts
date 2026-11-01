@@ -36,6 +36,13 @@ function resolveDraftsDir(): string {
   return path.join(WHALE, 'bili-whale', 'drafts')
 }
 const DRAFTS_DIR = resolveDraftsDir()
+/**
+ * 待审回信队列（go-gate 写的 `pending-replies.json`）。
+ * 它不在草稿目录里，而在状态目录：新家 `<whale>/bili-ai/`，兼容期退回 `<主目录>/.bili-ai/`。
+ * 世界页的「待放行」曾只数 DRAFTS_DIR，于是面板说 13 条、徽标说 4 条——同一个人两本账。
+ */
+const STATE_DIR = path.join(WHALE, 'bili-ai')
+const LEGACY_STATE_DIR = path.join(process.env.USERPROFILE || '', '.bili-ai')
 const AVATAR_FILE = path.join(WHALE, 'avatar.png')
 const NEEDS = new Set(['pending', 'failed', 'cooldown', 'dry-run'])
 
@@ -102,6 +109,23 @@ export function pendingDraftCount(): number {
       try { return NEEDS.has(readJson(path.join(DRAFTS_DIR, f))?.status) ? n + 1 : n } catch { return n }
     }, 0)
   } catch { return 0 }
+}
+
+/**
+ * 待审回信条数。与 dsh `panel/data.js` 同一条规则（新家优先、旧家兜底），
+ * 因为写它的是 CLI（go-gate），世界页只是读 —— 读错家就会和面板差一半。
+ */
+export function pendingReplyCount(): number {
+  for (const dir of [STATE_DIR, LEGACY_STATE_DIR]) {
+    const j = readJson(path.join(dir, 'pending-replies.json'))
+    if (j) return Array.isArray(j.items) ? j.items.length : 0
+  }
+  return 0
+}
+
+/** 世界页「待放行」= 草稿 + 待审回信，与面板 `pendingCount` 同一口径。 */
+export function pendingTotal(): number {
+  return pendingDraftCount() + pendingReplyCount()
 }
 
 /**
