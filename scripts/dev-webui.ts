@@ -30,7 +30,7 @@ import { qqConfigGroup } from '../src/worlds/qq/config.ts';
 import { ConsoleWorld } from '../src/worlds/console/world.ts';
 import { WebSearchWorld } from '../src/worlds/websearch/world.ts';
 import { LocalizedError, type Language } from '../src/core/language.ts';
-import { webSearchConfigGroup } from '../src/worlds/websearch/config.ts';
+import { webSearchConfigGroup, WEBSEARCH_DEFAULTS } from '../src/worlds/websearch/config.ts';
 import { minecraftClientConfigGroup, minecraftConfigGroup, MINECRAFT_DEFAULTS, minecraftPlayerConfigGroup, minecraftRhythmConfigGroup, type MinecraftConfigSection } from '../src/worlds/minecraft/config.ts';
 import { minecraftPanelDecls } from '../src/worlds/minecraft/world.ts';
 import { flatPresets, levelTypeLabels } from '../src/worlds/minecraft/server-config.ts';
@@ -145,7 +145,13 @@ const usageRecords = genUsage();
 
 const qq = new QQWorld({ wsUrl: 'ws://127.0.0.1:0', groups: [424242, 998877], privates: [10086], token: '', timezone: TZ });
 const consoleWorld = new ConsoleWorld({ timezone: TZ });
-const websearch = new WebSearchWorld({ apiKey: loaded.secret('BRAVE_API_KEY') });
+/** 页面上存的密钥只留在内存里，不写临时部署的 .env。 */
+const devSecrets: Record<string, string> = {};
+const websearch = new WebSearchWorld({
+  cfg: (devCfg.worlds.websearch ??= { ...WEBSEARCH_DEFAULTS }),
+  secret: (name) => devSecrets[name] ?? loaded.secret(name),
+  storeSecret: (name, value) => { devSecrets[name] = value; },
+});
 /** 使用独立 World 声明验证 WebUI 自动发现。 */
 const webUiFixture = new WebUiFixtureWorld();
 const worlds = MINIMAL ? [consoleWorld] : [qq, consoleWorld, websearch, webUiFixture];

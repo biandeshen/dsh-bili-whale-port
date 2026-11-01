@@ -1,33 +1,13 @@
 /**
  * BraveClient:Brave Search API的最小客户端(docs/Brave_Search_API.md)。
  * 按 web_search 工具的 mode 分派到不同端点,统一映射成"带编号来源的证据"
- * (title/url/snippet)。retry/timeout骨架:429/5xx/超时退避重试,其余错误直抛。
+ * (title/url/snippet);answer 遇 OPTION_NOT_IN_PLAN 降级到 web/search 并在 endpoint 上标注。retry/timeout骨架:429/5xx/超时退避重试,其余错误直抛。
  */
 import type { Logger } from '../../core/types.ts';
 import { nullLogger } from '../../core/util.ts';
+import { cleanText, type Freshness, type SearchClient, type SearchOptions, type SearchOutcome, type SearchResult } from './search.ts';
 
-export type SearchMode = 'auto' | 'answer' | 'links' | 'news' | 'images' | 'videos';
-export type Freshness = 'any' | 'day' | 'week' | 'month' | 'year';
-type SafeSearch = 'off' | 'moderate' | 'strict';
-
-interface BraveResult {
-  title: string;
-  url: string;
-  snippet: string;
-}
-
-interface BraveSearchOptions {
-  mode: SearchMode;
-  fresh: Freshness;
-  /** 期望条数(1-6,由工具层校验范围) */
-  n: number;
-}
-
-interface BraveSearchOutcome {
-  /** 实际打的端点(answer遇OPTION_NOT_IN_PLAN会降级到web/search,这里如实标注) */
-  endpoint: string;
-  results: BraveResult[];
-}
+export type SafeSearch = 'off' | 'moderate' | 'strict';
 
 export interface BraveClientConfig {
   apiKey: string;
@@ -61,12 +41,6 @@ const FRESH_MAP: Record<Freshness, string | undefined> = {
   year: 'py',
 };
 
-/** 去掉<strong>高亮标记、压缩空白、按长度截断(工具描述承诺"精简") */
-function cleanText(s: unknown, max = 220): string {
-  const t = (typeof s === 'string' ? s : '').replace(/<\/?strong>/g, '').replace(/\s+/g, ' ').trim();
-  return t.length > max ? `${t.slice(0, max - 1)}…` : t;
-}
-
 
 interface RawWebResult { title?: string; url?: string; description?: string }
 interface WebSearchResponse { web?: { results?: RawWebResult[] } }
@@ -81,7 +55,7 @@ interface LlmContextResponse {
   sources?: Record<string, { title?: string }>;
 }
 
-export class BraveClient {
+export class BraveClient implements SearchClient {
   private readonly cfg: BraveClientConfig;
   private readonly log: Logger;
 
@@ -90,7 +64,7 @@ export class BraveClient {
     this.log = log;
   }
 
-  async search(q: string, opts: BraveSearchOptions): Promise<BraveSearchOutcome> {
+  async search(q: string, opts: SearchOptions): Promise<SearchOutcome> {
     const mode = opts.mode === 'auto' ? 'links' : opts.mode;
     switch (mode) {
       case 'answer':
@@ -119,7 +93,7 @@ export class BraveClient {
   }
 
 
-  private async webSearch(q: string, n: number, fresh: Freshness): Promise<BraveResult[]> {
+  private async webSearch(q: string, n: number, fresh: Freshness): Promise<SearchResult[]> {
     const p = this.commonParams(q, n, fresh);
     p.set('text_decorations', 'false');
     p.set('spellcheck', 'true');
@@ -128,7 +102,7 @@ export class BraveClient {
     return items.map((r) => ({ title: cleanText(r.title), url: String(r.url ?? ''), snippet: cleanText(r.description) }));
   }
 
-  private async newsSearch(q: string, n: number, fresh: Freshness): Promise<BraveResult[]> {
+  private async newsSearch(q: string, n: number, fresh: Freshness): Promise<SearchResult[]> {
     const p = this.commonParams(q, n, fresh);
     p.set('spellcheck', 'true');
     const data = await this.get<NewsSearchResponse>('news/search', p);
@@ -136,7 +110,7 @@ export class BraveClient {
     return items.map((r) => ({ title: cleanText(r.title), url: String(r.url ?? ''), snippet: cleanText(r.description) }));
   }
 
-  private async videoSearch(q: string, n: number, fresh: Freshness): Promise<BraveResult[]> {
+  private async videoSearch(q: string, n: number, fresh: Freshness): Promise<SearchResult[]> {
     const p = this.commonParams(q, n, fresh);
     p.set('spellcheck', 'true');
     const data = await this.get<VideoSearchResponse>('videos/search', p);
@@ -152,7 +126,7 @@ export class BraveClient {
     });
   }
 
-  private async imageSearch(q: string, n: number): Promise<BraveResult[]> {
+  private async imageSearch(q: string, n: number): Promise<SearchResult[]> {
     // Image Search 将 safesearch 归一为 off 或 strict，不发送 moderate。
     const p = new URLSearchParams();
     p.set('q', q);
@@ -173,7 +147,7 @@ export class BraveClient {
   }
 
   /** 为 LLM 提供 grounding 上下文，通过结果数、token 与 URL 上限约束响应规模。 */
-  private async llmContext(q: string, n: number, fresh: Freshness): Promise<BraveResult[]> {
+  private async llmContext(q: string, n: number, fresh: Freshness): Promise<SearchResult[]> {
     const p = new URLSearchParams();
     p.set('q', q);
     p.set('country', this.cfg.country);

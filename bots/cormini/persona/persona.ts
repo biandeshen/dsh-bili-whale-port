@@ -247,7 +247,7 @@ export class Cormini implements Persona {
 
   /** 心跳那一行的文本(投递刻渲染);变体覆写(如带上时刻)。 */
   protected tickText(quietSeconds: number): string {
-    return quietLine(quietSeconds);
+    return quietLine(quietSeconds) + ' 现在按 ORIENTATION 的「每次醒来做什么」执行一轮；必须调用工具，完成后简短汇报。';
   }
 
   /** 此刻该读哪份自述:部署侧有覆盖就是它,否则是包里那份。 */

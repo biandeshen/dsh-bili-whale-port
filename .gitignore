@@ -39,3 +39,6 @@ github-token.json
 
 # Corti 运维目录(数据归档+复盘),不入库
 CortiV-DataAnalysis/
+
+# Spike/本地实验用的部署根（含 provider 配置、会话转录与 instance.lock），不入库
+.spike-home/
