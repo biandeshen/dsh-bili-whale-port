@@ -20,7 +20,7 @@ interface TankState {
 }
 interface DraftItem { queue?: string; id: string; date?: string; status: string; text?: string; image?: string }
 interface DraftsState { ok?: boolean; error?: string; dynamic?: DraftItem[]; dm?: DraftItem[]; needs?: number; total?: number }
-interface TimelineEntry { at?: string | null; kind?: string; note?: string; heading?: string; chars?: number; bvid?: string; result?: string }
+interface TimelineEntry { at?: string | null; kind?: string; note?: string; heading?: string; chars?: number; bvid?: string; result?: string; actor?: string | null }
 interface TimelineState { ok?: boolean; error?: string; items?: TimelineEntry[]; next?: number | null; total?: number }
 interface DiaryBook { bytes?: number; updatedAt?: string; text?: string }
 interface DiaryState { ok?: boolean; owner?: DiaryBook | null; private?: DiaryBook | null }
@@ -188,7 +188,7 @@ function mountTimeline(ctx: WebUiPanelContext): void {
   const card = ui.sheet({ title: '她的一天', en: 'timeline', desc: '因果链事件，只读；最新在前' });
   root.appendChild(card.el);
   const err = ui.msgline();
-  const table = ui.table({ head: ['时间', '事件', '内容'] });
+  const table = ui.table({ head: ['时间', '事件', '谁', '内容'] });
   const count = ui.h('div', 'sh-desc');
   const btn = ui.button('刷新', { size: 'sm', onClick: () => { cursor = 0; poll(); } });
   // 服务端返回 next=下一页游标；第一页之外的都从那里接着读，刷新才回到最新一页。
@@ -204,7 +204,9 @@ function mountTimeline(ctx: WebUiPanelContext): void {
       const t = e.at ? new Date(e.at) : null;
       const hhmm = t ? `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}` : '—';
       const content = e.note ?? e.heading ?? e.bvid ?? e.result ?? '';
-      table.addRow([hhmm, String(e.kind ?? ''), String(content).slice(0, 90)]);
+      // 「谁」：新写入带 actor（host/cli）；历史条目没有这个字段，显示 — 而不是猜。
+      const who = e.actor === 'host' ? '宿主' : e.actor === 'cli' ? '命令行' : '—';
+      table.addRow([hhmm, String(e.kind ?? ''), who, String(content).slice(0, 90)]);
     }
   };
   const draw = (st: TimelineState, append: boolean): void => {

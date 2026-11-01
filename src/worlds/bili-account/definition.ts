@@ -132,10 +132,13 @@ export function sanitizeEffects(input: any): PresetEffect[] {
 /**
  * 因果账。写失败不许吞：autoSentToday 就是数这个文件里的条目，吞掉等于 autoDailyCap 形同虚设，
  * 而且她/主人在时间线上都看不到"这件事发生过"。所以失败往上抛，由调用方决定是拒绝还是亮红。
+ *
+ * `actor` 是署名：这份账有两个写者（宿主结算与 CLI 的 dm/草稿），事后查"这条是谁做的"
+ * 只能靠它。历史条目没有这个字段（补不回来），新写入一律带上。
  */
 function causal(o: any): void {
   fs.mkdirSync(path.dirname(CAUSAL_FILE), { recursive: true })
-  fs.appendFileSync(CAUSAL_FILE, JSON.stringify({ at: new Date().toISOString(), ...o }) + String.fromCharCode(10))
+  fs.appendFileSync(CAUSAL_FILE, JSON.stringify({ at: new Date().toISOString(), actor: 'host', ...o }) + String.fromCharCode(10))
 }
 
 /**
