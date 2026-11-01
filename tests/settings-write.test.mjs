@@ -57,6 +57,11 @@ test('非法值拒，并把"要什么"说清楚', () => {
   const cases = [
     [{ 'listen.intervalMinutes': '二十分钟' }, /要的是数字/],
     [{ 'listen.maxPerDay': -3 }, /0 或更大的整数/],
+    // 2026-11-01 真机点出来的洞：listen.commentIntervalSec=-5 当时被写进了正式配置，
+    // 因为命名表只列了 Seconds/Ms，没列 Sec/Interval/Gap。
+    [{ 'listen.commentIntervalSec': -5 }, /0 或更大的整数/],
+    [{ 'listen.dmIntervalSec': -1 }, /0 或更大的整数/],
+    [{ 'risk.minGapMs': -1 }, /0 或更大的整数/],
     [{ 'self.name': '' }, /不能是空的/],
     [{ 'self.name': '名字'.repeat(30) }, /最长 24 字/],
     [{ 'owner.displayName': 'x'.repeat(60) }, /最长 24 字/],

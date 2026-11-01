@@ -237,7 +237,12 @@ const DENY_KEYS = new Set(['home', 'toolsPath'])
 const DENY_PREFIX = ['publish.', 'permissions.']
 /** 名字类：与 persona-core/src/naming.ts 一样 24 字封顶，别把叙事提示词撑爆。 */
 const NAME_KEYS = new Set(['self.name', 'owner.displayName'])
-const COUNT_RE = /(Hourly|Daily|Cap|Max|Count|Limit|Days|Hours|Minutes|Seconds|Ms|PerDay|PerHour)$/
+/**
+ * 次数/额度/间隔类：这类值负数没有意义。命名尾巴必须覆盖实际配置里的写法——
+ * 2026-11-01 真机点了一次 listen.commentIntervalSec=-5 竟然写进去了，
+ * 因为原来的表只列了 Seconds/Ms，没列 Sec 与 Interval/Gap。
+ */
+const COUNT_RE = /(Hourly|Daily|PerDay|PerHour|Cap|Max|Min|Count|Limit|Interval|Gap|Days|Hours|Minutes|Seconds|Sec|Ms|Msec|Millis)$/
 
 function typeOf(v: unknown): 'number' | 'boolean' | 'string' | 'array' | 'object' | 'undefined' {
   if (v === undefined) return 'undefined'
