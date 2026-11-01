@@ -162,6 +162,13 @@ describe('模块声明与条目校验', () => {
     expect(compatOptions(normalized)).toEqual({});
     expect(compatOptions(validateEntry(module, entry({ options: { reasoningReplay: 'plaintext' } }))).reasoningReplay).toBe('plaintext');
   });
+  it('modelOptions:候选模型名去空白去重后留存,空串与非字符串拒绝', () => {
+    expect(validateSpec(module, entry(), { model: 'm', thinking: false, modelOptions: [' a ', 'b', 'a'] }))
+      .toEqual({ model: 'm', thinking: false, modelOptions: ['a', 'b'] });
+    expect(validateSpec(module, entry(), { model: 'm', thinking: false })).toEqual({ model: 'm', thinking: false });
+    expect(() => validateSpec(module, entry(), { model: 'm', thinking: false, modelOptions: 'a' })).toThrow('modelOptions');
+    expect(() => validateSpec(module, entry(), { model: 'm', thinking: false, modelOptions: ['a', ' '] })).toThrow('modelOptions');
+  });
   it('实例:密钥经 host 取,模型目录与窗口挂在实例上,兼容键含端点路径', () => {
     const instance = module.create('cloud', entry({ secret: 'K', options: { endpointPath: '/x' } }), {
       stateDir: 'unused', secret: (name) => (name === 'K' ? 'sk' : ''), readBlob: () => null, keepThinking: () => true,

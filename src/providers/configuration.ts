@@ -38,6 +38,15 @@ export function validateSpec(
     if (spec[field] !== undefined && (!Number.isInteger(spec[field]) || spec[field]! <= 0))
       throw new Error(S.positiveInteger(field));
   }
+  if (
+    spec.modelOptions !== undefined &&
+    (!Array.isArray(spec.modelOptions) ||
+      spec.modelOptions.some((id) => typeof id !== 'string' || !id.trim()))
+  )
+    throw new Error(S.modelOptionsStrings);
+  const modelOptions = spec.modelOptions
+    ?.map((id) => id.trim())
+    .filter((id, index, all) => all.indexOf(id) === index);
   if (spec.contextWindow !== undefined && spec.maxTokens !== undefined && spec.contextWindow <= spec.maxTokens)
     throw new Error(S.contextWindowAboveOutput(spec.contextWindow, spec.maxTokens));
   module.validateModel?.(entry, spec);
@@ -45,6 +54,7 @@ export function validateSpec(
     ...spec,
     model: spec.model.trim(),
     ...(spec.reasoningEffort !== undefined ? { reasoningEffort: spec.reasoningEffort.trim() } : {}),
+    ...(modelOptions?.length ? { modelOptions } : {}),
   });
 }
 

@@ -9,6 +9,7 @@ export const text: Partial<typeof en> = {
   effortWithoutThinking: '추론이 꺼져 있을 때는 추론 강도를 지정할 수 없습니다',
   temperatureRange: 'temperature는 0–2 사이여야 합니다',
   positiveInteger: (field: string) => `${field}은(는) 양의 정수여야 합니다`,
+  modelOptionsStrings: 'modelOptions은(는) 비어 있지 않은 문자열 배열이어야 합니다',
   contextWindowAboveOutput: (window: number, output: number) =>
     `contextWindow은(는) maxTokens보다 커야 합니다(현재 ${window} ≤ ${output})`,
   optionsObject: '네이티브 옵션은 객체여야 합니다',

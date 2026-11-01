@@ -19,6 +19,7 @@ const zh = {
   effortWithoutThinking: '思维链关闭时不能带推理强度',
   temperatureRange: 'temperature 必须在 0–2 之间',
   positiveInteger: (field: string) => `${field} 必须为正整数`,
+  modelOptionsStrings: 'modelOptions 必须是非空字符串组成的数组',
   contextWindowAboveOutput: (window: number, output: number) =>
     `contextWindow 必须大于 maxTokens(当前 ${window} ≤ ${output})`,
   optionsObject: '原生参数必须是对象',
@@ -55,6 +56,7 @@ export const en: typeof zh = {
   effortWithoutThinking: 'Reasoning effort cannot be set while reasoning is off',
   temperatureRange: 'temperature must be between 0 and 2',
   positiveInteger: (field: string) => `${field} must be a positive integer`,
+  modelOptionsStrings: 'modelOptions must be an array of non-empty strings',
   contextWindowAboveOutput: (window: number, output: number) =>
     `contextWindow must be greater than maxTokens (now ${window} ≤ ${output})`,
   optionsObject: 'Native options must be an object',

@@ -340,6 +340,11 @@ export interface ModelSpec {
    * 两者均未知时，Core 不按窗口大小裁剪上下文。
    */
   contextWindow?: number;
+  /**
+   * 端点没有 /models 目录时，部署方在这里写一份已知能用的模型名。
+   * 只用于 WebUI 的候选提示，请求一律用 model。
+   */
+  modelOptions?: readonly string[];
 }
 
 /**
