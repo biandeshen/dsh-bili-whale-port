@@ -3,7 +3,10 @@ import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { describeTools, type WorldDefinition } from '../../world.ts'
+import { describeTools, type WorldContext, type WorldDefinition, type WorldSection } from '../../world.ts'
+import { extensionsDir, readInstalled } from '../../extensions.ts'
+import { repoRoot } from '../../paths.ts'
+import type { DescribeText, ToolDescribe, WorldWebUiDecl } from '../../core/types.ts'
 import { canDraft, draftRefusal, canApplyWatched, watchedRefusal, violationNotice, diaryFresh, diaryRefusal } from './gates.ts'
 import { upsertDiarySection, sectionStats, diaryDefaultHeader } from './diary.ts'
 import { loadState, saveState, applyEffects, remember, rememberFirst, describeStateWithTrace, applyRecall, recentWatch, annotateFeed, PRESETS, WATCH_VERDICTS } from './personaAdapter.ts'
@@ -15,7 +18,6 @@ import { ownerName, setOwnerName } from '../../../persona-core/src/naming.ts'
 import { readQueue, writeQueue, newTask, dueTasks, markDelivered, markAttempt, prune, expireStale, type QueueTask } from './task-queue.ts'
 import { parseDmPeek } from './dm.ts'
 import { dmAutoPlan, noteInboxRead, noteInbound } from './dm-reply.ts'
-import type { WorldWebUiDecl } from '../../core/types.ts'
 import type { Language } from '../../core/language.ts'
 import {
   warmConsole, consoleReady, tankLocal, killOn, lastTickAt, pendingDraftCount, openFeedbackCount,
@@ -299,6 +301,133 @@ const runNodeAsync = (script: string, args: string[], timeout = 180000, extraEnv
 }
 const runAsync = (args: string[], timeout = 180000) => runNodeAsync(BILI, args, timeout)
 
+// ── 手脚清单：她要先看得见自己有什么手脚，才提得出有依据的选择 ──────────────
+/** Core 给的工具表条目；owner 是提供方（World id 或 'persona'）。 */
+interface AssembledTool { name: string; description: string; tags: readonly string[]; owner: string }
+
+const TAG_TEXT: Record<string, string> = { read: '读', write: '写', speak: '说', act: '动', flow: '排', snapshot: '快照' }
+const tagLine = (tags: readonly string[]): string => (tags.map((t) => TAG_TEXT[t] ?? t).join('·') || '没标')
+
+/** 包名里的类别段：`cortico-world-<id>` 这类命名是约定，加载器认的是包导出的 id，所以这里只当推测。 */
+const PKG_ID = /^(?:@[^/]+\/)?cortico-(?:world|provider|bot)-([a-z0-9][a-z0-9._-]*)$/
+
+function readJsonSafe(file: string): any {
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')) } catch { return null }
+}
+
+/**
+ * 她此刻有什么手脚：装配好的工具表 + 已装扩展 + 这份部署的开关。全部来自磁盘与 Core 的只读查询，
+ * 输出是给人看的文本；启用、安装、改配置都不在这件事的能力范围里，所以这份清单不给任何写路径。
+ */
+export function capabilityText(src: {
+  /** 宿主没接入 listTools 时为 null：只能报自己声明的那一份，并说明看不见别的 World。 */
+  assembled: readonly AssembledTool[] | null
+  /** 本 World 的自描述（名字 + 给人看的一句话 + 标签）。 */
+  mine: readonly ToolDescribe[]
+  extDir: string
+  configFile: string | null
+}): string {
+  const zh = new Map<string, string>()
+  for (const t of src.mine) {
+    const s = t.summary
+    const line = (typeof s === 'string' ? s : (s?.zh ?? s?.en) ?? t.description).split('\n')[0].trim()
+    zh.set(t.name, line)
+  }
+  const out: string[] = [
+    '【我的手脚 · 只读清单】',
+    '（这份清单我只能用眼睛看：启用扩展、装扩展、改配置都不是我能做的事，只有主人在 WebUI 里做。）',
+    '',
+  ]
+
+  out.push('一、这一轮真的能调的工具')
+  if (src.assembled) {
+    const grouped = new Map<string, AssembledTool[]>()
+    for (const t of src.assembled) {
+      const list = grouped.get(t.owner)
+      if (list) list.push(t)
+      else grouped.set(t.owner, [t])
+    }
+    out.push(`（共 ${src.assembled.length} 个；标签：读=不改东西，其余（写/说/动/排/快照）都会动东西或留下记录）`)
+    for (const [owner, tools] of grouped) {
+      out.push(`〔${owner}〕`)
+      for (const t of tools) out.push(`- ${t.name} · ${zh.get(t.name) ?? t.description.split('\n')[0].trim()} · ${tagLine(t.tags)}`)
+    }
+    const missing = src.mine.filter((t) => !src.assembled!.some((a) => a.name === t.name))
+    if (missing.length) out.push(`〔bili-account 声明过但这一轮没有〕${missing.map((t) => t.name).join('、')} —— World 被停用，或改了配置没重启。`)
+  } else {
+    out.push(`（共 ${src.mine.length} 个，只有我这个 World 的：宿主没给整份工具表，别的 World 有什么我看不到）`)
+    for (const t of src.mine) out.push(`- ${t.name} · ${zh.get(t.name) ?? t.description} · ${tagLine(t.tags)}`)
+  }
+
+  const cfg = src.configFile ? readJsonSafe(src.configFile) : null
+  const mounted = new Set((src.assembled ?? []).map((t) => t.owner))
+  const providerKinds = new Set<string>(Object.values((cfg?.providers ?? {}) as Record<string, any>).map((p) => String(p?.kind ?? '')))
+  const activeBot = src.configFile ? String(readJsonSafe(path.join(path.dirname(src.configFile), 'deployment.json'))?.bot ?? '') : ''
+  const worldSwitches = new Map<string, boolean>()
+  for (const [id, section] of Object.entries((cfg?.worlds ?? {}) as Record<string, any>)) {
+    if (section && typeof section === 'object' && typeof section.enabled === 'boolean') worldSwitches.set(id, section.enabled)
+  }
+
+  out.push('', `二、装在这台机器上的扩展（${src.extDir}）`)
+  let deps: Array<{ name: string; spec: string }> | null = null
+  try {
+    deps = readInstalled(src.extDir)
+  } catch (e: any) {
+    out.push(`- 读不到这个目录的 package.json：${String(e?.message ?? e)}`)
+  }
+  if (deps && deps.length === 0) out.push('- 一个都没有：这份部署没装扩展，能用的只有仓内自带的 World 与 Provider。')
+  for (const d of deps ?? []) {
+    const pkg = readJsonSafe(path.join(src.extDir, 'node_modules', ...d.name.split('/'), 'package.json'))
+    if (!pkg) {
+      out.push(`- ${d.name} · 登记在 package.json（${d.spec}），但 node_modules 里没有这个包 = 没装上，需要主人重装`)
+      continue
+    }
+    const kind = String((pkg.cortico as any)?.kind ?? '类别不明')
+    const guess = PKG_ID.exec(d.name)?.[1] ?? ''
+    let state: string
+    if (kind === 'world' && guess) {
+      if (mounted.has(guess)) state = '这轮挂上了（它给我的工具就在上面那张表里）'
+      else if (worldSwitches.get(guess) === true) state = `配置里 worlds.${guess}.enabled=true，但这轮没挂上：改动要重启，或它加载失败`
+      else if (worldSwitches.get(guess) === false) state = `装了，但这份部署没启用（worlds.${guess}.enabled=false）`
+      else state = `装了，但这份部署没有 worlds.${guess} 这一项 = 没启用`
+    } else if (kind === 'provider' && guess) {
+      state = providerKinds.has(guess) ? '有端点在用它' : `装了，但没有端点选它（providers 里没有 kind=${guess}）`
+    } else if (kind === 'bot') {
+      state = activeBot && activeBot === d.name ? '这份部署正在用它' : `装了，但这份部署的代码包是「${activeBot || '未记'}」`
+    } else {
+      state = '装了；包名推不出 id（或不认识这个类别），启用与否要主人到扩展页看'
+    }
+    out.push(`- ${d.name} · ${kind} · ${pkg.version ?? '版本不明'} · ${state}`)
+  }
+
+  out.push('', '三、这份部署的 World 开关（config.json 的 worlds.*）')
+  if (!src.configFile) out.push('- 没拿到部署目录（ctx 缺席），读不到 config.json')
+  else if (!cfg) out.push(`- 读不到 ${src.configFile}（这份部署还没写过配置文件）`)
+  else if (worldSwitches.size === 0) out.push('- config.json 里没有 worlds 段：哪些 World 挂上由 bot 的默认值决定（这轮挂上的见第一节〔〕分组）')
+  for (const [id, on] of worldSwitches) out.push(`- ${id} · ${on ? '开' : '关'} · ${mounted.has(id) ? '这轮挂着' : '这轮没挂'}`)
+
+  out.push('', `（来源：工具表=Core 这一轮装配的结果；扩展=${path.join(src.extDir, 'package.json')}；开关=${src.configFile ?? '无'}。`
+    + '哪一项该开、哪个扩展想试，写一条 bili_feedback 给主人，别自己改。）')
+  return out.join('\n')
+}
+
+const TOOL_SUMMARIES: Record<string, DescribeText> = {
+  bili_traffic: { zh: '读取请求预算/熔断状态', en: 'Read traffic budget state.' },
+  bili_feed: { zh: '拉取候选视频（只读）', en: 'Fetch candidate videos (read-only).' },
+  bili_debrief: { zh: '读懂一条视频（只读）', en: 'Understand one video (read-only).' },
+  bili_diary_read: { zh: '读取两本日记', en: 'Read the two diary files.' },
+  bili_mood_read: { zh: '读取小鱼的场值与当前情绪（含成因）', en: "Read Xiaoyu's fields and current emotion with cause." },
+  bili_mood_apply: { zh: '按事件更新场值（预设或自定义）', en: 'Apply emotional effects after an event.' },
+  bili_draft_dynamic: { zh: '生成动态草稿（不发送）', en: 'Create a dynamic draft (never posts).' },
+  bili_diary_append: { zh: '写日记（公开/私人两本）：同日同名小节整节替换（回执「已替换」），新小节才追加（回执「已追加」），没有增量模式', en: 'Write a diary section (replace-if-exists, append-if-new; receipt says which).' },
+  bili_dm_read: { zh: '看主人有没有来信（只读，失败不当成没人写信）', en: 'Check for new owner DMs (read-only; failure is not emptiness).' },
+  bili_dm_reply: { zh: '回主人的私信（直接发送；被拒才退回草稿队列等放行）', en: 'Reply to the owner (sends directly; falls back to the draft queue only if refused).' },
+  bili_feedback: { zh: '她的意见箱：add 记一条问题 / list 看清单 / resolve 标已解决（本地文件，不联网、不发帖）', en: 'Local issue box: add / list / resolve (never touches Bilibili).' },
+  bili_like: { zh: '给她看完觉得好的视频点赞（自己发，过风控）', en: 'Like a video she enjoyed (self-sent, traffic-guarded).' },
+  bili_fav: { zh: '收藏视频（自己发；五条判据+每天 3 条上限，不过就拒）', en: 'Favorite a video (self-sent; five criteria + 3/day cap, refuses on failure).' },
+  bili_capabilities: { zh: '看清自己此刻有什么手脚：能调的工具（读/写）、装着的扩展、这份部署的开关（只读，启用与安装归主人）', en: 'List the tools callable now, the installed extensions and this deployment\'s world switches (read-only).' },
+}
+
 const DECLS = [
   { name: 'bili_traffic', description: 'Bilibili request-budget state (read-only).', tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'bili_feed', description: 'Fetch candidate videos from the feed (read-only).', tags: ['read'], parameters: { type: 'object', properties: { n: { type: 'number', description: 'How many candidates (1-6)' } }, additionalProperties: false } },
@@ -313,7 +442,11 @@ const DECLS = [
   { name: 'bili_feedback', description: "Her local issue box (never touches Bilibili): add = report a tool/system problem in one sentence (you do NOT fix code); list = show open items; resolve = mark one resolved (yours or owner's). Use it instead of silently enduring defects.", tags: ['write'], parameters: { type: 'object', properties: { action: { type: 'string', enum: ['add', 'list', 'resolve'] }, issue: { type: 'string', description: '一句话现象（≤500 字）' }, severity: { type: 'string', enum: ['low', 'high'], description: 'high = 卡住主链路；low = 体验瑕疵' }, note: { type: 'string', description: '你已如何对治（可选）' }, selfHandled: { type: 'boolean', description: '你自己已绕开/对治 = true' }, id: { type: 'string', description: 'resolve 时必填（先 list）' } }, additionalProperties: false } },
   { name: 'bili_like', description: "Like a video she actually enjoyed (self-sent since 2026-10-31, still traffic-guarded). A like is a light signal — no cap, but do not like everything.", tags: ['write'], parameters: { type: 'object', properties: { bvid: { type: 'string' }, reason: { type: 'string', description: '为什么赞（一句话，写进偏好账）' } }, required: ['bvid'], additionalProperties: false } },
   { name: 'bili_fav', description: "Add a video to her favorites (self-sent since 2026-10-31). Five criteria still apply and the tool REFUSES when they fail: reason ≥6 chars, ≤3/day, no repeat within 30 days, ≤2 per kind unless better. A refusal is final — do not retry.", tags: ['write'], parameters: { type: 'object', properties: { bvid: { type: 'string' }, reason: { type: 'string', description: '为什么留（≥6 字）' }, better: { type: 'boolean', description: '比同类别已收的明显更好时置 true' } }, required: ['bvid', 'reason'], additionalProperties: false } },
+  { name: 'bili_capabilities', description: 'Inventory of her own capabilities right now, one line each: every tool actually callable this turn (name + one-line function + read/write tag), every extension package installed on this machine with its enabled state, and this deployment\'s world switches. Read-only: it changes, enables and installs nothing.', tags: ['read'], parameters: { type: 'object', properties: {}, additionalProperties: false } },
 ] as const
+
+/** 自描述与手脚清单共用同一份"给人看的一句话"。 */
+const BILI_TOOL_DECLS = describeTools(DECLS, TOOL_SUMMARIES)
 
 class BiliAccountWorld {
   readonly id = 'bili-account'
@@ -321,6 +454,9 @@ class BiliAccountWorld {
   private dailyTimer: any = null
   private life: any = null
   private queue: QueueTask[] = []
+
+  /** ctx 缺席只发生在测试里直接 new：手脚清单退回默认检出根，其余能力不受影响。 */
+  constructor(private readonly ctx: WorldContext<WorldSection> | null = null) {}
 
   /** 把到期任务推给宿主；成功后标记 delivered，失败按次重试（5 次 dead）。 */
   private async deliverDue(now: number): Promise<void> {
@@ -988,6 +1124,12 @@ class BiliAccountWorld {
         if (r.status === 0) causal({ kind: 'fav', bvid, atMs: Date.now() })
         return r.out
       }),
+      mk(DECLS[13], async () => capabilityText({
+        assembled: typeof this.host?.listTools === 'function' ? this.host.listTools() : null,
+        mine: BILI_TOOL_DECLS,
+        extDir: extensionsDir(this.ctx?.repoRoot ?? repoRoot()),
+        configFile: this.ctx ? path.join(this.ctx.botDir, 'config.json') : null,
+      })),
     ]
   }
 }
@@ -996,23 +1138,9 @@ export const BILI_ACCOUNT: WorldDefinition<any> = {
   id: 'bili-account',
   label: 'B站账号（只读 + 草稿 + 情绪）',
   defaults: () => ({ enabled: false }),
-  create: () => new BiliAccountWorld(),
+  create: (ctx) => new BiliAccountWorld(ctx),
   describe: {
-    tools: describeTools(DECLS as any, {
-      bili_traffic: { zh: '读取请求预算/熔断状态', en: 'Read traffic budget state.' },
-      bili_feed: { zh: '拉取候选视频（只读）', en: 'Fetch candidate videos (read-only).' },
-      bili_debrief: { zh: '读懂一条视频（只读）', en: 'Understand one video (read-only).' },
-      bili_diary_read: { zh: '读取两本日记', en: 'Read the two diary files.' },
-      bili_mood_read: { zh: '读取小鱼的场值与当前情绪（含成因）', en: "Read Xiaoyu's fields and current emotion with cause." },
-      bili_mood_apply: { zh: '按事件更新场值（预设或自定义）', en: 'Apply emotional effects after an event.' },
-      bili_draft_dynamic: { zh: '生成动态草稿（不发送）', en: 'Create a dynamic draft (never posts).' },
-      bili_diary_append: { zh: '写日记（公开/私人两本）：同日同名小节整节替换（回执「已替换」），新小节才追加（回执「已追加」），没有增量模式', en: 'Write a diary section (replace-if-exists, append-if-new; receipt says which).' },
-      bili_dm_read: { zh: '看主人有没有来信（只读，失败不当成没人写信）', en: 'Check for new owner DMs (read-only; failure is not emptiness).' },
-      bili_dm_reply: { zh: '回主人的私信（直接发送；被拒才退回草稿队列等放行）', en: 'Reply to the owner (sends directly; falls back to the draft queue only if refused).' },
-      bili_feedback: { zh: '她的意见箱：add 记一条问题 / list 看清单 / resolve 标已解决（本地文件，不联网、不发帖）', en: 'Local issue box: add / list / resolve (never touches Bilibili).' },
-      bili_like: { zh: '给她看完觉得好的视频点赞（自己发，过风控）', en: 'Like a video she enjoyed (self-sent, traffic-guarded).' },
-      bili_fav: { zh: '收藏视频（自己发；五条判据+每天 3 条上限，不过就拒）', en: 'Favorite a video (self-sent; five criteria + 3/day cap, refuses on failure).' },
-    }),
+    tools: BILI_TOOL_DECLS,
     events: [{ type: 'bili.action_due', description: { zh: '她想做点什么（状态驱动，不固定在几点）', en: 'She wants to do something (state-driven, no fixed clock).' }, trigger: 'flush' }],
   },
 }
