@@ -50,7 +50,27 @@ wmic process where "name='node.exe'" get CommandLine | grep -i cortico
 |---|---|---|
 | **把 live 切到 reanchor** | 见 §0：改在 up、跑在 master | 需一次受控切换（换端口对照 → 观察 → 停旧起新） |
 | 17–18 persona-core 包化 | `Cortico-dev/persona-core` 无 `package.json` | 要动 6 处 `file:///` 引用 |
-| 19–23 World 瘦身 / debrief 端口 | `definition.ts` 仍 1326 行、`tank.ts` 600 行 | 大改，需先有 19 的五阶段测试 |
+| 19–23 World 瘦身 / debrief 端口 | 第 1–2 段已做（见下）；第 3–4 段未做 | 第 4 段要先补 tick 顺序测试 |
+
+## 瘦身分段进度（2026-11-02）
+
+`§8` 把瘦身写成第 19–23 步，但代码里没有"五阶段"这个东西——现在是一个 `lifeTick()`
+从头跑到尾。所以实际排法是先搬纯函数、再拆类。
+
+| 段 | 内容 | 状态 | 结果 |
+|---|---|---|---|
+| 1 | 纯函数与路径抽出 `definition.ts` | **完成** `c74603f` | 1440 → 1101 行；新增 paths / causal-io / prompts / capability |
+| 2 | 工具声明抽出 | **完成** 同提交 | → **1055 行**；新增 `tool-decls.ts`（18 个工具，有序） |
+| 3 | persona-core 包化（§8 17–18） | 未做 | 无 `package.json`；19 处相对引用；6 处 `file:///` |
+| 4 | 拆类：lifeTick 分阶段 + `tank.ts` 616 行 | 未做 | 需先补 tick 顺序测试 |
+
+**验收（第 1–2 段）**：`tsc` 两套 0 错；Cortico-up 的 mjs 217/217；全量 vitest
+**290 文件 / 5208 通过 / 3 跳过**；`definition.ts` 的旧导出逐个保留（re-export），
+测试与脚本一行没改。
+
+**一个必须记住的副作用**：`tests/core/util.test.ts` 有一份"哪些文件允许裸读文本"
+的白名单，拆分后名单变长（causal-io / paths / prompts 加入）。这不是放宽规则——
+新文件仍在同一层边界内；真要收，得按测试注释里说的给 World 一个宿主级文件接口。
 | 25 README/INDEX 重写 | 结构已变，文档还是旧的 | 等 19–23 定稿 |
 
 ## 一条读法

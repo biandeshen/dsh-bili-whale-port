@@ -4,15 +4,29 @@
 > 立此文件的原因（2026-11-01 实测）：`docs/` 顶层 **37** 个 md（不含本文）、`docs/evidence/` **32** 个、`docs/team-2026-11-01/` **21** 个（`ls docs/*.md | wc -l`），此前**没有任何索引**；且改前的 `BLUEPRINT.md:1` 自称"架构与能力的唯一真相源"、`CURRENT.md:4` 把读者指向 BLUEPRINT、`PRODUCT.md:4` 同样指向 BLUEPRINT —— 三份文档互抢"唯一"，而分层名与代码不符（见 `ARCHITECTURE-2026-11.md` §8 第 2 条）。这三处已就地改掉，行号指的是改前位置。
 > 从本文件起：**一件事只有一个真相源**，其余文档只有"历史证据/已废弃/专项"三种身份。
 
-## 1. 五份真相源（其余全部让位）
+## 1. 真相源（其余全部让位）
 
 | 你要问的是 | 真相源 | 锚点（它凭什么权威） |
 |---|---|---|
 | **架构**：代码里现在怎么跑、谁写哪个文件、安全边界在哪 | [`ARCHITECTURE-2026-11.md`](./ARCHITECTURE-2026-11.md) | 首行就声明 owner 是 `Cortico/src/worlds/bili-account/definition.ts` + `dsh-bili-whale/tools/bili.mjs`（`:1`）；每条箭头带 `file:line`；与旧文档的十条出入集中在 §8 |
 | **现状**：到哪了、接下来做什么、一分钟怎么起来 | [`CURRENT.md`](./CURRENT.md) | 按日期倒序的进度台账；每条带提交号/命令/证据卡路径 |
+| **任务推进**：这一轮改什么、按什么顺序、凭什么算做完 | [`ARCHITECTURE-DECOUPLING-2026-11-01.md`](./ARCHITECTURE-DECOUPLING-2026-11-01.md) | §8 是带依赖与验收命令的总任务单（25 步）；§0 定落哪条代码线；§7 定验收口径 |
 | **产品**：她该是什么、北极星、拍板过的产品口径 | [`PRODUCT.md`](./PRODUCT.md) | 产品定义，不是实现说明；北极星第六条见 2026-11-01 `d83dc95` |
 | **判据**：怎么算"活过来"、观测期红线、开窗顺序 | [`OBSERVATION-PROTOCOL.md`](./OBSERVATION-PROTOCOL.md) + [`evidence/G3B-DECISION-2026-11-01.md`](./evidence/G3B-DECISION-2026-11-01.md) | 协议定义 K1/K2/K3/K4 与污染；判定卡记 G3b 机器 PASS 的真实边界与"接入日"决定 |
 | **版本与变更**：这一版包含什么 | 根 [`../CHANGELOG.md`](../CHANGELOG.md) + `package.json` 的 `version` + git tag `port-0.5.0` | 里程碑级；规矩见本文 §4 |
+
+> **2026-11-02 补记**：上表原本是"五份"，缺"任务推进"这一栏。后果实测过——本索引 0 次提到
+> `DECOUPLING`，而这两天实际在照它干活；同时 `CURRENT.md` 的测试数字停在 11-01 的
+> 321 pass / 60 文件（现为 399 pass / 73 文件）。**任务单与执行账都进不了册，索引就等于一份过期目录。**
+> 现在补上，并把三份 DECOUPLING 文档按角色分开登记（见下表）。
+
+**这三份的关系，别搞混**：
+
+| 文件 | 角色 | 会不会每天改 |
+|---|---|---|
+| `ARCHITECTURE-DECOUPLING-2026-11-01.md` | **任务单**：25 步、依赖、验收命令、卡住怎么办 | 只在计划变更时改 |
+| `DECOUPLING-BASELINE-2026-11-01.md` | **落线声明**：改在哪条代码线、当时五条门的实测 | 只追加 |
+| `DECOUPLING-STATUS-2026-11-02.md` | **执行账**：每步做了没有、拿哪条命令证明、哪些判断被推翻过 | 每轮追加 |
 
 **不再自称真相源、但仍有效的那两份**：
 
@@ -43,6 +57,9 @@
 | `TERMUX.md` | 手机部署 |
 | `CREDITS.md` | 素材许可（鲸鱼娘 CC BY-NC-SA、vendor MIT、AMpath 私有无 LICENSE） |
 | `REUSE-MATRIX.md` | 供给盘点（许可/分支/成本）；原则出处在 `BLUEPRINT.md` §4 |
+| `ARCHITECTURE-DECOUPLING-2026-11-01.md` | **任务推进真相源**：§8 的 25 步总任务单（依赖 / 验收命令 / 降级方案）；§0 落线、§7 验收口径 |
+| `DECOUPLING-BASELINE-2026-11-01.md` | 落线声明（只追加）：改在哪条代码线、当时五条门的实测 |
+| `DECOUPLING-STATUS-2026-11-02.md` | 执行账（每轮追加）：每步做了没有 + 复验命令 + 被推翻的判断 |
 
 ### 顶层 · 已废止（指向 X）
 

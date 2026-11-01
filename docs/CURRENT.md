@@ -1,16 +1,21 @@
 # CURRENT —— 现状真相源（移植工程）
 
-> **本文件只管一件事：现在到哪了、接下来做什么、怎么起来。** 是五份真相源之一。
-> 其余按问题分：**架构**看 [`ARCHITECTURE-2026-11.md`](./ARCHITECTURE-2026-11.md)（代码里现在成立的事，带 `file:line`）· **产品**看 [`PRODUCT.md`](./PRODUCT.md) · **判据**看 [`OBSERVATION-PROTOCOL.md`](./OBSERVATION-PROTOCOL.md) 与 [`evidence/G3B-DECISION-2026-11-01.md`](./evidence/G3B-DECISION-2026-11-01.md) · **版本与变更**看根 [`../CHANGELOG.md`](../CHANGELOG.md)。全部文档的分类与"谁已经让位"见 [`INDEX.md`](./INDEX.md)。
+> **本文件只管一件事：现在到哪了、接下来做什么、怎么起来。** 是真相源之一。
+> 其余按问题分：**任务推进**看 [`ARCHITECTURE-DECOUPLING-2026-11-01.md`](./ARCHITECTURE-DECOUPLING-2026-11-01.md)（§8 总任务单）与执行账 [`DECOUPLING-STATUS-2026-11-02.md`](./DECOUPLING-STATUS-2026-11-02.md) · **架构**看 [`ARCHITECTURE-2026-11.md`](./ARCHITECTURE-2026-11.md)（代码里现在成立的事，带 `file:line`）· **产品**看 [`PRODUCT.md`](./PRODUCT.md) · **判据**看 [`OBSERVATION-PROTOCOL.md`](./OBSERVATION-PROTOCOL.md) 与 [`evidence/G3B-DECISION-2026-11-01.md`](./evidence/G3B-DECISION-2026-11-01.md) · **版本与变更**看根 [`../CHANGELOG.md`](../CHANGELOG.md)。全部文档的分类与"谁已经让位"见 [`INDEX.md`](./INDEX.md)。
 > `BLUEPRINT.md` 不再是本文件的上级：它的架构部分已由 `ARCHITECTURE-2026-11.md` 取代（分层名与代码不符，见彼文 §8 第 2 条），保留有效的是 50 项能力坐标与改动纪律。
 >
-> **下面每一条以日期开头的记录是台账，不是现状数字。** 门禁一律现跑：
+> **下面每一条以日期开头的记录是台账，不是现状数字。** 门禁一律现跑——**本页不写测试数字**，
+> 因为写下来的那一刻就开始过期（实测：11-01 记的 321 pass / 60 文件，11-02 已是 399 pass / 73 文件，
+> 而读者两处都信）：
 >
 > ```bash
-> node scripts/run-mjs-tests.mjs    # 全量；本文 2026-11-01 复跑：321 pass / 0 fail / EXECUTED=60
-> node scripts/check-hashes.mjs     # 验收脚本哈希；复跑得「一致」
-> node scripts/check-consumers.mjs  # 生产调用；复跑得「全部有生产调用」
+> node scripts/run-mjs-tests.mjs    # 全量；判据只看 fail=0 且 EXECUTED=DISCOVERED
+> node scripts/check-hashes.mjs     # 验收脚本哈希；判据「一致」
+> node scripts/check-consumers.mjs  # 生产调用；判据「全部有生产调用」
+> node scripts/check-state-roots.mjs # 状态根：表覆盖 / 单写者 / 新旧家
 > ```
+>
+> 要留痕就用 `npm run gates`——它把两份报告按当天日期写进 `docs/evidence/` 并带 gitSha。
 
 ## 现在到哪了
 
