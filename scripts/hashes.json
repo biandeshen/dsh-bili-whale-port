@@ -1,10 +1,10 @@
 {
-  "frozenAt": "2026-11-01T16:54:12.408Z",
+  "frozenAt": "2026-11-01T23:50:38.549Z",
   "files": {
     "scripts/day-report.mjs": "a74ac7fe9c78333f8525208cc4cf490920ffc37eaf08d55953cd05e581827701",
     "scripts/day-snapshot.mjs": "6daf4e09d067a9b4d84f276c350959fe7dac4509a57e879558b3a978e843a9c3",
     "scripts/day-watchdog.mjs": "cd495cb2bcdbdb4f903b6572d588ef26729f315e6a4043e3b91e07f5c8aa6ab9",
-    "scripts/counterfactual.mjs": "281e87316425f2951ed44c4f488d9ba3462c750250eb123393b00b0cd495169a",
+    "scripts/counterfactual.mjs": "46d76925e4d7fba102af237203d6ad70698ad2521b0a1a3e97d1266cd2b9ac00",
     "scripts/run-mjs-tests.mjs": "54e8e653be8139b897ecd813c3a0ee4597aafe3687c8025cee396b1e5462a6f2",
     "scripts/check-consumers.mjs": "629f454904919bb448df0ab2789cb0c1f8a44f50090c253207bd2ab64bf98133",
     "scripts/g3b-check.mjs": "0d6f824e0d24e5ccf745a33325340f0ab9f2cc2f534ccbdeeabc789fa935f1c4",

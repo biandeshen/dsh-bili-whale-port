@@ -29,6 +29,7 @@ fs.writeFileSync(path.join(repo, 'scripts', 'draft-dynamic.mjs'), 'console.log("
 process.env.BILI_WHALE_ROOT = repo
 process.env.WHALE_HOME = home
 
+// 跨仓加载（同 counterfactual.mjs）：CORTICO_ROOT 可变，包名会绑死到某一份检出。
 const mod = await import('file:///' + CORTICO.replace(/\\/g, '/') + '/src/worlds/bili-account/definition.ts')
 const tools = Object.fromEntries(mod.BILI_ACCOUNT.create().tools().map((t) => [t.name, t]))
 

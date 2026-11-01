@@ -17,6 +17,9 @@ const asJson = argv.includes('--json')
 const DAY_BOUNDARY_HOUR = 0 // 2026-10-31 主人拍板：自然日
 const logicalDay = (now = Date.now()) => new Date(now - DAY_BOUNDARY_HOUR * 3600_000).toLocaleDateString('sv-SE')
 
+// 跨仓加载：CORTICO_ROOT 可指向任意检出（live 的 Cortico、落线的 Cortico-up、临时副本），
+// 所以这里只能按绝对路径 import，不能写成 '@xiaoyu/persona-core/...' —— 包名会绑死到本仓的
+// node_modules 解析结果，换一份检出就加载到错的代码。这是有意的例外，不是没做完。
 const { buildVoiceBrief } = await import('file:///' + CORTICO.replace(/\\/g, '/') + '/persona-core/src/voice-brief.ts')
 
 function readJson(file) { try { return JSON.parse(fs.readFileSync(file, 'utf8')) } catch { return null } }
