@@ -68,7 +68,7 @@ describe('只挂框架级 WebUiSurface', () => {
     expect((await fetch(`${base()}/api/config`)).status).toBe(503);
     const r = await fetch(`${base()}/api/config`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Origin: base() },
       body: JSON.stringify({ group: 'core', values: {} }),
     });
     expect(r.status).toBe(503);

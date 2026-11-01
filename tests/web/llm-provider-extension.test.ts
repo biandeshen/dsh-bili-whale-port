@@ -93,7 +93,7 @@ export default {id:'fixture',title:'Fixture',reasoningTiers:[{id:'off',label:'Of
         return (
           await fetch(base + '/api/webui/providers/llm%3Afixture/panels/counter/' + method, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', Origin: base },
             body: JSON.stringify({ args: [] }),
           })
         ).json();

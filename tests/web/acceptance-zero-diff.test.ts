@@ -282,7 +282,7 @@ describe('新增一个 IO,src/web/** 零 diff', () => {
     await withApp({ webUiPageSources: sources }, async (base) => {
       const r = await fetch(`${base}${panelRoute(IO_PROVIDER, 'hello', 'ping')}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Origin: base },
         body: JSON.stringify({ args: [1, 'two'] }),
       });
       expect(r.status).toBe(200);
@@ -426,7 +426,7 @@ describe('活体验收件 · src/worlds/webui-fixture 的贯通', () => {
       expect(p?.panels?.map((x) => x.id)).toEqual(['hello', 'echo']);
       expect(p?.client?.js).toBe(built.providers[FIXTURE_PROVIDER]!.js);
 
-      const r = await fetch(`${base}${panelRoute(FIXTURE_PROVIDER, 'hello', 'ping')}`, { method: 'POST' });
+      const r = await fetch(`${base}${panelRoute(FIXTURE_PROVIDER, 'hello', 'ping')}`, { method: 'POST', headers: { Origin: base } });
       expect(r.status).toBe(200);
       expect((await r.json() as { pings: number }).pings).toBe(1);
     });

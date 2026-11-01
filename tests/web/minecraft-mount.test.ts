@@ -22,12 +22,17 @@ const get = async (p: number, path: string): Promise<{ status: number; body: any
   return { status: r.status, body: (await r.json()) as any };
 };
 const post = async (p: number, path: string): Promise<{ status: number; body: any }> => {
-  const r = await fetch(`http://127.0.0.1:${p}${path}`, { method: 'POST' });
+  const r = await fetch(`http://127.0.0.1:${p}${path}`, {
+    method: 'POST',
+    headers: { Origin: `http://127.0.0.1:${p}` },
+  });
   return { status: r.status, body: (await r.json()) as any };
 };
 const postJson = async (p: number, path: string, body: unknown): Promise<{ status: number; body: any }> => {
   const r = await fetch(`http://127.0.0.1:${p}${path}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Origin: `http://127.0.0.1:${p}` },
+    body: JSON.stringify(body),
   });
   return { status: r.status, body: (await r.json()) as any };
 };

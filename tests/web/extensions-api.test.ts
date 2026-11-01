@@ -24,7 +24,7 @@ const get = async (path: string): Promise<{ status: number; body: any }> => {
 const post = async (path: string, body?: unknown): Promise<{ status: number; body: any }> => {
   const r = await fetch(`${base()}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Origin: base() },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   return { status: r.status, body: (await r.json()) as any };
@@ -182,8 +182,8 @@ describe('/api/extensions', () => {
       expect((await fetch(`http://127.0.0.1:${p2}/api/extensions/updates`)).status).toBe(503);
       expect((await fetch(`http://127.0.0.1:${p2}/api/extensions/search`)).status).toBe(503);
       expect((await fetch(`http://127.0.0.1:${p2}/api/extensions/package?name=x`)).status).toBe(503);
-      expect((await fetch(`http://127.0.0.1:${p2}/api/extensions/install`, { method: 'POST' })).status).toBe(503);
-      expect((await fetch(`http://127.0.0.1:${p2}/api/extensions/uninstall`, { method: 'POST' })).status).toBe(503);
+      expect((await fetch(`http://127.0.0.1:${p2}/api/extensions/install`, { method: 'POST', headers: { Origin: `http://127.0.0.1:${p2}` } })).status).toBe(503);
+      expect((await fetch(`http://127.0.0.1:${p2}/api/extensions/uninstall`, { method: 'POST', headers: { Origin: `http://127.0.0.1:${p2}` } })).status).toBe(503);
     } finally {
       await bare.stop();
     }

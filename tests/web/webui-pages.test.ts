@@ -249,7 +249,7 @@ describe('manifest 组装', () => {
       expect(mem?.kind).toBe('memory');
       expect(mem?.label).toBe('GitMem');
       expect(mem?.panels?.map((x) => x.id)).toEqual(['workspace']);
-      const r = await fetch(`${base}${panelRoute('memory:demo', 'workspace', 'tree')}`, { method: 'POST' });
+      const r = await fetch(`${base}${panelRoute('memory:demo', 'workspace', 'tree')}`, { method: 'POST', headers: { Origin: base } });
       expect(await r.json()).toEqual({ panel: 'workspace', method: 'tree' });
     });
   });
@@ -487,7 +487,7 @@ describe('panel 调用', () => {
     await withApp({ webUiPageSources: sources }, async (base) => {
       const r = await fetch(`${base}${panelRoute('world:demo', 'gate', 'status')}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Origin: base },
         body: JSON.stringify({ args: [1, 'two'] }),
       });
       expect(r.status).toBe(200);
@@ -499,7 +499,7 @@ describe('panel 调用', () => {
   it('另一个面板同样原样直达', async () => {
     const { calls, sources } = spy();
     await withApp({ webUiPageSources: sources }, async (base) => {
-      await fetch(`${base}${panelRoute('world:demo', 'loose', 'ping')}`, { method: 'POST' });
+      await fetch(`${base}${panelRoute('world:demo', 'loose', 'ping')}`, { method: 'POST', headers: { Origin: base } });
       expect(calls).toEqual([{ panel: 'loose', method: 'ping', args: [] }]);
     });
   });
@@ -533,7 +533,7 @@ describe('panel 调用', () => {
       expect((await fetch(`${base}${route}?args=${encodeURIComponent('{}')}`)).status).toBe(400);
       const post = await fetch(`${base}${route}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Origin: base },
         body: JSON.stringify({ args: 'nope' }),
       });
       expect(post.status).toBe(400);

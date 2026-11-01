@@ -25,7 +25,7 @@ const getJ = async (p: string): Promise<any> => (await fetch(`${base()}${p}`)).j
 const postJ = async (p: string, body?: any): Promise<{ status: number; body: any }> => {
   const r = await fetch(`${base()}${p}`, {
     method: 'POST',
-    headers: body ? { 'Content-Type': 'application/json' } : {},
+    headers: body ? { 'Content-Type': 'application/json', Origin: base() } : { Origin: base() },
     body: body ? JSON.stringify(body) : undefined,
   });
   return { status: r.status, body: (await r.json()) as any };
