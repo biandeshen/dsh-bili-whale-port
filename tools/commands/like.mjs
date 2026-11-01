@@ -10,11 +10,14 @@ import { guardedFetch as fetch } from '../lib/traffic.mjs'
 //   ② 理由可选，但给了就记进本地账（feed 的偏好学习会读）
 import fs from 'node:fs'
 import path from 'node:path'
+import { credentialsPath, stateReadPath, statePath } from '../lib/paths.mjs'
 
 const HOME = (process.env.USERPROFILE || process.env.HOME || '/')
-const LIKE_LOG = path.join(HOME, '.bili-ai', 'likes-sent.json')
+// 账本按"文档"处理：读新家、读不到再读旧家，写永远落新家。
+const LIKE_LOG_READ = stateReadPath('likes-sent.json')
+const LIKE_LOG = statePath('likes-sent.json')
 let cred = { sessdata: '', bili_jct: '', buvid3: '' }
-try { cred = JSON.parse(fs.readFileSync(path.join(HOME, '.bili-ai', 'credentials.json'), 'utf8')) } catch {}
+try { cred = JSON.parse(fs.readFileSync(credentialsPath(), 'utf8')) } catch {}
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 const cookie = `SESSDATA=${cred.sessdata}; bili_jct=${cred.bili_jct}; buvid3=${cred.buvid3 ?? ''}`
 const H = { 'user-agent': UA, referer: 'https://www.bilibili.com/', cookie }
@@ -42,7 +45,7 @@ if (GO && tierQueues(readPolicy(config()).like)) {
   process.exit(0)
 }
 
-const load = () => { try { return JSON.parse(fs.readFileSync(LIKE_LOG, 'utf8')) } catch { return { items: [] } } }
+const load = () => { try { return JSON.parse(fs.readFileSync(LIKE_LOG_READ, 'utf8')) } catch { return { items: [] } } }
 const save = (d) => { fs.mkdirSync(path.dirname(LIKE_LOG), { recursive: true }); fs.writeFileSync(LIKE_LOG, JSON.stringify(d, null, 2)) }
 
 async function videoInfo(bv) {

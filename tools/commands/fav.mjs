@@ -15,17 +15,19 @@ import { apiGet } from '../lib/bili-api.mjs'
 //   ⑤ --go 直接收（2026-10-31 分级放开：收藏自发，不进待审队列；--dry 仍可预检）
 import fs from 'node:fs'
 import path from 'node:path'
-import { whalePath } from '../lib/paths.mjs'
+import { whalePath, credentialsPath, stateReadPath, statePath } from '../lib/paths.mjs'
 
 
 const HOME = (process.env.USERPROFILE || process.env.HOME || '/')
-const FAV_LOG = path.join(HOME, '.bili-ai', 'favorites.json')
+// 账本按"文档"处理：读新家、读不到再读旧家，写永远落新家（状态目录归一的同一规则）。
+const FAV_LOG_READ = stateReadPath('favorites.json')
+const FAV_LOG = statePath('favorites.json')
 // 2026-10-21 修（外部审计 #10）：新用户跑 `fav --list` 会因为缺文件直接一脸 ENOENT ✗
 //   改成友好提示：--list 不需要凭据（只读本地账本），其它子命令才要 ✓
 let cred = { sessdata: '', bili_jct: '', buvid3: '' }
 let cfg = {}
 try {
-  cred = JSON.parse(fs.readFileSync(path.join(HOME, '.bili-ai', 'credentials.json'), 'utf8'))
+  cred = JSON.parse(fs.readFileSync(credentialsPath(), 'utf8'))
 } catch {}
 try {
   cfg = JSON.parse(fs.readFileSync(whalePath('bili-whale.config.json'), 'utf8'))
@@ -56,7 +58,7 @@ const GO = !!opt.go
 const DAY = 86400000
 const today = () => new Date().toLocaleDateString('sv-SE')
 
-const load = () => { try { return JSON.parse(fs.readFileSync(FAV_LOG, 'utf8')) } catch { return { items: [] } } }
+const load = () => { try { return JSON.parse(fs.readFileSync(FAV_LOG_READ, 'utf8')) } catch { return { items: [] } } }
 const save = (d) => { fs.mkdirSync(path.dirname(FAV_LOG), { recursive: true }); fs.writeFileSync(FAV_LOG, JSON.stringify(d, null, 2)) }
 const selfMid = String(cfg.self?.mid ?? '')
 

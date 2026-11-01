@@ -1,6 +1,6 @@
 import { guardedFetch as fetch } from '../lib/traffic.mjs'
 import { keepCandidate, snapshotRow, numOf, dislikeHit } from '../lib/feed-quality.mjs'
-import { collectLearnedTokens } from '../lib/feed-feedback.mjs'
+import { collectLearnedTokens, likedEventsFromLedger, favItemsFromLedger } from '../lib/feed-feedback.mjs'
 // 选题器：照"她自己的偏好"挑今天该看什么。**只读**，不产生任何对外动作。
 //
 // 用法: node feed.mjs [--n 6] [--per 2] [--pool 30] [--allow-seen]
@@ -14,7 +14,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { config } from '../lib/config.mjs'
 import crypto from 'node:crypto'
-import { whalePath, draftsDir } from '../lib/paths.mjs'
+import { whalePath, draftsDir, stateReadPath, statePath, credentialsPath } from '../lib/paths.mjs'
 
 
 const argv = process.argv.slice(2)
@@ -71,7 +71,7 @@ try {
 const seen = new Set([...seenDiary, ...seenAudit, ...seenWatched])
 const ALLOW_SEEN = opt['allow-seen'] === true
 
-const cred = JSON.parse(fs.readFileSync(path.join(HOME, '.bili-ai', 'credentials.json'), 'utf8'))
+const cred = JSON.parse(fs.readFileSync(credentialsPath(), 'utf8'))
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 const H = { 'user-agent': UA, referer: 'https://search.bilibili.com/', cookie: `SESSDATA=${cred.sessdata}; bili_jct=${cred.bili_jct}; buvid3=${cred.buvid3}` }
 const MIXIN_TAB = [46,47,18,2,53,8,23,32,15,50,10,31,58,3,45,35,27,43,5,49,33,9,42,19,29,28,14,39,12,38,41,13,37,48,7,16,24,55,40,61,26,17,0,1,60,51,30,4,22,25,54,21,56,59,6,63,57,62,11,36,20,34,44,52]
@@ -115,12 +115,14 @@ const searchKeywords = [...new Set(prefs.slice(0, 6).map(searchKeywordOf))]
 // 2026-10-23：搜索结果按「关键词+排序」缓存 10 分钟 ✓
 //   动机：一晚她可能跑两次 feed ✗ 第二次完全一样 ✓ 没必要再打 6 次请求 ✓
 //   10 分钟够短，不会让她一直看同一批东西 ✓
-const SEARCH_CACHE = path.join(process.env.USERPROFILE || process.env.HOME || '.', '.bili-ai', 'feed-search-cache.json')
+// 缓存是纯派生物：读新家、读不到再读旧家，写永远落新家。
+const SEARCH_CACHE_READ = stateReadPath('feed-search-cache.json')
+const SEARCH_CACHE_WRITE = statePath('feed-search-cache.json')
 const SEARCH_TTL_MS = 10 * 60 * 1000
 async function searchCached(kw, order) {
   const key = kw + '|' + order
   let store = {}
-  try { store = JSON.parse(fs.readFileSync(SEARCH_CACHE, 'utf8')) } catch {}
+  try { store = JSON.parse(fs.readFileSync(SEARCH_CACHE_READ, 'utf8')) } catch {}
   const hit = store[key]
   if (hit && Date.now() - Number(hit.at ?? 0) < SEARCH_TTL_MS) return hit.data
   const j = await (await fetch(`https://api.bilibili.com/x/web-interface/wbi/search/type?${wbi({ search_type: 'video', keyword: kw, order, page: 1 })}`, { headers: H })).json()
@@ -129,7 +131,7 @@ async function searchCached(kw, order) {
     // 只留最近 40 条，别无限长 ✓
     const keys = Object.keys(store)
     if (keys.length > 40) { keys.sort((a,b) => (store[a].at??0) - (store[b].at??0)); for (const k of keys.slice(0, keys.length - 40)) delete store[k] }
-    try { fs.writeFileSync(SEARCH_CACHE, JSON.stringify(store)) } catch {}
+    try { fs.mkdirSync(path.dirname(SEARCH_CACHE_WRITE), { recursive: true }); fs.writeFileSync(SEARCH_CACHE_WRITE, JSON.stringify(store)) } catch {}
   }
   return j
 }
@@ -190,49 +192,37 @@ try { if (SOURCE_HOT === 'following' || SOURCE_HOT === 'all') await fetchFollowi
 console.error(`[来源] ${SOURCE_HOT === 'all' ? '搜索 + 热门 + 排行 + 关注' : SOURCE_HOT === 'popular' ? '热门' : SOURCE_HOT === 'rank' ? '排行' : SOURCE_HOT === 'following' ? '关注' : '搜索'}`)
 
 // ── 反馈回流（2026-10-20 加，主人定：B 也做）────────────────────────────
-//   feedback.json 里 kind='like' 的事件带 videoTitle → 对被赞视频【标题相似】的候选加权
-//   相似度用字符二元组 Jaccard（中文不用分词也能用 ✓）
-const FEEDBACK = path.join(HOME, '.bili-ai', 'feedback.json')
-let likedEvents = []
+//   点赞账本 likes-sent.json 与收藏账本 favorites.json 是 `like` / `fav` 真写下的两个文件，
+//   回流只读这两份 + 已发稿。三路都是结构化字段（标题、理由、书名号），不从散文整句学。
+//   读路径走 `stateReadPath`：状态目录归一之后旧家仍是只读兜底，写永远落新家。
+const likesItems = (() => {
+  try { return JSON.parse(fs.readFileSync(stateReadPath('likes-sent.json'), 'utf8')).items ?? [] } catch { return [] }
+})()
+const favItems = (() => {
+  try { return JSON.parse(fs.readFileSync(stateReadPath('favorites.json'), 'utf8')).items ?? [] } catch { return [] }
+})()
+// 点赞每条账目同时是"偏好素材"和"已赞过的 BV"；两处曾经各读一遍同一个文件，而且读的是
+// 没人写的 feedback.json —— 于是点赞从来没进过词表。
+const likedEvents = likedEventsFromLedger({ items: likesItems })
+const favBVs = new Set(favItemsFromLedger({ items: favItems }).map((x) => x.bv))
+const likedBVs = new Set(likesItems.filter((x) => x?.bv).map((x) => x.bv))
+// B4（2026-10-30 她的 OPS）：回流源加第三路 —— 主人放行且已发送的动态草稿；
+// 抽词规则整体挪进 tools/lib/feed-feedback.mjs（纯函数、带测试），这里只取数。
+let sentDrafts = []
 try {
-  const fb = JSON.parse(fs.readFileSync(FEEDBACK, 'utf8'))
-  likedEvents = (fb.events ?? [])
-    .filter((e) => e && (e.kind === 'like' || (typeof e.note === 'string' && /BV[0-9A-Za-z]{10}/.test(e.note))))
-    .filter((e) => String(e.videoTitle ?? '').trim())   // 没有标题的旧事件学不到东西，跳过 ✓
-} catch { /* 没有反馈就零加权 */ }
-const favBVs = new Set()
-try {
-  const fj = JSON.parse(fs.readFileSync(path.join(HOME, '.bili-ai', 'favorites.json'), 'utf8'))
-  for (const x of (fj.items ?? [])) if (x?.bv) favBVs.add(x.bv)
-} catch {}
-const likedBVs = new Set()
-try {
-  const fb = JSON.parse(fs.readFileSync(FEEDBACK, 'utf8'))
-  for (const e of (fb.events ?? [])) if (e?.bv) likedBVs.add(e.bv)
-} catch {}
-  // 她自己收藏过的（favorites.json）也算“品味信号” ✓ 和“被赞过的”并列
-  let favItems = []
-  try {
-    const fj = JSON.parse(fs.readFileSync(path.join(HOME, '.bili-ai', 'favorites.json'), 'utf8'))
-    favItems = (fj.items ?? []).filter((x) => x && x.bv)
-  } catch {}
-  // B4（2026-10-30 她的 OPS）：回流源加第三路 —— 主人放行且已发送的动态草稿；
-  // 抽词规则整体挪进 tools/lib/feed-feedback.mjs（纯函数、带测试），这里只取数。
-  let sentDrafts = []
-  try {
-    const dd = draftsDir()
-    sentDrafts = fs.readdirSync(dd)
-      .filter((f) => f.endsWith('.json')).sort().slice(-14)
-      .map((f) => {
-        try { const d = JSON.parse(fs.readFileSync(path.join(dd, f), 'utf8')); return d?.status === 'sent' ? d : null } catch { return null }
-      })
-      .filter(Boolean)
-  } catch { /* 没有草稿目录 = 还没发过稿 */ }
-  const ownerName = String(config().owner?.name ?? '')
-  const learnedTokens = collectLearnedTokens({ likedEvents, favItems, sentDrafts, ownerName })
-  const learnedHitsOf = (title) => learnedTokens.filter((tok) => title.toLowerCase().includes(tok)).length
-  // 每条命中 +2.5，最多 +7.5（不压过偏好命中的主权重 ✓）
-  const boostOf = (title) => Math.min(7.5, learnedHitsOf(title) * 2.5)
+  const dd = draftsDir()
+  sentDrafts = fs.readdirSync(dd)
+    .filter((f) => f.endsWith('.json')).sort().slice(-14)
+    .map((f) => {
+      try { const d = JSON.parse(fs.readFileSync(path.join(dd, f), 'utf8')); return d?.status === 'sent' ? d : null } catch { return null }
+    })
+    .filter(Boolean)
+} catch { /* 没有草稿目录 = 还没发过稿 */ }
+const ownerName = String(config().owner?.name ?? '')
+const learnedTokens = collectLearnedTokens({ likedEvents, favItems, sentDrafts, ownerName })
+const learnedHitsOf = (title) => learnedTokens.filter((tok) => title.toLowerCase().includes(tok)).length
+// 每条命中 +2.5，最多 +7.5（不压过偏好命中的主权重 ✓）
+const boostOf = (title) => Math.min(7.5, learnedHitsOf(title) * 2.5)
 
 // ── 偏好命中与排序（2026-10-20 重写，主人定：不要对高播放量有偏向 ✗）────────────
 //   旧：弹幕密度 + log10(播放)×3  → 大 UP 的爆款永远霸榜 ✗

@@ -2,8 +2,8 @@
  * feed 反馈回流（B4，2026-10-30 她的 OPS：「偏好词表没有回流通道」）。
  *
  * 纯函数、带测试；feed.mjs 只负责取数（三路信号）并把结果交进来：
- *   ① likedEvents —— 被赞（feedback.json，kind=like）
- *   ② favItems    —— 真收下的收藏（favorites.json）
+ *   ① likedEvents —— 被赞（`like` 命令写的 likes-sent.json）
+ *   ② favItems    —— 真收下的收藏（`fav` 命令写的 favorites.json）
  *   ③ sentDrafts  —— 主人放行且已发送的动态草稿（只取《书名号》片段）
  *
  * 2026-10-31 六席复核后重做抽词规则：原先把正文按 3/4-gram 滑窗切碎，两句稿子产出 230 个
@@ -50,4 +50,20 @@ export function collectLearnedTokens({ likedEvents = [], favItems = [], sentDraf
   const start = texts.length - draftCount
   return [...new Set(texts.map((s, i) => (i >= start ? learnTokens(s, { ownerName, titlesOnly: true }) : learnTokens(s, { ownerName })))
     .filter((arr) => arr.length).flat())]
+}
+
+/**
+ * 点赞账本（`likes-sent.json`，`like` 命令写下的那份）→ 回流用的被赞事件。
+ * 以前这条读的是 `feedback.json` 的 kind='like'，但没有任何命令写那个文件，
+ * 于是点赞从来没进过词表。账目缺标题的跳过：学不到东西。
+ */
+export function likedEventsFromLedger(ledger) {
+  return (ledger?.items ?? [])
+    .filter((x) => x && x.bv && String(x.title ?? '').trim())
+    .map((x) => ({ videoTitle: String(x.title), comment: String(x.reason ?? '') }))
+}
+
+/** 收藏账本（`favorites.json`，`fav` 命令写下的那份）→ 回流素材。 */
+export function favItemsFromLedger(ledger) {
+  return (ledger?.items ?? []).filter((x) => x && x.bv)
 }

@@ -2,7 +2,7 @@
 // 2026-10-31 六席复核后重做：词组级（不滑窗）+ 稿子只认《书名号》，散文碎片不再进词表。
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { learnTokens, collectLearnedTokens } from '../../tools/lib/feed-feedback.mjs'
+import { learnTokens, collectLearnedTokens, likedEventsFromLedger, favItemsFromLedger } from '../../tools/lib/feed-feedback.mjs'
 
 test('抽词：拉丁词≥2、中文按标点取 2–6 字词组、停用词/句尾虚词剔除、ownerName 剔除', () => {
   const t = learnTokens('432Hz疗愈雨声 这个广告 我为小鱼', { ownerName: '小鱼' })
@@ -30,4 +30,30 @@ test('三路回流：被赞/收藏整段学；已发稿只认《书名号》片�
   assert.ok(toks.includes('想再看'), '收藏理由进词表')
   assert.deepEqual(collectLearnedTokens({}), [], '空源返回空数组而不是炸')
   assert.deepEqual(collectLearnedTokens({ sentDrafts: [{ status: 'pending', text: '《未发不算》' }] }), [], '非 sent 不算品味')
+})
+
+test('点赞账本 → 回流素材：只认带标题的账目，理由缺失不影响', () => {
+  const events = likedEventsFromLedger({
+    items: [
+      { bv: 'BV1xx', title: '雨声白噪音 十小时', reason: '听着睡着了' },
+      { bv: 'BV2xx', title: '', reason: '没标题学不到' },
+      { bv: 'BV3xx', title: '钢琴曲选段' },
+      { title: '没有 bv 不算' },
+    ],
+  })
+  assert.deepEqual(events, [
+    { videoTitle: '雨声白噪音 十小时', comment: '听着睡着了' },
+    { videoTitle: '钢琴曲选段', comment: '' },
+  ])
+  assert.deepEqual(likedEventsFromLedger(null), [], '账本缺失返回空数组')
+})
+
+test('点赞真的能进词表：账本 → 素材 → 抽词这条链通着', () => {
+  const toks = collectLearnedTokens({ likedEvents: likedEventsFromLedger({ items: [{ bv: 'BV1xx', title: '432Hz疗愈雨声' }] }) })
+  assert.ok(toks.includes('疗愈雨声'), '点赞标题要能喂进词表：' + toks.join(','))
+})
+
+test('收藏账本 → 回流素材：缺 bv 的条目丢掉', () => {
+  assert.deepEqual(favItemsFromLedger({ items: [{ bv: 'BV1', title: 'a' }, { title: 'b' }] }), [{ bv: 'BV1', title: 'a' }])
+  assert.deepEqual(favItemsFromLedger(undefined), [])
 })
