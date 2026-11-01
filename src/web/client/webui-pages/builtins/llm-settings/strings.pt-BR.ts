@@ -40,6 +40,7 @@ export const panel: Partial<typeof en> = {
   modelsFetched: (count: number) => (count === 1 ? '1 modelo obtido.' : `${count} modelos obtidos.`),
   modelListFailed: (message: string) => `Não foi possível obter a lista de modelos: ${message}`,
   selectModel: 'Escolha um modelo',
+  modelCandidates: (count: number) => `O endpoint declara ${count} candidatos: clique num nome ou digite acima.`,
   unsupportedTier: (current: string) => `Nível atual não suportado: ${current}`,
   thinkingOn: 'ativado',
   thinkingOff: 'desativado',

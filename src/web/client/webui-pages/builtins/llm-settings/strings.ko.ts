@@ -40,6 +40,7 @@ export const panel: Partial<typeof en> = {
   modelsFetched: (count: number) => `모델 ${count}개를 가져왔습니다.`,
   modelListFailed: (message: string) => `모델 목록을 가져오지 못했습니다: ${message}`,
   selectModel: '모델 선택',
+  modelCandidates: (count: number) => `엔드포인트가 후보 ${count}개를 선언했습니다. 이름을 누르거나 위 입력란에 직접 쓰세요.`,
   unsupportedTier: (current: string) => `지원하지 않는 현재 등급: ${current}`,
   thinkingOn: '켬',
   thinkingOff: '끔',

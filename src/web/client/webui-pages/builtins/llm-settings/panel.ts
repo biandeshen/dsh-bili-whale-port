@@ -423,16 +423,19 @@ export const llmSettingsPanel: WebUiPanel = {
         const declaredRaw = (spec as unknown as { modelOptions?: unknown }).modelOptions;
         const declared = Array.isArray(declaredRaw) ? declaredRaw.map(String).filter((s) => s.trim()) : [];
         if (declared.length && !catalog.length) {
-          const dl = ui.h('datalist');
-          dl.id = 'llm-model-options';
-          for (const id of declared) {
-            const opt = ui.h('option');
-            opt.setAttribute('value', id);
-            opt.textContent = id;
-            dl.append(opt);
-          }
-          control.setAttribute('list', 'llm-model-options');
-          modelHolder.append(dl);
+          // 候选要看得见：datalist 只在打字时才弹，端点声明的清单等于藏起来了。
+          const picks = ui.rowbar();
+          for (const id of declared)
+            picks.append(ui.button(id, {
+              size: 'sm',
+              ...(id === spec.model ? { variant: 'primary' as const } : {}),
+              onClick: () => {
+                spec.model = id;
+                saveSpec();
+                renderModelField();
+              },
+            }));
+          modelHolder.append(picks, ui.msgline(S.modelCandidates(declared.length)));
         }
       }
       /** 取目录:成功换成选单并带出上下文窗口,失败把原因留在模型格下面。 */

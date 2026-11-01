@@ -39,6 +39,7 @@ export const panel: Partial<typeof en> = {
   modelsFetched: (count: number) => `取得 ${count} 個模型。`,
   modelListFailed: (message: string) => `取不到模型清單：${message}`,
   selectModel: '選擇模型',
+  modelCandidates: (count: number) => `端點宣告了 ${count} 個候選，點名字就換；也可以直接改上面的模型名。`,
   unsupportedTier: (current: string) => `目前檔位未支援：${current}`,
   thinkingOn: '開啟',
   thinkingOff: '關閉',
