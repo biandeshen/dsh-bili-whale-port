@@ -12,8 +12,10 @@
 | 检出 | 分支 | HEAD | 相对 master | 相对 upstream/main |
 |---|---|---|---|---|
 | `E:/WorkSpace_Qoder/Cortico` | `master` | `144157d` | — | 落后 **435** |
-| `E:/WorkSpace_Qoder/Cortico-dev` | `dev/policy` | `316928b` | 与 master 同线 | 同上 |
-| **`E:/WorkSpace_Qoder/Cortico-up`** | **`reanchor/replay`** | **`7b39b8e`** | **领先 465 / 落后 116** | 落后 **57** / 领先 87 |
+| `E:/WorkSpace_Qoder/Cortico-dev` | `dev/policy` | `fe4392c` | 与 master 同线 | 同上 |
+| **`E:/WorkSpace_Qoder/Cortico-up`** | **`reanchor/replay`** | **`cbd3e90`** | 落后 116（未合 master） | **落后 0 / 领先 92** |
+
+> 基线数字会变。写这一行时的实测（2026-11-02 00:0x）：`reanchor/replay` 已**追平上游**（落后 0），这是落线之后最重要的一个变化——它不再需要"先跟再改"。数字若再变，以 `git rev-list --count HEAD..upstream/main` 现算为准，不要引本表。
 
 `reanchor/replay` 是从上游 `cb9ddbd`（0.2.7）**认亲后重放本地改动**的产物（`git merge-base` 与 `upstream/main` 只差 57 个提交，不是快照导入）。它已经做掉了本页列为"未做/待做"的一批事，**这些条目在原线上不必重做**：
 
@@ -47,7 +49,17 @@
 
 三条理由：① 它已经解掉本方案 P0 的两个外部阻塞（上游、provider），在 master 上做等于先补一遍再迁；② 它是**功能超集**，落在这里不回退任何能力；③ 它结构已更干净，C/C2 的工作量更小。
 
-**落线前必须先过的一道门（否则就是换一个跑不起来的方案）**：`reanchor/replay` 只改了 World 侧，`dsh-bili-whale` 仍是 master 那条线，两者的契约**没验证过**。必须先跑一次真实 tick 与一次 `bili_debrief`，确认"新 World + 现 CLI"能让她动起来并给出回执；不通过就先修契约，**不要开始 A/B**。
+**落线门三条，逐条给状态**（2026-11-02 00:0x 实测）：
+
+| # | 门 | 怎么验 | 状态 |
+|---|---|---|---|
+| ① | 编译 | `npx tsc --noEmit` + `npx tsc -p tsconfig.web.json --noEmit` | **通过**：两套均 0 错（此前 41 错，已由 `83dc3ee` 整份取上游 + `9ea8259` 挑回本地改动解决） |
+| ② | 测试 | `npx vitest run tests/web` + Cortico 的 `node --import tsx --test tests/*.test.mjs` | **通过（前端）**：79 文件 / 1309 测试全绿；**mjs 侧未复跑**，开工前补一次 |
+| ③ | **两张皮能不能合上** | 用 `reanchor/replay` 起一次真机（**换端口，不要动 7799**），跑一次真实 tick + 一次 `bili_debrief` | **未做** |
+
+> **③ 是唯一还没验证的，也是最重要的一条。**`reanchor/replay` 只改了宿主侧（World/前端），`dsh-bili-whale` 仍是另一条线的 CLI；两边的回执契约、路径解析、环境变量由谁注入，都还没在真机上合过一次。
+> 具体验法：另起一个部署目录（或 `CORTICO_ROOT` 指 `Cortico-up` + 换端口 7800），配好同一份 `~/.dsh` 状态，跑 10 分钟，看三件事——① `days/<今天>/ticks.jsonl` 有新行；② `bili_debrief` 回执含"采样口径"与"还剩多少"这类事实字段（说明解析契约没断）；③ 日记/记忆有新增。三件都不变才算过。
+> **不过就别开 A/B**：A 改状态写入、B 改策略读取，都依赖"两边对同一份状态理解一致"这个前提；这个前提没验过，后面每一步的绿都不可信。
 
 切换完成后 `master` 只做维护（hotfix），不再承接新功能；本页后续所有条目默认作用在 `reanchor/replay` 上。
 
@@ -727,7 +739,9 @@ function renderDebrief(r: DebriefResult): string
 
 ## 8. 执行编排（25 个 commit，按依赖排序）
 
-前置：§0.1 的落线门（`reanchor/replay` + 现 dsh 跑通一次真实 tick + 一次 debrief）不通过，以下一条都不开始。
+> **开工前的第一件事不是第 1 步，是 §0.1 的门 ③**：用 `reanchor/replay` + 现 dsh 换端口起一次真机，跑一次 tick + 一次 `bili_debrief`，看 `ticks.jsonl` 有新行、debrief 回执里有"采样口径/还剩多少"、日记记忆有新增。
+> 门 ①（两套 tsc）与门 ②（vitest web 1309 绿）已过；**门 ③ 未做**。它不过，下面 25 步一步都别开始——A 改状态写入、B 改策略读取，都建立在"两边对同一份状态理解一致"这个还没验过的前提上。
+> 另：门 ② 的 mjs 侧（Cortico `node --import tsx --test tests/*.test.mjs`）也还没在 `reanchor/replay` 上跑过，与门 ③ 同批补。
 
 | # | commit 主题 | 依赖 | 验收命令 | 卡住时的降级 |
 |---|---|---|---|---|
