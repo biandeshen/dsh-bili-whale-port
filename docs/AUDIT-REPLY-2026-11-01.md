@@ -71,3 +71,59 @@
 - **密度排序后半**（改分位数/分布形态代替条/桶）：未做。
 - **扩展安装安全**（审计 P1-3：主进程 import 第三方代码、无签名校验）：未做，属设计问题。
 - **成本口径**（539 次调用 `cost=0`）：价格表没配，未做。
+
+---
+
+## 七、落线门：**不通过**（2026-11-01 20:40 实测）
+
+交接文档 §0.1 要求「`reanchor/replay` + 现 dsh 跑通一次真实 tick + 一次 debrief」才准开工。
+实测结论：**开不了工**。原因不是配置，是那个检出本身没重放完。
+
+### 已经落盘的
+
+`reanchor/replay` 交接时有 386 个文件停在暂存区（18:08 后再没变，是停下的半重放）。
+按你的指示先落盘不丢东西：
+
+- `63dcc54` 原样提交那 386 个文件
+- `d96a6ce` 补三处重放漏下的：`errors.ts` 里 `StreamErrorEvent`/`upstreamText`
+  各出现两遍（英文版与移植版并存，tsc 报重复标识符）、
+  `framework-release` 用了本仓没有的 `readFile`、测试里一个已不用的变量
+
+工作区里另有 9 个未暂存改动会删掉 `StreamErrorEvent`（#61 的修复），
+判为半途试验，随提交作废。
+
+### 量出来的缺口
+
+`npx tsc -p tsconfig.web.json`：**41 个错误，全在
+`src/web/client/features/extensions/index.ts` 一个文件里**。
+
+| 错误 | 次数 | 含义 |
+|---|---|---|
+| `Cannot find name 'renderRestart'` | 7 | 调用点在、函数没拷来 |
+| `Cannot find name 'hit'` | 6 | 上下文变量没拷来 |
+| `Cannot find name 'button'` | 6 | 同上 |
+| `S.eraseConfirm` / `S.stateLoaded` / `S.enabled` 等字符串键不存在 | 若干 | 文案表没拷全 |
+| 隐式 any | 3 | 类型标注缺失 |
+
+跑全套 vitest：**93 条红 / 5210 条**，其中 65 条是同一个
+`ReferenceError: renderRestart is not defined`。
+
+我试过只补 `renderRestart` 一个函数——补完 41 个错误降到 38 个，
+剩下的要求整片重来。这不是"补一个函数"的量级。
+
+### 为什么停在这里
+
+交接文档的纪律写得很明确：「不通过就先修契约，**不要开始 A/B**」。
+把这 41 个错误硬压下去，等于在一个没验过的地基上开工，后面每一步的"绿"
+都不可信。所以 §8 的 25 步一步都没开始。
+
+### 两条可选的路
+
+1. **把上游那个文件整份取来重放**（`git show upstream/main:…` 拿到当前版本，
+   再逐处把我们的改动加回去）。已知它引用的 `restartRoot`、`workspace.statusRoot`
+   本仓都有，接口是对得上的。
+2. **改在 master 上做**：master 现在功能齐全、门禁全绿（dsh 72 文件 386 断言、
+   Cortico 125 mjs + 1242 vitest），只是落后上游 435。代价是方案文档说的
+   "先补一遍再迁"。
+
+我不替你选。选定之前，§8 的 25 步一直停着——这比带病开工诚实。
