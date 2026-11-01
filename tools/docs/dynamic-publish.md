@@ -241,8 +241,8 @@ curl 'https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/create' \
 	--data-urlencode 'extension={"emoji_type":1,"from":{"emoji_type":1},"flag_cfg":{}}' \
 	--data-urlencode 'at_uids=' \
 	--data-urlencode 'ctrl=[]' \
-	--data-urlencode 'csrf_token=de2731532b4ab96bc8536da948932668' \
-	--data-urlencode 'csrf=de2731532b4ab96bc8536da948932668' \
+	--data-urlencode 'csrf_token=<你的 bili_jct>' \
+	--data-urlencode 'csrf=<你的 bili_jct>' \
     -b 'SESSDATA=******'
 ```
 
@@ -297,8 +297,8 @@ curl 'https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/create' \
     --data-urlencode 'extension': '{"emoji_type":1,"from":{"emoji_type":1},"flag_cfg":{}}' \
     --data-urlencode 'at_uids': '15858903,293793435' \
     --data-urlencode 'ctrl': '[{"location":11,"type":1,"length":9,"data":"15858903"},{"location":20,"type":1,"length":9,"data":"293793435"}]' \
-    --data-urlencode 'csrf_token': 'de2731532b4ab96bc8536da948932668' \
-    --data-urlencode 'csrf': 'de2731532b4ab96bc8536da948932668' \
+    --data-urlencode 'csrf_token': '<你的 bili_jct>' \
+    --data-urlencode 'csrf': '<你的 bili_jct>' \
     -b 'SESSDATA=******'
 ```
 

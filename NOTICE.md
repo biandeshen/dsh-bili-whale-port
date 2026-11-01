@@ -10,6 +10,8 @@
 | **bilibili-API-collect** | `tools/docs/` 里的接口文档整理自该项目（社区维护的 B 站接口文档） | 遵循其原项目许可；仅作接口说明用，**不随本项目分发**时请以原仓库为准 |
 | **ffmpeg** | 抽帧 / 看画面（`tools/lib/ffmpeg.mjs` 只是**定位并调用**它） | **LGPL v2.1+**（若用 GPL 构建则为 GPL）。本项目**不打包** ffmpeg：请自行安装，或使用发布页附带的 LGPL 构建（附其 LICENSE 与源码链接：https://ffmpeg.org）|
 | **Node.js** | 运行环境 | MIT |
+| **鲸鱼娘序列帧**（`panel/assets/whale-girl/`） | 鱼缸页的角色立绘（15 状态） | **CC BY-NC-SA 4.0** · 署名 ZipZipPipe / 上善无形 · **仅个人非商用**。来源 [vlln/whale-girl](https://github.com/vlln/whale-girl)（`lib/assets/characters/whale-girl/`）。不想要这一条限制就把那个目录删掉：缺帧时鱼缸会自动回落到内联 SVG，功能不受影响 |
+| **AMpath**（`Cortico/persona-core/`） | 人格内核（场值、因果链、记忆衰减）的移植来源 | 移植自其 `codex/ampath-unified-candidate` 分支，各文件的来源与取舍列在 `Cortico/persona-core/README.md` 的对照表里 |
 
 ## 免责
 

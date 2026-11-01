@@ -1,0 +1,38 @@
+name: CI
+
+# 这个仓库以前没有任何 workflow：门禁只在某人本机跑过，绿不绿取决于谁在跑。
+# 这里跑的就是本机那条命令（scripts/run-mjs-tests.mjs），同一个脚本、同一个判据。
+on:
+  push:
+    branches: [main, master, 'dev/**', 'port/**']
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Tests (node:test)
+        # 不用 `node --test tests/*.test.mjs`：那条命令自己不知道漏了哪个文件。
+        # run-mjs-tests 逐文件跑并对比"发现数 / 执行数"，对不上就红。
+        run: node scripts/run-mjs-tests.mjs
+
+      - name: Frozen acceptance scripts unchanged
+        # 验收脚本冻结是为了防止"验收期改判据"。真要改，得先改 hashes.json 并说清为什么，
+        # 那一步会出现在 diff 里。
+        run: node scripts/check-hashes.mjs
