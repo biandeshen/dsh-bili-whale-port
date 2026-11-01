@@ -161,7 +161,7 @@ if (body.length) {
   console.log(`\n--- 字幕正文${WIN_NOTE ? `（窗口内 ${winBody.length} 行` : `（共 ${winBody.length} 行`} · 内联 ${shown.length} 行 · ${used} 字 · 预算 ${SUB_INLINE_BUDGET} 字，--subs-chars 可调，--from/--to 可切时段）---`)
   console.log(shown.join('\n'))
   if (shown.length < winBody.length) {
-    console.log(`（窗口内还剩 ${winBody.length - shown.length} 行没内联：回执总长受宿主截断，用 --from/--to 取你要的那一段，或 --subs-chars 8000 放宽）`)
+    console.log(`（${FROM === null && TO === null ? '' : '窗口内 '}还剩 ${winBody.length - shown.length} 行没内联：回执总长受宿主截断，用 --from/--to 取你要的那一段，或 --subs-chars 8000 放宽）`)
   }
 } else {
   console.log('✗ 无官方字幕轨道 → 这一路缺失，只能靠弹幕 + 热评 + 画面（这正是要六路互补的原因）')
