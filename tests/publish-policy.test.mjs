@@ -7,14 +7,25 @@ import { POLICY_DEFAULTS, readPolicy, inWindow, capReached, tierQueues } from '.
 test('空配置 = 全部落回拍板默认', () => {
   assert.deepEqual(readPolicy({}), {
     draftMode: 'review', autoDailyCap: 0, autoWindow: '', like: 'self', fav: 'self', dmReply: 'direct',
+    comment: 'review', danmaku: 'review',
   })
   assert.deepEqual(readPolicy(undefined), readPolicy({}))
   assert.equal(POLICY_DEFAULTS.draftMode, 'review', '动态默认永远人工，auto 必须显式开')
+  assert.equal(POLICY_DEFAULTS.comment, 'review', '评论默认等主人放行（与 11-03 之前的行为一致）')
+  assert.equal(POLICY_DEFAULTS.danmaku, 'review', '弹幕默认等主人放行（与 11-03 之前的行为一致）')
 })
 
 test('非法值不越权：cap 负数/字符串、乱时窗、野模式都收敛', () => {
-  const p = readPolicy({ publish: { draftMode: 'yolo', autoDailyCap: -5, autoWindow: '白天' }, permissions: { like: 'both', dmReply: 'whatever' } })
-  assert.deepEqual(p, { draftMode: 'review', autoDailyCap: 0, autoWindow: '白天', like: 'self', fav: 'self', dmReply: 'direct' })
+  const p = readPolicy({ publish: { draftMode: 'yolo', autoDailyCap: -5, autoWindow: '白天' }, permissions: { like: 'both', dmReply: 'whatever', comment: 'yolo', danmaku: 'true' } })
+  assert.deepEqual(p, { draftMode: 'review', autoDailyCap: 0, autoWindow: '白天', like: 'self', fav: 'self', dmReply: 'direct', comment: 'review', danmaku: 'review' })
+})
+
+test('评论与弹幕的档位可显式设成 self（主人自己收放），且只认 self/review 两个值', () => {
+  const p = readPolicy({ permissions: { comment: 'self', danmaku: 'self' } })
+  assert.equal(p.comment, 'self')
+  assert.equal(p.danmaku, 'self')
+  assert.equal(tierQueues(p.comment), false, 'self = 不进待审队列')
+  assert.equal(tierQueues(p.danmaku), false)
 })
 
 test('时段：空/非法=不限；正常区间含起点不含终点；跨午夜可用', () => {

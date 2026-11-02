@@ -22,6 +22,7 @@ import { NODE_EXE } from '../lib/nodebin.mjs'   // 2026-10-21：别用 process.e
 import { stateReadPath, statePath, writeStateText } from '../lib/paths.mjs'
 import { plainOutbound } from '../lib/plain-outbound.mjs'
 import { attemptWrite, noteWriteFailure } from '../lib/write-refusal.mjs'
+import { readPolicy, tierQueues } from '../lib/publish-policy.mjs'
 
 // ── 限额闸（B 档「限额自主」的代码强制部分，2026-10-14 主人选 B 档）────────────────
 // 语义：闸门**只管自主发言**（带 --auto，即"她自己决定说的"）；主人当场授权的发言不拦 ✓
@@ -99,8 +100,11 @@ const dry = args.get('dry') === true || args.has('dry')
 import { shouldGate, queueGo } from '../lib/go-gate.mjs'
 import { credentialsPath } from '../lib/paths.mjs'
 const go = args.get('go') === true || args.has('go')
-// 方案三 go-gate：非分享评论（被注入诱导的主要面）必须主人放行
-if (shouldGate(process.argv.slice(2), { exemptFlags: ['--auto', '--share'] })) {
+// 方案三 go-gate：非分享评论（被注入诱导的主要面）必须主人放行。
+// 档位（2026-11-03）：permissions.comment='review'（默认）= 进待审队列；'self' = 她自己发。
+// 默认值保持原行为不变，只是把"写死在代码里"变成"配置里能改"。
+const commentTier = readPolicy(config()).comment
+if (tierQueues(commentTier) && shouldGate(process.argv.slice(2), { exemptFlags: ['--auto', '--share'] })) {
   queueGo({ argv: ['comment', ...process.argv.slice(2).filter((a) => a !== '--go')], kind: '评论', oid: args.get('oid') ?? '', bvid: args.get('bvid') ?? '', message: args.get('message') ?? '', src: args.get('referer') ?? '',
     // M1e：坐标也结构化入队，放行时不再从模型写的 argv 里挖 root/parent
     root: root ? String(root) : '', parent: parent ? String(parent) : '', type, referer: refererArg })

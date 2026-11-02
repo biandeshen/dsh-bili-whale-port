@@ -18,6 +18,8 @@ import { shouldGate, queueGo } from '../lib/go-gate.mjs'
 import { credentialsPath } from '../lib/paths.mjs'
 import { plainOutbound } from '../lib/plain-outbound.mjs'
 import { attemptWrite, noteWriteFailure } from '../lib/write-refusal.mjs'
+import { config } from '../lib/config.mjs'
+import { readPolicy, tierQueues } from '../lib/publish-policy.mjs'
 const argv = process.argv.slice(2)
 const mode = argv[0]
 const args = new Map()
@@ -95,10 +97,13 @@ if (mode === 'history') {
 if (mode === 'send') {
   if (!msg) { console.error('send 需要 --msg'); process.exit(2) }
   if (isDry === isGo) { console.error('必须且只能给一个 --dry 或 --go'); process.exit(2) }
-  if (isGo) { queueGo({ argv: ['danmaku', ...argv.filter((a) => a !== '--go')], kind: '弹幕', message: msg, src: 'room ' + (args.get('room') ?? ''), room: String(args.get('room') ?? '') }); process.exit(0) }
+  // 档位（2026-11-03）：permissions.danmaku='review'（默认）= 进待审队列等主人放行；
+  // 'self' = 她自己发（走下面的额度闸，自主发言口径）。
+  const danmakuTier = readPolicy(config()).danmaku
+  if (isGo && tierQueues(danmakuTier)) { queueGo({ argv: ['danmaku', ...argv.filter((a) => a !== '--go')], kind: '弹幕', message: msg, src: 'room ' + (args.get('room') ?? ''), room: String(args.get('room') ?? '') }); process.exit(0) }
 
   // P0-5：弹幕也是对外发言 —— 过闸（白名单里的房间 = room:<房间号>）
-  if (!gate({ type: 'danmaku', target: `room:${args.get('room') ?? ''}`, auto: process.argv.includes('--auto') })) {
+  if (!gate({ type: 'danmaku', target: `room:${args.get('room') ?? ''}`, auto: process.argv.includes('--auto') || danmakuTier === 'self' })) {
     console.error('拒绝：限额闸不通过（额度/白名单）'); process.exit(2)
   }
   const info = await resolveRoom()
