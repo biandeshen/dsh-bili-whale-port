@@ -1,14 +1,14 @@
 {
-  "at": "2026-11-02T04:17:56.800Z",
+  "at": "2026-11-02T14:42:45.033Z",
   "root": "E:\\WorkSpace_Qoder\\dsh-bili-whale",
-  "gitSha": "72deaf113efca0cbaa480ba011a29dd67720a1ff",
+  "gitSha": "6280d14f785e5726d92c696ceb2c608f5b994bd5",
   "node": "v24.16.0",
   "exit": 0,
-  "discovered": 77,
-  "executed": 77,
+  "discovered": 78,
+  "executed": 78,
   "counts": {
-    "tests": 424,
-    "pass": 424,
+    "tests": 428,
+    "pass": 428,
     "fail": 0
   },
   "mismatch": false,
@@ -379,6 +379,14 @@
       "exit": 0,
       "tests": 2,
       "pass": 2,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\draft-rework.test.mjs",
+      "exit": 0,
+      "tests": 4,
+      "pass": 4,
       "fail": 0,
       "ran": true
     },

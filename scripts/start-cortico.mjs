@@ -12,7 +12,11 @@ const HOME = process.env.USERPROFILE || process.env.HOME || '.'
 const CONTROL = path.join(HOME, '.dsh', 'bili-whale', 'control')
 const PID_FILE = path.join(CONTROL, 'cortico.pid')
 const LOG_FILE = path.join(CONTROL, 'cortico.log')
-const CORTICO = process.env.CORTICO_ROOT || 'E:/WorkSpace_Qoder/Cortico'
+// live 的代码树与部署树是分开的两份：代码在 Cortico-up（reanchor/replay 那条线），
+// 部署与数据仍用 Cortico/deployments（她的 memory/session/config 都在那）。
+// 两条必须成对，少一条就会起出一个"新代码配另一份数据"的实例；env 可覆盖回滚。
+const CORTICO = process.env.CORTICO_ROOT || 'E:/WorkSpace_Qoder/Cortico-up'
+const DEPLOY_ROOT = process.env.CORTICO_HOME || 'E:/WorkSpace_Qoder/Cortico/deployments'
 const PROXY = path.join(HOME, '.dsh', 'ofm-go-proxy', 'proxy.mjs')
 const NODE = process.platform === 'win32' ? 'C:/Program Files/nodejs/node.exe' : process.execPath
 
@@ -68,7 +72,7 @@ const fd = fs.openSync(LOG_FILE, 'a')
 const child = spawn(NODE, [...CA_FLAGS, path.join(CORTICO, 'bin', 'cortico.mjs'), 'mybot', '--port=7799'], {
   cwd: CORTICO, detached: true, stdio: ['ignore', fd, fd],
   // 传给子进程：扩展安装走 pnpm（另一个 node 进程），它也要读系统证书库
-  env: { ...process.env, NODE_OPTIONS: [process.env.NODE_OPTIONS, ...CA_FLAGS].filter(Boolean).join(' ').trim() },
+  env: { ...process.env, CORTICO_HOME: DEPLOY_ROOT, NODE_OPTIONS: [process.env.NODE_OPTIONS, ...CA_FLAGS].filter(Boolean).join(' ').trim() },
 })
 child.unref()
 fs.writeFileSync(PID_FILE, String(child.pid) + '\n')

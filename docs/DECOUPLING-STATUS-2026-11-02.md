@@ -277,4 +277,63 @@ consumers/哈希/state-roots 三道照旧。
 `live-code-anchor.mjs --set`，窗内任何一次 dsh 提交都会在第二天的 `ops-day` 里变红。
 要不要现在开窗是主人的决定（开窗 = 接下来 14 天不改 live），不是我能替他按的按钮。
 
+## 我拒的稿，她当天重写不了——闸门和话术都得改（2026-11-02 22:50）
+
+`dynamic-approve reject` 会把理由写进草稿，`consumeDraftResults` 会在下一轮把理由结算成她的
+场值与记忆（11:57:48Z 那条 `draft-result-consumed` 就是证据）。但**出稿的那一步被拦死了**：
+
+- `scripts/draft-dynamic.mjs` 只要当天的 `<date>.json` 存在就返回 `当天草稿已存在`，
+  不看状态——被拒的也算"今天已有稿"；
+- 宿主 `prompts.ts:todayDraftLine()` 同样把 `rejected` 念成"这一轮不用再出稿"。
+
+我在 reject 理由里写的是「重新起稿」，她执行的路径却被这条规则堵住。这是同一类错误的第二次：
+上一次是待审队列只进不出（10:00 那节），这次是**给了她反馈、没给她改的机会**。
+
+改法（两处都改，只放开 `rejected`）：
+
+| 位置 | 以前 | 现在 |
+|---|---|---|
+| `draft-dynamic.mjs` 闸门 | 文件存在就拒 | `status === 'rejected'` 放行重写；`pending`/`sending`/`sent` 仍拒（一天两条是刷屏） |
+| `prompts.ts:todayDraftLine()` | 「今天已经出过草稿（… · 被拒）——这一轮不用再出稿」 | 「今天那条草稿被主人拒了，理由在下面那条反馈里——这一轮照着理由重写一版，别原样再交一次」 |
+
+一个实测事实写在这里省得下次猜：**重写后的草稿 id 和原来一样**（id = 日期 + 正文指纹）。
+被拒那条的理由不会丢——它已经进 `causal.jsonl`（append-only）并被结算进记忆，
+覆盖当天文件只覆盖"当前状态"这一份。
+
+测试两层：`tests/draft-rework.test.mjs`（dsh，真起子进程跑 CLI：没稿→出稿带令牌；
+rejected→重出且换了新令牌；sent/pending→仍拦住且 exit 0 不是崩溃；重写落在同一个日期文件）
+4 条；`Cortico-up/tests/draft-rework.test.mjs`（宿主话术）3 条。
+复跑：dsh **428/428（78 文件）**、Cortico-up mjs **227/227（28 文件）**、哈希一致、
+consumers 全有生产调用、state-roots 无绕过。
+
+**这一条需要重启才生效**（改的是宿主 `prompts.ts`，不是每次 spawn 的 dsh CLI），
+而重启又暴露出切 live 留下的两个运维缺口，见下一节。
+
+## 切 live 那次手工启动，把监督链落在了后面（2026-11-02 22:50）
+
+`ops-day` 现在这条是红的：
+
+```
+✗ Cortico 进程  .dsh\bili-whale\control\cortico.pid → dead pid=117840
+✓ 端口 7799 在听  本地 bind 试探：EADDRINUSE
+```
+
+端口在听、进程活着（11:29 起，pid 114848）、她的 tick 也在走——但 **pid 文件写的是上一个进程**。
+原因很直白：切 live 那步是我手工 `node --import tsx src/launcher.ts mybot --port=7799` 起的，
+没走 `scripts/start-cortico.mjs`。后果有三个，都不是"她错了"，而是"我们看不见她"：
+
+1. **pid 文件过期** → `ops-day`、备份脚本、任何按 pid 判活的下标都指着一个已经死了的进程；
+   她真出事时，读数为"进程死了"，而她其实活着——这种反向错会让人做错的处置。
+2. **`control/cortico.log` 不再被写**（最后一行停在 11-02 00:50，是旧进程写的）→
+   新进程的输出落在别处，排障时 `tail` 出来的是一整夜前的历史。
+3. **少了监督进程**：`bin/cortico.mjs` 才是带 IPC 重启与 `.restart-request` 标志的那一层；
+   直接起 `src/launcher.ts` 等于把"崩溃自动再来一次"和页面那个一键重启都绕过了。
+
+处置：`start-cortico.mjs` 补齐 live 的真实拓扑——代码树与部署树现在是**分开的两份**
+（代码 `Cortico-up`，她的 memory/session/config 仍在 `Cortico/deployments`），
+所以两条 env 必须成对，脚本里都写了默认值（`CORTICO_ROOT` / `CORTICO_HOME` 可覆盖回滚），
+然后用这条命令重启，让 pid、日志、监督三者重新落回原位。
+
+
+
 

@@ -34,8 +34,14 @@ if (process.argv[1] && process.argv[1].endsWith('draft-dynamic.mjs')) {
   const outJson = path.join(DRAFTS, date + '.json')
   if (fs.existsSync(outJson) && !FORCE) {
     const cur = JSON.parse(fs.readFileSync(outJson, 'utf8'))
-    console.log(JSON.stringify({ ok: false, error: '当天草稿已存在', status: cur.status, file: outJson }, null, 2))
-    process.exit(0)
+    // 被拒的那条要能重出一版：拒稿理由是主人在 #41 里特意让她读到的，
+    // 读到了却没有再写的口子——"重新起稿"就成了空话（2026-11-02 实测：她日记里写
+    // 「这一轮出稿被『当天草稿已存在』拒了，不重试」，而那条稿正是我拒掉的）。
+    // 继续挡住的是 pending/sending/sent：那是"今天已经有一条在等头发/已经发过"。
+    if (String(cur.status) !== 'rejected') {
+      console.log(JSON.stringify({ ok: false, error: '当天草稿已存在', status: cur.status, file: outJson }, null, 2))
+      process.exit(0)
+    }
   }
   let diaryText
   try {
