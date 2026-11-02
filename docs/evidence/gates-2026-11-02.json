@@ -1,14 +1,14 @@
 {
-  "at": "2026-11-01T16:54:12.680Z",
+  "at": "2026-11-02T04:09:05.765Z",
   "root": "E:\\WorkSpace_Qoder\\dsh-bili-whale",
-  "gitSha": "49bf73b157da6e0d88e712bfbca844eac92a991d",
+  "gitSha": "94341eb4aae9d4137d25a6a92b3c67deddf70ee8",
   "node": "v24.16.0",
   "exit": 0,
-  "discovered": 73,
-  "executed": 73,
+  "discovered": 76,
+  "executed": 76,
   "counts": {
-    "tests": 398,
-    "pass": 398,
+    "tests": 418,
+    "pass": 418,
     "fail": 0
   },
   "mismatch": false,
@@ -191,6 +191,14 @@
       "ran": true
     },
     {
+      "file": "tests\\contract\\outbound-plain.test.mjs",
+      "exit": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "ran": true
+    },
+    {
       "file": "tests\\contract\\panel.test.mjs",
       "exit": 0,
       "tests": 5,
@@ -199,10 +207,26 @@
       "ran": true
     },
     {
+      "file": "tests\\contract\\pending-queue.test.mjs",
+      "exit": 0,
+      "tests": 8,
+      "pass": 8,
+      "fail": 0,
+      "ran": true
+    },
+    {
       "file": "tests\\contract\\pick-image.test.mjs",
       "exit": 0,
       "tests": 1,
       "pass": 1,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\plain-outbound.test.mjs",
+      "exit": 0,
+      "tests": 8,
+      "pass": 8,
       "fail": 0,
       "ran": true
     },
@@ -233,8 +257,8 @@
     {
       "file": "tests\\contract\\state-roots.test.mjs",
       "exit": 0,
-      "tests": 12,
-      "pass": 12,
+      "tests": 13,
+      "pass": 13,
       "fail": 0,
       "ran": true
     },

@@ -181,3 +181,64 @@ live 的 `publish.draftMode` 是 **`auto`**，而今天 17:42 生成的那条草
 > 第一次真的看见画面——海边、椰子、两根鹅毛棒。十几天的「画面未核对」删掉一行。
 
 `bili_look` 在真机上生效了：她真的看到了视频画面，不是只读文字。
+
+## 存量待审清零（2026-11-02 11:55）
+
+主人批准的口径是「留最近两条、旧的丢掉」。开工先核了一遍令牌，**发现"留两条"这条本身不成立**：
+
+- `dyn-20261102-cd6d4a`：`dynamic-approve list` 明写「待审 token:（无或已过期，**不能真发**；请重新生成草稿）」。
+- `dm-20261101-cbc62a`：`expiresAt = 2026-11-01T08:40:52Z`，也早过了。
+
+而 auto 只发**当天**那一条（`definition.ts:764` 起 `draftForDay(today0)`），不会回头扫旧稿；
+旧稿留着没有任何出口会再发它们，只是让徽标一直亮着。所以六条全部 `reject`，理由逐条写进草稿文件，
+她下一轮从 `latestDraftFeedback` 读得到（#41 那条链路）：
+
+| 条目 | 状态 | 写回去的理由（摘要） |
+|---|---|---|
+| `dyn-20261027-5a8d88` | dry-run → rejected | 热评稿已过时效，现在重发等于把十天前的话再说一遍 |
+| `dyn-20261028-051a57` | failed → rejected | `**1**` 星号不渲染；十天前的抱怨早该翻篇 |
+| `dyn-20261029-8e3377` | cooldown → rejected | 隔三天再发对不上她的时间线 |
+| `dyn-20261031-9f8a2a` | failed → rejected | 两处星号加粗；那句是对 feed 的抱怨，不是对读者说的话 |
+| `dyn-20261102-cd6d4a` | pending → rejected | 令牌已过期发不出去；「今天池子里只放了一条」把内部候选池讲给读者听，出戏 |
+| `dm-20261101-cbc62a` | pending → rejected | 令牌过期；正文把「本机模型 / 文件句柄 / 筐测试」写给网友看，且 `**` 不渲染 |
+
+复核（现跑，不抄上面的表）：`GET /api/webui/providers/world%3Abili-account/panels/vitals/state`
+→ `pendingCount=0`、`pendingParts={gogate:0,dynamic:0,dm:0}`；灯「待审稿」文案变成「没有等放行的…」。
+**代价要说清**：鱼片 10-31 的提问到今天没人回。`dmReply=direct`，她下一轮醒着时可以重起一稿直接发。
+
+## 顺着这六条挖出来的真缺陷：出站 Markdown 只修了动态那一条路
+
+被拒的六条里有三条正文带 `**加粗**`。B 站的动态、评论、弹幕、私信**全都不渲染 Markdown**——
+发出去对面看到的就是原始星号。这比任何"AI 声明"都更直接地把她是机器人这件事摊在桌上。
+
+根因是 #32（`e2228ba`，11-01）当时只在 `tools/drafts/compose.mjs` 的取位链里修了星号，
+另外四条出站口一直是裸的：`dm-drafts.addDraft`、`dm-send-core.sendOwnerDm`、
+`comment.mjs --message`、`danmaku.mjs --msg`。
+
+补法：新增 `tools/lib/plain-outbound.mjs`（`plainOutbound`），**幂等**，只做"去掉渲染不出来的标记"
+这一件事——成对的 `***/**/__`、行首 `#`、行首 `>`、行首 `-`/`*` 列表换成 `·`、反引号、`[文字](链接)`；
+单个 `*`（乘号、涂改感）、《》、emoji、标点风格一律不碰。接在五处：
+
+- 私信：入队（`addDraft`）与发送（`sendOwnerDm`）两个出口。**入队就洗**，是为了让 `textHash`
+  对齐的正是将要发出去的那份字，而不是"审干净稿、发另一份字"。
+- 动态：接在**成稿**处（`compose.mjs` 的 `final`），不接在发布器里，同一条理由——
+  草稿文件、一次性令牌的 textHash、真正 POST 的字符串三者必须是同一个串。
+- 评论 / 弹幕：命令行参数读到就洗；`--msg` 不带值是 `true`，这种情况原样交给下面的参数检查。
+
+验证：`tests/contract/plain-outbound.test.mjs` 8 条锁纯函数（含"不误伤"与幂等）；
+`tests/contract/outbound-plain.test.mjs` 3 条**走真实出口**——私信落盘后读文件断言、`composeDraft`
+真函数断言成稿无星号、弹幕 `spawn` 真跑 `--go` 后读 `pending-replies.json` 断言报备文案是
+`主人 我在`（`danmaku.mjs` 的 send 分支在 `queueGo` 后立即 exit，全程没发一个请求）。
+**评论那条出口没有离线可断言的路径**（`--dry` 第一步就要打 nav 认账号），改动与弹幕同构，
+只做代码走查未做行为级验证——这条差距写在这里，不算已验。
+
+顺带一个门禁的锅：全量第一遍红在 `tests/contract/panel.test.mjs`，报「panel.token 未生成」，
+单跑全绿。真因是这个文件给每个 test 各起一个面板进程，76 个文件并发时子进程 **stderr 没人读**、
+管道写满会把它卡住，而等待预算只有 8 秒。改成读 stderr 环形缓冲 + 24s/18s 预算，
+并把 stderr 打进报错（下次再红能看到根因）。
+
+复跑：dsh **418/418（76 文件，fail=0）**、Cortico-up mjs **224/224（27 文件）**、
+`check-hashes` 一致、`check-consumers` 全部有生产调用、`check-state-roots` 无绕过表的路径也无多写者
+（仍提示 api-cache 等 6 类新旧家分叉——那是迁移期的读数差，不在这次范围里）。
+dsh 侧改动全是 World 每次 `spawn` 新进程跑的 CLI，**不需要重启 her**，下一轮生效。
+
