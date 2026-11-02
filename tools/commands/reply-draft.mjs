@@ -21,6 +21,12 @@ import { execFile } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { NODE_EXE } from '../lib/nodebin.mjs'   // 2026-10-21：别用 process.execPath（Electron 里它是主程序 ✗）
 import { readStateText, writeStateText } from '../lib/paths.mjs'
+import { whaleHome } from '../lib/paths.mjs'
+
+// 放行时要重建真实命令：bili.mjs 在本仓 tools/ 下，kill 开关在 whale home。
+const TOOLS_DIR = path.dirname(fileURLToPath(import.meta.url))
+const ROOT = process.env.BILI_WHALE_ROOT || path.resolve(TOOLS_DIR, '..', '..')
+const killPath = path.join(whaleHome, 'bili-whale', 'control', 'kill')
 
 // 待审回信：读走新→旧，写只落新家（paths.mjs 的归一规则，别在这里拼 .bili-ai）。
 
@@ -99,6 +105,41 @@ if (cmd === 'list') {
     console.log(`  ${x.id}  ${t}  → ${x.who || '?'}  「${x.message.slice(0, 40)}${x.message.length > 40 ? '…' : ''}」`)
   }
   process.exit(0)
+}
+
+// ── 放行 / 丢弃（2026-11-02）──────────────────────────────────────────────
+// go-gate 只入队，注释里那个"panel 放行"的界面已退役，队列因此只进不出。
+// 这里补上出口：release 真正执行（原样 argv + --go），drop 只删不发。
+if (cmd === 'release' || cmd === 'drop-pending') {
+  const P = await import('../lib/pending-queue.mjs')
+  const ids = []
+  for (let i = 1; i < argv.length; i += 1) {
+    if (argv[i] === '--id') { ids.push(argv[i + 1]); i += 1 }
+    else if (!argv[i].startsWith('--')) ids.push(argv[i])
+  }
+  const all = argv.includes('--all')
+  const dry = argv.includes('--dry')
+  if (!ids.length && !all) { console.error('用法: release --id <id>... | --all [--dry]'); process.exit(2) }
+  const targets = all ? P.listPendingQueue().map((x) => x.id) : ids
+
+  if (cmd === 'drop-pending') {
+    const r = P.dropMany(targets)
+    console.log(`✓ 丢弃 ${r.dropped.length} 条${r.missing.length ? `；找不到 ${r.missing.join(', ')}` : ''}`)
+    process.exit(r.missing.length ? 1 : 0)
+  }
+
+  const results = P.releaseMany(targets, {
+    biliPath: path.join(ROOT, 'tools', 'bili.mjs'),
+    killPath,
+    dry,
+  })
+  let bad = 0
+  for (const r of results) {
+    if (r.ok) console.log(`✓ ${r.id}${dry ? '（预演，未执行）' : ' 已放行'}`)
+    else { bad += 1; console.error(`✗ ${r.id}  ${r.reason ?? '失败'}`) }
+    if (!r.ok && r.out) console.error('   ' + r.out.split('\n').slice(0, 3).join('\n   '))
+  }
+  process.exit(bad ? 1 : 0)
 }
 
 if (cmd === 'show') {
