@@ -1,7 +1,7 @@
 # CURRENT —— 现状真相源（移植工程）
 
 > **本文件只管一件事：现在到哪了、接下来做什么、怎么起来。** 是真相源之一。
-> 其余按问题分：**任务推进**看 [`ARCHITECTURE-DECOUPLING-2026-11-01.md`](./ARCHITECTURE-DECOUPLING-2026-11-01.md)（§8 总任务单）与执行账 [`DECOUPLING-STATUS-2026-11-02.md`](./DECOUPLING-STATUS-2026-11-02.md) · **架构**看 [`ARCHITECTURE-2026-11.md`](./ARCHITECTURE-2026-11.md)（代码里现在成立的事，带 `file:line`）· **产品**看 [`PRODUCT.md`](./PRODUCT.md) · **判据**看 [`OBSERVATION-PROTOCOL.md`](./OBSERVATION-PROTOCOL.md) 与 [`evidence/G3B-DECISION-2026-11-01.md`](./evidence/G3B-DECISION-2026-11-01.md) · **版本与变更**看根 [`../CHANGELOG.md`](../CHANGELOG.md)。全部文档的分类与"谁已经让位"见 [`INDEX.md`](./INDEX.md)。
+> 其余按问题分：**任务推进**看 [`ARCHITECTURE-DECOUPLING-2026-11-01.md`](./ARCHITECTURE-DECOUPLING-2026-11-01.md)（§8 总任务单）与执行账 [`DECOUPLING-STATUS-2026-11-02.md`](./DECOUPLING-STATUS-2026-11-02.md) · **重写该长成什么样**看 [`ARCHITECTURE-TARGET-2026-11-03.md`](./ARCHITECTURE-TARGET-2026-11-03.md)（现架构六处耦合 + 四包边界 + 五阶段迁移） · **架构**看 [`ARCHITECTURE-2026-11.md`](./ARCHITECTURE-2026-11.md)（代码里现在成立的事，带 `file:line`）· **产品**看 [`PRODUCT.md`](./PRODUCT.md) · **判据**看 [`OBSERVATION-PROTOCOL.md`](./OBSERVATION-PROTOCOL.md) 与 [`evidence/G3B-DECISION-2026-11-01.md`](./evidence/G3B-DECISION-2026-11-01.md) · **版本与变更**看根 [`../CHANGELOG.md`](../CHANGELOG.md)。全部文档的分类与"谁已经让位"见 [`INDEX.md`](./INDEX.md)。
 > `BLUEPRINT.md` 不再是本文件的上级：它的架构部分已由 `ARCHITECTURE-2026-11.md` 取代（分层名与代码不符，见彼文 §8 第 2 条），保留有效的是 50 项能力坐标与改动纪律。
 >
 > **下面每一条以日期开头的记录是台账，不是现状数字。** 门禁一律现跑——**本页不写测试数字**，
