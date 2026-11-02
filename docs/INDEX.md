@@ -13,7 +13,7 @@
 | **任务推进**：这一轮改什么、按什么顺序、凭什么算做完 | [`ARCHITECTURE-DECOUPLING-2026-11-01.md`](./ARCHITECTURE-DECOUPLING-2026-11-01.md) | §8 是带依赖与验收命令的总任务单（25 步）；§0 定落哪条代码线；§7 定验收口径 |
 | **产品**：她该是什么、北极星、拍板过的产品口径 | [`PRODUCT.md`](./PRODUCT.md) | 产品定义，不是实现说明；北极星第六条见 2026-11-01 `d83dc95` |
 | **判据**：怎么算"活过来"、观测期红线、开窗顺序 | [`OBSERVATION-PROTOCOL.md`](./OBSERVATION-PROTOCOL.md) + [`evidence/G3B-DECISION-2026-11-01.md`](./evidence/G3B-DECISION-2026-11-01.md) | 协议定义 K1/K2/K3/K4 与污染；判定卡记 G3b 机器 PASS 的真实边界与"接入日"决定 |
-| **版本与变更**：这一版包含什么 | 根 [`../CHANGELOG.md`](../CHANGELOG.md) + `package.json` 的 `version` + git tag `port-0.5.0` | 里程碑级；规矩见本文 §4 |
+| **版本与变更**：这一版包含什么 | 根 [`../CHANGELOG.md`](../CHANGELOG.md) + `package.json` 的 `version` + git tag `port-0.5.2` | 里程碑级；规矩见本文 §4 |
 
 > **2026-11-02 补记**：上表原本是"五份"，缺"任务推进"这一栏。后果实测过——本索引 0 次提到
 > `DECOUPLING`，而这两天实际在照它干活；同时 `CURRENT.md` 的测试数字停在 11-01 的
@@ -109,7 +109,7 @@
 
 ## 4. 版本与 tag 的规矩
 
-1. **版本线只有一条**：上游 `v0.4.6`（2026-10-24，tag 在）之上的移植工作用 `port-0.x.y`，`package.json` 的 `version` 是产品版本号（现 `0.5.0`），两者一起走。历史遗留的 `v0.1.x–v0.4.6` 是上游轻量 tag，不动、不重打。
+1. **版本线只有一条**：上游 `v0.4.6`（2026-10-24，tag 在）之上的移植工作用 `port-0.x.y`，`package.json` 的 `version` 是产品版本号（现 `0.5.2`），两者一起走。历史遗留的 `v0.1.x–v0.4.6` 是上游轻量 tag，不动、不重打。**已知不一致**：`port-0.5.1` 打了 tag 但没 bump `package.json`（停在 `0.5.0`），`0.5.2` 起两者重新对齐——旧 tag 不重打。
 2. **什么时候打 tag**：一个**能被 `node scripts/run-mjs-tests.mjs` 全绿复现**的里程碑收口时（不是每个提交、也不是每条 dev 分支）。tag 前必须复跑并把真实数字写进 `CHANGELOG.md`。
 3. **谁打**：改动的那一席在本地打**附注 tag**（`git tag -a`），message 里写"这一版包含"+ 可验证物（commit 号、文件、命令）。
 4. **不 push**：本仓的 tag 与提交默认**只留本地**；`private` 远端（`biandeshen/dsh-bili-whale-port`）只在主人明说"推"的时候推，`upstream`（`Alterssss/dsh-bili-whale`）是公开仓，**不推**（AMpath 借用件与 CC BY-NC-SA 素材未清干净，见 `CREDITS.md`、`CURRENT.md` 约定节）。

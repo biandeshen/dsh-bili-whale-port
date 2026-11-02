@@ -2,6 +2,68 @@
 
 > 版本线规矩（何时打 tag / 谁打 / 不 push）见 [`docs/INDEX.md`](docs/INDEX.md) §4。上游 `v0.4.6`（tag 在，2026-10-24）之上的移植工作走 `port-0.x.y`。
 
+## port-0.5.2（2026-11-02）—— live 换到 reanchor 线，并补上"看得见的证据"三处
+
+主人的口径是"别再推延期，交付功能"。这一版把 11-01 那份 §8 瘦身做完、把 live 切过去，
+并顺手补了三个"数字看着对、其实没人核过"的洞。**版本线本身也有一处不一致，一并说明**：
+`port-0.5.1` 的附注 tag 已在（`git tag`），但当时 `package.json` 没跟着 bump，一直停在 `0.5.0`；
+本版把 `package.json` 抬到 `0.5.2`，此后 tag 与版本号一起走（`docs/INDEX.md` §4 同步改了"现值"）。
+
+### 换线（live 现在是哪份代码）
+
+- **7799 改跑 `Cortico-up`（`reanchor/replay` + 8 个 replay 提交）**，代码树与部署树分开：
+  代码在 `Cortico-up`，她的 memory/session/config 仍在 `Cortico/deployments`。切换清单见
+  [`docs/DECOUPLING-STATUS-2026-11-02.md`](docs/DECOUPLING-STATUS-2026-11-02.md)「切 live」一节。
+- **两处当场暴露**：① `Cortico-up` 的 `dist/web` 从来没构建过，直接切是白屏——构建那一步进清单；
+  ② 世界页「待放行」比面板少 1，漏的是 `control/dm-drafts.json` 那本队列（`119a068` 修 + 测试）。
+- **`start-cortico.mjs` 补齐这个拓扑**（`303f523`）：以前默认代码树还是 master，
+  手工 launcher 起的进程不写 pid、不接日志、绕过 `bin` 的监督层——`ops-day` 因此报
+  `dead pid=117840` 而 7799 其实在听。现在两条根成对写死可用 env 覆盖。
+
+### 我说过两句错的，当场推翻并留了数
+
+- **「reanchor 是功能超集」不成立**：8 个提交从未 replay，已逐条 cherry-pick 补齐。
+- **「causal.jsonl 必须上锁」不成立**：实测三进程 × 60 行 × 100KB 并发追加，600 行无撕裂无丢失，
+  于是 `causal` 降级为 `both-with-lock / requiresLock:false`，数字写进注释和测试。
+
+### 补的三个洞（都是"读数会说谎"那一类）
+
+- **待审队列只进不出的 9 条**：放行的那块界面退役后，`pending-replies.json` 没有任何出口。
+  新增 `reply-draft release`（真发）与 `drop-pending`（只删），失败留在队列里带 `attempts`。
+  两个实测坑进了测试：退出码 0 不算成功（规则拒绝只打 `✗`）、失败条目不许被摘走。
+- **状态根两处各算一遍**：`tools/lib/state-roots.mjs` 24 类 + `scripts/check-state-roots.mjs`
+  门禁 + `scripts/migrate-state-roots.mjs`（默认 dry、`--apply`、`--rollback <id>` 且迁移后被人
+  改过就拒绝回滚）。旧家退役逻辑收进 `paths.mjs` 一份实现。
+- **"没重启"证明不了"没改 live"**：World 每个工具都是 `spawn(node tools/bili.mjs …)`，改 dsh
+  立刻生效，而 `observation-start.mjs`（在哈希冻结清单里）只记 `{startDay,days,createdAt}`。
+  新增 `scripts/live-code-anchor.mjs`：`--set` 记 dsh/Cortico 两份 `{dir,sha,dirty}`，
+  `--check` 按当初那个目录复查，漂移退出 2，`ops-day` 第 ⑥ 行每天顶出来（测试 5+1 条，
+  临时目录里造真 git 仓库）。
+
+### 她的行为侧
+
+- **出站正文的 Markdown 四条口补齐**（`213819a`）：`**加粗**`、行首 `#`/`>`/`-`、反引号、
+  `[文字](链接)` 在 B 站一律不渲染；#32 当时只修了动态，私信/评论/弹幕是裸的
+  （实证：被拒的 `dm-20261101-cbc62a` 正文带着星号）。新 `tools/lib/plain-outbound.mjs` 幂等，
+  接在私信入队与发送、评论、弹幕，以及动态**成稿**处——放成稿是为了守住"审的就是发的"：
+  草稿文件、令牌 textHash、真正 POST 的字符串必须是同一个串。
+- **被主人拒掉的稿当天能重出**（`303f523` + Cortico `7ccd96b`）：闸门以前不看状态，
+  `rejected` 也算"今天已有稿"，于是"照着理由重写"变成一句她执行不了的话。
+  只放开 `rejected`；`pending/sending/sent` 照旧拦。
+- **`bili_look` 在真机上生效**：切换后的因果账里出现「第一次真的看见画面——海边、椰子、
+  两根鹅毛棒」，十几天的「画面未核对」删掉一行。
+
+### 门禁（当日复跑，命令即判据）
+
+`node scripts/run-mjs-tests.mjs` → **428 pass / 0 fail / EXECUTED=78**；
+`node scripts/run-mjs-tests.mjs --root ../Cortico-up --import tsx` → **227/227（28 文件）**；
+Cortico `pnpm test` → **290 文件 / 5208 passed / 3 skipped**，`tsc --noEmit` 干净；
+`check-hashes` 一致、`check-consumers` 全部有生产调用、`check-state-roots` 无绕过表的路径也无多写者。
+两份报告按当天落 `docs/evidence/gates-2026-11-02.json`（带 gitSha 与 node 版本）。
+`g3b-check` 现跑五项全 PASS，但**观测窗并未开**——`control/observation.json` 不存在，
+开不开是主人的决定（见 `docs/INDEX.md` §4 与那份执行账）。
+
+
 ## port-0.5.1（2026-11-01）—— 读数不再分家，报备接上，门禁能复核
 
 `port-0.5.0` 之后 19 个提交，主要是"同一个数两处各算一遍"这一类问题的收口，
