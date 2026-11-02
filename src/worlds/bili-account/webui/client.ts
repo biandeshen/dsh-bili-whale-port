@@ -545,6 +545,8 @@ function mountPolicy(ctx: WebUiPanelContext): void {
     ui.field('点赞档位', selLike),
     ui.field('收藏档位', selFav),
     ui.field('回信档位', selDm),
+    ui.field('评论档位', selComment),
+    ui.field('弹幕档位', selDanmaku),
     acts,
     ui.section('名字', '本机名字进页面标题与提示词，并一起写进宿主导航；B站昵称别人看得见，是另一处。'),
     nameErr,

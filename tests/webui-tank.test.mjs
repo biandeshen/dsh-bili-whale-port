@@ -38,6 +38,21 @@ test('invoke 路由：未知面板/未知方法显式拒绝，不静默吞', asy
 })
 
 // ── 发送策略（tank.ts 纯函数；写盘只在临时文件里发生，绝不碰真配置） ──────────
+test('策略页每个下拉都真的挂到了页面上（2026-11-03 漏项：建了 select 忘了 ui.field，页面看不见）', () => {
+  const src = fs.readFileSync(new URL('../src/worlds/bili-account/webui/client.ts', import.meta.url), 'utf8')
+  // 只看策略面板那个函数：弹窗里的一次性输入框（whyInput 之类）本来就不走 ui.field
+  const start = src.indexOf('function mountPolicy(')
+  assert.ok(start > 0, '找不到 mountPolicy')
+  const body = src.slice(start, src.indexOf('\nfunction ', start + 10))
+  // 只查 select：下拉只有 ui.field 一种挂法；输入框还能挂在 rowbar 或弹窗里（名字那节的
+  // inpLocal/inpRemote、驳回弹窗的 whyInput），静态判定会误伤。
+  const created = [...body.matchAll(/const (\w+) = ui\.select\(/g)].map((m) => m[1])
+  assert.ok(created.length >= 6, '策略页的下拉少得反常：' + created.join(','))
+  const mounted = new Set([...body.matchAll(/ui\.field\([^,]+,\s*(\w+)\)/g)].map((m) => m[1]))
+  const orphans = created.filter((n) => !mounted.has(n))
+  assert.deepEqual(orphans, [], '这些下拉建了但没挂到页面上，主人看不见：' + orphans.join(','))
+})
+
 test('readPolicyLite：空/野值都收敛到拍板默认', () => {
   assert.deepEqual(readPolicyLite({}), { draftMode: 'review', autoDailyCap: 0, autoWindow: '', like: 'self', fav: 'self', dmReply: 'direct', comment: 'review', danmaku: 'review' })
   assert.equal(readPolicyLite({ publish: { draftMode: 'yolo' } }).draftMode, 'review')
