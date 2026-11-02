@@ -39,9 +39,12 @@ test('invoke 路由：未知面板/未知方法显式拒绝，不静默吞', asy
 
 // ── 发送策略（tank.ts 纯函数；写盘只在临时文件里发生，绝不碰真配置） ──────────
 test('readPolicyLite：空/野值都收敛到拍板默认', () => {
-  assert.deepEqual(readPolicyLite({}), { draftMode: 'review', autoDailyCap: 0, autoWindow: '', like: 'self', fav: 'self', dmReply: 'direct' })
+  assert.deepEqual(readPolicyLite({}), { draftMode: 'review', autoDailyCap: 0, autoWindow: '', like: 'self', fav: 'self', dmReply: 'direct', comment: 'review', danmaku: 'review' })
   assert.equal(readPolicyLite({ publish: { draftMode: 'yolo' } }).draftMode, 'review')
   assert.equal(readPolicyLite({ publish: { draftMode: 'auto' }, permissions: { fav: 'review' } }).draftMode, 'auto')
+  // 2026-11-03：评论与弹幕补了档位，野值收敛到 review（等主人放行），不许被写成 self
+  assert.equal(readPolicyLite({ permissions: { comment: 'yolo', danmaku: 'true' } }).comment, 'review')
+  assert.equal(readPolicyLite({ permissions: { comment: 'yolo', danmaku: 'true' } }).danmaku, 'review')
 })
 
 test('policySet：临时文件 roundtrip，别的关键配置原样保留', () => {
@@ -50,7 +53,7 @@ test('policySet：临时文件 roundtrip，别的关键配置原样保留', () =
   fs.writeFileSync(file, JSON.stringify({ risk: { minGapMs: 1500 }, owner: { mid: '233643544' }, preferences: { like: ['助眠/ASMR'] } }))
   const ok = policySet({ publish: { draftMode: 'auto', autoDailyCap: 2, autoWindow: '10:00-23:00' }, permissions: { like: 'review' } }, file)
   assert.equal(ok.ok, true)
-  assert.deepEqual(ok.policy, { draftMode: 'auto', autoDailyCap: 2, autoWindow: '10:00-23:00', like: 'review', fav: 'self', dmReply: 'direct' })
+  assert.deepEqual(ok.policy, { draftMode: 'auto', autoDailyCap: 2, autoWindow: '10:00-23:00', like: 'review', fav: 'self', dmReply: 'direct', comment: 'review', danmaku: 'review' })
   const back = policyState(file)
   assert.deepEqual(back.policy, ok.policy)
   const raw = JSON.parse(fs.readFileSync(file, 'utf8'))

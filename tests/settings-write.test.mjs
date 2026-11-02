@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { settingsSet, settingsOverview } from '../src/worlds/bili-account/tank.ts'
+import { settingsSet, settingsOverview, policySet } from '../src/worlds/bili-account/tank.ts'
 
 const tmp = (obj) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'settings-write-'))
@@ -111,6 +111,28 @@ test('总览把"在哪儿改"标对：一格一改 / 上方策略控件 / 只能
   assert.equal(find('home').editable, false)
   assert.equal(find('self.name').needsRestart, true)
   assert.equal(find('listen.intervalMinutes').needsRestart, false)
+})
+
+test('评论与弹幕的档位也能在策略页改（2026-11-03：它们原先写死在 dsh 各命令里，页面调不了）', () => {
+  const h = tmp({ ...BASE })
+  const r = policySet({ permissions: { comment: 'self', danmaku: 'self' } }, h.file)
+  assert.equal(r.ok, true, JSON.stringify(r))
+  assert.equal(r.policy.comment, 'self')
+  assert.equal(r.policy.danmaku, 'self')
+  const cfg = h.read()
+  assert.equal(cfg.permissions.comment, 'self')
+  assert.equal(cfg.permissions.danmaku, 'self')
+  // 非法值收敛成默认（review = 等主人放行），不许靠写坏值把她放开
+  const bad = policySet({ permissions: { comment: 'yolo', danmaku: 'true' } }, h.file)
+  assert.equal(bad.policy.comment, 'review')
+  assert.equal(bad.policy.danmaku, 'review')
+  // 总览里这两项标成"策略控件可改"，不是只能改文件
+  // （总览遍历的是配置文件里实际存在的键：第一次保存前这两个键不在文件里，保存后才出现）
+  const withSaved = { ...BASE, permissions: { ...BASE.permissions, comment: 'self', danmaku: 'self' } }
+  const s = settingsOverview(withSaved, {})
+  const find = (k) => s.groups.flatMap((g) => g.items).find((i) => i.key === k)
+  assert.equal(find('permissions.comment').editVia, 'policy')
+  assert.equal(find('permissions.danmaku').editVia, 'policy')
 })
 
 test('测试上下文不许落到正式配置文件（2026-11-01 01:23 那次盲写的教训）', () => {

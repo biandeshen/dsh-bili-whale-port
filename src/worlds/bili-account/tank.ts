@@ -190,7 +190,7 @@ const GROUP_LABEL: Record<string, string> = {
 /** 这些键 Cortico 只在启动时读一次，改完必须重启才生效（页面上要说清，别让人改了以为没生效）。 */
 const RESTART_KEYS = new Set(['owner.displayName', 'owner.name', 'owner.mid', 'self.name', 'self.mid', 'home', 'toolsPath'])
 /** 策略六项在页面最上方那组控件里改（那边有档位护栏与 auto 留痕），不走通用一格一改。 */
-const POLICY_KEYS = new Set(['publish.draftMode', 'publish.autoDailyCap', 'publish.autoWindow', 'permissions.like', 'permissions.fav', 'permissions.dmReply'])
+const POLICY_KEYS = new Set(['publish.draftMode', 'publish.autoDailyCap', 'publish.autoWindow', 'permissions.like', 'permissions.fav', 'permissions.dmReply', 'permissions.comment', 'permissions.danmaku'])
 
 /** 有固定选项的键：页面上渲染成下拉，不用让人记住拼写（拼错就是"没配渠道"）。 */
 const ENUM_KEYS: Record<string, string[]> = {

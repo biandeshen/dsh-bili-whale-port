@@ -33,12 +33,15 @@ export function policySet(patch: any, file = CONFIG_FILE): { ok: boolean; policy
   const next = {
     ...cfg,
     publish: { ...(cfg.publish ?? {}), ...pick(patch.publish ?? {}, ['draftMode', 'autoDailyCap', 'autoWindow']) },
-    permissions: { ...(cfg.permissions ?? {}), ...pick(patch.permissions ?? {}, ['like', 'fav', 'dmReply']) },
+    permissions: { ...(cfg.permissions ?? {}), ...pick(patch.permissions ?? {}, ['like', 'fav', 'dmReply', 'comment', 'danmaku']) },
   }
   // 读回时统一收敛（readPolicy 语义）：写进去的必须先合法
   const normalized = readPolicyLite(next)
   next.publish = { draftMode: normalized.draftMode, autoDailyCap: normalized.autoDailyCap, autoWindow: normalized.autoWindow }
-  next.permissions = { like: normalized.like, fav: normalized.fav, dmReply: normalized.dmReply }
+  next.permissions = {
+    like: normalized.like, fav: normalized.fav, dmReply: normalized.dmReply,
+    comment: normalized.comment, danmaku: normalized.danmaku,
+  }
   try {
     const tmp = file + '.' + process.pid + '.tmp'
     fs.writeFileSync(tmp, JSON.stringify(next, null, 2) + '\n', 'utf8')
@@ -122,5 +125,9 @@ export function readPolicyLite(cfg: any) {
     like: t.like === 'review' ? 'review' : 'self',
     fav: t.fav === 'review' ? 'review' : 'self',
     dmReply: t.dmReply === 'queue' ? 'queue' : 'direct',
+    // 2026-11-03：评论与弹幕原来没有档位（行为写死在 dsh 各命令里，页面想调都调不了）。
+    // 默认 'review' = 与今天行为一致（一律进待审队列等主人放行）。
+    comment: t.comment === 'self' ? 'self' : 'review',
+    danmaku: t.danmaku === 'self' ? 'self' : 'review',
   }
 }

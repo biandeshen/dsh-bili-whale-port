@@ -453,7 +453,7 @@ function mountVitals(ctx: WebUiPanelContext): void {
 // ── 发送策略：审核/自动、护栏、档位收回（红线常驻提示：kill 压过配置、auto 全留痕） ──
 interface PolicyState {
   ok?: boolean;
-  policy?: { draftMode: 'review' | 'auto'; autoDailyCap: number; autoWindow: string; like: 'self' | 'review'; fav: 'self' | 'review'; dmReply: 'direct' | 'queue' };
+  policy?: { draftMode: 'review' | 'auto'; autoDailyCap: number; autoWindow: string; like: 'self' | 'review'; fav: 'self' | 'review'; dmReply: 'direct' | 'queue'; comment: 'self' | 'review'; danmaku: 'self' | 'review' };
   file?: string; exists?: boolean; autoSentToday?: number; error?: string;
   settings?: {
     ok: boolean; file: string; total: number; undeclared: number;
@@ -471,13 +471,15 @@ function mountPolicy(ctx: WebUiPanelContext): void {
   const selLike = ui.select({ options: [{ value: 'self', label: '点赞：她自己发' }, { value: 'review', label: '点赞：收回，等我审' }] });
   const selFav = ui.select({ options: [{ value: 'self', label: '收藏：她自己发' }, { value: 'review', label: '收藏：收回，等我审' }] });
   const selDm = ui.select({ options: [{ value: 'direct', label: '回主人私信：直发' }, { value: 'queue', label: '回信：收回，走草稿队列' }] });
+  const selComment = ui.select({ options: [{ value: 'review', label: '评论：等主人放行（默认）' }, { value: 'self', label: '评论：她自己发' }] });
+  const selDanmaku = ui.select({ options: [{ value: 'review', label: '弹幕：等主人放行（默认）' }, { value: 'self', label: '弹幕：她自己发' }] });
   const status = ui.h('div', 'sh-desc');
   const save = ui.button('保存策略', {
     variant: 'primary',
     onClick: () => {
       const patch = {
         publish: { draftMode: selMode.value, autoDailyCap: Number(inpCap.value || 0), autoWindow: inpWin.value.trim() },
-        permissions: { like: selLike.value, fav: selFav.value, dmReply: selDm.value },
+        permissions: { like: selLike.value, fav: selFav.value, dmReply: selDm.value, comment: selComment.value, danmaku: selDanmaku.value },
       };
       void ctx.invoke<{ ok?: boolean; error?: string }>('set', [patch])
         .then((r) => { ui.toast(r?.ok ? '策略已保存' : r?.error ?? '保存失败', r?.ok ? 'ok' : 'bad'); if (r?.ok) poll(); })
@@ -631,9 +633,10 @@ function mountPolicy(ctx: WebUiPanelContext): void {
     err.hidden = true;
     if (!st?.policy) { err.textContent = '策略读不到：' + (st?.error ?? st?.file ?? '?'); err.hidden = false; return; }
     const p = st.policy;
-    status.textContent = `现行：草稿=${p.draftMode}${p.draftMode === 'auto' ? `（今日已 auto ${st.autoSentToday ?? 0} 条，上限 ${p.autoDailyCap || '不限'}，时段 ${p.autoWindow || '不限'}）` : ''} · 点赞=${p.like} · 收藏=${p.fav} · 回信=${p.dmReply}`;
+    status.textContent = `现行：草稿=${p.draftMode}${p.draftMode === 'auto' ? `（今日已 auto ${st.autoSentToday ?? 0} 条，上限 ${p.autoDailyCap || '不限'}，时段 ${p.autoWindow || '不限'}）` : ''} · 点赞=${p.like} · 收藏=${p.fav} · 回信=${p.dmReply} · 评论=${p.comment} · 弹幕=${p.danmaku}`;
     selMode.value = p.draftMode; inpCap.value = String(p.autoDailyCap); inpWin.value = p.autoWindow;
     selLike.value = p.like; selFav.value = p.fav; selDm.value = p.dmReply;
+    selComment.value = p.comment; selDanmaku.value = p.danmaku;
     renderOverview(st.settings);
     // 三个名字各自的现值；读不到的那一个留空并说明，不拿别的名字冒充。
     void ctx.invoke<{ local?: string; host?: string | null; remote?: string | null; remoteError?: string | null }>('name/state')
