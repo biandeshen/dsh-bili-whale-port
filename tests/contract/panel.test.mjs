@@ -26,13 +26,20 @@ async function boot(t) {
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   t.after(() => srv.kill('SIGKILL'))
+  // stderr 必须有人读：全量门禁里 76 个文件并发跑，管道满了会把子进程卡住，
+  // 表现出来就是"panel.token 未生成"这种和根因没关系的报错（2026-11-02 就是这么红一次）。
+  let errBuf = ''
+  srv.stderr.on('data', (d) => { errBuf = (errBuf + d).slice(-4000) })
+  srv.on('exit', (code) => { if (code !== 0 && code !== null) errBuf += `\n[server exit ${code}]` })
   const token = await (async () => {
   const tf = path.join(wh, 'panel.token')
-  for (let k = 0; k < 40; k++) { try { const v = fs.readFileSync(tf, 'utf8').trim(); if (v) return v } catch {}; await new Promise(r => setTimeout(r, 200)) }
-  throw new Error('panel.token 未生成')
+  for (let k = 0; k < 120; k++) { try { const v = fs.readFileSync(tf, 'utf8').trim(); if (v) return v } catch {}; await new Promise(r => setTimeout(r, 200)) }
+  throw new Error(`panel.token 未生成（端口 ${port} 等 24s）\nstderr:\n${errBuf || '(空)'}`)
 })()
-  for (let k = 0; k < 40; k++) { try { const r = await fetch(`http://127.0.0.1:${port}/api/vitals`); if (r.status === 503 || r.status === 200) break } catch {}; await new Promise(r => setTimeout(r, 150)) }
-  return { base: `http://127.0.0.1:${port}`, token, home, wh }
+  let ready = false
+  for (let k = 0; k < 120; k++) { try { const r = await fetch(`http://127.0.0.1:${port}/api/vitals`); if (r.status === 503 || r.status === 200) { ready = true; break } } catch {}; await new Promise(r => setTimeout(r, 150)) }
+  if (!ready) throw new Error(`面板 API 未就绪（端口 ${port} 等 18s）\nstderr:\n${errBuf || '(空)'}`)
+  return { base: `http://127.0.0.1:${port}`, token, home, wh, port }
 }
 const get = (base, p, token) => fetch(base + p, { headers: token ? { authorization: 'Bearer ' + token } : {} })
 
