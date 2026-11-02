@@ -148,6 +148,7 @@ node tools/video-build.mjs --image "D:/AI/养鱼/assets/daily/daily-04-goodnight
 | `C:\Users\Administrator\.dsh\` | 运行时状态：`fields.json`/`causal.jsonl`/两本日记/队列/备份/voice | 1.2G；其中 `dsh-runtimes` 271M、`shots` 235M、`attachments` 121M、`backups` 108M 属 DSH 时代遗留与备份，不是她每天要用的 |
 | `C:\Users\Administrator\.bili-ai\` | **旧家**（13 文件 6M），只读兜底 | 退役到 `LEGACY_UNTIL`（默认 2026-12-01），读到就 WARN |
 | `D:\AI\养鱼\` | 素材与产出：`assets\daily\*.png`、`drafts\<日期>.json`、旧 `tools\build-*.mjs` | 你最早定的素材盘；`tools\` 那三个是 DSH 插件时代留下的，现在没人调用 |
+| `E:\WorkSpace_Qoder\_retired-2026-11-02\` | 退役的三条 Cortico 检出目录 + `Cortico-dev/scratch` 备份（41M） | 主人裁决留一周，**2026-11-09 之后可彻底删**；分支 ref 都在主仓，删目录不丢代码 |
 
 代码树与部署树在 2026-11-02 之后是**分开的两份**，成对出现才有意义：`CORTICO_ROOT=Cortico-up` + `CORTICO_HOME=Cortico/deployments`，两条都写进了 `scripts/start-cortico.mjs` 的默认值。
 
