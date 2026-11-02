@@ -22,10 +22,10 @@ import type { Language } from '../../core/language.ts'
 import {
   warmConsole, consoleReady, tankLocal, killOn, lastTickAt, pendingTotal, openFeedbackCount,
   timelineState, diaryState, draftsState, draftAction, feedbackResolve, feedbackListSafe, judgmentList, judgmentAdopt, judgmentReject, judgmentActive, vitalsState, avatarBinary, trafficStatus,
-  policyState, policySet, policyInWindow, autoSentToday, draftForDay, freshAckToken, ownerNameFromConfig, personaNameFromConfig, hostDisplayName, settingsState, settingsSet, renameSelf,
+  policyInWindow, autoSentToday, draftForDay, freshAckToken, settingsState, settingsSet,
   consolePaths,
 } from './tank.ts'
-import { decideAction, restRecoveryDelta, actionCost, nextCheckDelay, dayKey, MIN_GAP_MS } from '@xiaoyu/persona-core/rhythm'
+import { decideAction, actionCost, nextCheckDelay, dayKey } from '@xiaoyu/persona-core/rhythm'
 
 const ROOT = process.env.BILI_WHALE_ROOT || 'E:/WorkSpace_Qoder/dsh-bili-whale'
 const ENV_PROMPT_FILE = fileURLToPath(new URL('./ENV_PROMPT.md', import.meta.url))
@@ -50,6 +50,8 @@ import {
 } from './prompts.ts'
 import { capabilityText } from './capability.ts'
 import { DECLS, BILI_TOOL_DECLS } from './tool-decls.ts'
+import { policyState, policySet, ownerNameFromConfig, personaNameFromConfig, hostDisplayName, renameSelf } from './config-store.ts'
+import { reconcileLife, isAsleep, restRecovery, gapLeft } from './life-stages.ts'
 
 const ATOMIC_FIELDS = ['energy', 'stimulation', 'connection', 'social', 'mood', 'curiosity', 'creativity'] as const
 
@@ -381,22 +383,10 @@ class BiliAccountWorld {
       let nextDelay = nextCheckDelay(Math.random)
       try {
         const now = Date.now()
-        const mem = this.life
         const today = dayKey(now)
-        if (mem.day !== today) { mem.day = today; mem.actionsToday = 0 }
-        // 并发实例可能在我们两次 tick 之间把 life.json 写回旧值：每轮对一次账，只增不减。
-        const disk = readLifeFile()
-        const ledger = countCausalActions(CAUSAL_FILE, today)
-        mem.actionsToday = Math.max(
-          Number(mem.actionsToday ?? 0),
-          disk?.day === today ? Number(disk.actionsToday ?? 0) : 0,
-          ledger.count,
-        )
-        mem.lastActionAt = Math.max(
-          Number(mem.lastActionAt ?? 0),
-          Number(disk?.lastActionAt ?? 0),
-          ledger.lastAt,
-        )
+        // ① 对账：并发实例可能把我们两次 tick 之间的写入覆盖回旧值，每轮收一次
+        const mem = reconcileLife(this.life, readLifeFile(), countCausalActions(CAUSAL_FILE, today), today)
+        this.life = mem
 
         // 每次评估都先让时间真的流逝：场值衰减 + 睡着恢复。
         // （旧实现只在"攒够 0.005"时才写盘，决策一直看上次的旧值，导致刺激量永不下降、再也不会醒）
@@ -408,11 +398,10 @@ class BiliAccountWorld {
           causal({ kind: 'draft-result-consumed', applied: settled.applied, at: new Date().toISOString() })
         }
         const hours = Math.max(0, (now - Date.parse(state0.lastAppliedAt || '')) / 3600_000)
-        // 醒着不回体力：一轮行动后至少 6h 没有动作才算睡下，恢复只在睡着时生效。
-        // 这不是给她排作息表，而是"刚忙完不会立刻又满血"——醒睡由她自己的动作推导。
-        const sinceActionH = mem.lastActionAt ? (now - Number(mem.lastActionAt)) / 3600_000 : Infinity
-        const asleep = sinceActionH >= 6
-        const recovery = asleep ? restRecoveryDelta(settled.state.fields, hours) : 0
+        // ② 睡着：距上次动作满 6h 才算睡下——刚忙完不会立刻满血，醒睡由她自己的动作推导，
+        // 不给她排作息表。
+        const asleep = isAsleep(mem.lastActionAt, now)
+        const recovery = restRecovery(settled.state.fields, hours, asleep)
         const restEffects = recovery > 0 ? [{ field: 'energy' as const, delta: recovery, source: 'rest', priority: 2 }] : []
         let state = applyEffects(settled.state, restEffects, '睡着的时候，体力慢慢回来', { source: 'rest', now })
         saveState(FIELDS_FILE, state)
@@ -479,14 +468,14 @@ class BiliAccountWorld {
           host.log.info('action: ' + decision.kind + ' · ' + decision.reason)
         }
 
-        const gapLeft = Math.max(0, Number(mem.lastActionAt || 0) + MIN_GAP_MS - now)
+        const gap = gapLeft(mem.lastActionAt, now)
         // 只抽一次延迟：写进文件的"下次评估"和真正 setTimeout 用同一个值
         nextDelay = nextCheckDelay(Math.random)
         const nextCheckAt = now + nextDelay
         writeLifeFile({ ...mem, nextCheckAt })
         writeJsonFile(LIFE_STATUS_FILE, {
           mode: 'state-driven',
-          nextWakeAt: Math.max(nextCheckAt, now + gapLeft),
+          nextWakeAt: Math.max(nextCheckAt, now + gap),
           nextCheckAt,
           actionsToday: mem.actionsToday,
           lastActionAt: mem.lastActionAt ?? null,
