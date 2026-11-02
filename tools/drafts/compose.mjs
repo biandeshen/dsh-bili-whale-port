@@ -4,6 +4,7 @@
  */
 import fs from 'node:fs'
 import crypto from 'node:crypto'
+import { plainOutbound } from '../lib/plain-outbound.mjs'
 
 /**
  * 括号对：截断点落在未闭合的开括号里时，退回到它之前。
@@ -342,7 +343,10 @@ export function composeDraft(diaryText, { date, voice, max = 100 } = {}) {
   // 收尾句本身就是 tired 的语气，再叠一句情绪标签会读成两句套话
   if (tail && pace !== 'tired' && !text.includes(tail)) text = `${text} ${tail}`
 
-  const final = clip(text.replace(/[ \t]+/g, ' ').trim(), max)
+  // 出站最后一道清洗（2026-11-02）：正文里渲染不出来的 Markdown 标记必须在这里掉干净。
+  // 放在**成稿**这一步、而不是发布器里，是为了守住「审的就是发的」：草稿文件、一次性令牌的
+  // textHash、真正 POST 出去的字符串三者必须是同一个串。
+  const final = clip(plainOutbound(text).replace(/[ \t]+/g, ' ').trim(), max)
   return { ok: true, text: final, voiceHash: crypto.createHash('sha1').update(JSON.stringify(voice)).digest('hex') }
 }
 

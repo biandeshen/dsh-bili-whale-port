@@ -16,6 +16,7 @@ import { gate } from '../lib/quota-gate.mjs'
 
 import { shouldGate, queueGo } from '../lib/go-gate.mjs'
 import { credentialsPath } from '../lib/paths.mjs'
+import { plainOutbound } from '../lib/plain-outbound.mjs'
 const argv = process.argv.slice(2)
 const mode = argv[0]
 const args = new Map()
@@ -24,7 +25,9 @@ for (let i = 1; i < argv.length; i += 1) {
   if (a.startsWith('--')) args.set(a.slice(2), argv[i + 1]?.startsWith('--') ? true : argv[++i] ?? true)
 }
 const roomArg = args.get('room')
-const msg = args.get('msg')
+// 弹幕是纯文本流：带 `**` 出去，一房间的人都看得见那两颗星。出站前洗一遍（幂等）。
+const rawMsg = args.get('msg')
+const msg = typeof rawMsg === 'string' ? plainOutbound(rawMsg) : rawMsg
 const isDry = args.has('dry')
 const isGo = args.has('go')
 if (!roomArg) { console.error('需要 --room <房间号>'); process.exit(2) }

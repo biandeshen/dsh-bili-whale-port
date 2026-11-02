@@ -20,6 +20,7 @@ import { config } from '../lib/config.mjs'
 import { validateShare } from '../lib/share-policy.mjs'
 import { NODE_EXE } from '../lib/nodebin.mjs'   // 2026-10-21：别用 process.execPath（Electron 里它是主程序 ✗）
 import { stateReadPath, statePath, writeStateText } from '../lib/paths.mjs'
+import { plainOutbound } from '../lib/plain-outbound.mjs'
 
 // ── 限额闸（B 档「限额自主」的代码强制部分，2026-10-14 主人选 B 档）────────────────
 // 语义：闸门**只管自主发言**（带 --auto，即"她自己决定说的"）；主人当场授权的发言不拦 ✓
@@ -73,7 +74,10 @@ for (let i = 2; i < process.argv.length; i += 1) {
 }
 const oid = args.get('oid')
 const bvid = args.get('bvid')
-let message = args.get('message')
+// 评论同样不渲染 Markdown：出站前把 `**` / `#` / `>` / `` ` `` 这类标记洗掉（幂等）。
+// 只在拿到的是字符串时清洗——`--message` 不带值是 true，那种用法要交给下面的参数检查。
+const rawMessage = args.get('message')
+let message = typeof rawMessage === 'string' ? plainOutbound(rawMessage) : rawMessage
 let root = args.get('root')     // 线程根评论 rpid（二级回复用）
 let parent = args.get('parent') // 要回复的那条评论 rpid
 

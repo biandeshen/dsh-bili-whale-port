@@ -18,6 +18,7 @@ import { config } from './config.mjs'
 import { gate, record } from './quota-gate.mjs'
 import { whaleHome, readStateText, writeStateText, statePath } from './paths.mjs'
 import { appendCausal } from './causal.mjs'
+import { plainOutbound } from './plain-outbound.mjs'
 
 const QUOTA = 'dm-quota.json'
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
@@ -100,7 +101,9 @@ export async function sendOwnerDm({ text, share = false, shareTarget = '', dry =
   const cfg = config()
   const OWNER = String(cfg.owner?.mid ?? '').trim()
   const OWNER_NAME = String(cfg.owner?.name ?? '主人')
-  const MSG = String(text ?? '').trim()
+  // 私信不渲染 Markdown：`**加粗**` 发出去就是给对面看一串星号（2026-11-02 实测漏出的
+  // dm-20261101-cbc62a）。清洗放在这条唯一出口上，幂等，所以审过的稿再发一次也不会变样。
+  const MSG = plainOutbound(text)
 
   if (!OWNER) { push('✗ 配置里 owner.mid 为空 —— 私信只发给主人，没配就不发'); return out }
   if (!MSG) { push('用法: dm --msg "…" --dry|--go'); return out }

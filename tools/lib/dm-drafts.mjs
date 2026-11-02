@@ -7,6 +7,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
+import { plainOutbound } from './plain-outbound.mjs'
 
 export const MAX_TEXT = 500
 
@@ -37,7 +38,9 @@ export function findDraft(file, id) {
  * @returns {{ok:true,item:object}|{ok:false,error:string}}
  */
 export function addDraft(file, { text, inboundKey = '', who = '', src = '', ackId = '' } = {}) {
-  const body = String(text ?? '').trim()
+  // 入队即清洗：存的就是要发的那份字。放在这里而不是 approve 里，
+  // 是为了 textHash 也对齐清洗后的正文——否则「审的是干净稿、发出去另一份字」。
+  const body = plainOutbound(text)
   if (!body) return { ok: false, error: '正文是空的' }
   if (body.length > MAX_TEXT) return { ok: false, error: `正文太长（>${MAX_TEXT} 字），砍短一点` }
   // 发送走 `dm.mjs --msg <正文>`；以 -- 开头会被命令行解析成参数，直接拒绝
