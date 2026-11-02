@@ -242,3 +242,39 @@ live 的 `publish.draftMode` 是 **`auto`**，而今天 17:42 生成的那条草
 （仍提示 api-cache 等 6 类新旧家分叉——那是迁移期的读数差，不在这次范围里）。
 dsh 侧改动全是 World 每次 `spawn` 新进程跑的 CLI，**不需要重启 her**，下一轮生效。
 
+## 观测窗：门已经全绿，但窗根本没开——而且"冻结"以前管不住（2026-11-02 12:15）
+
+现跑两条读数，结论和 11-01 的口头计划不一样：
+
+```
+node scripts/g3b-check.mjs        → 五项全 PASS，"可以进入 14 天观测"
+node scripts/observation-status.mjs → 「观测尚未开始：G3b 通过后创建 control/observation.json」
+```
+
+`14 天窗从 11-02 00:00 起算` 这句话从未落地：`g3b-status.json` 是 **11-02 00:08** 才 ready 的，
+而开窗要人跑 `observation-start.mjs`，没人跑。所以今天不是"观测第 1 天"，是"接入后第 2 天"。
+
+顺着查下去发现一个更实的洞：`observation-start.mjs`（在 `scripts/hashes.json` 的冻结清单里，不能动）
+只记 `{startDay, days, createdAt}`——**没有代码身份**。而 §2 写的依据是
+「证据归因靠 live 冻结在同一份代码保证」。本项目的 live 恰恰是最好漂的那种：
+World 的每个工具调用都是 `spawn(node tools/bili.mjs …)`，
+**改 dsh 不重启就立刻生效**。也就是说"这轮没重启"这件事，在本架构下**证明不了"没改 live"**——
+今天这几个出站清洗提交就是明证：没重启，但她的出站正文规则当场变了。
+
+补上那条缺失的读数：新增 `scripts/live-code-anchor.mjs`（不在冻结清单里）。
+
+- `--set` 记两份指纹：`{name, dir, sha(40位), dirty}`，写 `control/live-code.json`；
+- `--check` 用**当初记下的那个目录**重新取指纹，sha 变了或"干净→有未提交改动"都算漂移，**退出码 2**；
+  没锚过报 `missing`，绝不报"一致"；
+- `ops-day.mjs` 多一行「live 代码锚点」，于是每天的例行汇总会自动把漂移顶出来。
+
+测试两层：`tests/live-code-anchor.test.mjs` 5 条（临时目录里造一份真 git 仓库，
+多一个提交→必须红；从干净变脏→必须红；删锚点→报未锚定）；`tests/ops-day.test.mjs` 加 1 条锁住
+"没锚 → 拦一项并把该跑的命令说出来"。全量 **424/424（77 文件）**、Cortico-up mjs 224/224、
+consumers/哈希/state-roots 三道照旧。
+
+**这把"开观测窗"变成一个可以机械执行的纪律**：`observation-start.mjs` 之后立刻
+`live-code-anchor.mjs --set`，窗内任何一次 dsh 提交都会在第二天的 `ops-day` 里变红。
+要不要现在开窗是主人的决定（开窗 = 接下来 14 天不改 live），不是我能替他按的按钮。
+
+

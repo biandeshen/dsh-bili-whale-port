@@ -15,6 +15,7 @@ import { whaleHome as WHALE_HOME, draftsDir, stateDir } from '../tools/lib/paths
 import { causalFile } from '../tools/lib/causal.mjs'
 import { isKillOn } from '../tools/lib/kill.mjs'
 import { queueDir } from './ack.mjs'
+import { checkAnchor } from './live-code-anchor.mjs'
 
 const argv = process.argv.slice(2)
 const arg = (k, d) => { const i = argv.indexOf('--' + k); return i >= 0 ? argv[i + 1] : d }
@@ -189,6 +190,15 @@ const ban = readJson(path.join(BILI_AI, 'api-ban.json'))
 const pauseUntil = Math.max(Number(ts?.until ?? 0), Number(ban?.until ?? 0))
 if (Number.isFinite(pauseUntil) && pauseUntil > Date.now()) add('watch', '风控暂停', '暂停到 ' + new Date(pauseUntil).toLocaleString('zh-CN', { hour12: false }) + (ts?.reason ? '（' + ts.reason + '）' : ''))
 else add('ok', '风控暂停', '未暂停')
+
+// ⑥ live 代码指纹：观测协议说"证据归因靠 live 冻结在同一份代码"，但本项目里
+// World 每个工具都是 `spawn(node tools/bili.mjs …)`——**改 dsh 不重启就立刻生效**。
+// 所以"今天没重启"根本证明不了"今天没改 live"，只能逐日对一次 git 指纹（本地读，不联网）。
+const anchor = checkAnchor()
+const stamp = (iso) => String(iso ?? '').slice(0, 16).replace('T', ' ')
+if (anchor.state === 'missing') add('watch', 'live 代码锚点', '未锚定：观测期没有可比对的代码基线（先跑 node scripts/live-code-anchor.mjs --set）')
+else if (anchor.state === 'drift') add('watch', 'live 代码锚点', `相对 ${stamp(anchor.at)} 的锚点漂移：` + anchor.drift.map((d) => `${d.name}（${d.why}）`).join('、') + ' —— 观测窗内这算行为变更')
+else add('ok', 'live 代码锚点', `与 ${stamp(anchor.at)} 的锚点一致：` + anchor.hosts.map((h) => `${h.name}=${h.cur.short}${h.cur.dirty ? '(未提交改动)' : ''}`).join(' · '))
 
 const fatal = rows.filter((r) => r.level === 'fatal').length
 const watch = rows.filter((r) => r.level === 'watch').length

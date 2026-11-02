@@ -10,6 +10,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { codeFingerprint } from '../scripts/live-code-anchor.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const SCRIPT = path.join(ROOT, 'scripts', 'ops-day.mjs')
@@ -46,6 +47,12 @@ async function sandbox(t) {
   fs.writeFileSync(path.join(whale, 'bili-whale', 'days', day, 'ticks.jsonl'), JSON.stringify({ at: new Date().toISOString() }) + '\n')
   fs.writeFileSync(path.join(whale, 'bili-whale', 'days', day, 'state.end.json'), JSON.stringify({ at: new Date().toISOString(), fields: { mood: 0.6 } }) + '\n')
   fs.writeFileSync(path.join(whale, 'whale-diary.md'), '# 公开日记\n\n## ' + day + '\n\n### 看过\n\n今天看了条鱼。\n')
+  // live 代码锚点：ops-day 现在每日对一次 git 指纹（改 dsh 不重启也会改 live，"没重启"证明不了没改）。
+  // 沙箱里写一份"与当前一致"的锚点，让"一切都齐"这一档仍然是 0；没锚的情况单独立一条测试。
+  fs.writeFileSync(path.join(control, 'live-code.json'), JSON.stringify({
+    at: new Date().toISOString(),
+    hosts: [{ name: 'dsh', ...codeFingerprint(ROOT) }, { name: 'cortico', ...codeFingerprint(home) }],
+  }) + '\n')
   const server = net.createServer()
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
   t.after(() => new Promise((r) => server.once('close', r).close()))
@@ -69,6 +76,15 @@ test('一切都齐 → 退出 0，且 K4 三条都给得出可算值', async (t)
   assert.match(k('K4-1').detail, /来=1 回=1/)
   assert.match(k('K4-2').detail, /雀跃/)
   assert.match(k('K4-3').detail, /最新小节就是今天/)
+})
+
+test('没锚过 live 代码 → 拦一项，并把该跑的命令说出来（观测期最怕"悄悄改了当没改"）', async (t) => {
+  const s = await sandbox(t)
+  fs.rmSync(path.join(s.control, 'live-code.json'))
+  const r = s.run()
+  assert.equal(r.status, 1, r.stdout + r.stderr)
+  assert.match(r.stdout, /live 代码锚点.*未锚定/)
+  assert.match(r.stdout, /live-code-anchor\.mjs --set/)
 })
 
 test('pid 文件指向死进程 → 退出 2（进程死是硬伤）', async (t) => {
