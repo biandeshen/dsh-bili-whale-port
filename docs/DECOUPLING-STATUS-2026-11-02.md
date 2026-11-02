@@ -375,6 +375,42 @@ bili_like 直接抛 Node 未捕获异常 TrafficError；②重试时返回 code=
 复跑 dsh **439/439（79 文件）**、哈希一致、consumers 全有生产调用。
 feed 的降级账需要真实网络故障才触发，**没有离线可断言的路径**，这条只做代码走查。
 
+## 退役五条工作树：查完才敢动（2026-11-02 23:45）
+
+主人问"工作区到底在哪个盘、有几个仓"，顺手把冗余副本清了。查的过程比结果重要，记下来防重犯：
+
+**先查出来的事实**：`Cortico-dev / -w2 / -w3 / dsh-bili-whale-dev / -policy` 五个都**不是独立 clone，
+而是 `git worktree`**（`.git` 只有 1KB，里面是一行 `gitdir:`）。而 **`Cortico-up` 也是 `Cortico` 的工作树**
+——也就是说 live 的代码树依赖 `Cortico\.git` 这个对象库，删错一个就把她带走了。这条已经写进
+`CURRENT.md` 的盘位表。
+
+**逐个核过再动**（五条全绿才动手）：
+
+| 检查 | 结果 |
+|---|---|
+| 未提交改动 / stash | 五条全 0 |
+| `.env` / `deployments` / node_modules 里的独有数据 | 没有 `.env`；`deployments/mybot/prompts/ORIENTATION.md` 与 live **一字不差**（`cmp` 四条全同）；node_modules 为空 |
+| 独有内容 | 只有 `Cortico-dev/scratch/` 7 个探针脚本（gitignored）→ 先复制进退役目录再动 |
+| 分支会不会被删掉 | 不会：`worktree remove` 只删检出目录，分支 ref 留在主仓 |
+
+**动完复核**：`git worktree list` 两边各剩该剩的两个；`dev/policy`、`feat/*`、`dev/publisher` 等分支
+在 `git branch --list` 里全部还在；7799 仍在听（pid 225772）、tick 照走、锚点照报。**目录没删**，
+整体移到 `E:\WorkSpace_Qoder\_retired-2026-11-02\`（同盘改名，随时可移回），要彻底删由主人说一句。
+
+**顺带查到一件事**：`dev/policy` 相对 live 有 4 个补丁在 `git cherry` 里显示"没有等价物"
+（`91aa02e` 写失败不吞、`2affef6` 历史/日记检索、`ddca555` 前置检查别抹启用意图、`480d456` 顶栏"我是谁"）。
+但 `bili_look`、`whoInput`、`withLedgerError` 这些实际都在 live 里跑着——**原因是 reanchor 是
+cherry-pick 过来的，冲突解决后 patch-id 变了，`git cherry` 认不出来**。所以这次的结论是：
+补丁等价性检查在 reanchor 这条线上不可信，要判"有没有丢东西"得逐条看行为，不能只看 `+`。
+这条教训比那 4 个补丁本身值钱，记在这儿。
+
+**另一件事**：清理期间发现 dsh 多出一条不是我提的提交（`660417c`，23:37，另一席在同一分支上写文档）。
+`live-code-anchor` 当场把它报成漂移——读数是对的，但它分不清"改代码"和"改文档"，天天红就没人看了。
+于是给它加了一层：比对两个提交之间的路径，只动 `*.md`/`docs/` 的标成"（只动文档，行为不变）"，
+含代码的把前三个代码文件名带出来。真跑确认：`dsh：提交变了 64eb03a→660417c（只动文档，行为不变）`。
+测试 +2 条（docs 必须标 docs、`.ts` 必须标 code），锚点用例现在 6 条。
+
+
 
 
 

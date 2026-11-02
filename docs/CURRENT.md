@@ -137,6 +137,20 @@ node tools/video-build.mjs --image "D:/AI/养鱼/assets/daily/daily-04-goodnight
 - **AMpath 借用**：私有仓库、无 LICENSE——只搬了纯函数与契约思路，**发布前必须移除 `core/ports/temporal.mjs` 的注释外引用并自查**。
 - **上游纪律**：写操作仍强制 `--dry/--go`；MCP 包装层不得绕过 `tools/bili.mjs`。
 
+## 她的东西放在哪三个盘（2026-11-02 实测登记）
+
+| 位置 | 放什么 | 备注 |
+|---|---|---|
+| `E:\WorkSpace_Qoder\dsh-bili-whale\` | dsh CLI 代码（live 分支 `port/core-opencode-panel`） | 独立仓；`main` 是上游基线 |
+| `E:\WorkSpace_Qoder\Cortico\` | Cortico 的**主仓**（`master`），也是所有 Cortico 工作树的对象库 | ⚠ live 用的 `Cortico-up` 是它的**工作树**，不是独立 clone：删 `Cortico` 会把 live 一起带走 |
+| `E:\WorkSpace_Qoder\Cortico-up\` | **现在的 live 代码**（`reanchor/replay`） | 起进程时 `CORTICO_HOME` 指回 `Cortico/deployments` |
+| `E:\WorkSpace_Qoder\Cortico\deployments\mybot\` | 她的会话/记忆/config（`session-main.jsonl`、`usage.jsonl`、`prompts/`） | 部署数据跟着旧代码树走，gitignored |
+| `C:\Users\Administrator\.dsh\` | 运行时状态：`fields.json`/`causal.jsonl`/两本日记/队列/备份/voice | 1.2G；其中 `dsh-runtimes` 271M、`shots` 235M、`attachments` 121M、`backups` 108M 属 DSH 时代遗留与备份，不是她每天要用的 |
+| `C:\Users\Administrator\.bili-ai\` | **旧家**（13 文件 6M），只读兜底 | 退役到 `LEGACY_UNTIL`（默认 2026-12-01），读到就 WARN |
+| `D:\AI\养鱼\` | 素材与产出：`assets\daily\*.png`、`drafts\<日期>.json`、旧 `tools\build-*.mjs` | 你最早定的素材盘；`tools\` 那三个是 DSH 插件时代留下的，现在没人调用 |
+
+代码树与部署树在 2026-11-02 之后是**分开的两份**，成对出现才有意义：`CORTICO_ROOT=Cortico-up` + `CORTICO_HOME=Cortico/deployments`，两条都写进了 `scripts/start-cortico.mjs` 的默认值。
+
 ## 文件地图
 
 ```

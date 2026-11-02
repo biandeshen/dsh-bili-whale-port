@@ -65,7 +65,20 @@ test('live 那边多一个提交 → --check 必须红（这正是"不重启也�
   const j = JSON.parse(r.stdout)
   assert.equal(j.state, 'drift')
   assert.deepEqual(j.drift.map((d) => d.name), ['cortico'])
+  assert.equal(j.drift[0].diff, 'code', '改的是 .ts，必须标成代码')
   assert.match(j.drift[0].why, /提交变了/, j.drift[0].why)
+})
+
+test('只动文档的漂移要说清"行为不变"，别天天冒充事故（红多了就没人看了）', () => {
+  run(['--set', '--cortico', repoB])
+  fs.writeFileSync(path.join(repoB, 'README.md'), '# 多加两句说明\n', 'utf8')
+  git(['add', 'README.md'])
+  git(['commit', '-q', '-m', 'docs: 说明'])
+  const r = run(['--check', '--json'])
+  assert.equal(r.status, 2, '仍然是漂移，仍要非零：' + r.stdout)
+  const j = JSON.parse(r.stdout)
+  assert.equal(j.drift[0].diff, 'docs', JSON.stringify(j.drift))
+  assert.match(j.drift[0].why, /只动文档/, j.drift[0].why)
 })
 
 test('锚点之后工作区从干净变成有未提交改动，也算漂移', () => {

@@ -42,8 +42,23 @@ export function codeFingerprint(dir) {
   return { dir: abs, sha, short: sha.slice(0, 7), dirty: porcelain === null ? null : porcelain.length > 0 }
 }
 
-/** 锚定：把当前 live 的两份代码指纹写进 control/live-code.json。 */
-export function setAnchor({ cortico = path.resolve(ROOT, '..', 'Cortico-up'), note = '', now = Date.now() } = {}) {
+/**
+ * 两个提交之间改的是文档还是代码。
+ * 为什么需要：漂移警报要区分"她的行为变了"和"只是有人写了文档"，
+ * 否则每天一条红很快就被当成噪声，真漂移来时反而没人看。
+ */
+const DOCS_ONLY_RE = /(^|\/)(docs|doc)\/|\.mdx?$|CHANGELOG|README|LICENSE|NOTICE/i
+export function diffKind(dir, from, to) {
+  let out = ''
+  try {
+    out = execFileSync('git', ['diff', '--name-only', `${from}..${to}`], { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+  } catch { return { kind: 'unknown', files: [] } }
+  const files = out.split('\n').filter(Boolean)
+  if (!files.length) return { kind: 'empty', files }
+  return { kind: files.every((f) => DOCS_ONLY_RE.test(f)) ? 'docs' : 'code', files }
+}
+
+/** 锚定：把当前 live 的两份代码指纹写进 control/live-code.json。 */export function setAnchor({ cortico = path.resolve(ROOT, '..', 'Cortico-up'), note = '', now = Date.now() } = {}) {
   const hosts = [
     { name: 'dsh', ...codeFingerprint(ROOT) },
     { name: 'cortico', ...codeFingerprint(cortico) },
@@ -72,9 +87,16 @@ export function checkAnchor({ nowHosts } = {}) {
     const shaMoved = String(cur.sha ?? '') !== String(h.sha ?? '')
     const becameDirty = h.dirty === false && cur.dirty === true
     if (shaMoved || becameDirty) {
+      const diff = shaMoved ? diffKind(h.dir, h.sha, cur.sha) : null
+      const tail = diff?.kind === 'docs' ? '（只动文档，行为不变）'
+        : diff?.kind === 'code' ? `（代码变了：${diff.files.filter((f) => !/\.mdx?$/i.test(f)).slice(0, 3).join('、')}）`
+        : ''
       drift.push({
         name: h.name,
-        why: shaMoved ? `提交变了 ${String(h.sha).slice(0, 7)}→${String(cur.sha).slice(0, 7)}` : '工作区从干净变成有未提交改动',
+        diff: diff?.kind ?? null,
+        why: shaMoved
+          ? `提交变了 ${String(h.sha).slice(0, 7)}→${String(cur.sha).slice(0, 7)}${tail}`
+          : '工作区从干净变成有未提交改动',
       })
     }
     return { ...h, cur: { sha: cur.sha, short: String(cur.sha ?? '').slice(0, 7), dirty: cur.dirty } }
