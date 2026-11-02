@@ -67,11 +67,14 @@ export function statePrompt(state: any, opts: { queryText?: string; seed?: strin
   return text
 }
 
-/** 今天是否已经出过草稿（多醒几轮时不重复出稿）。 */
+/** 今天是否已经出过草稿（多醒几轮时不重复出稿）。被拒的那条例外：重出一版正是拒稿要的效果。 */
 export function todayDraftLine(): string {
   try {
     const date = dayKey(Date.now())
     const d = JSON.parse(fs.readFileSync(path.join(resolveDraftsDir(), date + '.json'), 'utf8'))
+    if (d.status === 'rejected') {
+      return `今天那条草稿（${d.id}）被主人拒了，理由在下面那条反馈里——这一轮照着理由重写一版，别原样再交一次。`
+    }
     const zh: Record<string, string> = { pending: '等你审批', 'dry-run': '试发过', sent: '已发出', rejected: '被拒', cooldown: '冷却中', failed: '失败' }
     return `今天已经出过草稿（${d.id} · ${zh[d.status] ?? d.status}）——这一轮不用再出稿，写日记、看看就好。`
   } catch { return '' }
