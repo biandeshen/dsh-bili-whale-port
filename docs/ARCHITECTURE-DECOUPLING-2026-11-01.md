@@ -787,3 +787,109 @@ function renderDebrief(r: DebriefResult): string
 **每 4 个 commit 做一次「她还能动」六项检查（§7 第 9 条）**；任一项不通过，回退到上一个通过点，不要继续叠。
 
 **并行可能性**：2–3（备份/演练）与 4–6（状态根）可并行；17–18（包化）与 19–20（World 瘦身）可并行——但两者都动 `personaAdapter.ts` 周边，**同一时刻只能有一个人动那个文件**。
+
+---
+
+## 9. 补章：互动能力与落点治理（2026-11-02）
+
+这一章补的是前八节**没覆盖**的两件事：她的**对外感知**几乎为零，以及她的东西**散在三个盘**。两件事都不是"解耦"，但都是"她活得像不像"和"能不能维护"的根。
+
+### 9.1 现状：她只听得见私信
+
+实测（`Cortico-up/src/worlds/bili-account/definition.ts` 的 15 个工具）：
+
+| B 站互动 | 能力在 CLI 里吗 | 她能调吗 | 证据 |
+|---|---|---|---|
+| 有人**回复**她 | ✅ `comment-digest --hours 24` → `/x/msgfeed/reply` | **不能** | World 内零调用 |
+| 有人 **@** 她 | ✅ 同上 → `/x/msgfeed/at` | **不能** | 同上 |
+| 有人**点赞**她 | ✅ `likes.mjs` → `/x/msgfeed/like` | **不能** | 同上 |
+| 有人**私信**她 | ✅ `dm.mjs` | **能**（`bili_dm_read`） | 唯一的互动入口 |
+
+也就是说：**B 站上有人评论她、@她、给她点赞，她本人看不到。** `comment-digest` 与 `likes` 只被 `core/scheduler.js:151` 的循环提示与面板使用，**没有做成她的工具**。
+
+这解释了意见箱里一批"她像没听见"的报告（`f-ac6261`/`f-b9a891`/`f-4fe2c2` 关于 `alarm_set` 的连推 10+ 次，本质是**她收到了却处理不了**）。
+
+### 9.2 方案：互动感知独立成一个单元，而不是塞进 World
+
+**判定**：互动感知 ≠ 生活循环，也 ≠ B 站写能力。它该是**一个独立的、可替换的收件箱**：
+
+```
+dsh: tools/lib/inbox.mjs       把三路 msgfeed 归一成同一形状
+     { kind: 'reply'|'at'|'like'|'dm', from, text, target:{bvid,commentId}, at, raw }
+     pullInbox({ kinds, hours, pages }) → InboxItem[]
+
+World: bili_inbox_read  (read)   她"看谁找过我"：按 kind/时间过滤，只给非已读
+       bili_inbox_mark  (write)  记已读游标（本地文件，不碰 B 站）
+       bili_comment_reply (write) 回评论/@（走 go-gate 人工放行，与草稿同一条审批链）
+```
+
+三条硬约束：
+1. **只读与写分开**：`bili_inbox_read` 只读；`bili_comment_reply` 是写，必须过 go-gate（不能因为"回复别人"就降低门槛）。
+2. **游标在本地**：已读状态落 `~/.dsh/bili-ai/inbox-cursor.json`（走 A 方案的 `resolve('queue')`），不依赖 B 站侧"已读"接口。
+3. **不新增轮询频率**：复用现有 tick 节奏（今天实测 281 tick/天），不额外开定时器——否则就是 §0 里"固定间隔"那件事的复辟。
+
+**为什么不让它变成独立 npm 扩展**：收件箱要写她的已读游标、要接她的审批链，这两件都在 World 里；做成外部扩展会再多一层跨进程契约，而收益只是"别人也能装"——目前没有第二个使用者。**先在 World 内做，等有第二个宿主再抽。**
+
+### 9.3 落点治理：她的东西散在三个盘，而且代码在"必然选旧盘"
+
+实测：
+
+| 内容 | 位置 | 大小 | 谁决定的 |
+|---|---|---|---|
+| 代码 | `E:/WorkSpace_Qoder/` | 1.07 GB | 主人 |
+| 人格状态（fields/diary/causal/草稿账本/备份） | `C:/Users/Administrator/.dsh/` | 1.2 GB | `resolveWhaleHome()` |
+| 旧家残留 | `C:/Users/Administrator/.bili-ai/` | 6 MB | `legacyStateDir()` |
+| **草稿真身 + 素材** | `D:/AI/养鱼/` | 117 MB | **`draftsDir()` 的 legacy 分支** |
+| 配置 `home` 字段 | `D:/AI/养鱼` | — | 旧机器遗留 |
+
+**代码原因是这一行**（`tools/lib/paths.mjs:196`）：
+
+```js
+export function draftsDir(env = process.env, { legacy = LEGACY_DRAFTS } = {}) {
+  if (env.WHALE_DRAFTS) return env.WHALE_DRAFTS
+  if (legacy) { try { if (fs.existsSync(legacy)) return legacy } catch {} }   // ← D 盘存在就用 D 盘
+  return path.join(whaleHome, 'bili-whale', 'drafts')
+}
+```
+
+**只要 `D:/AI/养鱼/drafts` 存在，就永远走不到 whale home。** 而 `paths.mjs:34` 的注释自己写着"只有没搬家的机器才该继续用 legacy"——**这台机器已经搬家了，但代码分不清**。
+
+三个冻结脚本（`day-report.mjs:30`、`day-snapshot.mjs:45`、`g3b-check.mjs:43`）还各自内联着同一份 legacy 判断，共四处重复（`paths.mjs` 注释里也承认"重冻时再统一"）。
+
+**治理方案（分三步，都不动冻结脚本）**
+
+1. **把"是否已搬家"变成显式配置**，不是靠目录存在与否猜。
+   `bili-whale.config.json` 加 `storage: { home: 'C:/Users/Administrator/.dsh', drafts: 'C:/.../drafts', migratedAt: '2026-11-02' }`；
+   `draftsDir()` 改成：有 `storage.drafts` 就用它；没有才走 legacy。**旧机器什么都不配，行为不变；这台机器配上就彻底离开 D 盘。**
+2. **一次性迁移**：`scripts/migrate-drafts.mjs`（dry 默认），把 D 盘 `drafts/` 与 `assets/daily/` 复制到新落点，逐文件 sha256 比对，清单写 `migrations.json`（复用 A4.5 的账本格式）。
+3. **冻结脚本不改，等重冻时统一**：那三处 legacy 判断在观测窗重冻时一并替换成 `draftsDir()` 调用——现在改会触发 `check-hashes` 报警。
+
+**为什么不能现在就"删掉 D 盘"**：`assets/daily` 里是她要用的图片素材，`drafts/` 里是历史草稿（含已发布的），删了不可恢复。**先迁后删，且迁移必须在备份演练之后**（§0.1 门 P-1）。
+
+### 9.4 能力可拆性：哪些应该是独立单元（补 E 方案的空白）
+
+E 方案只讲了"扩展路线"，没回答"她的能力里哪些本来就该是可拆的"。按"是否共享状态、是否可替换"分三类：
+
+| 类别 | 能力 | 该不该拆 | 理由 |
+|---|---|---|---|
+| **贴身**（动她的人格/记忆） | 场值结算、记忆召回、情绪投影、日记 | **不拆** | 拆出去就要跨进程同步人格状态，等于把内核切碎 |
+| **可替换**（对外世界的接口） | 看视频（debrief）、发动态、**互动收件箱**、通知 | **可拆**（端口 + 适配器） | 这些是"她的手和眼"，换实现不该改她 |
+| **独立**（与她是谁的无关） | 模型供应商、扩展市场、WebUI | 已独立 | 框架层 |
+
+**结论修正**：我在 §3.3 写"B 站能力留在 World 不拆成插件"——这句只对**写能力**成立。**感知能力（debrief、inbox）应该走端口 + 适配器**，这样以后可以换 B 站以外的平台（比如同时看 YouTube），而她的生活循环不用改。这条比 §3.3 更准确，以本节为准。
+
+### 9.5 与审计/意见箱的对应
+
+| 来源 | 现象 | 本章怎么解 |
+|---|---|---|
+| 实测 | 评论/@/点赞她看不到 | 9.2 三个工具 + 归一收件箱 |
+| 意见箱 `f-ac6261`/`f-b9a891`/`f-4fe2c2` | 有人反复要求她做她没有的事（闹钟） | 同一根因：**收到 ≠ 能处理**；9.2 的 `bili_inbox_read` 先把"收到"做实，处理能力另列（`alarm` 工具属 E 方案） |
+| 实测 | 三盘分立、`draftsDir` 必然选 D 盘 | 9.3 显式 `storage` 配置 + 迁移 |
+| 解耦 §3.3 | "B 站能力不拆" | 9.4 修正：**写不拆，感知拆** |
+
+### 9.6 验收（新增四条）
+
+1. **互动可达**：`bili_inbox_read` 能列出最近 24h 的 reply/at/like，且与她实际 B 站消息一致（抽 3 条人工核对）。
+2. **回复走审批**：`bili_comment_reply` 未放行时不发，放行后发一次即消耗令牌（复用 go-gate 现有测试模式）。
+3. **落点确定**：配置了 `storage.drafts` 后，`draftsDir()` 恒定返回该路径；**把 D 盘目录临时改名后，她仍能出稿**（证明不再依赖存在性猜测）。
+4. **迁移可回滚**：`migrate-drafts --rollback` 能把文件搬回 D 盘并 sha256 一致。
