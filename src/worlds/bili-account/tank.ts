@@ -12,7 +12,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { loadState, readMood, describeState } from './personaAdapter.ts'
-import { resolveDraftsDir } from './paths.ts'
+import { resolveDraftsDir, killPath } from './paths.ts'
 import { CONFIG_FILE } from './config-store.ts'
 
 const ROOT = process.env.BILI_WHALE_ROOT || 'E:/WorkSpace_Qoder/dsh-bili-whale'
@@ -53,6 +53,13 @@ type Mods = {
     activeJudgments: () => { avoid: string[]; prefer: string[]; conflicts: any[] }
     JUDGMENT_FILE: string
   }
+  /** go-gate 的待放行队列（评论/弹幕/分享型动态都进这里）。放行与丢弃只有世界页能点，
+   *  CLI 侧也有同一条出口（`reply-draft release`），两边共用 dsh 这一份实现。 */
+  queue?: {
+    listPendingQueue: () => any[]
+    releaseMany: (ids: string[], opts: any) => any[]
+    dropMany: (ids: string[]) => { dropped: string[]; missing: string[] }
+  }
 }
 const mods: Mods = {}
 let warming: Promise<void> | null = null
@@ -72,6 +79,7 @@ async function warm(): Promise<void> {
       load('traffic', 'tools/lib/traffic.mjs'),
       load('cfg', 'tools/lib/config.mjs'),
       load('judgment', 'tools/lib/judgment.mjs'),
+      load('queue', 'tools/lib/pending-queue.mjs'),
     ])
   })()
   return warming
@@ -441,8 +449,56 @@ export async function draftAction(id: string, action: 'approve' | 'reject', reas
     ? mods.approve.reject(id, why)
     : await mods.approve.approveFromPanel({ id, why })
 }
-export async function feedbackResolve(id: string) {
+/**
+ * go-gate 待放行队列（评论 / 弹幕 / 分享型动态都进这里）。
+ *
+ * 为什么要有这三个方法：「待放行」的**数字**一直算着这条队列（pendingReplyCount），
+ * 但页面上的按钮只有动态草稿的 approve/reject —— 队列里的东西只显示计数，主人却点不到。
+ * 放行的语义在 dsh 一份实现里（重建 argv + 闸门 + 令牌），这里只调它，不复制一遍。
+ */
+export async function pendingQueueState() {
   await warm()
+  if (!mods.queue) return { items: [], unavailable: 'pending-queue 模块未加载' }
+  try {
+    const items = mods.queue.listPendingQueue() ?? []
+    return {
+      items: items.map((x: any) => ({
+        id: String(x.id ?? ''),
+        kind: String(x.kind ?? ''),
+        who: String(x.who ?? ''),
+        message: String(x.message ?? '').slice(0, 200),
+        src: String(x.src ?? '').slice(0, 120),
+        bvid: String(x.bvid ?? ''),
+        at: String(x.at ?? ''),
+      })),
+    }
+  } catch (e: any) {
+    return { items: [], error: String(e?.message ?? e) }
+  }
+}
+
+/** 放行一条：真执行（重建 argv + 过闸），结果按条回传。失败的那条会留在队列里并带 attempts。 */
+export async function pendingQueueRelease(id: string) {
+  await warm()
+  if (!mods.queue) return { ok: false, error: 'pending-queue 模块未加载' }
+  const results = mods.queue.releaseMany([String(id ?? '')], {
+    biliPath: path.join(ROOT, 'tools', 'bili.mjs'),
+    killPath,
+    dry: false,
+  })
+  const r = results?.[0]
+  return { ok: !!r?.ok, id: String(id ?? ''), reason: r?.reason ?? (r?.ok ? undefined : '放行失败'), out: String(r?.out ?? '').slice(0, 2000) }
+}
+
+/** 拒掉：不执行，只从队列里摘掉。 */
+export async function pendingQueueDrop(id: string) {
+  await warm()
+  if (!mods.queue) return { ok: false, error: 'pending-queue 模块未加载' }
+  const r = mods.queue.dropMany([String(id ?? '')])
+  return { ok: r.missing.length === 0, dropped: r.dropped, missing: r.missing }
+}
+
+export async function feedbackResolve(id: string) {  await warm()
   if (!mods.feedback) return { ok: false, error: 'feedback 模块未加载' }
   return mods.feedback.resolveFeedback(id, 'webui')
 }

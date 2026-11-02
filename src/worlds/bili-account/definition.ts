@@ -23,6 +23,7 @@ import {
   warmConsole, consoleReady, tankLocal, killOn, lastTickAt, pendingTotal, openFeedbackCount,
   timelineState, diaryState, draftsState, draftAction, feedbackResolve, feedbackListSafe, judgmentList, judgmentAdopt, judgmentReject, judgmentActive, vitalsState, avatarBinary, trafficStatus,
   policyInWindow, autoSentToday, draftForDay, freshAckToken, settingsState, settingsSet,
+  pendingQueueState, pendingQueueRelease, pendingQueueDrop,
   consolePaths,
 } from './tank.ts'
 import { decideAction, actionCost, nextCheckDelay, dayKey } from '@xiaoyu/persona-core/rhythm'
@@ -241,6 +242,10 @@ class BiliAccountWorld {
           // args[1] = 主人放行/拒绝时写的那句话（#41，可留空）
           if (method === 'approve') return draftAction(String(args[0]), 'approve', String(args[1] ?? ''))
           if (method === 'reject') return draftAction(String(args[0]), 'reject', String(args[1] ?? ''))
+          // go-gate 队列（评论/弹幕/分享型动态）：计数一直算着它，但页面原来没有按钮，主人点不到。
+          if (method === 'queue/list') return pendingQueueState()
+          if (method === 'queue/release') return pendingQueueRelease(String(args[0] ?? ''))
+          if (method === 'queue/drop') return pendingQueueDrop(String(args[0] ?? ''))
           throw new Error('unknown method ' + method)
         }
         if (panel === 'timeline') {

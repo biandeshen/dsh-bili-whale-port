@@ -180,6 +180,64 @@ function mountDrafts(ctx: WebUiPanelContext): void {
   const poll = (): void => { void ctx.invoke<DraftsState>('state').then(draw).catch((e) => { err.textContent = errText(e); err.hidden = false; }); };
   poll();
   ctx.interval(poll, POLL_MS);
+
+  // ── go-gate 待放行队列（评论 / 弹幕 / 分享型动态）────────────────────────
+  // 「待放行」那个数字一直算着这条队列，但这里原来只有动态草稿的按钮：
+  // 队列里的东西只显示计数，主人点不到（2026-11-03 实测）。
+  const qCard = ui.sheet({ title: '待放行队列', en: 'queue', desc: '评论、弹幕、分享型动态都进这里等放行；放行 = 真按当时记下的内容发出去' });
+  root.appendChild(qCard.el);
+  const qErr = ui.msgline();
+  const qMeta = ui.h('div', 'sh-desc');
+  const qList = ui.h('div', 'draft-list');
+  qCard.body.append(qErr, qMeta, qList);
+
+  interface QueueItem { id: string; kind: string; who: string; message: string; src: string; bvid: string; at: string }
+  const drawQueue = (st: { items?: QueueItem[]; error?: string; unavailable?: string }): void => {
+    qErr.hidden = true;
+    if (st?.error) { qErr.textContent = '队列读不到：' + st.error; qErr.hidden = false; return; }
+    if (st?.unavailable) { qErr.textContent = st.unavailable; qErr.hidden = false; return; }
+    const items = st?.items ?? [];
+    qMeta.textContent = items.length ? `等放行 ${items.length} 条` : '队列是空的';
+    qList.replaceChildren();
+    if (!items.length) { qList.append(ui.placeholder('没有等放行的评论或弹幕')); return; }
+    for (const q of items) {
+      const row = ui.h('div', 'draft-card');
+      const head = ui.h('div', 'draft-head');
+      head.append(ui.h('span', 'draft-date', q.at ? q.at.slice(0, 16).replace('T', ' ') : ''), ui.pill(q.kind || '待放行', 'on'));
+      const body = ui.h('div', 'draft-text', String(q.message ?? '').replace(/\s+/g, ' '));
+      const acts = ui.actions();
+      const done = (ok: boolean, msg: string): void => { ui.toast(msg, ok ? 'ok' : 'bad'); pollQueue(); };
+      acts.append(
+        ui.button('✓ 放行', {
+          variant: 'primary', size: 'sm',
+          onClick: () => {
+            void ui.confirm({ title: '放行这条？', body: String(q.message ?? '').slice(0, 200), danger: true })
+              .then((yes) => { if (!yes) return;
+                void ctx.invoke<{ ok?: boolean; error?: string; reason?: string }>('queue/release', [q.id])
+                  .then((r) => done(!!r?.ok, r?.ok ? '已放行并发出' : (r?.reason ?? r?.error ?? '放行失败')))
+                  .catch((e) => done(false, errText(e)));
+              });
+          },
+        }),
+        ui.button('✗ 丢掉', {
+          variant: 'danger', size: 'sm',
+          onClick: () => {
+            void ui.confirm({ title: '丢掉这条？', body: '不执行，只从队列里摘掉。', danger: true })
+              .then((yes) => { if (!yes) return;
+                void ctx.invoke<{ ok?: boolean; error?: string }>('queue/drop', [q.id])
+                  .then((r) => done(!!r?.ok, r?.ok ? '已丢掉' : (r?.error ?? '丢不掉')))
+                  .catch((e) => done(false, errText(e)));
+              });
+          },
+        }),
+      );
+      row.append(head, body, acts);
+      qList.append(row);
+    }
+  };
+  const pollQueue = (): void => { void ctx.invoke<{ items?: QueueItem[]; error?: string; unavailable?: string }>('queue/list').then(drawQueue).catch((e) => { qErr.textContent = errText(e); qErr.hidden = false; }); };
+  pollQueue();
+  ctx.interval(pollQueue, POLL_MS);
 }
 
 // ── 她的一天：因果链 ────────────────────────────────────────────────────────
