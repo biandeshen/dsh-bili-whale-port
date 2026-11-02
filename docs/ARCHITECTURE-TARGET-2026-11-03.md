@@ -1,6 +1,7 @@
 # ARCHITECTURE-TARGET-2026-11-03 —— 现架构实测图 + 重写方案
 
 > **本文管两件事：① 现在的架构到底是什么形状（全部现数，带文件与行数）；② 如果重写，最合理的形状是什么（包边界、接口形状、数据流、迁移与回滚）。**
+> **本文是重写方向的唯一依据（2026-11-03 收口）**：原 `PLAN-2026-11-03.md` 把六席分析压成六阶段排期表，**未经主人审阅就落仓并触发了开工**（主人原话："谁让你写了？……谁让你方案一出就他妈执行的，我看过吗？"），已作废删除。它的三条冲突裁决归位到本文 §4（配置落点）/§5（门禁口径）/§6（粒度），其余排期内容不再生效；要原文：`git show 36147ed:docs/PLAN-2026-11-03.md`。**方案可以写，但主人看过之前不是排期，也不是开工凭据。**
 > 判据来源：`Cortico-up/docs/extensions.md`（扩展 = 一个 npm 包补一个 World/provider/bot；**仓库内建的 World 与 provider 仅包含参考 bot 所需的实现**）、`Cortico-up/src/world.ts:52` 的 `WorldDefinition` 契约、`Cortico-up/templates/extension/{world,bot}` 两个可直接装的模板。
 > 上游归属：`Cortico` = Pal-AI-Lab（MIT）、`dsh-bili-whale` = Alterssss。本文不重复 `ARCHITECTURE-2026-11.md`（那篇写的是"代码里现在成立的事"，按 `file:line`），它只回答"该长成什么样"。
 
@@ -95,7 +96,7 @@ World 写不了 Memory——所以"World 也留一份记忆"在契约层就做�
 
 ```
 package.json  {"name":"cortico-world-bilibili","main":"./src/index.ts",
-               "cortico":{"kind":"world","api":7,"describe":"describe.json"}}
+               "cortico":{"kind":"world","api":6,"describe":"describe.json"}}
 src/index.ts            导出 BILIBILI_ACCOUNT_DEFINITION（**World id 不能叫 bilibili**：上游内建直播 World
                         已占 `src/worlds/index.ts:15`，启动器预占内建 id（`src/launcher.ts:173-175`），
                         撞名的扩展**不加载**（`src/extensions.ts:357-362`）。包名 cortico-world-bilibili 仍可用）
@@ -111,6 +112,12 @@ src/ENV_PROMPT.md       环境提示词
 describe.json           pnpm describe:extension 生成的自描述
 tests/                  fake-host + 契约测试（原 dsh 80 文件/444 项搬进来）
 ```
+
+**契约版本按类不同，不是一次改齐**：`src/extensions/manifest.ts:23-27` 的
+`EXTENSION_API_VERSIONS = { world: 6, provider: 6, bot: 7 }`，模板同值
+（`templates/extension/world/package.json` = 6、`templates/extension/bot/package.json` = 7）。
+所以本包写 **6**、§2.1 的 bot 包写 **7**；api 高于或低于该类契约都会被 `check:extension` 拒装载
+（`manifest.ts:143-146`）。本文初稿把两处都写成 6、修订时又都写成 7，都是错的。
 
 **边界**：平台细节（BV 号、`msgfeed` 字段坑、polymer 端点、412 风控、wbi 签名）不出这个包；对宿主只暴露 `WorldDefinition` 契约 + WebUI 声明。
 
@@ -169,6 +176,7 @@ export interface PublishClient {
 
 - 全部进部署树：`xiaoyu/state/`（fields、causal、diaries、life、control）+ `xiaoyu/media/`（配图、稿子）。
 - 路径可配（`config.ts` 里 JSON Schema 声明 `stateDir`、`mediaDir`、`draftsDir`），默认在部署树内——你早就说过"状态目录要可配置"，今天 `D:\AI\养鱼` 与 `C:\.dsh` 两个盘并存就是这个没做。
+  - **这一组的唯一 owner 是 world 包的 `config.ts`**（2026-11-03 主人裁决："这些很明显是配置参数，就不能把配置放那儿吗？界面上不能改吗？默认就是这样子"）。`ARCHITECTURE-DECOUPLING-2026-11-01.md` §9.3 步骤 1 把同一组键放在 dsh 的 `bili-whale.config.json.storage` 里，那是**重复声明**：重写后由 `config.ts` 声明默认值与 Schema、页面按声明渲染可改项，`DEC §9.3` 那处指向本文，不再各定一份默认值。
 - `state-roots` 那张 24 类表继续当门禁用（表覆盖 / 单写者 / 新旧家分叉），迁移用 `migrate-state-roots.mjs` 那条模式：默认 `--dry`、`--apply` 留 ledger、`--rollback <id>` 且哈希变过就拒绝回滚。
 - 旧家 `C:\.bili-ai` 按 `LEGACY_UNTIL` 退役；D 盘那份素材迁完就在 `media/`。
 
@@ -184,11 +192,17 @@ export interface PublishClient {
 
 顺序理由：**先把手补全（P1）再搬包（P2）**——搬的必须是完整的 B 站域，不是缺手的版本；记忆（P3）在包结构定型后动，否则要迁两次。P1 与 P2 都不是"便宜补丁 vs 大重构"的取舍，是同一条线上的前后两步。
 
+> **这张表的三处待收（2026-11-03 挑刺席 `docs/team-2026-11-03/05-red-team.md`，尚未解决，开工前必须先收）**：
+> ① **顺序本身没有独立复核**——六席里负责"落地序"的第六席在额度封顶中被打断、从未产出（`docs/team-2026-11-03/` 只有 01–05），P1→P5 的排法是主持人推断。
+> ② **P2 门禁写的"包内 vitest/444 项全绿"与实际不符**——那 80 文件 / 444 项跑在 **node:test**（`scripts/run-mjs-tests.mjs`，见 `docs/evidence/gates-2026-11-03.json`），搬进 vitest 是**改写断言面**而不是搬家，代价要按改写计。
+> ③ **P1 门禁的两条不是命令判定**——"`wake-audit --usage` 名单变短"只覆盖 235 行会话，"意见箱 `f-d99d64`/`f-11a351` 有落点"这两个 ID 在 `C:\Users\Administrator\.dsh` 下 grep 无命中、存储位置未核实。**每条门禁须写成"一条命令 + 期望退出码或输出"**，否则阶段完成与否不可判。
+> 另：P1 只补工具面，**不重设默认档位**——评论/弹幕档位已成配置项（`tools/lib/publish-policy.mjs:26-27`、`src/worlds/bili-account/config-store.ts:130-131`，2026-11-03 落地），默认仍按主人定的"界面上能改、默认值由代码定"。
+
 ## 6. 明确不做的
 
 - 不重写宿主。Core/WebUI/providers 那 5.6 万行是上游的，我们的价值不在那儿。
 - 不引第二套 runtime、不做微服务、不上消息队列。单机单进程 + append-only 账已经够用（今天实测：三进程并发追加 600 行无撕裂，所以 `causal` 降级成不上锁）。
-- 不做"更细的拆"。41 个 CLI 是抽错的粒度，正确的聚合单位是**一个域一个包**（B 站 = 一个包），不是每条命令一个模块。
+- 不做"更细的拆"。41 个 CLI 是抽错的粒度，正确的聚合单位是**一个域一个包**（B 站 = 一个包），不是每条命令一个模块。**这条是主人裁决，不是本席偏好**（2026-11-03 原话："我认为万物皆扩展"；"所谓的看视频、收件箱、点赞、收藏、发视频、B 站……他不就可以抽成一个完整的东西吗？还他妈的非要单独再抽吗？你抽那么细粒度干什么？"）。据此，`ARCHITECTURE-DECOUPLING-2026-11-01.md` §9.2 标题与 §9.4 里"互动感知独立成一个单元"的"独立"须读作**包内模块 + 依赖方向单向**，不是独立 npm 包；§9.2 的结论句（先在 World 内做）保留。
 - 不动把关链的语义，只把它从 dsh 搬进包的 `domain/`。
 
 ## 7. 代价（不粉饰）
