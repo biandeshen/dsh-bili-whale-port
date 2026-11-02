@@ -61,8 +61,17 @@ wmic process where "name='node.exe'" get CommandLine | grep -i cortico
 |---|---|---|---|
 | 1 | 纯函数与路径抽出 `definition.ts` | **完成** `c74603f` | 1440 → 1101 行；新增 paths / causal-io / prompts / capability |
 | 2 | 工具声明抽出 | **完成** 同提交 | → **1055 行**；新增 `tool-decls.ts`（18 个工具，有序） |
-| 3 | persona-core 包化（§8 17–18） | 未做 | 无 `package.json`；19 处相对引用；6 处 `file:///` |
-| 4 | 拆类：lifeTick 分阶段 + `tank.ts` 616 行 | 未做 | 需先补 tick 顺序测试 |
+| 3 | persona-core 包化（§8 17–18） | **完成** `1b2f751` | 19 处相对引用 → `@xiaoyu/persona-core/*`；新增包清单与汇总出口 |
+| 4 | 拆类：lifeTick 分阶段 + `tank.ts` | **完成** `14bf940` + `1cb5a5b` | 新增 life-stages（五阶段纯函数）+ config-store；`tank.ts` 605→496 |
+
+**第 3 段的两个实测结论**：
+
+1. **§8 第 18 步「6 处 `file:///` 全改掉」做不到，也不该做。** 那 6 处在 dsh 仓，
+   加载的是 `CORTICO_ROOT` 指定的**任意**检出；换成包名会绑死到本仓的 `node_modules`，
+   换一份检出就静默加载到错的代码。已在三处就地写明理由，并各跑一次冒烟验证
+   （对 `Cortico-up` 与 live `Cortico` 都通过）。
+2. **离线装不了。** pnpm 11.28 的离线元数据缓存布局与旧版不同，`--offline` 会报
+   `ERR_PNPM_NO_OFFLINE_META`；联网装 6 秒完成并建好软链。换机时不能假设离线能装。
 
 **验收（第 1–2 段）**：`tsc` 两套 0 错；Cortico-up 的 mjs 217/217；全量 vitest
 **290 文件 / 5208 通过 / 3 跳过**；`definition.ts` 的旧导出逐个保留（re-export），
@@ -76,3 +85,37 @@ wmic process where "name='node.exe'" get CommandLine | grep -i cortico
 ## 一条读法
 
 `§8` 表里的"验收命令"是**当时设想**的，不是现在的事实来源。要判某项是否落地，去查右列命令，不要信表。
+
+## 第 4 段：拆类（2026-11-02 08:20）
+
+| 项 | 改前 | 改后 |
+|---|---|---|
+| `definition.ts` | 1440 | **1043** |
+| `tank.ts` | 605 | **496** |
+| 新增 | — | `life-stages.ts`（五阶段纯函数）、`config-store.ts`（策略/名字/设置） |
+| 测试 | 216 | **223**（新增 6 条阶段顺序 + 1 条拆分契约） |
+
+**做法**：先写测试再动结构。`tests/life-stages.test.mjs` 六条锁住五阶段顺序与三个边界
+（跨日归零、睡着阈值、结算游标不重复吃）；跑绿之后才把 `lifeTick` 改成调用这些函数。
+
+**§8 第 19 步的原文是"tick 五阶段显式化（行为不变）"，实际情况是"先定义出阶段"。**
+代码里原先没有五阶段——只有一个从头跑到尾的函数。所以这一步的工作量是设计 + 拆分，
+不是"把已有的东西显式化"。这条差异值得记下来，免得下次按旧描述估工期。
+
+### 运行时验收（§7 第 9 条，只能真跑）
+
+在 7801 起了一份 `Cortico-up`，状态用副本 `~/.dsh-up`，live 的 7799 全程未动：
+
+| 检查 | 结果 |
+|---|---|
+| 循环在跑 | `life-status.json` 有 `updatedAt`、`nextWakeAt`，`lastKind=consume` |
+| 状态在结算 | `fields.lastAppliedAt` 推进到 `00:21:17Z`；memories 53 |
+| 因果在记 | 新写入带 `actor=host` |
+| 五阶段真的在走 | `asleep:true`（距上次动作 ≥6h）、`actionsToday` 与账本对账后一致 |
+
+### 顺带查实的一件事（不是本次改动引入）
+
+live 的 `publish.draftMode` 是 **`auto`**，而今天 17:42 生成的那条草稿仍是 `pending`。
+原因：它绑的一次性令牌 `ack-cd5e7ffd1d07e998` 已不在 `control/pending/` 里，
+按 `definition.ts:775-779` 的设计"auto 不许自己造令牌"→ 转人工。**没有静默发出**，
+这是设计生效而不是故障。要不要恢复成 `review` 是产品决定，不在本次改造范围。
