@@ -15,7 +15,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { config } from '../lib/config.mjs'
 import crypto from 'node:crypto'
-import { whalePath, draftsDir, stateReadPath, statePath, credentialsPath } from '../lib/paths.mjs'
+import { whalePath, whaleHome, draftsDir, stateReadPath, statePath, credentialsPath } from '../lib/paths.mjs'
+import { appendCausal } from '../lib/causal.mjs'
 
 
 const argv = process.argv.slice(2)
@@ -191,9 +192,23 @@ async function fetchFollowing() {
       dm: numOf(ar.stat?.dm ?? ar.stat?.danmaku), play: numOf(ar.stat?.view ?? ar.stat?.play), up: a?.name ?? '', kw: '关注' })
   }
 }
-try { if (SOURCE_HOT === 'popular' || SOURCE_HOT === 'all') await fetchPopular() } catch { console.error('（热门源取不到，跳过）') }
-try { if (SOURCE_HOT === 'rank' || SOURCE_HOT === 'all') await fetchRank() } catch { console.error('（排行源取不到，跳过）') }
-try { if (SOURCE_HOT === 'following' || SOURCE_HOT === 'all') await fetchFollowing() } catch (e) { console.error(`（关注源取不到，跳过：${String(e.message).slice(0, 60)}）`) }
+// 源取不到以前只在 stdout 说一句，账上一条不留（f-340915：2026-11-02 三个源同时失效，
+// 她看到的是"候选池突然变小"，主人看到的是"一切正常"）。降级要落一条 feed-degraded，
+// ops-day 才顶得出来；每条回执也带上当时的池子大小。
+const sourceFails = []
+try { if (SOURCE_HOT === 'popular' || SOURCE_HOT === 'all') await fetchPopular() } catch (e) { sourceFails.push({ src: '热门', why: String(e?.message ?? e).slice(0, 80) }); console.error('（热门源取不到，跳过）') }
+try { if (SOURCE_HOT === 'rank' || SOURCE_HOT === 'all') await fetchRank() } catch (e) { sourceFails.push({ src: '排行', why: String(e?.message ?? e).slice(0, 80) }); console.error('（排行源取不到，跳过）') }
+try { if (SOURCE_HOT === 'following' || SOURCE_HOT === 'all') await fetchFollowing() } catch (e) { sourceFails.push({ src: '关注', why: String(e?.message ?? e).slice(0, 80) }); console.error(`（关注源取不到，跳过：${String(e.message).slice(0, 60)}）`) }
+if (sourceFails.length) {
+  appendCausal(whaleHome, {
+    kind: 'feed-degraded',
+    sources: sourceFails.map((x) => x.src),
+    why: sourceFails.map((x) => `${x.src}：${x.why}`).join(' | ').slice(0, 240),
+    poolSize: pool.length,
+    atMs: Date.now(),
+  })
+  console.error(`⚠ 取数降级：${sourceFails.map((x) => x.src).join('、')} 源失败（当前池子 ${pool.length} 条）—— 已记 feed-degraded 账`)
+}
 console.error(`[来源] ${SOURCE_HOT === 'all' ? '搜索 + 热门 + 排行 + 关注' : SOURCE_HOT === 'popular' ? '热门' : SOURCE_HOT === 'rank' ? '排行' : SOURCE_HOT === 'following' ? '关注' : '搜索'}`)
 
 // ── 反馈回流（2026-10-20 加，主人定：B 也做）────────────────────────────

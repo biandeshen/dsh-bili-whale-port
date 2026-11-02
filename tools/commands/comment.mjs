@@ -21,6 +21,7 @@ import { validateShare } from '../lib/share-policy.mjs'
 import { NODE_EXE } from '../lib/nodebin.mjs'   // 2026-10-21：别用 process.execPath（Electron 里它是主程序 ✗）
 import { stateReadPath, statePath, writeStateText } from '../lib/paths.mjs'
 import { plainOutbound } from '../lib/plain-outbound.mjs'
+import { attemptWrite, noteWriteFailure } from '../lib/write-refusal.mjs'
 
 // ── 限额闸（B 档「限额自主」的代码强制部分，2026-10-14 主人选 B 档）────────────────
 // 语义：闸门**只管自主发言**（带 --auto，即"她自己决定说的"）；主人当场授权的发言不拦 ✓
@@ -339,7 +340,7 @@ if (dry) {
 
 // 判重（--once-per-person）已在入口处检查，这里直接发
 console.log('\n[go] 发送中…')
-const res = await fetch(url, {
+const res = await attemptWrite('评论', () => fetch(url, {
   method: 'POST',
   headers: {
     'user-agent': UA,
@@ -349,7 +350,7 @@ const res = await fetch(url, {
     cookie: cookieHeader,
   },
   body,
-})
+}), { kind: 'comment', bv: String(bvid ?? oid ?? '') })
 const out = await res.json().catch(async () => ({ raw: await res.text() }))
 console.log(`  HTTP ${res.status}`)
 console.log(`  code=${out.code} message=${out.message ?? ''}`)
@@ -414,6 +415,8 @@ if (out.code === 0) {
   if (hints[String(out.code)]) console.log(`  提示：${hints[String(out.code)]}`)
 }
 
+// 失败也要落账：以前只打 stdout，账上一条没有，"她没发过评论"和"发了十次全被拒"在复盘时一样。
+noteWriteFailure({ kind: 'comment', bv: String(bvid ?? oid ?? ''), reason: `code=${out.code} ${out.message ?? ''}`.trim() })
 // P0-6（Kimi 评审 #6）：走到这里 = 没发成功。给非 0 退出码，
 // 否则 agent 会把「被风控拒了」当成「发成功了」，绕过了「撞风控立刻停手」的红线 ✗
 process.exit(6)

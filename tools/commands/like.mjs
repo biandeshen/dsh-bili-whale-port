@@ -12,6 +12,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { credentialsPath, stateReadPath, statePath } from '../lib/paths.mjs'
 import { report } from '../lib/report.mjs'
+import { attemptWrite, noteWriteFailure } from '../lib/write-refusal.mjs'
 
 const HOME = (process.env.USERPROFILE || process.env.HOME || '/')
 // 账本按"文档"处理：读新家、读不到再读旧家，写永远落新家。
@@ -91,19 +92,27 @@ if (opt.reason) console.log(`  理由：${String(opt.reason).slice(0, 120)}`)
 if (!GO && !DRY) { console.error('✗ 必须给 --dry 或 --go'); process.exit(2) }
 if (DRY) { console.log('  [dry] 未写入 ✓ 确认后把 --dry 换成 --go'); process.exit(0) }
 
-const r = await fetch('https://api.bilibili.com/x/web-interface/archive/like', {
+// 写请求包一层：以前这一步没包 try，traffic 闸的 TrafficError 会把进程崩掉，
+// 她拿到的是 Node 堆栈、账上一条没留（2026-11-01 三次点赞全是这个形状）。
+// referer 带视频页是浏览器实际的请求形状；11-01 那次 code=-400 的根因还没确认，
+// 至少现在失败会落成一行 `like-failed` 账，下次能拿数据判断而不是猜。
+const r = await attemptWrite('点赞', () => fetch('https://api.bilibili.com/x/web-interface/archive/like', {
   method: 'POST',
-  headers: { ...H, 'content-type': 'application/x-www-form-urlencoded' },
+  headers: { ...H, referer: `https://www.bilibili.com/video/${bv}/`, 'content-type': 'application/x-www-form-urlencoded' },
   body: new URLSearchParams({ bvid: bv, like_pos: '1', csrf: String(cred.bili_jct ?? '') }).toString(),
-})
+}), { kind: 'like', bv })
 const j = await r.json()
 if (j.code !== 0) {
   const HINT = {
     '-101': '账号未登录：SESSDATA 失效，重新复制一次 cookie',
     '-111': 'CSRF 校验失败：bili_jct 和当前 SESSDATA 不是同一账号，或已过期 → 两个都重新复制一次',
     '-352': '风控拦截：等几分钟再来',
+    // 11-01 实测撞过两次 -400，她自己也在意见箱里说"分不清是形状还是冷却"。没确认的根因不写成结论。
+    '-400': '请求错误（参数形状或冷却/风控的另一种表现，未确认）—— 别拿同一个写法连续重试',
   }
-  console.error(`  ✗ 点赞失败：code=${j.code} ${HINT[String(j.code)] ?? (j.message ?? '未知错误')}`)
+  const why = `code=${j.code} ${HINT[String(j.code)] ?? (j.message ?? '未知错误')}`
+  console.error(`  ✗ 点赞失败：${why}`)
+  noteWriteFailure({ kind: 'like', bv, reason: why })
   process.exit(4)
 }
 d.items = [...(d.items ?? []), { bv, aid: info.aid, title: info.title, up: info.up, at: new Date().toISOString(), reason: String(opt.reason ?? '').slice(0, 120) }]

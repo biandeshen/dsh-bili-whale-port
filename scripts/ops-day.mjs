@@ -71,9 +71,9 @@ function pendingTokens() {
   return { readable: true, items }
 }
 
-/** 今天（00:00 起）的因果事件：action / dm-out / inbound / diary。 */
+/** 今天（00:00 起）的因果事件：action / dm-out / inbound / diary / 失败与降级。 */
 function causalToday() {
-  const out = { action: 0, dmOut: 0, inbound: 0, diary: 0, lastActionMs: null, diaryHeadings: [] }
+  const out = { action: 0, dmOut: 0, inbound: 0, diary: 0, lastActionMs: null, diaryHeadings: [], failed: [], feedDegraded: [] }
   for (const line of fs.readFileSync(CAUSAL, 'utf8').split('\n')) {
     if (!line.trim()) continue
     let e
@@ -84,6 +84,9 @@ function causalToday() {
     else if (e.kind === 'dm-out') out.dmOut += 1
     else if (e.kind === 'inbound') out.inbound += 1
     else if (e.kind === 'diary') { out.diary += 1; out.diaryHeadings.push(String(e.heading ?? '')) }
+    // 写动作失败（like-failed / fav-failed / comment-failed / danmaku-failed）与取数降级
+    else if (/-failed$/.test(String(e.kind ?? ''))) out.failed.push(`${e.kind.replace('-failed', '')}：${String(e.reason ?? '').slice(0, 60)}`)
+    else if (e.kind === 'feed-degraded') out.feedDegraded.push(`${(e.sources ?? []).join('+')}（池子 ${e.poolSize}）`)
   }
   return out
 }
@@ -180,6 +183,16 @@ if (events !== null) {
   add(d.seen === 0 || d.latest !== DAY ? 'watch' : 'ok', 'K4-3 日记日期错位', k43)
 } else {
   add('watch', 'K4 三条', '缺：因果账本读不到，三条都算不出')
+}
+
+// ④b 今天"做了但没成"的动作：写失败与取数降级。以前这两类一条账都不留，
+// 于是"她没点赞"和"她点了三次全失败"看起来一模一样（f-04014b / f-340915）。
+if (events) {
+  const bad = [...events.failed, ...events.feedDegraded.map((s) => `feed 取数降级 ${s}`)]
+  if (bad.length) add('watch', '今天没做成的动作', bad.slice(0, 4).join(' ｜ ') + (bad.length > 4 ? ` …共 ${bad.length} 条` : ''))
+  else add('ok', '今天没做成的动作', '无（写动作与取数都没留失败账）')
+} else {
+  add('watch', '今天没做成的动作', '缺：因果账本读不到')
 }
 
 // ⑤ kill 开关与风控暂停

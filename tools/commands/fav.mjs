@@ -17,6 +17,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { whalePath, credentialsPath, stateReadPath, statePath } from '../lib/paths.mjs'
 import { report } from '../lib/report.mjs'
+import { attemptWrite, noteWriteFailure } from '../lib/write-refusal.mjs'
 
 
 const HOME = (process.env.USERPROFILE || process.env.HOME || '/')
@@ -173,11 +174,11 @@ const body = new URLSearchParams({
   del_media_ids: '',
   csrf: String(cred.bili_jct ?? ''),
 })
-const r = await fetch('https://api.bilibili.com/x/v3/fav/resource/deal', {
+const r = await attemptWrite('收藏', () => fetch('https://api.bilibili.com/x/v3/fav/resource/deal', {
   method: 'POST',
   headers: { ...H, 'content-type': 'application/x-www-form-urlencoded' },
   body: body.toString(),
-})
+}), { kind: 'fav', bv })
 const j = await r.json()
 if (j.code !== 0) {
   // 2026-10-21：把常见返回码翻译成人话 —— 裸的 -111 用户完全看不懂 ✗
@@ -188,7 +189,9 @@ if (j.code !== 0) {
     10031: '操作太快：退避一会儿',
     12015: '需要验证码：停下，去浏览器手动过一次',
   }
-  console.error(`  ✗ 收藏失败：code=${j.code} ${HINT[String(j.code)] ?? (j.message ?? '未知错误')}`)
+  const why = `code=${j.code} ${HINT[String(j.code)] ?? (j.message ?? '未知错误')}`
+  console.error(`  ✗ 收藏失败：${why}`)
+  noteWriteFailure({ kind: 'fav', bv, reason: why })
   process.exit(4)
 }
 

@@ -87,6 +87,29 @@ test('没锚过 live 代码 → 拦一项，并把该跑的命令说出来（观
   assert.match(r.stdout, /live-code-anchor\.mjs --set/)
 })
 
+test('今天有写失败与取数降级 → 顶出「今天没做成的动作」并拦一项（f-04014b / f-340915 的那笔账）', async (t) => {
+  const s = await sandbox(t)
+  fs.appendFileSync(path.join(s.whale, 'bili-whale', 'causal.jsonl'), [
+    { at: new Date().toISOString(), kind: 'like-failed', bv: 'BV1xx', reason: '写操作冷却中，请稍后再发送（BILI_TRAFFIC_PAUSED）', atMs: Date.now() },
+    { at: new Date().toISOString(), kind: 'feed-degraded', sources: ['热门', '排行', '关注'], poolSize: 0, atMs: Date.now() },
+  ].map((e) => JSON.stringify(e) + '\n').join(''))
+  const r = s.run(['--json'])
+  assert.equal(r.status, 1, r.stdout + r.stderr)
+  const j = JSON.parse(r.stdout)
+  const row = j.rows.find((x) => x.name === '今天没做成的动作')
+  assert.ok(row, '这一行必须出现：' + JSON.stringify(j.rows.map((x) => x.name)))
+  assert.equal(row.level, 'watch')
+  assert.match(row.detail, /like：写操作冷却中/, row.detail)
+  assert.match(row.detail, /feed 取数降级 热门\+排行\+关注（池子 0）/, row.detail)
+})
+
+test('一切正常时这一行是绿的（不许把"没账"报成"出事"）', async (t) => {
+  const s = await sandbox(t)
+  const j = JSON.parse(s.run(['--json']).stdout)
+  const row = j.rows.find((x) => x.name === '今天没做成的动作')
+  assert.equal(row.level, 'ok', row.detail)
+})
+
 test('pid 文件指向死进程 → 退出 2（进程死是硬伤）', async (t) => {
   const s = await sandbox(t)
   fs.writeFileSync(path.join(s.control, 'cortico.pid'), String(DEAD_PID) + '\n')

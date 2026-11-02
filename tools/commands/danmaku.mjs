@@ -17,6 +17,7 @@ import { gate } from '../lib/quota-gate.mjs'
 import { shouldGate, queueGo } from '../lib/go-gate.mjs'
 import { credentialsPath } from '../lib/paths.mjs'
 import { plainOutbound } from '../lib/plain-outbound.mjs'
+import { attemptWrite, noteWriteFailure } from '../lib/write-refusal.mjs'
 const argv = process.argv.slice(2)
 const mode = argv[0]
 const args = new Map()
@@ -136,17 +137,18 @@ if (mode === 'send') {
   if (isDry) { console.log('\n[dry] 未发送。'); process.exit(0) }
 
   console.log('\n[go] 发送中…')
-  const out = await j('https://api.live.bilibili.com/msg/send', {
+  const out = await attemptWrite('弹幕', () => j('https://api.live.bilibili.com/msg/send', {
     method: 'POST',
     headers: { ...H(shortId), 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams(form).toString(),
-  })
+  }), { kind: 'danmaku', bv: String(realId ?? roomArg ?? '') })
   const b = out.body
   const hints = { 0: '成功', '-101': '账号未登录', '-111': 'csrf 校验失败', '-400': '请求错误/缺参数', 1003212: '超出长度限制', 10031: '发送频率过快' }
   console.log(`  HTTP ${out.status}  code=${b.code} ${b.message ?? b.msg ?? ''}`)
   console.log(`  ${hints[b.code] ?? ''}`)
   if (b.code !== 0) {
     console.log(`  原始: ${JSON.stringify(b).slice(0, 300)}`)
+    noteWriteFailure({ kind: 'danmaku', bv: String(realId ?? roomArg ?? ''), reason: `code=${b.code} ${b.message ?? b.msg ?? ''}`.trim() })
     // 2026-10-21 修（外部审计 #7）：发送失败必须非 0 退出 ——
     //   否则 agent 拿到 exit 0 会当成"发出去了"，然后去 thread 复核才发现没有 ✗
     process.exit(4)
