@@ -346,3 +346,40 @@ test('拆出去的工具表与 handler 下标仍对得上，旧入口仍可用',
   }
   assert.ok(def.BILI_ACCOUNT, 'BILI_ACCOUNT 仍在 definition.ts')
 })
+
+// 2026-11-02 切 live 当场暴露：面板 6、世界页 5，差一条 dm 回信草稿。
+// 「待放行」这一格三路都要算：动态草稿 / 待审回信队列 / 私信回信草稿。
+test('待放行三路都算：漏掉 dm 回信就会和面板差数', async () => {
+  const whale = fs.mkdtempSync(path.join(os.tmpdir(), 'pending3-'))
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'pending3h-'))
+  const drafts = path.join(whale, 'bili-whale', 'drafts')
+  const ctrl = path.join(whale, 'bili-whale', 'control')
+  fs.mkdirSync(drafts, { recursive: true })
+  fs.mkdirSync(ctrl, { recursive: true })
+  fs.mkdirSync(path.join(whale, 'bili-ai'), { recursive: true })
+
+  fs.writeFileSync(path.join(drafts, '2026-11-02.json'), JSON.stringify({ status: 'pending' }), 'utf8')
+  fs.writeFileSync(path.join(ctrl, 'dm-drafts.json'), JSON.stringify({ items: [
+    { id: 'dm-p', status: 'pending' }, { id: 'dm-s', status: 'sent' },
+  ] }), 'utf8')
+  fs.writeFileSync(path.join(whale, 'bili-ai', 'pending-replies.json'), JSON.stringify({ items: [{}, {}] }), 'utf8')
+
+  const prev = { WHALE_DRAFTS: process.env.WHALE_DRAFTS, WHALE_HOME: process.env.WHALE_HOME, DSH_HOME: process.env.DSH_HOME, USERPROFILE: process.env.USERPROFILE }
+  process.env.WHALE_DRAFTS = drafts
+  process.env.WHALE_HOME = whale
+  delete process.env.DSH_HOME
+  process.env.USERPROFILE = home
+  try {
+    const t = await import(`../src/worlds/bili-account/tank.ts?three=${Date.now()}`)
+    assert.equal(t.pendingDraftCount(), 1, '动态稿 1')
+    assert.equal(t.pendingReplyCount(), 2, '待审回信 2')
+    assert.equal(t.pendingDmReplyCount(), 1, '私信回信只数待处理的（sent 不算）')
+    assert.equal(t.pendingTotal(), 4, '三路相加')
+  } finally {
+    const restore = (k, v) => { if (v === undefined) delete process.env[k]; else process.env[k] = v }
+    restore('WHALE_DRAFTS', prev.WHALE_DRAFTS); restore('WHALE_HOME', prev.WHALE_HOME)
+    restore('DSH_HOME', prev.DSH_HOME); restore('USERPROFILE', prev.USERPROFILE)
+    fs.rmSync(whale, { recursive: true, force: true })
+    fs.rmSync(home, { recursive: true, force: true })
+  }
+})

@@ -113,9 +113,24 @@ export function pendingReplyCount(): number {
   return 0
 }
 
-/** 世界页「待放行」= 草稿 + 待审回信，与面板 `pendingCount` 同一口径。 */
+/**
+ * 她的私信回信草稿（`control/dm-drafts.json`）里待处理的条数。
+ *
+ * 这一路原先漏了：世界页只数草稿目录，面板把 dm 队列也算进"等你审"。
+ * 2026-11-02 切 live 当场暴露——面板 6、世界页 5，差的就是一条 dm 回信。
+ */
+export function pendingDmReplyCount(): number {
+  const j = readJson(path.join(WHALE, 'bili-whale', 'control', 'dm-drafts.json'))
+  const items = Array.isArray(j?.items) ? j.items : []
+  return items.filter((x: any) => NEEDS.has(String(x?.status ?? ''))).length
+}
+
+/**
+ * 世界页「待放行」= 草稿 + 待审回信 + 私信回信，与面板 `pendingCount` 同一口径。
+ * 三路缺一路就会和面板对不上，而两个数字同时显示在同一个屏幕上。
+ */
 export function pendingTotal(): number {
-  return pendingDraftCount() + pendingReplyCount()
+  return pendingDraftCount() + pendingReplyCount() + pendingDmReplyCount()
 }
 
 /**
