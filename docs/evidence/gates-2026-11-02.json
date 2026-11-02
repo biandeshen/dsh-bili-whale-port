@@ -1,14 +1,14 @@
 {
-  "at": "2026-11-02T14:42:45.033Z",
+  "at": "2026-11-02T15:23:15.587Z",
   "root": "E:\\WorkSpace_Qoder\\dsh-bili-whale",
-  "gitSha": "6280d14f785e5726d92c696ceb2c608f5b994bd5",
+  "gitSha": "5e03090690a07c63775a0ffcf6cdba463f3584a0",
   "node": "v24.16.0",
   "exit": 0,
-  "discovered": 78,
-  "executed": 78,
+  "discovered": 79,
+  "executed": 79,
   "counts": {
-    "tests": 428,
-    "pass": 428,
+    "tests": 439,
+    "pass": 439,
     "fail": 0
   },
   "mismatch": false,
@@ -319,6 +319,14 @@
       "ran": true
     },
     {
+      "file": "tests\\contract\\write-refusal.test.mjs",
+      "exit": 0,
+      "tests": 5,
+      "pass": 5,
+      "fail": 0,
+      "ran": true
+    },
+    {
       "file": "tests\\day-close.test.mjs",
       "exit": 0,
       "tests": 4,
@@ -521,8 +529,8 @@
     {
       "file": "tests\\ops-day.test.mjs",
       "exit": 0,
-      "tests": 4,
-      "pass": 4,
+      "tests": 6,
+      "pass": 6,
       "fail": 0,
       "ran": true
     },
@@ -633,8 +641,8 @@
     {
       "file": "tests\\wake-audit.test.mjs",
       "exit": 0,
-      "tests": 3,
-      "pass": 3,
+      "tests": 7,
+      "pass": 7,
       "fail": 0,
       "ran": true
     }
