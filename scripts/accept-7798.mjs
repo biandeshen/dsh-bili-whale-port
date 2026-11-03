@@ -76,10 +76,15 @@ async function groupA() {
     const r = await fetch('http://127.0.0.1:7799/api/webui/manifest', { signal: AbortSignal.timeout(6000) })
     const m = await r.json()
     const bili = (m.providers ?? []).find((p) => p.id === 'world:bili-account')
+    // 语义随切换演进：7798 联调期断言"7799 还是旧的"；切换后 7799 应为扩展产物。
+    // 以 BASE 端口区分：BASE 是 7798（联调）→ 期望 7799 旧形态；BASE 是 7799（正式）→ 期望两台都新。
+    const switching = BASE.includes('7798')
+    const wantOld = switching
     const isOld = bili && String(bili.client?.js ?? '').includes('/assets/providers/')
-    rec('A', '7799 仍是旧内建 bili-account（未被波及）', Boolean(isOld), bili?.client?.js ?? '未找到')
+    const isNew = bili && String(bili.client?.js ?? '').includes('/assets/extensions/')
+    rec('A', switching ? '7799 仍是旧内建 bili-account（未被波及）' : '7799 已切到新扩展 bili-account', wantOld ? Boolean(isOld) : Boolean(isNew), bili?.client?.js ?? '未找到')
   } catch (e) {
-    rec('A', '7799 仍是旧内建 bili-account（未被波及）', false, String(e?.message ?? e))
+    rec('A', '7799 状态检查', false, String(e?.message ?? e))
   }
 }
 

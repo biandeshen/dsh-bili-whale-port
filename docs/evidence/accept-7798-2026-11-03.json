@@ -1,6 +1,6 @@
 {
-  "at": "2026-11-03T18:18:26.093Z",
-  "base": "http://127.0.0.1:7798",
+  "at": "2026-11-03T18:53:40.761Z",
+  "base": "http://127.0.0.1:7799",
   "deploy": "C:\\Users\\Administrator\\.xiaoyu-home\\xiaoyu",
   "results": [
     {
@@ -17,9 +17,9 @@
     },
     {
       "group": "A",
-      "name": "7799 仍是旧内建 bili-account（未被波及）",
+      "name": "7799 已切到新扩展 bili-account",
       "ok": true,
-      "detail": "/assets/providers/world-bili-account-6E3RQL33.js"
+      "detail": "/assets/extensions/cortico-world-bilibili/0.1.5/webui.js"
     },
     {
       "group": "B",
@@ -175,7 +175,7 @@
       "group": "D",
       "name": "memory.create（磁盘）",
       "ok": true,
-      "detail": "id=mem-mw10h0i5-d2ni"
+      "detail": "id=mem-mw11qc8s-qyi6"
     },
     {
       "group": "D",
@@ -199,7 +199,7 @@
       "group": "D",
       "name": "memory 提交信息含标记",
       "ok": true,
-      "detail": "memory: 恢复「验收标记-acc0h0dy-改」→ active"
+      "detail": "memory: 恢复「验收标记-acc1qc53-改」→ active"
     },
     {
       "group": "D",
@@ -211,7 +211,7 @@
       "group": "D",
       "name": "journal.upsertJudgment",
       "ok": true,
-      "detail": "j-4797a5"
+      "detail": "j-f42167"
     },
     {
       "group": "D",
@@ -301,17 +301,17 @@
       "group": "D",
       "name": "queue.reject（磁盘）",
       "ok": true,
-      "detail": "验收标记-acc0h0dy：拒稿验收"
+      "detail": "验收标记-acc1qc53：拒稿验收"
     },
     {
       "group": "D",
       "name": "queue.requestNew",
       "ok": true,
-      "detail": "1793729906058"
+      "detail": "1793732020727"
     },
     {
       "group": "E",
-      "name": "记忆卡片 core=22 active=49",
+      "name": "记忆卡片 core=22 active=52",
       "ok": true,
       "detail": ""
     },

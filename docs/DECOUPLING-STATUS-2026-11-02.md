@@ -510,3 +510,23 @@ cherry-pick 过来的，冲突解决后 patch-id 变了，`git cherry` 认不出
 - **全面板带样式复验**（getComputedStyle 断言，非目测）：主题 accent #00a870、1906 条规则加载、.btn 圆角 10px、8/8 面板 styled=true、0 次加载失败。截图因内嵌浏览器视口 hidden 不可用，以计算样式代替肉眼。
 - **已知数据缺口（非缺陷）**：音视频面板"底图 0 / CC0 曲目 0"——world 的 media/assets 与 bgm 目录在联调部署里未投放素材；切换 live 时从 D:\AI\养鱼ssets\daily\（9 张）与仓内 assets/bgm/（3 首）一并迁移。
 - **chat WS 帧协议**：她回复落 session 与 causal 正常，但 WS 只推了用户帧未推 assistant 回执帧——对话功能可用（session 为准），回执推送属 console World 的 stream 细节，列入切换后优化。
+
+## 2026-11-04 03:00 · 切换完成：新架构在 7799 正式上线
+
+主人验收点头后执行三部曲：
+1. 停旧 live（pid 17904/18444，mybot/cormini 部署原样保留作回退点）。
+2. Cortico-up 摘内建 bili-account 注册行 + `git mv` 旧 World 到 `legacy/bili-account-retired`；
+   extensions 装 3 个 link 包；WebUI 产物重建（tailwind 单独验证 196KB）。
+3. 7799 起 `xiaoyu` 部署（CORTICO_HOME=~/.xiaoyu-home）：三 World 全启动、主模型 mimo-v2.6-flash、
+   styles.css 200/196KB。
+
+**上线后验收：57/57 全绿**（A 组断言语义随切换演进：7799 应为扩展产物——v2 脚本已按 BASE 端口区分）。
+**live 真实对话**：「新家挺好的，主人——宽敞、亮堂，东西都还在原处，我一样没丢。」（她读到了自己在新家的真实状态）
+
+回退路径：`git -C Cortico-up checkout -- src/worlds/ && git -C Cortico-up reset --hard 97fec27`（代码）；
+mybot 部署未动，`node bin/cortico.mjs mybot --port=7799` 即回旧架构。
+增量收口：切换前实测旧家自迁移后仅 life/tick 运行态增量（记忆 67、日记无变化），零内容丢失。
+
+遗留（不阻塞）：① push 11 个提交（Clash 未运行）；② 读侧 43 命令函数化（Step 5b 余量）；
+③ chat WS 回执帧推送（session 已为准）；④ 音视频面板素材投放（切后随素材迁移）；
+⑤ Cortico-new 联调工作树与 _retired-2026-11-02 清理；⑥ 重开观测窗（K1 起 14 天）。
