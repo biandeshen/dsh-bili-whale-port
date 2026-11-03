@@ -7,9 +7,10 @@
     "cortico-bot",
     "cortico"
   ],
-  "main": "./src/index.ts",
+  "main": "./src/cortico-definition.ts",
   "exports": {
-    ".": "./src/index.ts",
+    ".": "./src/cortico-definition.ts",
+    "./hub": "./src/index.ts",
     "./*": "./src/*.ts"
   },
   "cortico": {
@@ -21,6 +22,11 @@
     ],
     "describe": "describe.json"
   },
+  "files": [
+    "src",
+    "describe.json",
+    "README.md"
+  ],
   "dependencies": {
     "@xiaoyu/persona-core": "workspace:*",
     "@xiaoyu/cap-state-rhythm": "workspace:*",

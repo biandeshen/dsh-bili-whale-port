@@ -1,0 +1,14 @@
+{
+  "name": "@xiaoyu/cortico-adapter",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Cortico 适配层：把宿主无关的 XiaoyuCapability 翻译成 Cortico 的 ToolDef / WorldPanelDecl（纯胶水，无业务逻辑）。",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@xiaoyu/persona-core": "workspace:*"
+  }
+}

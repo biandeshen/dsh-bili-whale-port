@@ -23,6 +23,7 @@ import {
   loadState,
 } from '../../cap-state-rhythm/src/index.ts'
 import { createMemoryCapability } from '../../cap-memory/src/index.ts'
+import { GitWorkspaceMemory } from '../../cap-memory/src/workspace.ts'
 import { createJournalCapability } from '../../cap-journal/src/index.ts'
 
 export interface XiaoyuBotHubOptions {
@@ -36,6 +37,12 @@ export interface XiaoyuBotHub {
   readonly api: 7
   readonly declares: readonly string[]
   readonly capabilities: readonly XiaoyuCapability<any>[]
+  /** mem: 附件后端（工作区 blobs/） */
+  readonly blobs: {
+    put(nameHint: string, bytes: Uint8Array, mime: string): string
+    get(handle: string): { bytes: Uint8Array; mime: string } | null
+    list(prefix?: string): Array<{ handle: string; mime: string; size: number }>
+  }
   start(host: CapabilityHost): Promise<void>
   stop(): Promise<void>
   assembleSystemPrefix(ctx: TurnContext): Promise<PrefixBlock[]>
@@ -51,6 +58,8 @@ export function createXiaoyuBotHub(opts: XiaoyuBotHubOptions): XiaoyuBotHub {
   const fieldsFile = path.join(dataPersonaDir, 'fields.json')
   const lifeFile = path.join(dataPersonaDir, 'life.json')
 
+  const workspace = new GitWorkspaceMemory({ memoryDir: workspaceDir })
+
   const stateRhythmCap = createStateRhythmCapability({
     fieldsFile,
     lifeFile,
@@ -62,7 +71,6 @@ export function createXiaoyuBotHub(opts: XiaoyuBotHubOptions): XiaoyuBotHub {
     workspaceDir,
     getCurrentMood: () => loadState(fieldsFile).fields.mood,
   })
-
   const journalCap = createJournalCapability({
     publicDiaryFile: path.join(workspaceDir, 'diary', 'public.md'),
     privateDiaryFile: path.join(workspaceDir, 'diary', 'private.md'),
@@ -90,6 +98,7 @@ export function createXiaoyuBotHub(opts: XiaoyuBotHubOptions): XiaoyuBotHub {
     api: 7,
     declares: ['console', 'bili-account', 'media-studio'],
     capabilities,
+    blobs: workspace.blobs,
 
     async start(host: CapabilityHost) {
       for (const cap of capabilities) {

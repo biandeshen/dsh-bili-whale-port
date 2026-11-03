@@ -1,0 +1,25 @@
+{
+  "tools": [
+    {
+      "name": "media_tts_preview",
+      "summary": "合成一段台词的 TTS 语音试听（默认茉莉音色）",
+      "description": "合成一段台词的 TTS 语音试听（默认茉莉音色）",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "tags": []
+    },
+    {
+      "name": "media_video_build",
+      "summary": "选底图、台词与 CC0 BGM 合成竖屏短视频及 9:16 / 16:9 双封面",
+      "description": "选底图、台词与 CC0 BGM 合成竖屏短视频及 9:16 / 16:9 双封面",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "tags": []
+    }
+  ],
+  "events": []
+}

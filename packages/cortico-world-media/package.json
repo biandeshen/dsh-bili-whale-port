@@ -23,6 +23,11 @@
     ],
     "describe": "describe.json"
   },
+  "files": [
+    "src",
+    "describe.json",
+    "README.md"
+  ],
   "dependencies": {
     "@xiaoyu/persona-core": "workspace:*",
     "@xiaoyu/cap-media-studio": "workspace:*"

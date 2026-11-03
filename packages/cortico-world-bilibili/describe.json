@@ -1,0 +1,198 @@
+{
+  "tools": [
+    {
+      "name": "bili_inbox_read",
+      "summary": "读取 B 站四路收件箱（私信 / 评论回复 / @提及 / 收到的赞）",
+      "description": "读取 B 站四路收件箱（私信 / 评论回复 / @提及 / 收到的赞）",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "tags": []
+    },
+    {
+      "name": "bili_inbox_ack",
+      "summary": "把处理完的收件箱条目标为已读",
+      "description": "把处理完的收件箱条目标为已读",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "tags": []
+    },
+    {
+      "name": "bili_feed",
+      "summary": "刷 B 站首页推荐流（自动套用看片偏好与时长标注）",
+      "description": "刷 B 站首页推荐流（自动套用看片偏好与时长标注）",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "tags": []
+    },
+    {
+      "name": "bili_debrief",
+      "summary": "深读一条视频：标题、简介、弹幕采样与高赞评论",
+      "description": "深读一条视频：标题、简介、弹幕采样与高赞评论",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "tags": []
+    },
+    {
+      "name": "bili_subtitles",
+      "summary": "读取视频的 CC 或 AI 字幕全文",
+      "description": "读取视频的 CC 或 AI 字幕全文",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "tags": []
+    },
+    {
+      "name": "bili_search",
+      "summary": "按关键词搜索 B 站视频",
+      "description": "按关键词搜索 B 站视频",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "tags": []
+    },
+    {
+      "name": "bili_comments",
+      "summary": "查看视频评论区与楼中楼",
+      "description": "查看视频评论区与楼中楼",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "tags": []
+    },
+    {
+      "name": "bili_whois",
+      "summary": "查询 B 站用户与 UP 主信息",
+      "description": "查询 B 站用户与 UP 主信息",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "tags": []
+    },
+    {
+      "name": "bili_dynamic_recent",
+      "summary": "核对账号最近已发布的动态",
+      "description": "核对账号最近已发布的动态",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "tags": []
+    },
+    {
+      "name": "bili_dynamic_draft",
+      "summary": "发起一条图文或纯文字动态（经把关链）",
+      "description": "发起一条图文或纯文字动态（经把关链）",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "tags": []
+    },
+    {
+      "name": "bili_dynamic_edit",
+      "summary": "修改一条已发布或待审的动态",
+      "description": "修改一条已发布或待审的动态",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "tags": []
+    },
+    {
+      "name": "bili_comment",
+      "summary": "在视频下发表评论或回复别人的评论",
+      "description": "在视频下发表评论或回复别人的评论",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "tags": []
+    },
+    {
+      "name": "bili_danmaku",
+      "summary": "向视频发送一条弹幕",
+      "description": "向视频发送一条弹幕",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "tags": []
+    },
+    {
+      "name": "bili_dm_reply",
+      "summary": "回复 B 站私信（受档位与回信时效窗管控）",
+      "description": "回复 B 站私信（受档位与回信时效窗管控）",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "tags": []
+    },
+    {
+      "name": "bili_like",
+      "summary": "为真正喜欢的视频点赞（30 天内不重复）",
+      "description": "为真正喜欢的视频点赞（30 天内不重复）",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "tags": []
+    },
+    {
+      "name": "bili_fav",
+      "summary": "收藏值得回看的视频（每天 3 条上限，理由至少 6 个字）",
+      "description": "收藏值得回看的视频（每天 3 条上限，理由至少 6 个字）",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "tags": []
+    }
+  ],
+  "events": [
+    {
+      "type": "bili-account.inbox",
+      "description": "B 站有新私信 / 评论回复 / @提及 / 收到的赞",
+      "trigger": "wake",
+      "tags": [
+        "social"
+      ]
+    },
+    {
+      "type": "bili-account.inbox_assigned",
+      "description": "主人指派她回复某条消息",
+      "trigger": "wake",
+      "tags": [
+        "social"
+      ]
+    },
+    {
+      "type": "bili-account.draft_rejected",
+      "description": "主人驳回了她的草稿（可带理由要求重写）",
+      "trigger": "wake",
+      "tags": [
+        "speak"
+      ]
+    },
+    {
+      "type": "bili-account.owner_order_draft",
+      "description": "主人点单让她写一条动态或评论",
+      "trigger": "wake",
+      "tags": [
+        "speak"
+      ]
+    }
+  ]
+}

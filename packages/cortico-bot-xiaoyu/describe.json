@@ -1,0 +1,118 @@
+{
+  "tools": [
+    {
+      "name": "mood_read",
+      "summary": "读她当前的场值、情绪与成因",
+      "description": "读她当前的场值、情绪与成因",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "tags": []
+    },
+    {
+      "name": "mood_apply",
+      "summary": "记下事件引起的场值与心情变化（看完一条可给 keep/drop/unclear）",
+      "description": "记下事件引起的场值与心情变化（看完一条可给 keep/drop/unclear）",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "tags": []
+    },
+    {
+      "name": "memory_remember",
+      "summary": "记下一条新的记忆卡片",
+      "description": "记下一条新的记忆卡片",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "tags": []
+    },
+    {
+      "name": "memory_recall",
+      "summary": "按话题检索她的记忆库",
+      "description": "按话题检索她的记忆库",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "tags": []
+    },
+    {
+      "name": "memory_void",
+      "summary": "作废一条记错的记忆（原文留痕，退出召回）",
+      "description": "作废一条记错的记忆（原文留痕，退出召回）",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "tags": []
+    },
+    {
+      "name": "diary_read",
+      "summary": "分页或按天/按小节读她的两本日记",
+      "description": "分页或按天/按小节读她的两本日记",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "tags": []
+    },
+    {
+      "name": "diary_write",
+      "summary": "向公开本或私人本写入一个小节",
+      "description": "向公开本或私人本写入一个小节",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "tags": []
+    },
+    {
+      "name": "judgment_read",
+      "summary": "读她的审美判断卡独立视图",
+      "description": "读她的审美判断卡独立视图",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "tags": []
+    },
+    {
+      "name": "judgment_write",
+      "summary": "新增一张结构化判断卡",
+      "description": "新增一张结构化判断卡",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "tags": []
+    },
+    {
+      "name": "feedback_submit",
+      "summary": "向主人的意见箱提交一条反馈",
+      "description": "向主人的意见箱提交一条反馈",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "tags": []
+    }
+  ],
+  "bot": {
+    "worlds": [
+      "console",
+      "bili-account",
+      "media-studio"
+    ],
+    "memory": {
+      "name": "MEMORY.md",
+      "form": {
+        "zh": "四层 Markdown 记忆卡片（核心常驻 / 近期活跃 / 远期归档 / 已作废）+ 两本日记 + 审美判断卡，全部在 workspace 里，由 Git 记账可回退。",
+        "en": "Four tiers of Markdown memory cards plus two diaries and a judgment-card file, all under workspace/ with Git history."
+      }
+    }
+  }
+}
