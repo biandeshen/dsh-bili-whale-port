@@ -1,0 +1,168 @@
+{
+  "schemaVersion": 2,
+  "fields": {
+    "energy": 0.7164053470539996,
+    "stimulation": 0.4894665764730001,
+    "connection": 0.4658687604460002,
+    "social": 0.4829343802230003,
+    "mood": 0.2317375208920002,
+    "curiosity": 0.6429343802230008,
+    "creativity": 0.512934380223001
+  },
+  "chain": [
+    {
+      "id": "causal_1_1793082094546",
+      "timestamp": "2026-10-27T06:21:34.546Z",
+      "npcId": "xiaoyu",
+      "layer": "L0",
+      "type": "field_change",
+      "description": "看了一条喜欢的视频",
+      "fieldChanges": [
+        {
+          "field": "curiosity",
+          "from": 0.6,
+          "to": 0.63
+        }
+      ]
+    },
+    {
+      "id": "causal_1_1793087367726",
+      "timestamp": "2026-10-27T07:49:27.726Z",
+      "npcId": "xiaoyu",
+      "layer": "L0",
+      "type": "field_change",
+      "description": "她醒了",
+      "fieldChanges": [
+        {
+          "field": "energy",
+          "from": 0.7058602551499998,
+          "to": 0.6558602551499998
+        }
+      ],
+      "source": "wake"
+    },
+    {
+      "id": "causal_2_1793087372397",
+      "timestamp": "2026-10-27T07:49:32.397Z",
+      "npcId": "xiaoyu",
+      "layer": "L0",
+      "type": "field_change",
+      "description": "草稿被主人放行",
+      "fieldChanges": [
+        {
+          "field": "mood",
+          "from": 0.19706551428800004,
+          "to": 0.24706551428800005
+        }
+      ],
+      "source": "draftApproved"
+    },
+    {
+      "id": "causal_3_1793087372397",
+      "timestamp": "2026-10-27T07:49:32.397Z",
+      "npcId": "xiaoyu",
+      "layer": "L0",
+      "type": "field_change",
+      "description": "草稿被主人放行",
+      "fieldChanges": [
+        {
+          "field": "creativity",
+          "from": 0.49926637857200007,
+          "to": 0.5292663785720001
+        }
+      ],
+      "source": "draftApproved"
+    },
+    {
+      "id": "causal_1_1793121216121",
+      "timestamp": "2026-10-27T17:13:36.121Z",
+      "npcId": "xiaoyu",
+      "layer": "L0",
+      "type": "field_change",
+      "description": "看了一条喜欢的视频",
+      "fieldChanges": [
+        {
+          "field": "stimulation",
+          "from": 0.4656601309359999,
+          "to": 0.5856601309359999
+        }
+      ],
+      "source": "watchedVideo"
+    },
+    {
+      "id": "causal_2_1793121216121",
+      "timestamp": "2026-10-27T17:13:36.121Z",
+      "npcId": "xiaoyu",
+      "layer": "L0",
+      "type": "field_change",
+      "description": "看了一条喜欢的视频",
+      "fieldChanges": [
+        {
+          "field": "mood",
+          "from": 0.22824840374400013,
+          "to": 0.2782484037440001
+        }
+      ],
+      "source": "watchedVideo"
+    },
+    {
+      "id": "causal_3_1793121216121",
+      "timestamp": "2026-10-27T17:13:36.121Z",
+      "npcId": "xiaoyu",
+      "layer": "L0",
+      "type": "field_change",
+      "description": "看了一条喜欢的视频",
+      "fieldChanges": [
+        {
+          "field": "curiosity",
+          "from": 0.6245621009360002,
+          "to": 0.6545621009360002
+        }
+      ],
+      "source": "watchedVideo"
+    },
+    {
+      "id": "causal_1_1793197282320",
+      "timestamp": "2026-10-28T14:21:22.320Z",
+      "npcId": "xiaoyu",
+      "layer": "L0",
+      "type": "field_change",
+      "description": "她想去做点什么",
+      "fieldChanges": [
+        {
+          "field": "energy",
+          "from": 0.7579742211659992,
+          "to": 0.7079742211659992
+        }
+      ],
+      "source": "action"
+    }
+  ],
+  "memories": [
+    {
+      "id": "mem-mvqy2dmt-vuzu",
+      "npcId": "xiaoyu",
+      "sender": "npc",
+      "content": "看过《【雨声白噪音助眠】在竹林小院里听雨，安心睡一觉Ⅰ深度睡眠必备Ⅰ大自然真实雨声Ⅰ竹林雨声Ⅰ舒适惬意催眠引导入睡Ⅰ放松解压Ⅰ治愈减压Ⅰ冥想背景音Ⅰ疗愈身心Ⅰ生活记录》（治愈助眠白噪音） —— BV1E1x36aE6a",
+      "emotion": {
+        "valence": 0.22827099791600014,
+        "intensity": 0.4657165757289999,
+        "tags": []
+      },
+      "tags": [],
+      "vividness": 0.9,
+      "accessCount": 0,
+      "createdAt": "2026-10-27T17:13:21.029Z",
+      "encodingStrength": 0.8880971464408333,
+      "flashbulb": false,
+      "source": "npc_self"
+    }
+  ],
+  "npcState": {
+    "current": "normal",
+    "connectionBelowThresholdSince": null,
+    "lastUserMessageAt": null,
+    "trustAtColdWarStart": null
+  },
+  "lastAppliedAt": "2026-10-28T16:27:48.788Z"
+}
