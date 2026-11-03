@@ -495,8 +495,11 @@ cherry-pick 过来的，冲突解决后 patch-id 变了，`git cherry` 认不出
 含代码的把前三个代码文件名带出来。真跑确认：`dsh：提交变了 64eb03a→660417c（只动文档，行为不变）`。
 测试 +2 条（docs 必须标 docs、`.ts` 必须标 code），锚点用例现在 6 条。
 
+## 2026-11-04 · 新架构 7798 联调验收（Step 5 执行账）
 
-
-
-
-
+- **真浏览器走查 8 面板**：抓出并修掉 4 处真实缺陷（`ui.segmented` 位置参数、`invoke` args 必须数组、`WebUiCheckbox` 返回形状、WorldContext.dataDir 是部署级 data/ 须开子目录）——全部记录在 `96f9b60`。
+- **挑刺席审计验收脚本 v1**：坐实 4 处自欺（幂等标记洗绿、复原无断言、落盘只看 HTTP、git 只数条数），v2 重写后 **57/57 全绿**（`2a05a47`），覆盖蓝图 §10 全部写方法（含 updateDraft 哈希续签、assignAction 三动作、gate 全分支），全部带磁盘级断言。
+- **真实 B 站读调用验证**（挑刺席"必须补"第 3 项）：nav `code=0 isLogin=true`、feed 实拉 10 条、msgfeed-like `code=0` —— 登录态有效，真实数据形状与包内解析一致。凭据源 `~/.bili-ai/credentials.json`（与 live 同源）。
+- **真实 ffmpeg/TTS 验证**（Step 4 时）：3s 真出片 + 双封面 PNG 魔数校验、MiMo TTS 1.76s 真音频。
+- **待办（切换 live 前）**：① 主模型配置 + console 一轮真实对话（挑刺席第 4 项）；② 切换时重跑迁移收增量（旧 live 停写→快照→再迁）；③ 摘除 Cortico-up 内建 bili-account 注册行；④ push 积压提交（Clash 内核未运行，GitHub 443 不通，本地领先 9 个提交）。
+- **数据现状**：新家 `~/.xiaoyu-home/xiaoyu/` 67→69 条记忆（验收脚本自清，净增 2 条直发测试）、双日记完整、workspace git 12+ 提交留痕。

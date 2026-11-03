@@ -95,21 +95,40 @@ export class XiaoYuPersona implements CorticoPersonaShape {
     return (await this.hub.assembleSystemPrefix({ now: ctx.now, timezone: ctx.timezone })) as never
   }
 
-  /** 消息进上下文之前：汇总三个包的召回注入（跨渠道一致的自动回忆）。 */
-  async onDelivery(ctx: { now: Date; timezone: string; events: ReadonlyArray<{ type: string; source: string; text?: string; atMs?: number; meta?: Record<string, unknown> }> }): Promise<string[]> {
-    const lines = await this.hub.assembleDeliveryInjections({
-      now: ctx.now,
-      timezone: ctx.timezone,
-      events: ctx.events.map((e) => ({
-        type: e.type,
-        source: e.source,
-        text: e.text ?? '',
-        atMs: e.atMs ?? ctx.now.getTime(),
-        meta: e.meta,
-      })),
-    })
-    // 只保留有内容的注入；空数组表示这一批没有额外上下文
-    return lines.filter((l) => l && l.trim().length > 0)
+  /**
+   * 消息进上下文之前：汇总三个包的召回并经 core.injectInternal 注入（跨渠道一致的自动回忆）。
+   *
+   * 宿主契约（src/core/loop.ts:693）：onDelivery 的**返回值会被忽略**，注入只能走
+   * `core.injectInternal`（钩子执行期 Core 把它收集进当前批，排在外部正文之前）。
+   * 单个能力包抛错不拖垮整批：逐包 try/catch。
+   */
+  async onDelivery(ctx: { now: Date; timezone: string; events: ReadonlyArray<{ type: string; source: string; text?: string; atMs?: number; meta?: Record<string, unknown> }> }): Promise<void> {
+    // 投递路径的纪律：这里抛任何错，宿主只给一行无详情的 WARN（实测），注入全部丢失。
+    // 所以整段兜底：宁可这一批不带回忆，也不能让异常冒出去。
+    try {
+      const queryText = ctx.events.map((e) => String(e.text ?? '')).join(' ')
+      for (const cap of this.hub.capabilities) {
+        if (!cap.onMessageDelivery) continue
+        try {
+          const lines = await cap.onMessageDelivery({
+            now: ctx.now,
+            timezone: ctx.timezone,
+            events: ctx.events.map((e) => ({
+              type: e.type,
+              source: e.source,
+              text: e.text ?? '',
+              atMs: e.atMs ?? ctx.now.getTime(),
+              meta: e.meta,
+            })),
+          })
+          for (const line of lines) {
+            if (line && line.trim()) this.core?.injectInternal?.(line)
+          }
+        } catch (e) {
+          try { this.core?.log?.('warn', `onDelivery 注入失败（${cap.id}）：${String((e as any)?.message ?? e)}`) } catch {}
+        }
+      }
+    } catch { /* 投递批次绝不被 Persona 的内部错误拖垮 */ }
   }
 
   /** 10 个对内工具（mood/memory/diary/judgment/feedback）挂在主会话上。 */
