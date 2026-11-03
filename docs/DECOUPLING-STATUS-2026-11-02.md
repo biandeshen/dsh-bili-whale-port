@@ -503,3 +503,10 @@ cherry-pick 过来的，冲突解决后 patch-id 变了，`git cherry` 认不出
 - **真实 ffmpeg/TTS 验证**（Step 4 时）：3s 真出片 + 双封面 PNG 魔数校验、MiMo TTS 1.76s 真音频。
 - **待办（切换 live 前）**：① 主模型配置 + console 一轮真实对话（挑刺席第 4 项）；② 切换时重跑迁移收增量（旧 live 停写→快照→再迁）；③ 摘除 Cortico-up 内建 bili-account 注册行；④ push 积压提交（Clash 内核未运行，GitHub 443 不通，本地领先 9 个提交）。
 - **数据现状**：新家 `~/.xiaoyu-home/xiaoyu/` 67→69 条记忆（验收脚本自清，净增 2 条直发测试）、双日记完整、workspace git 12+ 提交留痕。
+
+### 2026-11-04 补充 · 样式修复与全面板带样式复验（Step 5 收尾）
+
+- **styles.css 404 根因**：首次构建时 `pnpm build:web` 的 `&&` 链在后台执行，tailwindcss 那步实际失败但未被发现（`build-web.ts` 的 rmSync 先清了 dist）；单独重跑 tailwind 生成 196KB 产物后 7798 复原。教训：构建链的每一步都要独立验证产物存在，不能只看退出码。
+- **全面板带样式复验**（getComputedStyle 断言，非目测）：主题 accent #00a870、1906 条规则加载、.btn 圆角 10px、8/8 面板 styled=true、0 次加载失败。截图因内嵌浏览器视口 hidden 不可用，以计算样式代替肉眼。
+- **已知数据缺口（非缺陷）**：音视频面板"底图 0 / CC0 曲目 0"——world 的 media/assets 与 bgm 目录在联调部署里未投放素材；切换 live 时从 D:\AI\养鱼ssets\daily\（9 张）与仓内 assets/bgm/（3 首）一并迁移。
+- **chat WS 帧协议**：她回复落 session 与 causal 正常，但 WS 只推了用户帧未推 assistant 回执帧——对话功能可用（session 为准），回执推送属 console World 的 stream 细节，列入切换后优化。
