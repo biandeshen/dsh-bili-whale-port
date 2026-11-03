@@ -44,7 +44,12 @@ export interface RecalledMemory {
   score: number
   slot: 'core' | 'surprise'
   why: string[]
+  /** 元记忆：这条已淡到「只剩轮廓」。表达时应说「记不太清了，但当时的感觉还在」。 */
+  faded?: boolean
 }
+
+/** 鲜活度低于此线即为「淡忘」：元记忆话术的阈值（记忆观：遗忘必须被说出）。 */
+export const FADED_VIVIDNESS = 0.35
 
 const DAY_MS = 86400_000
 
@@ -174,6 +179,7 @@ function toRecalled(
   slot: 'core' | 'surprise',
   why: string[],
 ): RecalledMemory {
+  const vivid = Number(s.m.vividness ?? 1)
   return {
     id: s.m.id,
     content: String(s.m.content ?? ''),
@@ -183,7 +189,8 @@ function toRecalled(
     flashbulb: s.m.flashbulb === true,
     score: round(s.score),
     slot,
-    why,
+    why: vivid < FADED_VIVIDNESS ? [...why, '已经淡了，只剩个轮廓'] : why,
+    faded: vivid < FADED_VIVIDNESS,
   }
 }
 

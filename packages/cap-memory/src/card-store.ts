@@ -373,10 +373,12 @@ export class MemoryCardStore {
 
   /**
    * 每日结算：对 active 层做自然衰减，低于 archiveThreshold（默认 0.35）的自动移入 archived/。
+   * 记忆观「遗忘叙事化」：返回本轮归档条目的摘要，调用方（做梦/日记）把它写成她看得见的一行。
    */
-  settle(days = 1, archiveThreshold = 0.35): { decayed: number; archivedIds: string[] } {
+  settle(days = 1, archiveThreshold = 0.35): { decayed: number; archivedIds: string[]; archived: Array<{ id: string; content: string }> } {
     const activeCards = this.readAll({ tier: 'active' })
     const archivedIds: string[] = []
+    const archived: Array<{ id: string; content: string }> = []
     for (const card of activeCards) {
       const next = decayMemory(card, days)
       if (!card.flashbulb && !card.pinned && next.vividness < archiveThreshold) {
@@ -386,10 +388,26 @@ export class MemoryCardStore {
           try { fs.unlinkSync(oldPath) } catch {}
         }
         archivedIds.push(card.id)
+        archived.push({ id: card.id, content: card.content })
       } else {
         this.writeCardAtomic({ ...card, vividness: next.vividness })
       }
     }
-    return { decayed: activeCards.length, archivedIds }
+    this.commit(`memory: 每日结算（${activeCards.length} 条在册，${archivedIds.length} 条沉入归档）`)
+    return { decayed: activeCards.length, archivedIds, archived }
+  }
+
+  /**
+   * 做梦 · 记忆结算文本：把本轮结算翻译成她第一人称的一小段（供睡眠期写进日记/前缀）。
+   * 没有归档时返回 null——不是每晚都有旧事沉底，别硬凑。
+   */
+  dreamDigest(settleResult: ReturnType<MemoryCardStore['settle']>): string | null {
+    if (!settleResult.archived.length) return null
+    const items = settleResult.archived
+      .slice(0, 3)
+      .map((a) => `「${a.content.slice(0, 30)}」`)
+      .join('、')
+    const more = settleResult.archived.length > 3 ? `等 ${settleResult.archived.length} 件` : ''
+    return `夜里结算记忆：${items}${more} 想不太清了，只剩个轮廓。原文都还在（git 兜底），哪天被提起还会回来。`
   }
 }

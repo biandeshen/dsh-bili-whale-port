@@ -16,6 +16,7 @@ import { createXiaoyuBotHub, type XiaoyuBotHub, type XiaoyuBotHubOptions } from 
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { DreamTick } from '../../cap-state-rhythm/src/dream-tick.ts'
 
 export const MAIN_SESSION = 'main'
 
@@ -108,13 +109,44 @@ export class XiaoYuPersona implements CorticoPersonaShape {
         this.core?.log?.(level, `${msg}${meta ? ' ' + JSON.stringify(meta) : ''}`)
       },
     })
+    // 做梦系统：她睡着时由记忆能力包做每日结算，归档叙事写进私人日记。
+    // 与生活 tick 同源挂载（此处），全局唯一；醒着/force_awake 时循环空转。
+    const stateRhythm = this.hub.capabilities.find((c) => c.id === 'state-rhythm') as any
+    const memoryCap = this.hub.capabilities.find((c) => c.id === 'memory') as any
+    const diaryDir = path.join(this.memoryDir, 'workspace', 'diary')
+    if (stateRhythm && memoryCap) {
+      const store = memoryCap.store ?? null
+      if (store) {
+        this.dream = new DreamTick({
+          lifeFile: path.join(this.memoryDir, 'data', 'persona', 'life.json'),
+          isAsleep: stateRhythm.isAsleep,
+          settle: (days, threshold) => store.settle(days, threshold),
+          dreamDigest: (r) => store.dreamDigest(r),
+          onDream: (digest, count) => {
+            if (!digest) return null
+            try {
+              const diaryFile = path.join(diaryDir, 'private.md')
+              const line = `\n- [${new Date().toISOString().slice(0, 10)}] ${digest}\n`
+              fs.appendFileSync(diaryFile, line, 'utf8')
+              this.core?.log?.('info', `做梦：${count} 条记忆沉入归档，已写进私人日记`)
+            } catch { /* 日记写失败不影响结算本身 */ }
+            return digest
+          },
+          log: (level, msg) => this.core?.log?.(level, msg),
+        })
+        this.dream.start()
+      }
+    }
   }
 
   async stop(): Promise<void> {
     if (!this.started) return
     this.started = false
+    this.dream?.stop()
     await this.hub.stop()
   }
+
+  private dream: DreamTick | null = null
 
   /** 汇总三个对内能力包的系统前缀：场值与心情 + 核心记忆 + 意见箱主人批复。 */
   async systemSegments(ctx: { now: Date; timezone: string; worlds: unknown[] }): Promise<Array<{ title: string; text: string; sourceKey?: string }>> {

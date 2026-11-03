@@ -48,7 +48,7 @@ export interface MemoryCapabilityOptions {
 
 export function createMemoryCapability(
   opts: MemoryCapabilityOptions,
-): XiaoyuCapability<MemoryCapabilityConfig> & { readonly git: GitWorkspaceMemory['git'] | null } {
+): XiaoyuCapability<MemoryCapabilityConfig> & { readonly git: GitWorkspaceMemory['git'] | null; readonly store: MemoryCardStore } {
   const workspace = opts.workspaceDir ? new GitWorkspaceMemory({ memoryDir: opts.workspaceDir }) : null
   const store = new MemoryCardStore(opts.memoRoot, workspace?.git ?? undefined)
 
@@ -57,6 +57,8 @@ export function createMemoryCapability(
     title: '四层记忆系统',
     kind: 'internal',
     git: workspace?.git ?? null,
+    /** 做梦系统（睡眠期结算）等内部协作者经此取 store；不属于 XiaoyuCapability 公共面 */
+    store,
     configSchema: {
       type: 'object',
       title: '记忆分层与衰减阈值',
