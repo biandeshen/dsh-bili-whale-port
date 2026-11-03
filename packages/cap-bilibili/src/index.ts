@@ -33,6 +33,15 @@ import {
   type InboxItem,
   type WatchPreferences,
 } from './client/inbox.ts'
+import {
+  executeBiliWrite,
+  checkLikeNotRepeated,
+  checkFavDailyCap,
+  checkFavReason,
+  checkDmReplyWindow,
+  loadCredentials,
+  type BiliWriteContext,
+} from './client/bili-write.ts'
 
 export {
   WriteGate,
@@ -41,6 +50,12 @@ export {
   sha1Hex,
   BiliInboxAndPrefsStore,
   DEFAULT_WATCH_PREFS,
+  executeBiliWrite,
+  checkLikeNotRepeated,
+  checkFavDailyCap,
+  checkFavReason,
+  checkDmReplyWindow,
+  loadCredentials,
 }
 export type {
   WriteKind,
@@ -53,6 +68,7 @@ export type {
   InboxKind,
   InboxItem,
   WatchPreferences,
+  BiliWriteContext,
 }
 
 export interface BilibiliCapabilityConfig extends BiliPublishPolicy {
@@ -77,6 +93,10 @@ export interface BilibiliCapabilityOptions {
   writeExecutor?: (action: WriteAction) => Promise<{ ok: boolean; dynId?: string; rpid?: string; error?: string; status?: number }>
   contentCheck?: (action: WriteAction) => { ok: true } | { ok: false; code?: 'policy' | 'precondition'; reason: string }
   readHandlers?: BilibiliReadHandlers
+  /** 真实写链路的上下文（凭据 + 本地账读法）。给了就用真执行器与真判据。 */
+  writeContext?: BiliWriteContext
+  /** 凭据文件路径；配合 writeContext.cred 缺省时从这里读 */
+  credentialsFile?: string
 }
 
 export function createBilibiliCapability(
@@ -88,10 +108,49 @@ export function createBilibiliCapability(
   let hostRef: CapabilityHost | null = null
   const store = new BiliInboxAndPrefsStore(opts.dataDir)
 
+  // 真实写上下文：凭据 + 本地账读法（点赞/收藏账）。
+  const writeCtx: BiliWriteContext = opts.writeContext ?? {
+    cred: opts.credentialsFile ? loadCredentials(opts.credentialsFile) : { sessdata: '', bili_jct: '', buvid3: '' },
+  }
+
+  /** 默认内容判据：按 kind 走各自原有的判据（30 天去重 / 收藏两条 / 回信时效窗）。 */
+  const defaultContentCheck = (
+    action: WriteAction,
+  ): { ok: true } | { ok: false; code?: 'policy' | 'precondition'; reason: string } => {
+    switch (action.kind) {
+      case 'like':
+        return checkLikeNotRepeated(String(action.target.bvid ?? ''), writeCtx)
+      case 'fav': {
+        const cap = checkFavDailyCap(writeCtx)
+        if (!cap.ok) return cap
+        return checkFavReason(action.body)
+      }
+      case 'dm':
+        return checkDmReplyWindow(writeCtx)
+      default:
+        return { ok: true }
+    }
+  }
+
+  /** 默认执行器：真的发 B 站请求（点赞/收藏/评论/弹幕），其余 kind 走调用方注入。 */
+  const defaultExecutor = async (
+    action: WriteAction,
+  ): Promise<{ ok: boolean; dynId?: string; rpid?: string; error?: string; status?: number }> => {
+    if (action.kind !== 'like' && action.kind !== 'fav' && action.kind !== 'comment' && action.kind !== 'danmaku') {
+      return { ok: false, error: `kind=${action.kind} 还没有真实执行器（需要注入 writeExecutor）` }
+    }
+    const out = await executeBiliWrite(action.kind, action, writeCtx)
+    if (!out.ok) {
+      return { ok: false, error: out.reason, status: out.httpStatus }
+    }
+    const rpid = out.meta?.rpid
+    return { ok: true, rpid: rpid ? String(rpid) : undefined }
+  }
+
   const gate = new WriteGate({
     dataDir: opts.dataDir,
-    executor: opts.writeExecutor,
-    contentCheck: opts.contentCheck,
+    executor: opts.writeExecutor ?? defaultExecutor,
+    contentCheck: opts.contentCheck ?? defaultContentCheck,
     onDraftRejected(item, reason, askRewrite) {
       if (hostRef) {
         hostRef.pushEvent({

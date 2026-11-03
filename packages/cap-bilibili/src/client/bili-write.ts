@@ -1,0 +1,335 @@
+/**
+ * 四条写链路的 Typed API（like / fav / comment / danmaku）。
+ *
+ * 与 tools/commands/*.mjs 的关系：请求形状、csrf 字段、referer、body 编码、HINT 文案
+ * 全部**逐字照抄**原命令（那是线上跑过、验过的形状）；差别只有两处——
+ *   ① 不读 argv、不 process.exit：一律返回结构化结果，由调用方（WriteGate）裁决；
+ *   ② 正文在构造时过一次 plainOutbound 清洗。
+ * 判据（30 天去重、收藏五判据、分享必须 @主人）也从原命令搬过来，放在本文件里，
+ * 由 WriteGate.contentCheck 统一调用。
+ */
+import fs from 'node:fs'
+import path from 'node:path'
+import { plainOutbound } from '../../../../tools/lib/plain-outbound.mjs'
+import { guardedFetch as defaultFetch } from '../../../../tools/lib/traffic.mjs'
+
+export const UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+
+export interface BiliCredentials {
+  sessdata: string
+  bili_jct: string
+  buvid3: string
+}
+
+export interface BiliWriteContext {
+  /** 发请求用；缺省走 traffic 闸的 guardedFetch（带冷却/412 熔断/防重发）。测试可注入替身。 */
+  fetch?: typeof defaultFetch
+  cred: BiliCredentials
+  /** 30 天点赞去重账（读） */
+  readLikeLog?: () => { items?: LikeLogEntry[] }
+  /** 收藏本地账（读） */
+  readFavLog?: () => { items?: FavLogEntry[] }
+  /** 回信时效：最后一次成功读私信的时间戳（毫秒） */
+  lastDmReadAt?: number
+}
+
+/** 取实际使用的 fetch：注入的优先，否则 traffic 闸的 guardedFetch。 */
+export function fetcher(ctx: BiliWriteContext): typeof defaultFetch {
+  return ctx.fetch ?? defaultFetch
+}
+
+export interface LikeLogEntry {
+  bv: string
+  aid?: number
+  title?: string
+  up?: string
+  at: string
+  reason?: string
+}
+
+export interface FavLogEntry {
+  bv: string
+  aid?: number
+  title?: string
+  up?: string
+  at: string
+  reason?: string
+  kind?: string
+  favId?: number
+}
+
+export interface WriteOutcome {
+  ok: boolean
+  /** 平台返回码（0 = 成功） */
+  code?: number
+  /** 给人看的失败原因（已翻成中文） */
+  reason?: string
+  /** 平台返回原文 */
+  raw?: unknown
+  httpStatus?: number
+  /** 成功时的附带数据（标题、UP、链接等） */
+  meta?: Record<string, unknown>
+}
+
+const CODE_HINTS: Record<string, string> = {
+  '-101': '账号未登录：SESSDATA 失效，重新复制一次 cookie',
+  '-111': 'CSRF 校验失败：bili_jct 和当前 SESSDATA 不是同一账号，或已过期 → 两个都重新复制一次',
+  '-352': '风控拦截：等几分钟再来',
+  // 11-01 实测撞过两次 -400，根因未确认——不写成结论，只提示别连着重试
+  '-400': '请求错误（参数形状或冷却/风控的另一种表现，未确认）—— 别拿同一个写法连续重试',
+  '10031': '操作太快：退避一会儿',
+  '12015': '需要验证码：停下，去浏览器手动过一次',
+}
+
+export function explainCode(code: number | undefined, message?: string): string {
+  const hint = CODE_HINTS[String(code)] ?? (message ?? '未知错误')
+  return `code=${code} ${hint}`
+}
+
+function cookieHeader(cred: BiliCredentials): string {
+  return `SESSDATA=${cred.sessdata}; bili_jct=${cred.bili_jct}; buvid3=${cred.buvid3 ?? ''}`
+}
+
+function baseHeaders(cred: BiliCredentials): Record<string, string> {
+  return { 'user-agent': UA, referer: 'https://www.bilibili.com/', cookie: cookieHeader(cred) }
+}
+
+export function loadCredentials(credentialsFile: string): BiliCredentials {
+  try {
+    const raw = JSON.parse(fs.readFileSync(credentialsFile, 'utf8'))
+    return {
+      sessdata: String(raw.sessdata ?? ''),
+      bili_jct: String(raw.bili_jct ?? ''),
+      buvid3: String(raw.buvid3 ?? ''),
+    }
+  } catch {
+    return { sessdata: '', bili_jct: '', buvid3: '' }
+  }
+}
+
+/** 取视频信息（aid / 标题 / UP）——点赞与收藏都要用。 */
+export async function fetchVideoInfo(
+  bv: string,
+  ctx: BiliWriteContext,
+): Promise<{ aid: number; title: string; up: string }> {
+  const r = await fetcher(ctx)(`https://api.bilibili.com/x/web-interface/view?bvid=${bv}`, {
+    headers: baseHeaders(ctx.cred),
+  })
+  const j = await r.json()
+  if (j.code !== 0) throw new Error(`取视频信息失败：code=${j.code} ${j.message ?? ''}`)
+  return {
+    aid: j.data.aid,
+    title: String(j.data.title ?? ''),
+    up: String(j.data.owner?.name ?? ''),
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 判据（WriteGate.contentCheck 调用；返回 ok=false 即闸门拒，不消耗额度）
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** 点赞判据：同一视频 30 天内不重复点（B站接口是 toggle，重复点会把赞取消掉）。 */
+export function checkLikeNotRepeated(bv: string, ctx: BiliWriteContext, now = Date.now()): { ok: true } | { ok: false; code: 'policy'; reason: string } {
+  const items = ctx.readLikeLog?.().items ?? []
+  const same = items
+    .filter((x) => x.bv === bv)
+    .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))[0]
+  if (same && now - Date.parse(same.at) < 30 * 86400_000) {
+    const days = Math.floor((now - Date.parse(same.at)) / 86400_000)
+    return {
+      ok: false,
+      code: 'policy',
+      reason: `这条 ${days} 天前赞过了 —— 再点一次会把赞取消（B站 toggle），别手滑`,
+    }
+  }
+  return { ok: true }
+}
+
+/** 收藏判据之一：每天最多 3 条（与现状一致）。 */
+export function checkFavDailyCap(ctx: BiliWriteContext, now = Date.now()): { ok: true } | { ok: false; code: 'policy'; reason: string } {
+  const today = new Date(now).toLocaleDateString('sv-SE')
+  const count = (ctx.readFavLog?.().items ?? []).filter(
+    (x) => new Date(x.at).toLocaleDateString('sv-SE') === today,
+  ).length
+  if (count >= 3) {
+    return { ok: false, code: 'policy', reason: `今天已经收藏 ${count} 条（上限 3 条）` }
+  }
+  return { ok: true }
+}
+
+/** 收藏判据之二：理由至少 6 个字（说不清为什么就不记成收藏）。 */
+export function checkFavReason(reason: string): { ok: true } | { ok: false; code: 'policy'; reason: string } {
+  const r = String(reason ?? '').trim()
+  if (r.length < 6) {
+    return { ok: false, code: 'policy', reason: '收藏理由至少 6 个字（说不清为什么就不收藏）' }
+  }
+  return { ok: true }
+}
+
+/** 私信判据：回信时效窗（默认 7 天，与现状一致）。 */
+export function checkDmReplyWindow(
+  ctx: BiliWriteContext,
+  now = Date.now(),
+  windowDays = 7,
+): { ok: true } | { ok: false; code: 'precondition'; reason: string } {
+  const last = Number(ctx.lastDmReadAt ?? 0)
+  if (!last) {
+    return { ok: false, code: 'precondition', reason: '还没读过私信，没有回信时效的起点' }
+  }
+  if (now - last > windowDays * 86400_000) {
+    return { ok: false, code: 'precondition', reason: `最后一次读私信在 ${Math.floor((now - last) / 86400_000)} 天前，已过 ${windowDays} 天回信窗` }
+  }
+  return { ok: true }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 四条写链路的执行体（WriteGate.executor 调用；只负责发，不负责裁决）
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function executeLike(
+  action: { target: { bvid?: string }; body: string },
+  ctx: BiliWriteContext,
+): Promise<WriteOutcome> {
+  const bv = String(action.target.bvid ?? '')
+  const info = await fetchVideoInfo(bv, ctx)
+  const r = await fetcher(ctx)('https://api.bilibili.com/x/web-interface/archive/like', {
+    method: 'POST',
+    headers: {
+      ...baseHeaders(ctx.cred),
+      referer: `https://www.bilibili.com/video/${bv}/`,
+      'content-type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      bvid: bv,
+      like_pos: '1',
+      csrf: String(ctx.cred.bili_jct ?? ''),
+    }).toString(),
+  })
+  const j = await r.json()
+  if (j.code !== 0) {
+    return { ok: false, code: j.code, reason: explainCode(j.code, j.message), raw: j, httpStatus: r.status }
+  }
+  return {
+    ok: true,
+    code: 0,
+    httpStatus: r.status,
+    meta: { bv, aid: info.aid, title: info.title, up: info.up, reason: action.body },
+  }
+}
+
+export async function executeFav(
+  action: { target: { bvid?: string }; body: string },
+  ctx: BiliWriteContext,
+): Promise<WriteOutcome> {
+  const bv = String(action.target.bvid ?? '')
+  const info = await fetchVideoInfo(bv, ctx)
+  const favId = 1
+  const body = new URLSearchParams({
+    rid: String(info.aid),
+    type: '2',
+    add_media_ids: String(favId),
+    del_media_ids: '',
+    csrf: String(ctx.cred.bili_jct ?? ''),
+  })
+  const r = await fetcher(ctx)('https://api.bilibili.com/x/v3/fav/resource/deal', {
+    method: 'POST',
+    headers: { ...baseHeaders(ctx.cred), 'content-type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+  })
+  const j = await r.json()
+  if (j.code !== 0) {
+    return { ok: false, code: j.code, reason: explainCode(j.code, j.message), raw: j, httpStatus: r.status }
+  }
+  return {
+    ok: true,
+    code: 0,
+    httpStatus: r.status,
+    meta: { bv, aid: info.aaid ?? info.aid, title: info.title, up: info.up, reason: action.body, favId },
+  }
+}
+
+export async function executeComment(
+  action: { target: { bvid?: string; oid?: string }; body: string },
+  ctx: BiliWriteContext,
+): Promise<WriteOutcome> {
+  const bv = String(action.target.bvid ?? '')
+  const oid = String(action.target.oid ?? '')
+  const text = plainOutbound(action.body).trim()
+  const r = await fetcher(ctx)('https://api.bilibili.com/x/v2/reply/add', {
+    method: 'POST',
+    headers: {
+      ...baseHeaders(ctx.cred),
+      referer: `https://www.bilibili.com/video/${bv}/`,
+      'content-type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      type: '1',
+      oid,
+      message: text,
+      plat: '1',
+      web_location: oid ? '131' : '333',
+      csrf: String(ctx.cred.bili_jct ?? ''),
+    }).toString(),
+  })
+  const j = await r.json()
+  if (j.code !== 0) {
+    return { ok: false, code: j.code, reason: explainCode(j.code, j.message), raw: j, httpStatus: r.status }
+  }
+  return {
+    ok: true,
+    code: 0,
+    httpStatus: r.status,
+    meta: { bv, rpid: j.data?.rpid ?? j.data?.reply?.rpid, url: `https://www.bilibili.com/video/${bv}/#reply${j.data?.rpid ?? j.data?.reply?.rpid ?? ''}` },
+  }
+}
+
+export async function executeDanmaku(
+  action: { target: { room?: string; bvid?: string }; body: string },
+  ctx: BiliWriteContext,
+): Promise<WriteOutcome> {
+  const room = String(action.target.room ?? action.target.bvid ?? '')
+  const text = plainOutbound(action.body).trim()
+  const r = await fetcher(ctx)('https://api.live.bilibili.com/msg/send', {
+    method: 'POST',
+    headers: { ...baseHeaders(ctx.cred), 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      bubble: '0',
+      msg: text,
+      color: '16777215',
+      mode: '1',
+      fontsize: '25',
+      rnd: String(Date.now()),
+      roomid: room,
+    }).toString(),
+  })
+  const j = await r.json()
+  if (j.code !== 0) {
+    return { ok: false, code: j.code, reason: explainCode(j.code, j.message ?? j.msg), raw: j, httpStatus: r.status }
+  }
+  return { ok: true, code: 0, httpStatus: r.status, meta: { room, msg: text } }
+}
+
+/** 按 kind 分派到对应执行体。 */
+export async function executeBiliWrite(
+  kind: 'like' | 'fav' | 'comment' | 'danmaku',
+  action: { target: { bvid?: string; oid?: string; room?: string }; body: string },
+  ctx: BiliWriteContext,
+): Promise<WriteOutcome> {
+  switch (kind) {
+    case 'like':
+      return await executeLike(action, ctx)
+    case 'fav':
+      return await executeFav(action, ctx)
+    case 'comment':
+      return await executeComment(action, ctx)
+    case 'danmaku':
+      return await executeDanmaku(action, ctx)
+  }
+}
+
+/** 点赞/收藏的本地账（写）。 */
+export function appendLocalLog(file: string, items: unknown[], entry: Record<string, unknown>): void {
+  fs.mkdirSync(path.dirname(file), { recursive: true })
+  fs.writeFileSync(file, JSON.stringify({ items: [...items, entry] }, null, 2), 'utf8')
+}
