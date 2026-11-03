@@ -15,6 +15,7 @@ import type {
   PrefixBlock,
 } from '../../persona-core/src/capability.ts'
 import { dayKey } from '../../persona-core/src/rhythm.ts'
+import { WorkspaceGit, AUTHOR_SELF, AUTHOR_OPERATOR } from '../../cap-memory/src/workspace-git.ts'
 import {
   diaryDefaultHeader,
   upsertDiarySection,
@@ -88,6 +89,8 @@ export interface JournalCapabilityOptions {
   judgmentFile: string
   feedbackFile: string
   onRuleConverted?: (rule: { kind: 'dislike' | 'keyword' | 'exemptUp'; value: string }) => void
+  /** 与 cap-memory 共用同一个工作区仓：日记每次落盘后自动提交，历史可回退 */
+  git?: WorkspaceGit
 }
 
 function readTextSafe(file: string, book: DiaryBook): string {
@@ -110,6 +113,12 @@ export function createJournalCapability(
 ): XiaoyuCapability<JournalCapabilityConfig> {
   const diaryPath = (book: DiaryBook) =>
     book === 'private' ? opts.privateDiaryFile : opts.publicDiaryFile
+  const commitDiary = (message: string, byOwner: boolean): void => {
+    if (!opts.git) return
+    try {
+      opts.git.commitAll(message, byOwner ? AUTHOR_OPERATOR : AUTHOR_SELF)
+    } catch { /* 文件已保存；提交失败进 git.status().commitError */ }
+  }
 
   return {
     id: 'journal',
@@ -218,6 +227,7 @@ export function createJournalCapability(
             const before = sectionStats(raw, date, args.heading, book)
             const next = upsertDiarySection(raw, { book, heading: args.heading, body: args.body, date })
             writeTextAtomic(file, next)
+            commitDiary(`diary: ${book} 本 ${date}「${args.heading}」${before.existed ? '替换' : '追加'}（她写的）`, false)
             return {
               ok: true,
               book,
@@ -347,6 +357,7 @@ export function createJournalCapability(
                     })
                   : replaceDiaryDateBlock(raw, params.date.trim(), params.markdown)
                 writeTextAtomic(file, next)
+                commitDiary(`diary: 主人在线编辑 ${book} 本 ${params.date.trim()}`, true)
                 return { ok: true, book, date: params.date.trim(), savedChars: params.markdown.length }
               },
             },

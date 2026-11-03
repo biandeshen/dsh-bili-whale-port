@@ -59,6 +59,7 @@ export function createXiaoyuBotHub(opts: XiaoyuBotHubOptions): XiaoyuBotHub {
 
   const memoryCap = createMemoryCapability({
     memoRoot: path.join(workspaceDir, 'memo'),
+    workspaceDir,
     getCurrentMood: () => loadState(fieldsFile).fields.mood,
   })
 
@@ -68,6 +69,7 @@ export function createXiaoyuBotHub(opts: XiaoyuBotHubOptions): XiaoyuBotHub {
     judgmentFile: path.join(dataPersonaDir, 'judgment.jsonl'),
     feedbackFile: path.join(dataPersonaDir, 'feedback.jsonl'),
     onRuleConverted: opts.onRuleConverted,
+    git: memoryCap.git ?? undefined,
   })
 
   const capabilities: readonly XiaoyuCapability<any>[] = [

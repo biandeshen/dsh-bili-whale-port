@@ -9,6 +9,7 @@
     "./*": "./src/*.ts"
   },
   "dependencies": {
-    "@xiaoyu/persona-core": "workspace:*"
+    "@xiaoyu/persona-core": "workspace:*",
+    "@xiaoyu/cap-memory": "workspace:*"
   }
 }

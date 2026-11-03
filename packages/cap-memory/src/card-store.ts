@@ -17,6 +17,10 @@ import {
   recallMemory,
 } from '../../persona-core/src/memory.ts'
 import { recallMemories, type RecalledMemory } from '../../persona-core/src/retrieval.ts'
+import { WorkspaceGit, AUTHOR_SELF, AUTHOR_OPERATOR, type GitAuthor } from './workspace-git.ts'
+
+export { WorkspaceGit, AUTHOR_SELF, AUTHOR_OPERATOR }
+export type { GitAuthor }
 
 export type MemoryTier = 'core' | 'active' | 'archived' | 'voided'
 export const MEMORY_TIERS: readonly MemoryTier[] = ['core', 'active', 'archived', 'voided']
@@ -99,9 +103,20 @@ export function parseMemoryCard(raw: string, tier: MemoryTier, fallbackId = 'mem
 
 export class MemoryCardStore {
   readonly memoRoot: string
+  /** 传了 git 就在每次改动后自动提交（同一工作区仓库，日记与记忆共享历史） */
+  private readonly git?: WorkspaceGit
 
-  constructor(memoRoot: string) {
+  constructor(memoRoot: string, git?: WorkspaceGit) {
     this.memoRoot = memoRoot
+    this.git = git
+  }
+
+  /** 改动落盘后提交一次；没接 git 或提交失败时静默降级（文件已写成功，历史暂缺）。 */
+  private commit(message: string, author: GitAuthor = AUTHOR_SELF): void {
+    if (!this.git) return
+    try {
+      this.git.commitAll(message, author)
+    } catch { /* 文件已保存；提交失败由 WorkspaceGit 记进 status().commitError */ }
   }
 
   private tierDir(tier: MemoryTier): string {
@@ -206,6 +221,7 @@ export class MemoryCardStore {
       tier,
     }
     this.writeCardAtomic(card)
+    this.commit(`memory: 记下「${card.content.slice(0, 24)}」(${tier})`, input.sender === 'player' ? AUTHOR_OPERATOR : AUTHOR_SELF)
     return card
   }
 
@@ -248,6 +264,7 @@ export class MemoryCardStore {
     if (nextTier !== existing.tier && fs.existsSync(oldPath)) {
       try { fs.unlinkSync(oldPath) } catch {}
     }
+    this.commit(`memory: ${nextTier === existing.tier ? '修改' : `移入 ${nextTier}`}「${updated.content.slice(0, 24)}」`, AUTHOR_OPERATOR)
     return { ok: true, card: updated }
   }
 
@@ -285,6 +302,7 @@ export class MemoryCardStore {
     if (fs.existsSync(oldPath)) {
       try { fs.unlinkSync(oldPath) } catch {}
     }
+    this.commit(`memory: 作废「${target.content.slice(0, 24)}」（${cleanReason.slice(0, 30)}）`)
     return { ok: true, card: voidedCard }
   }
 
@@ -304,6 +322,7 @@ export class MemoryCardStore {
     if (existing.tier !== targetTier && fs.existsSync(oldPath)) {
       try { fs.unlinkSync(oldPath) } catch {}
     }
+    this.commit(`memory: 恢复「${restored.content.slice(0, 24)}」→ ${targetTier}`, AUTHOR_OPERATOR)
     return { ok: true, card: restored }
   }
 

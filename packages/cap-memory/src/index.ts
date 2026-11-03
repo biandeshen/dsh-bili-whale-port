@@ -22,12 +22,14 @@ import {
   type MemoryTier,
   type MemoryCard,
 } from './card-store.ts'
+import { GitWorkspaceMemory } from './workspace.ts'
 
 export {
   MemoryCardStore,
   serializeMemoryCard,
   parseMemoryCard,
   MEMORY_TIERS,
+  GitWorkspaceMemory,
 }
 export type { MemoryTier, MemoryCard }
 
@@ -40,17 +42,21 @@ export interface MemoryCapabilityConfig {
 export interface MemoryCapabilityOptions {
   memoRoot: string
   getCurrentMood?: () => number
+  /** 工作区根（memo 的上级，含 diary/）。给了就在这个根上建 git 仓：记忆与日记共享版本历史 */
+  workspaceDir?: string
 }
 
 export function createMemoryCapability(
   opts: MemoryCapabilityOptions,
-): XiaoyuCapability<MemoryCapabilityConfig> {
-  const store = new MemoryCardStore(opts.memoRoot)
+): XiaoyuCapability<MemoryCapabilityConfig> & { readonly git: GitWorkspaceMemory['git'] | null } {
+  const workspace = opts.workspaceDir ? new GitWorkspaceMemory({ memoryDir: opts.workspaceDir }) : null
+  const store = new MemoryCardStore(opts.memoRoot, workspace?.git ?? undefined)
 
   return {
     id: 'memory',
     title: '四层记忆系统',
     kind: 'internal',
+    git: workspace?.git ?? null,
     configSchema: {
       type: 'object',
       title: '记忆分层与衰减阈值',
@@ -304,6 +310,71 @@ export function createMemoryCapability(
               invoke(params: { id: string; targetTier?: 'active' | 'core' }) {
                 if (!params?.id) return { ok: false, error: '缺少记忆 id' }
                 return store.restoreCard(params.id, params.targetTier ?? 'active')
+              },
+            },
+            history: {
+              name: 'history',
+              verb: 'GET',
+              summary: '查看工作区（记忆+日记）的版本历史、当前状态与可用 checkpoint',
+              writable: false,
+              invoke(params: { path?: string; limit?: number; diffOf?: string; fileAt?: { hash: string; path: string } }) {
+                if (!workspace) {
+                  return { ok: false, error: '未接 workspace（没有 git 版本历史）' }
+                }
+                const g = workspace.git
+                if (params?.diffOf) {
+                  try {
+                    return { ok: true, diff: g.diff(params.diffOf, params.path ? { path: params.path } : undefined) }
+                  } catch (e: any) {
+                    return { ok: false, error: String(e?.message ?? e) }
+                  }
+                }
+                if (params?.fileAt) {
+                  try {
+                    return { ok: true, content: g.fileAt(params.fileAt.hash, params.fileAt.path) }
+                  } catch (e: any) {
+                    return { ok: false, error: String(e?.message ?? e) }
+                  }
+                }
+                return {
+                  ok: true,
+                  status: g.status(),
+                  log: g.log({ path: params?.path, limit: params?.limit ?? 20 }),
+                  logStat: g.logStat({ path: params?.path, limit: 10 }),
+                }
+              },
+            },
+            checkpoint: {
+              name: 'checkpoint',
+              verb: 'POST',
+              summary: '打一个可回滚的存档点（annotated tag）',
+              writable: true,
+              invoke(params: { name: string; message?: string }) {
+                if (!workspace) return { ok: false, error: '未接 workspace（没有 git 版本历史）' }
+                try {
+                  workspace.git.tag(String(params?.name ?? ''), String(params?.message ?? ''))
+                  return { ok: true, tags: workspace.git.listTags().map((t) => t.name) }
+                } catch (e: any) {
+                  return { ok: false, error: String(e?.message ?? e) }
+                }
+              },
+            },
+            rollback: {
+              name: 'rollback',
+              verb: 'POST',
+              summary: '回滚整个工作区到某个 checkpoint（reset --hard：之后的改动丢弃，慎用）',
+              writable: true,
+              invoke(params: { name: string; confirm: boolean }) {
+                if (!workspace) return { ok: false, error: '未接 workspace（没有 git 版本历史）' }
+                if (params?.confirm !== true) {
+                  return { ok: false, error: '回滚会丢弃该 checkpoint 之后的所有记忆与日记改动，需显式传 confirm: true' }
+                }
+                try {
+                  workspace.git.checkoutTag(String(params?.name ?? ''))
+                  return { ok: true, rolledBackTo: params.name }
+                } catch (e: any) {
+                  return { ok: false, error: String(e?.message ?? e) }
+                }
               },
             },
           },
