@@ -6,6 +6,10 @@ import os from 'node:os'
 import path from 'node:path'
 const home = fs.mkdtempSync(path.join(os.tmpdir(), 'whale-review-'))
 process.env.USERPROFILE = process.env.HOME = home
+// 本机 live 环境里设了 DSH_HOME（指向真实 ~/.dsh）：不剥掉的话 paths.mjs 会解析到生产目录，
+// 测试就会读到真实 api-cache.json（形状与 mock 不同 → undefined.mid），还会把缓存写回生产家。
+delete process.env.DSH_HOME
+delete process.env.WHALE_HOME
 delete process.env.BILI_NO_CACHE
 // 状态写新家（whale home 下的 bili-ai），旧家 ~/.bili-ai 只读兜底 —— 见 tools/lib/paths.mjs
 const dataDir = path.join(home, '.dsh', 'bili-ai')

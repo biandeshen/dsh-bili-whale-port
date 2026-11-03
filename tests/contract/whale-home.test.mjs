@@ -19,9 +19,12 @@ const PROBE = path.join(HERE, '..', 'helpers', 'home-probe.mjs')
 function probe(t, withHome) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'whale-home-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))
-  const base = { ...process.env, USERPROFILE: home, HOME: home, ...withHome(home) }
-  if (!('WHALE_HOME' in base)) delete base.WHALE_HOME
-  if (!('DSH_HOME' in base)) delete base.DSH_HOME
+  const overrides = withHome(home)
+  const base = { ...process.env, USERPROFILE: home, HOME: home, ...overrides }
+  // 反向守卫（原来写成了 `if (!('X' in base)) delete base.X`，等于永不删除）：
+  // 本机 live 设了 DSH_HOME，不剥掉就会漏进子进程，"两个都不设"这一档永远测不到 ~/.dsh 兜底。
+  if (!('WHALE_HOME' in overrides)) delete base.WHALE_HOME
+  if (!('DSH_HOME' in overrides)) delete base.DSH_HOME
   const r = spawnSync(process.execPath, [PROBE], { env: base, encoding: 'utf8' })
   assert.equal(r.status, 0, r.stderr)
   return { home, got: JSON.parse(r.stdout.trim().split('\n').pop()) }
