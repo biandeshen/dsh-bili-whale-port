@@ -1,0 +1,14 @@
+{
+  "name": "@xiaoyu/cap-media-studio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "小鱼的音视频创作能力扩展包（MiMo/Edge TTS + CC0 BGM 曲库 + 视频与双封面合成 + 音视频工作台，100% 宿主无关）。",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@xiaoyu/persona-core": "workspace:*"
+  }
+}

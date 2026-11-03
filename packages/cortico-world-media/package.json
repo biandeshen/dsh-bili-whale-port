@@ -1,0 +1,30 @@
+{
+  "name": "cortico-world-media",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "小鱼的音视频创作工作室薄转接头（包装 @xiaoyu/cap-media-studio，对接 Cortico world api:6）。",
+  "keywords": [
+    "cortico-world",
+    "cortico",
+    "media"
+  ],
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "cortico": {
+    "kind": "world",
+    "api": 6,
+    "tags": [
+      "media",
+      "video",
+      "tts"
+    ],
+    "describe": "describe.json"
+  },
+  "dependencies": {
+    "@xiaoyu/persona-core": "workspace:*",
+    "@xiaoyu/cap-media-studio": "workspace:*"
+  }
+}
