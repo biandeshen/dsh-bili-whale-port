@@ -530,3 +530,11 @@ mybot 部署未动，`node bin/cortico.mjs mybot --port=7799` 即回旧架构。
 遗留（不阻塞）：① push 11 个提交（Clash 未运行）；② 读侧 43 命令函数化（Step 5b 余量）；
 ③ chat WS 回执帧推送（session 已为准）；④ 音视频面板素材投放（切后随素材迁移）；
 ⑤ Cortico-new 联调工作树与 _retired-2026-11-02 清理；⑥ 重开观测窗（K1 起 14 天）。
+
+### 2026-11-04 04:00 · B1 人格正本回家 + 观测窗按门禁顺延
+
+- **人格正本三件套进包**：CONSTITUTION（+新增"我的记忆观"段）/ ORIENTATION（工具名适配新架构：diary_write、judgment_write、inbox 四路、mood verdict 三值）/ ENV_PROMPT → `cortico-bot-xiaoyu/persona/` 与 `cap-bilibili/`。转接头 systemSegments 复位五段：宪法→orientation→场值→记忆→批复；部署 prompts/ 覆盖优先。
+- **A3 完成**：CORE_DEFAULTS 本地化（persona-core/cortico-defaults.ts），转接头 cortico import 归零（grep 验证）。独立形态剩 A2（tools 收编）/A4（版本缓存）/A5（呈现层）。
+- **实测她**：「小鱼——刚学着当人，刚学会记账、认筐、给草稿画押的那条小鱼。规矩就一条：只记能对上账的事，账不圆就先摆着，不编。」——宪法+记忆观已进前缀生效。
+- **观测窗顺延（门禁正确拦截）**：G3b 唯一 PENDING 是"连续 3 天反事实"，其中 11-02 draftHash=mismatch（旧架构切换期数据）。处置：不跳过、不清数据，让她在新架构自然积累，3 天达标（预计 11-07）后开窗。这正是门禁存在的意义。
+- 全量 97/548 fail 0；验收 57/57。
