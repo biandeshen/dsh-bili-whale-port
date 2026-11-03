@@ -26,13 +26,13 @@ export const journalBoardPanel = {
     card.body.append(diaryBox, judgeBox, fbBox, msg)
 
     // ── 日记 ──
-    const bookSeg = ui.segmented({
-      options: [
+    const bookSeg = ui.segmented(
+      [
         { value: 'public', label: '公开本' },
         { value: 'private', label: '私人本' },
       ],
-      value: 'public',
-    })
+      { value: 'public' },
+    )
     const dateInput = ui.input({ placeholder: '日期 YYYY-MM-DD（留空看最近一页）' })
     const diaryActs = ui.actions()
     const diaryBox2 = ui.h('div')
@@ -59,29 +59,20 @@ export const journalBoardPanel = {
 
       const edit = ui.textarea({ value: res.body ?? '', rows: 8 })
       const editActs = ui.actions()
-      const save = actionButton(ctx, ui, msg, '💾 保存并提交（按当前内容覆盖）', 'saveDiarySection', undefined, { variant: 'primary', after: loadDiary })
-      save.onclick = async () => {
-        const date = dateInput.value.trim() || (res.dates ?? [])[0]
-        if (!date) {
-          msg.textContent = '要先在上面填一个日期（YYYY-MM-DD）才能保存'
-          msg.classList.add('bad')
-          return
-        }
-        try {
-          msg.textContent = ''
-          await ctx.invoke('saveDiarySection', [{ book: (bookSeg as any).value ?? 'public', date, markdown: edit.value }])
-        } catch (e) {
-          msg.textContent = String(e instanceof Error ? e.message : e)
-          msg.classList.add('bad')
-        }
-        await loadDiary()
-      }
+      const save = actionButton(ctx, ui, msg, '💾 保存并提交（按当前内容覆盖）', 'saveDiarySection', undefined, {
+        variant: 'primary',
+        argsFactory: () => [{
+          book: (bookSeg as any).value ?? 'public',
+          date: dateInput.value.trim() || (res.dates ?? [])[0],
+          markdown: edit.value,
+        }],
+        after: loadDiary,
+      })
       editActs.append(save)
       diaryBox2.append(edit, editActs)
     }
 
     const loadDiaryBtn = actionButton(ctx, ui, msg, '读取日记', 'getDiary', undefined, { after: loadDiary })
-    loadDiaryBtn.onclick = async () => { await loadDiary() }
     diaryActs.append(loadDiaryBtn)
 
     // ── 判断卡 ──
@@ -104,22 +95,14 @@ export const journalBoardPanel = {
           value: j.verdict,
         })
         const note = ui.input({ value: j.reason ?? '' })
-        const save = actionButton(ctx, ui, msg, '保存', 'upsertJudgment', undefined, { after: loadJudgments })
-        save.onclick = async () => {
-          try {
-            msg.textContent = ''
-            await ctx.invoke('upsertJudgment', [{ id: j.id, verdict: sel.value, note: note.value }])
-          } catch (e) {
-            msg.textContent = String(e instanceof Error ? e.message : e)
-            msg.classList.add('bad')
-          }
-          await loadJudgments()
-        }
+        const save = actionButton(ctx, ui, msg, '保存', 'upsertJudgment', undefined, {
+          argsFactory: () => [{ id: j.id, verdict: sel.value, note: note.value }],
+          after: loadJudgments,
+        })
         table.addRow([sel, (j.tokens ?? []).join('、'), note, j.status, save])
       }
       judgeBox.append(table.el)
       const reload = actionButton(ctx, ui, msg, '刷新判断卡', 'listJudgments', undefined, { after: loadJudgments })
-      reload.onclick = async () => { await loadJudgments() }
       judgeBox.append(reload)
     }
     judgeBox.append(ui.h('h3'))
@@ -137,41 +120,21 @@ export const journalBoardPanel = {
         const box = ui.sheet({ title: f.issue?.slice(0, 40) || f.id, desc: `#${f.id} · ${f.severity}${f.selfHandled ? '·她已对治' : ''} · ${f.resolved ? `已解决(${f.resolvedBy})` : '未解决'}` })
         const reply = ui.textarea({ value: f.ownerReply ?? '', placeholder: '给她的批复（下一轮自动注入）', rows: 2 })
         const acts = ui.actions()
-        const replyBtn = actionButton(ctx, ui, msg, '💬 写批复并解决', 'replyFeedback', undefined, { variant: 'primary', after: loadFeedback })
-        replyBtn.onclick = async () => {
-          try {
-            msg.textContent = ''
-            await ctx.invoke('replyFeedback', [{ id: f.id, ownerReply: reply.value, resolve: true }])
-          } catch (e) {
-            msg.textContent = String(e instanceof Error ? e.message : e)
-            msg.classList.add('bad')
-          }
-          await loadFeedback()
-        }
+        const replyBtn = actionButton(ctx, ui, msg, '💬 写批复并解决', 'replyFeedback', undefined, {
+          variant: 'primary',
+          argsFactory: () => [{ id: f.id, ownerReply: reply.value, resolve: true }],
+          after: loadFeedback,
+        })
         const ruleInput = ui.input({ placeholder: '转成看片过滤词（可选）' })
-        const ruleBtn = actionButton(ctx, ui, msg, '➕ 一键转成屏蔽词并解决', 'replyFeedback', undefined, { after: loadFeedback })
-        ruleBtn.onclick = async () => {
-          const value = ruleInput.value.trim()
-          if (!value) {
-            msg.textContent = '要先填要屏蔽的词'
-            msg.classList.add('bad')
-            return
-          }
-          try {
-            msg.textContent = ''
-            await ctx.invoke('replyFeedback', [{ id: f.id, ownerReply: reply.value, resolve: true, convertRule: { kind: 'dislike', value } }])
-          } catch (e) {
-            msg.textContent = String(e instanceof Error ? e.message : e)
-            msg.classList.add('bad')
-          }
-          await loadFeedback()
-        }
+        const ruleBtn = actionButton(ctx, ui, msg, '➕ 一键转成屏蔽词并解决', 'replyFeedback', undefined, {
+          argsFactory: () => [{ id: f.id, ownerReply: reply.value, resolve: true, convertRule: { kind: 'dislike', value: ruleInput.value.trim() } }],
+          after: loadFeedback,
+        })
         acts.append(replyBtn, ruleBtn)
         box.body.append(reply, ruleInput, acts)
         fbBox.append(box.el)
       }
       const reload = actionButton(ctx, ui, msg, '刷新意见箱', 'listFeedback', undefined, { after: loadFeedback })
-      reload.onclick = async () => { await loadFeedback() }
       fbBox.append(reload)
     }
     fbBox.append(ui.h('h3'))

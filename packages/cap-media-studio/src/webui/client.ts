@@ -53,57 +53,29 @@ export const mediaStudioPanel = {
       const script = ui.textarea({ placeholder: '要念的台词（最多 5 行）', rows: 3 })
       const dur = ui.input({ value: '20', type: 'number', min: 3, max: 60 })
 
-      const ttsBtn = actionButton(ctx, ui, msg, '🔊 试听配音', 'previewTts', undefined, { after: () => {} })
-      ttsBtn.onclick = async () => {
-        const text = script.value.trim()
-        if (!text) {
-          msg.textContent = '先写台词'
-          msg.classList.add('bad')
-          return
-        }
-        try {
-          msg.textContent = '正在合成…'
-          const r = await ctx.invoke('previewTts', [{ text }])
-          msg.textContent = `试听已生成：${(r as any)?.provider ?? ''} ${(r as any)?.voice ?? ''} ${(r as any)?.seconds ?? ''} 秒`
-          msg.classList.remove('bad')
+      const ttsBtn = actionButton(ctx, ui, msg, '🔊 试听配音', 'previewTts', undefined, {
+        argsFactory: () => [{ text: script.value.trim() }],
+        after: async () => {
+          const r = await ctx.invoke('previewTts', [{ text: script.value.trim() }]).catch(() => null)
+          const outFile = (r as any)?.outFile
+          if (!outFile) return
           const audio = ui.h('audio')
           audio.controls = true
-          audio.src = `data:audio/mpeg;base64,${(r as any)?.outFile ? '' : ''}`
-          if ((r as any)?.outFile) {
-            audio.src = `/api/files?path=${encodeURIComponent((r as any).outFile)}`
-            box.append(audio)
-          }
-        } catch (e) {
-          msg.textContent = String(e instanceof Error ? e.message : e)
-          msg.classList.add('bad')
-        }
-      }
+          audio.src = `/api/files?path=${encodeURIComponent(outFile)}`
+          box.append(audio)
+        },
+      })
 
-      const buildBtn = actionButton(ctx, ui, msg, '🎬 合成视频草稿', 'buildVideoDraft', undefined, { variant: 'primary', after: refresh })
-      buildBtn.onclick = async () => {
-        const text = script.value.trim()
-        if (!text) {
-          msg.textContent = '先写台词'
-          msg.classList.add('bad')
-          return
-        }
-        try {
-          msg.textContent = '正在合成（可能要几十秒）…'
-          const r = await ctx.invoke('buildVideoDraft', [{
-            image: imageSel.value,
-            text,
-            bgmId: bgmSel.value,
-            durationSec: Number(dur.value),
-          }])
-          const d = (r as any)?.draft
-          msg.textContent = d ? `成片已生成：${d.videoFile}（${d.sizeMB ?? '?'} MB）` : '合成没成功'
-          msg.classList.remove('bad')
-        } catch (e) {
-          msg.textContent = String(e instanceof Error ? e.message : e)
-          msg.classList.add('bad')
-        }
-        await refresh()
-      }
+      const buildBtn = actionButton(ctx, ui, msg, '🎬 合成视频草稿', 'buildVideoDraft', undefined, {
+        variant: 'primary',
+        argsFactory: () => [{
+          image: imageSel.value,
+          text: script.value.trim(),
+          bgmId: bgmSel.value,
+          durationSec: Number(dur.value),
+        }],
+        after: refresh,
+      })
 
       box.append(
         ui.field('底图', imageSel),

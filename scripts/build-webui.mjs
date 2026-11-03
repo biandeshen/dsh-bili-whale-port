@@ -44,6 +44,8 @@ function targets() {
 
 const esbuild = await loadEsbuild()
 const built = []
+/** --dev: 不压缩，浏览器报错时堆栈能指到具体 .ts 行 */
+const dev = process.argv.includes('--dev')
 
 for (const name of targets()) {
   const pkgDir = path.join(PACKAGES_DIR, name)
@@ -58,8 +60,9 @@ for (const name of targets()) {
     format: 'esm',
     platform: 'browser',
     target: 'es2022',
-    minify: true,
+    minify: !dev,
     legalComments: 'none',
+    sourcemap: dev ? 'inline' : false,
   })
 
   // 只给扩展包（声明了 cortico.kind 的）补 webUiClient：能力包不是扩展包，

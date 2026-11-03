@@ -89,18 +89,33 @@ function defaultHomeDir(): string {
   return path.join(homedir(), '.xiaoyu-home')
 }
 
+/** 凭据缺失时不要让整个 World 装不起来：拿不到就返回空串（写动作会被前置条件拒）。 */
+function safeSecret(ctx: { secret?: (n: string) => string }, name: string): string {
+  try {
+    return String(ctx.secret?.(name) ?? '')
+  } catch {
+    return ''
+  }
+}
+
 const definition = {
   id: 'bili-account',
   label: '小鱼 · B站账号',
   defaults: () => ({ enabled: true }),
-  create(ctx: { config: Record<string, unknown> }) {
-    const homeDir = String(ctx.config?.homeDir ?? defaultHomeDir())
+  create(ctx: { botDir?: string; dataDir?: string; secret?: (n: string) => string }) {
+    // 部署目录才是她的家；凭据从部署的 .env 取（ctx.secret）。
+    const botDir = ctx.botDir ?? defaultHomeDir()
+    const cred = ctx.secret ? safeSecret(ctx, 'BILI_SESSDATA') : ''
     const w = createBiliWorld({
-      homeDir,
-      dataDir: path.join(homeDir, 'data', 'bilibili'),
-      credentialsFile: path.join(homeDir, '.env'),
-      assetsDir: path.join(homeDir, 'data', 'media', 'assets'),
-      bgmDir: path.join(homeDir, 'data', 'media', 'bgm'),
+      homeDir: botDir,
+      // 宿主给的是部署级 data/（多个扩展共用）；本包在自己的子目录里，不跟别人抢文件。
+      dataDir: path.join(ctx.dataDir ?? path.join(botDir, 'data'), 'bilibili'),
+      credentialsFile: path.join(botDir, '.env'),
+      writeContext: {
+        cred: { sessdata: cred, bili_jct: '', buvid3: '' },
+      },
+      assetsDir: path.join(botDir, 'data', 'media', 'assets'),
+      bgmDir: path.join(botDir, 'data', 'media', 'bgm'),
     } as never)
     return w.world
   },

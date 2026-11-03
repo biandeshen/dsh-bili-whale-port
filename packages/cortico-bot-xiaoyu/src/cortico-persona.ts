@@ -141,6 +141,10 @@ export class XiaoYuPersona implements CorticoPersonaShape {
       id: p.id,
       title: p.title,
       description: p.description,
+      // 宿主只在 panel.getMethods 里列出的方法上放行 GET（见 Cortico src/web/webui-pages.ts:323）
+      getMethods: Object.values(p.methods)
+        .filter((m) => m.verb === 'GET')
+        .map((m) => m.name),
       methods: Object.fromEntries(
         Object.values(p.methods).map((m) => [
           m.name,

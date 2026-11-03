@@ -30,11 +30,10 @@ export const inboxPanel = {
     card.body.append(listBox, msg)
 
     let kind = 'all'
-    const seg = ui.segmented({ options: INBOX_KINDS, value: kind })
-    seg.el.addEventListener('click', () => {
-      const v = (seg as any).value
-      if (v) kind = v
-    })
+    const seg = ui.segmented(
+      INBOX_KINDS.map((k) => ({ value: k.id, label: k.label })),
+      { value: kind, onSelect: (v) => { kind = v } },
+    )
     listBox.append(seg.el)
 
     async function refresh() {
@@ -54,31 +53,20 @@ export const inboxPanel = {
         const acts = ui.actions()
         const hint = ui.input({ placeholder: '可选：给她的叮嘱' })
 
-        const reply = actionButton(ctx, ui, msg, '👉 让她回这条', 'assignAction', undefined, { variant: 'primary', after: refresh })
-        reply.onclick = async () => {
-          try {
-            msg.textContent = ''
-            await ctx.invoke('assignAction', [{ itemKey: it.key, action: 'ask_her_reply', ownerHint: hint.value }])
-          } catch (e) {
-            msg.textContent = String(e instanceof Error ? e.message : e)
-            msg.classList.add('bad')
-          }
-          await refresh()
-        }
-        const ignore = actionButton(ctx, ui, msg, '✓ 忽略已读', 'assignAction', undefined, { after: refresh })
-        ignore.onclick = async () => {
-          await ctx.invoke('assignAction', [{ itemKey: it.key, action: 'ignore' }]).catch((e) => {
-            msg.textContent = String(e instanceof Error ? e.message : e)
-          })
-          await refresh()
-        }
-        const block = actionButton(ctx, ui, msg, '🚫 拉黑此人', 'assignAction', undefined, { variant: 'danger', after: refresh })
-        block.onclick = async () => {
-          await ctx.invoke('assignAction', [{ itemKey: it.key, action: 'block_user' }]).catch((e) => {
-            msg.textContent = String(e instanceof Error ? e.message : e)
-          })
-          await refresh()
-        }
+        const reply = actionButton(ctx, ui, msg, '👉 让她回这条', 'assignAction', undefined, {
+          variant: 'primary',
+          argsFactory: () => [{ itemKey: it.key, action: 'ask_her_reply', ownerHint: hint.value }],
+          after: refresh,
+        })
+        const ignore = actionButton(ctx, ui, msg, '✓ 忽略已读', 'assignAction', undefined, {
+          argsFactory: () => [{ itemKey: it.key, action: 'ignore' }],
+          after: refresh,
+        })
+        const block = actionButton(ctx, ui, msg, '🚫 拉黑此人', 'assignAction', undefined, {
+          variant: 'danger',
+          argsFactory: () => [{ itemKey: it.key, action: 'block_user' }],
+          after: refresh,
+        })
         acts.append(reply, ignore, block)
         box.body.append(hint, acts)
         listBox.append(box.el)
@@ -104,24 +92,11 @@ export const draftsQueuePanel = {
     const orderBox = ui.h('div')
     orderBox.style.margin = '10px 0'
     const orderInput = ui.input({ placeholder: '点单：BV 号（可选）+ 你要她写什么' })
-    const orderBtn = actionButton(ctx, ui, msg, '＋ 点单让她写一条', 'requestNew', undefined, { variant: 'primary', after: refresh })
-    orderBtn.onclick = async () => {
-      const prompt = orderInput.value.trim()
-      if (!prompt) {
-        msg.textContent = '先写一句你要她写什么'
-        msg.classList.add('bad')
-        return
-      }
-      try {
-        msg.textContent = ''
-        await ctx.invoke('requestNew', [{ kind: 'dynamic', prompt }])
-        orderInput.value = ''
-      } catch (e) {
-        msg.textContent = String(e instanceof Error ? e.message : e)
-        msg.classList.add('bad')
-      }
-      await refresh()
-    }
+    const orderBtn = actionButton(ctx, ui, msg, '＋ 点单让她写一条', 'requestNew', undefined, {
+      variant: 'primary',
+      argsFactory: () => [{ kind: 'dynamic', prompt: orderInput.value.trim() }],
+      after: async () => { orderInput.value = ''; await refresh() },
+    })
     orderBox.append(ui.field('点单', orderInput), orderBtn)
 
     async function refresh() {
@@ -141,45 +116,20 @@ export const draftsQueuePanel = {
         const edit = ui.textarea({ value: it.text ?? '', rows: 5 })
         const acts = ui.actions()
 
-        const save = actionButton(ctx, ui, msg, '💾 保存修改（自动续签）', 'updateDraft', undefined, { after: refresh })
-        save.onclick = async () => {
-          try {
-            msg.textContent = ''
-            await ctx.invoke('updateDraft', [{ id: it.id, text: edit.value }])
-          } catch (e) {
-            msg.textContent = String(e instanceof Error ? e.message : e)
-            msg.classList.add('bad')
-          }
-          await refresh()
-        }
-        const release = actionButton(ctx, ui, msg, '✓ 放行发布', 'release', undefined, { variant: 'primary', after: refresh })
-        release.onclick = async () => {
-          try {
-            msg.textContent = ''
-            const r = await ctx.invoke('release', [{ id: it.id }])
-            if (r && r.ok === false) {
-              msg.textContent = `没发出去：${r.reason ?? '原因未给出'}`
-              msg.classList.add('bad')
-            }
-          } catch (e) {
-            msg.textContent = String(e instanceof Error ? e.message : e)
-            msg.classList.add('bad')
-          }
-          await refresh()
-        }
-        const reject = actionButton(ctx, ui, msg, '✗ 拒掉', 'reject', undefined, { variant: 'danger', after: refresh })
-        reject.onclick = async () => {
-          const reason = window.prompt('拒稿理由（她会看到，并可让她照着重写）', '写得太空泛')
-          if (reason === null) return
-          try {
-            msg.textContent = ''
-            await ctx.invoke('reject', [{ id: it.id, reason, askRewrite: true }])
-          } catch (e) {
-            msg.textContent = String(e instanceof Error ? e.message : e)
-            msg.classList.add('bad')
-          }
-          await refresh()
-        }
+        const save = actionButton(ctx, ui, msg, '💾 保存修改（自动续签）', 'updateDraft', undefined, {
+          argsFactory: () => [{ id: it.id, text: edit.value }],
+          after: refresh,
+        })
+        const release = actionButton(ctx, ui, msg, '✓ 放行发布', 'release', undefined, {
+          variant: 'primary',
+          argsFactory: () => [{ id: it.id }],
+          after: refresh,
+        })
+        const reject = actionButton(ctx, ui, msg, '✗ 拒掉', 'reject', undefined, {
+          variant: 'danger',
+          argsFactory: () => [{ id: it.id, reason: window.prompt('拒稿理由（她会看到，并可让她照着重写）', '写得太空泛') ?? '', askRewrite: true }],
+          after: refresh,
+        })
         acts.append(save, release, reject)
         box.body.append(edit, acts)
         listBox.append(box.el)

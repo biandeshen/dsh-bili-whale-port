@@ -53,13 +53,13 @@ const definition = {
   id: 'media-studio',
   label: '小鱼 · 音视频工作室',
   defaults: () => ({ enabled: true }),
-  create(ctx: { config: Record<string, unknown> }) {
-    const homeDir = String(ctx.config?.homeDir ?? defaultHomeDir())
+  create(ctx: { botDir?: string; dataDir?: string }) {
+    const botDir = ctx.botDir ?? defaultHomeDir()
     const w = createMediaWorld({
-      homeDir,
-      assetsDir: path.join(homeDir, 'data', 'media', 'assets'),
-      bgmDir: path.join(homeDir, 'data', 'media', 'bgm'),
-      outputDir: path.join(homeDir, 'data', 'media', 'out'),
+      homeDir: botDir,
+      assetsDir: path.join(botDir, 'data', 'media', 'assets'),
+      bgmDir: path.join(botDir, 'data', 'media', 'bgm'),
+      outputDir: path.join(botDir, 'data', 'media', 'out'),
       binDir: defaultMediaBinDir(),
     } as never)
     return w.world

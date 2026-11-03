@@ -65,66 +65,41 @@ export const tankPanel = {
       }
 
       actions.replaceChildren()
-      const save = actionButton(ctx, ui, msg, '保存场值修改', 'setFields', undefined, {
-        variant: 'primary',
-        after: refresh,
-      })
       const patch = () => {
         const out: Record<string, number> = {}
         for (const [k, s] of sliders.entries()) out[k] = s.get()
         return out
       }
-      // save 需要带上当前滑块的值：动作按钮不支持动态参数，这里改成带参调用
-      save.onclick = async () => {
-        try {
-          msg.textContent = ''
-          await ctx.invoke('setFields', [patch()])
-        } catch (e) {
-          msg.textContent = String(e instanceof Error ? e.message : e)
-          msg.classList.add('bad')
-        }
-        await refresh()
-      }
+      const save = actionButton(ctx, ui, msg, '保存场值修改', 'setFields', undefined, {
+        variant: 'primary',
+        argsFactory: () => [{ patch: patch() }],
+        after: refresh,
+      })
+      actions.append(save)
 
       const hint = ui.input({ placeholder: '可选：顺路叮嘱她一句（如"去看看收件箱"）' })
       const wake = actionButton(ctx, ui, msg, '⚡ 立即戳醒她', 'wakeNow', undefined, {
         variant: 'primary',
+        argsFactory: () => [{ hint: hint.value }],
         after: refresh,
       })
-      wake.onclick = async () => {
-        try {
-          msg.textContent = ''
-          await ctx.invoke('wakeNow', [{ hint: hint.value }])
-        } catch (e) {
-          msg.textContent = String(e instanceof Error ? e.message : e)
-          msg.classList.add('bad')
-        }
-        await refresh()
-      }
-      actions.append(save, wake)
+      actions.append(wake)
 
       const modeRow = ui.h('div')
       modeRow.style.margin = '12px 0'
-      const seg = ui.segmented({
-        options: [
+      const seg = ui.segmented(
+        [
           { value: 'auto', label: '自然节律' },
           { value: 'force_sleep', label: '强制休息' },
           { value: 'force_awake', label: '保持清醒' },
         ],
-        value: String(snap.mode ?? 'auto'),
-      })
+        { value: String(snap.mode ?? 'auto') },
+      )
       modeRow.append(ui.field('作息模式', seg.el))
-      const applyMode = actionButton(ctx, ui, msg, '切换作息模式', 'setMode', undefined, { after: refresh })
-      applyMode.onclick = async () => {
-        try {
-          msg.textContent = ''
-          await ctx.invoke('setMode', [{ mode: (seg as any).value ?? 'auto' }])
-        } catch (e) {
-          msg.textContent = String(e instanceof Error ? e.message : e)
-          msg.classList.add('bad')
-        }
-        await refresh()
-      }
+      const applyMode = actionButton(ctx, ui, msg, '切换作息模式', 'setMode', undefined, {
+        argsFactory: () => [{ mode: seg.value }],
+        after: refresh,
+      })
       actions.append(modeRow, applyMode)
     }
 

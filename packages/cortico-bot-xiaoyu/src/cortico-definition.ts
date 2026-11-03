@@ -8,6 +8,9 @@
  */
 import path from 'node:path'
 import { homedir } from 'node:os'
+// 转接头本来就依赖 Cortico 契约（框架默认配置、类型），这里引宿主是允许的；
+// 真正的能力包（cap-*）仍然是零 cortico 依赖的。
+import { CORE_DEFAULTS } from 'cortico/core/config.ts'
 import { XiaoYuPersona } from './cortico-persona.ts'
 
 export const XIAOYU_MEMORY_NAME = 'MEMORY.md'
@@ -35,14 +38,17 @@ export function createXiaoyuBotDefinition(homeDir: string) {
     memoryName: XIAOYU_MEMORY_NAME,
     declares: ['console', 'bili-account', 'media-studio'] as const,
     defaults: () => ({
+      ...structuredClone(CORE_DEFAULTS),
       displayName: '小鱼',
-      web: { port: 7798 },
+      web: { ...CORE_DEFAULTS.web, port: 7798 },
       paths: { memory: 'workspace', data: 'data' },
       rounds: { soft: 6, hard: 12 },
     }),
-    build(loaded: { config: Record<string, unknown>; memoryDir: string }) {
+    build(loaded: { config: Record<string, unknown>; memoryDir: string; rootDir?: string }) {
+      // 部署目录才是她的家（数据、记忆、日记都在里面）；拿不到时才退回包默认家。
+      const home = loaded.rootDir ?? homeDir ?? String(loaded.config?.homeDir ?? defaultHomeDir())
       const persona = new XiaoYuPersona({
-        homeDir: homeDir || String(loaded.config?.homeDir ?? defaultHomeDir()),
+        homeDir: home,
         rounds: { soft: 6, hard: 12 },
       })
       return {

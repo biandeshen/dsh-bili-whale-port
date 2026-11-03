@@ -36,14 +36,10 @@ export const memoryCenterPanel = {
 
     let tier = 'all'
 
-    const tierSeg = ui.segmented({
-      options: TIERS.map((t) => ({ value: t.id, label: t.label })),
-      value: tier,
-    })
-    tierSeg.el.addEventListener('click', () => {
-      const v = (tierSeg as any).value
-      if (v) tier = v
-    })
+    const tierSeg = ui.segmented(
+      TIERS.map((t) => ({ value: t.id, label: t.label })),
+      { value: tier, onSelect: (v) => { tier = v } },
+    )
     tierRow.append(tierSeg.el)
 
     async function refresh() {
@@ -66,71 +62,43 @@ export const memoryCenterPanel = {
         const vivid = ui.input({ value: String(card0.vividness ?? 0.9), type: 'number', min: 0, max: 1, step: 0.05 })
         const tags = ui.input({ value: (card0.tags ?? []).join(','), placeholder: '标签，逗号分隔' })
 
-        const save = actionButton(ctx, ui, msg, '保存修改', 'update', undefined, { after: refresh })
-        save.onclick = async () => {
-          try {
-            msg.textContent = ''
-            await ctx.invoke('update', [{
-              id: card0.id,
-              content: content.value,
-              tags: tags.value.split(/[,，\s]+/).map((s) => s.trim()).filter(Boolean),
-              vividness: Number(vivid.value),
-            }])
-          } catch (e) {
-            msg.textContent = String(e instanceof Error ? e.message : e)
-            msg.classList.add('bad')
-          }
-          await refresh()
-        }
+        const save = actionButton(ctx, ui, msg, '保存修改', 'update', undefined, {
+          argsFactory: () => [{
+            id: card0.id,
+            content: content.value,
+            tags: tags.value.split(/[,，\s]+/).map((s) => s.trim()).filter(Boolean),
+            vividness: Number(vivid.value),
+          }],
+          after: refresh,
+        })
         acts.append(save)
 
         if (card0.tier !== 'core' && card0.tier !== 'voided') {
-          const pin = actionButton(ctx, ui, msg, '⭐ 置顶进核心', 'update', undefined, { after: refresh })
-          pin.onclick = async () => {
-            await ctx.invoke('update', [{ id: card0.id, tier: 'core' }]).catch((e) => {
-              msg.textContent = String(e instanceof Error ? e.message : e)
-            })
-            await refresh()
-          }
+          const pin = actionButton(ctx, ui, msg, '⭐ 置顶进核心', 'update', undefined, {
+            argsFactory: () => [{ id: card0.id, tier: 'core' }],
+            after: refresh,
+          })
           acts.append(pin)
         }
         if (card0.tier === 'core' && card0.tier !== 'voided') {
-          const demote = actionButton(ctx, ui, msg, '📥 移出核心', 'update', undefined, { after: refresh })
-          demote.onclick = async () => {
-            await ctx.invoke('update', [{ id: card0.id, tier: 'active' }]).catch((e) => {
-              msg.textContent = String(e instanceof Error ? e.message : e)
-            })
-            await refresh()
-          }
+          const demote = actionButton(ctx, ui, msg, '📥 移出核心', 'update', undefined, {
+            argsFactory: () => [{ id: card0.id, tier: 'active' }],
+            after: refresh,
+          })
           acts.append(demote)
         }
         if (card0.tier !== 'voided') {
-          const voidBtn = actionButton(ctx, ui, msg, '🚫 作废', 'void', undefined, { variant: 'danger', after: refresh })
-          voidBtn.onclick = async () => {
-            const reason = window.prompt('作废理由（至少 6 个字，会留痕）', '主人在记忆面板确认这条记错了')
-            if (reason === null) return
-            try {
-              msg.textContent = ''
-              await ctx.invoke('void', [{ id: card0.id, reason }])
-            } catch (e) {
-              msg.textContent = String(e instanceof Error ? e.message : e)
-              msg.classList.add('bad')
-            }
-            await refresh()
-          }
+          const voidBtn = actionButton(ctx, ui, msg, '🚫 作废', 'void', undefined, {
+            variant: 'danger',
+            argsFactory: () => [{ id: card0.id, reason: window.prompt('作废理由（至少 6 个字，会留痕）', '主人在记忆面板确认这条记错了') ?? '' }],
+            after: refresh,
+          })
           acts.append(voidBtn)
         } else {
-          const restore = actionButton(ctx, ui, msg, '↩ 恢复', 'restore', undefined, { after: refresh })
-          restore.onclick = async () => {
-            try {
-              msg.textContent = ''
-              await ctx.invoke('restore', [{ id: card0.id, targetTier: 'active' }])
-            } catch (e) {
-              msg.textContent = String(e instanceof Error ? e.message : e)
-              msg.classList.add('bad')
-            }
-            await refresh()
-          }
+          const restore = actionButton(ctx, ui, msg, '↩ 恢复', 'restore', undefined, {
+            argsFactory: () => [{ id: card0.id, targetTier: 'active' }],
+            after: refresh,
+          })
           acts.append(restore)
         }
 
@@ -144,30 +112,20 @@ export const memoryCenterPanel = {
     const newTags = ui.input({ placeholder: '标签，逗号分隔（可选）' })
     const newCore = ui.checkbox('直接放进核心常驻（她每一轮都记得）')
     const newActs = ui.actions()
-    const addBtn = actionButton(ctx, ui, msg, '＋ 塞一条记忆给她', 'create', undefined, { variant: 'primary', after: refresh })
-    addBtn.onclick = async () => {
-      const content = newContent.value.trim()
-      if (!content) {
-        msg.textContent = '记忆正文不能为空'
-        msg.classList.add('bad')
-        return
-      }
-      try {
-        msg.textContent = ''
-        await ctx.invoke('create', [{
-          content,
-          tags: newTags.value.split(/[,，\s]+/).map((s) => s.trim()).filter(Boolean),
-          tier: newCore.control.checked ? 'core' : 'active',
-          sender: 'player',
-        }])
+    const addBtn = actionButton(ctx, ui, msg, '＋ 塞一条记忆给她', 'create', undefined, {
+      variant: 'primary',
+      argsFactory: () => [{
+        content: newContent.value.trim(),
+        tags: newTags.value.split(/[,，\s]+/).map((s) => s.trim()).filter(Boolean),
+        tier: newCore.checked ? 'core' : 'active',
+        sender: 'player',
+      }],
+      after: async () => {
         newContent.value = ''
         newTags.value = ''
-      } catch (e) {
-        msg.textContent = String(e instanceof Error ? e.message : e)
-        msg.classList.add('bad')
-      }
-      await refresh()
-    }
+        await refresh()
+      },
+    })
     newActs.append(addBtn)
     createBox.append(ui.h('h3'), ui.field('正文', newContent), ui.field('标签', newTags), newCore.el, newActs)
 
@@ -187,8 +145,10 @@ export const memoryCenterPanel = {
       histBox.append(head)
       const table = ui.table({ head: ['提交', '作者', '说明', '操作'] })
       for (const c of res.log ?? []) {
-        const diff = actionButton(ctx, ui, msg, '看改动', 'history', undefined, { after: () => renderDiff(c.hash) })
-        diff.onclick = async () => { await renderDiff(c.hash) }
+        const diff = actionButton(ctx, ui, msg, '看改动', 'history', undefined, {
+          argsFactory: () => [{ diffOf: c.hash }],
+          after: async () => { await renderDiff(c.hash) },
+        })
         table.addRow([c.hash, c.author, c.message?.slice(0, 40) ?? '', diff])
       }
       histBox.append(table.el)
@@ -205,20 +165,13 @@ export const memoryCenterPanel = {
       histBox.append(pre)
     }
 
-    const cp = actionButton(ctx, ui, msg, '打一个存档点（checkpoint）', 'checkpoint', undefined, { after: renderHist })
-    cp.onclick = async () => {
-      const name = window.prompt('存档点名（字母数字/中文）', '手动存档')
-      if (!name) return
-      const message = window.prompt('存档点说明', '') ?? ''
-      try {
-        msg.textContent = ''
-        await ctx.invoke('checkpoint', [{ name, message }])
-      } catch (e) {
-        msg.textContent = String(e instanceof Error ? e.message : e)
-        msg.classList.add('bad')
-      }
-      await renderHist()
-    }
+    const cp = actionButton(ctx, ui, msg, '打一个存档点（checkpoint）', 'checkpoint', undefined, {
+      argsFactory: () => [{
+        name: window.prompt('存档点名（字母数字/中文）', '手动存档') ?? '',
+        message: window.prompt('存档点说明', '') ?? '',
+      }],
+      after: renderHist,
+    })
     histActs.append(cp)
 
     search.addEventListener('input', () => { void refresh() })
