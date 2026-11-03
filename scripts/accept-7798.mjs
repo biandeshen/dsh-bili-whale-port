@@ -26,7 +26,8 @@ const argv = process.argv.slice(2)
 const val = (k, d) => { const i = argv.indexOf('--' + k); return i >= 0 && argv[i + 1] ? argv[i + 1] : d }
 const BASE = val('base', 'http://127.0.0.1:7798')
 const DEPLOY = val('home', path.join(homedir(), '.xiaoyu-home', 'xiaoyu'))
-const MARKER = '验收脚本标记-accept7798'
+const RUN = 'acc' + Date.now().toString(36).slice(-5)
+const MARKER = `验收标记-${RUN}`
 
 const results = []
 const rec = (group, name, ok, detail = '') => {
@@ -56,6 +57,9 @@ async function api(method, provider, panel, fn, args) {
 const P = 'persona:xiaoyu'
 const B = 'world:bili-account'
 const M = 'world:media-studio'
+const DATA = path.join(DEPLOY, 'data', 'bilibili')
+const WS = path.join(DEPLOY, 'workspace')
+const readJson = (f) => JSON.parse(fs.readFileSync(f, 'utf8'))
 
 // ── A 实例在线 ─────────────────────────────────────────────────────────────
 async function groupA() {
@@ -105,6 +109,8 @@ async function groupC() {
     [P, 'tank', 'getSnapshot'],
     [P, 'memory-center', 'list'],
     [P, 'journal-board', 'getDiary'],
+    [P, 'journal-board', 'listJudgments'],
+    [P, 'journal-board', 'listFeedback'],
     [B, 'inbox', 'list'],
     [B, 'drafts-queue', 'list'],
     [B, 'preferences', 'get'],
@@ -120,116 +126,204 @@ async function groupC() {
   rec('C', 'ffmpeg 工具链可用', ff.json?.toolchain?.ffmpegReady === true, ff.json?.toolchain?.ffmpeg ?? '')
 }
 
-// ── D 写路径 ───────────────────────────────────────────────────────────────
+// ── D 写路径全覆盖 ─────────────────────────────────────────────────────────
 async function groupD() {
-  // 1) 场值：改→回读→复原
+  // 1) tank.setFields：改→HTTP+磁盘→复原（复原带断言）
   {
     const before = await api('GET', P, 'tank', 'getSnapshot')
     const orig = before.json?.fields?.energy
-    const r = await api('POST', P, 'tank', 'setFields', [{ patch: { energy: 0.66 }, note: MARKER }])
+    await api('POST', P, 'tank', 'setFields', [{ patch: { energy: 0.66 }, note: MARKER }])
     const mid = await api('GET', P, 'tank', 'getSnapshot')
-    const okSet = r.status === 200 && Math.abs(Number(mid.json?.fields?.energy) - 0.66) < 1e-6
-    rec('D', '场值 setFields 0.66 落盘', okSet, `回读 ${mid.json?.fields?.energy}`)
-    const back = await api('POST', P, 'tank', 'setFields', [{ patch: { energy: orig }, note: MARKER + '-复原' }])
+    const disk = readJson(path.join(DEPLOY, 'data', 'persona', 'fields.json'))
+    rec('D', 'tank.setFields 0.66（HTTP+磁盘）', Math.abs(Number(mid.json?.fields?.energy) - 0.66) < 1e-6 && Math.abs(disk.fields.energy - 0.66) < 1e-6, `回读 ${mid.json?.fields?.energy}`)
+    await api('POST', P, 'tank', 'setFields', [{ patch: { energy: orig }, note: MARKER + '-复原' }])
     const after = await api('GET', P, 'tank', 'getSnapshot')
-    rec('D', '场值复原', back.status === 200 && Math.abs(Number(after.json?.fields?.energy) - orig) < 1e-6, `回到 ${after.json?.fields?.energy}`)
+    const disk2 = readJson(path.join(DEPLOY, 'data', 'persona', 'fields.json'))
+    rec('D', 'tank 复原（HTTP+磁盘）', Math.abs(Number(after.json?.fields?.energy) - orig) < 1e-6 && Math.abs(disk2.fields.energy - orig) < 1e-6, `回读 ${after.json?.fields?.energy}`)
   }
 
-  // 2) 记忆：塞（幂等）→ 作废 → 恢复
+  // 2) tank.setMode + wakeNow（作息遥控）
   {
-    const list1 = await api('POST', P, 'memory-center', 'list', [{ tier: 'all' }])
-    const existed = (list1.json?.items ?? []).find((x) => String(x.content ?? '').includes(MARKER))
-    let id = existed?.id
-    if (!id) {
-      const c = await api('POST', P, 'memory-center', 'create', [{ content: MARKER, tags: ['验收'], tier: 'active', sender: 'player' }])
-      id = c.json?.card?.id
-      rec('D', '记忆 create', Boolean(id), `id=${id}`)
-    } else {
-      rec('D', '记忆 create（已存在，跳过）', true, `复用 id=${id}`)
-    }
-    const v = await api('POST', P, 'memory-center', 'void', [{ id, reason: '验收脚本作废验证，稍后恢复' }])
-    rec('D', '记忆作废', v.json?.ok === true, v.json?.card?.tier ?? v.json?.error ?? '')
+    const s = await api('POST', P, 'tank', 'setMode', [{ mode: 'force_sleep' }])
+    const mid = await api('GET', P, 'tank', 'getSnapshot')
+    const lifeDisk = readJson(path.join(DEPLOY, 'data', 'persona', 'life.json'))
+    rec('D', 'tank.setMode force_sleep（HTTP+磁盘）', s.json?.ok === true && mid.json?.mode === 'force_sleep' && lifeDisk.mode === 'force_sleep', `mode=${mid.json?.mode}`)
+    const w = await api('POST', P, 'tank', 'wakeNow', [{ hint: MARKER }])
+    rec('D', 'tank.wakeNow 触发', w.json?.ok === true && Boolean(w.json?.triggeredAt), '')
+    const r = await api('POST', P, 'tank', 'setMode', [{ mode: 'auto' }])
+    const end = await api('GET', P, 'tank', 'getSnapshot')
+    rec('D', 'tank 复原 auto', r.json?.ok === true && end.json?.mode === 'auto', `mode=${end.json?.mode}`)
+  }
+
+  // 3) memory.create / update（改文+调层级）/ void / restore，磁盘断言 + git 信息断言
+  {
+    const c = await api('POST', P, 'memory-center', 'create', [{ content: MARKER, tags: ['验收'], tier: 'active', sender: 'player' }])
+    const id = c.json?.card?.id
+    rec('D', 'memory.create（磁盘）', Boolean(id) && fs.existsSync(path.join(WS, 'memo', 'active', `${id}.md`)), `id=${id}`)
+    const u = await api('POST', P, 'memory-center', 'update', [{ id, content: MARKER + '-改', tier: 'core' }])
+    const moved = fs.existsSync(path.join(WS, 'memo', 'core', `${id}.md`)) && !fs.existsSync(path.join(WS, 'memo', 'active', `${id}.md`))
+    rec('D', 'memory.update 改文+置顶核心（磁盘）', u.json?.ok === true && String(u.json?.card?.content ?? '').endsWith('-改') && moved, u.json?.error ?? '')
+    const v = await api('POST', P, 'memory-center', 'void', [{ id, reason: MARKER + '：作废验证' }])
+    rec('D', 'memory.void（磁盘）', v.json?.ok === true && fs.existsSync(path.join(WS, 'memo', 'voided', `${id}.md`)), v.json?.error ?? '')
     const rr = await api('POST', P, 'memory-center', 'restore', [{ id, targetTier: 'active' }])
-    rec('D', '记忆恢复', rr.json?.ok === true, rr.json?.card?.tier ?? rr.json?.error ?? '')
+    rec('D', 'memory.restore（磁盘）', rr.json?.ok === true && fs.existsSync(path.join(WS, 'memo', 'active', `${id}.md`)) && !fs.existsSync(path.join(WS, 'memo', 'voided', `${id}.md`)), rr.json?.error ?? '')
+    try {
+      const log = execFileSync('git', ['log', '--format=%s', '-n', '8'], { cwd: WS, encoding: 'utf8' })
+      rec('D', 'memory 提交信息含标记', log.includes(MARKER), log.split('\n')[0])
+    } catch (e) { rec('D', 'memory 提交信息含标记', false, String(e?.message ?? e)) }
   }
 
-  // 3) 日记：在线编辑（同日期+小节幂等替换）
+  // 4) journal.saveDiarySection / upsertJudgment / replyFeedback（有开放意见才批复）
   {
-    const body = `${MARKER}：这一段由验收脚本写入，重复执行会原样替换。`
+    const body = `${MARKER}：验收脚本写入，重跑原样替换。`
     const s = await api('POST', P, 'journal-board', 'saveDiarySection', [{ book: 'public', date: '2026-11-04', heading: '验收', markdown: body }])
-    const g = await api('GET', P, 'journal-board', 'getDiary')
-    rec('D', '日记在线编辑落盘', s.json?.ok === true && String(g.json?.body ?? '').includes(MARKER), s.json?.savedChars ?? s.json?.error ?? '')
+    const disk = fs.readFileSync(path.join(WS, 'diary', 'public.md'), 'utf8')
+    rec('D', 'journal.saveDiarySection（HTTP+磁盘）', s.json?.ok === true && disk.includes(body), s.json?.error ?? '')
+
+    const j = await api('POST', P, 'journal-board', 'upsertJudgment', [{ verdict: 'drop', note: MARKER + '：判断卡验收' }])
+    rec('D', 'journal.upsertJudgment', j.json?.ok === true && Boolean(j.json?.id), j.json?.id ?? j.json?.error ?? '')
+
+    const fb = await api('POST', P, 'journal-board', 'listFeedback', [{ status: 'all' }])
+    const target = (fb.json?.items ?? []).find((x) => !x.resolved)
+    if (target) {
+      const rep = await api('POST', P, 'journal-board', 'replyFeedback', [{ id: target.id, ownerReply: MARKER + '：批复', resolve: true }])
+      rec('D', 'journal.replyFeedback', rep.json?.ok === true && rep.json?.resolved === true, rep.json?.error ?? '')
+    } else {
+      rec('D', 'journal.replyFeedback（无开放意见，跳过）', true, '意见箱当前无未解决条目')
+    }
   }
 
-  // 4) 偏好：加词→验证落盘位置（data/bilibili/，防 dataDir 回归）→复原
+  // 5) inbox.assignAction 三动作（注入临时条目驱动，结束后清理）
+  {
+    const inboxFile = path.join(DATA, 'inbox-items.json')
+    const inject = (key, uid, kind) => {
+      const items = fs.existsSync(inboxFile) ? JSON.parse(fs.readFileSync(inboxFile, 'utf8')) : []
+      items.push({ key, kind, uid, who: '验收注入', text: MARKER, atMs: Date.now(), read: false })
+      fs.writeFileSync(inboxFile, JSON.stringify(items, null, 2), 'utf8')
+    }
+    inject(`acc-ign-${RUN}`, `9001${RUN}`, 'dm')
+    inject(`acc-blk-${RUN}`, `9002${RUN}`, 'dm')
+    inject(`acc-rep-${RUN}`, `9003${RUN}`, 'reply')
+    const ig = await api('POST', B, 'inbox', 'assignAction', [{ itemKey: `acc-ign-${RUN}`, action: 'ignore' }])
+    rec('D', 'inbox.assignAction ignore', ig.json?.ok === true && ig.json?.item?.read === true, ig.json?.error ?? '')
+    const bl = await api('POST', B, 'inbox', 'assignAction', [{ itemKey: `acc-blk-${RUN}`, action: 'block_user' }])
+    const blocked = fs.existsSync(path.join(DATA, 'blocked-uids.json')) ? readJson(path.join(DATA, 'blocked-uids.json')) : []
+    rec('D', 'inbox.assignAction block_user（磁盘）', bl.json?.ok === true && blocked.includes(`9002${RUN}`), '')
+    const rep = await api('POST', B, 'inbox', 'assignAction', [{ itemKey: `acc-rep-${RUN}`, action: 'ask_her_reply', ownerHint: MARKER }])
+    rec('D', 'inbox.assignAction ask_her_reply', rep.json?.ok === true && rep.json?.item?.assignedAction === 'ask_her_reply', rep.json?.error ?? '')
+    const items = JSON.parse(fs.readFileSync(inboxFile, 'utf8')).filter((x) => !String(x.key).startsWith('acc-'))
+    fs.writeFileSync(inboxFile, JSON.stringify(items, null, 2), 'utf8')
+  }
+
+  // 6) preferences.set 加词→磁盘→复原（复原带断言）
   {
     const before = await api('GET', B, 'preferences', 'get')
-    const origDislike = before.json?.prefs?.dislike ?? []
-    if (!origDislike.includes(MARKER)) {
-      const s = await api('POST', B, 'preferences', 'set', [{ dislike: [...origDislike, MARKER] }])
-      const g = await api('GET', B, 'preferences', 'get')
-      const fileRight = path.join(DEPLOY, 'data', 'bilibili', 'watch-prefs.json')
-      const fileWrong = path.join(DEPLOY, 'data', 'watch-prefs.json')
-      const inRight = fs.existsSync(fileRight) && fs.readFileSync(fileRight, 'utf8').includes(MARKER)
-      rec('D', '偏好加词生效', s.json?.ok === true && (g.json?.prefs?.dislike ?? []).includes(MARKER), '')
-      rec('D', '偏好落盘在 data/bilibili/（防回归）', inRight && !fs.existsSync(fileWrong), inRight ? fileRight : '位置不对')
-      await api('POST', B, 'preferences', 'set', [{ dislike: origDislike }])
-    } else {
-      rec('D', '偏好加词（已存在，跳过）', true, '')
+    const orig = before.json?.prefs?.dislike ?? []
+    const s = await api('POST', B, 'preferences', 'set', [{ dislike: [...orig, MARKER] }])
+    const disk = fs.readFileSync(path.join(DATA, 'watch-prefs.json'), 'utf8')
+    rec('D', 'preferences.set 加词（HTTP+磁盘）', s.json?.ok === true && disk.includes(MARKER), '')
+    const r2 = await api('POST', B, 'preferences', 'set', [{ dislike: orig }])
+    const disk2 = readJson(path.join(DATA, 'watch-prefs.json'))
+    rec('D', 'preferences 复原（磁盘）', r2.json?.ok === true && !disk2.dislike.includes(MARKER), '')
+  }
+
+  // 7) gate.set 全分支：档位/配额/冷却/急刹/解除，全部磁盘断言+复原
+  {
+    const g0 = await api('GET', B, 'gate-policy', 'get')
+    const orig = { comment: g0.json?.policy?.comment ?? 'review', selfCap: g0.json?.quota?.selfCap ?? 12, shareCap: g0.json?.quota?.shareCap ?? 3, gap: g0.json?.traffic?.writeGapSec ?? 10 }
+    await api('POST', B, 'gate-policy', 'set', [{ policy: { comment: 'self' } }])
+    rec('D', 'gate 档位 comment=self（磁盘）', readJson(path.join(DATA, 'policy.json')).comment === 'self', '')
+    await api('POST', B, 'gate-policy', 'set', [{ quota: { selfCap: 7, shareCap: 2 } }])
+    const d2 = readJson(path.join(DATA, 'quota.json'))
+    rec('D', 'gate 配额（磁盘）', d2.selfCap === 7 && d2.shareCap === 2, '')
+    await api('POST', B, 'gate-policy', 'set', [{ writeGapSec: 3 }])
+    rec('D', 'gate 冷却（磁盘）', readJson(path.join(DATA, 'traffic-state.json')).writeGapSec === 3, '')
+    await api('POST', B, 'gate-policy', 'set', [{ killOn: true }])
+    rec('D', 'gate 急刹（KILL 文件）', fs.existsSync(path.join(DATA, 'KILL')), '')
+    await api('POST', B, 'gate-policy', 'set', [{ killOn: false, clearTrafficPause: true }])
+    rec('D', 'gate 急刹解除', !fs.existsSync(path.join(DATA, 'KILL')), '')
+    await api('POST', B, 'gate-policy', 'set', [{ policy: { comment: orig.comment } }])
+    await api('POST', B, 'gate-policy', 'set', [{ quota: { selfCap: orig.selfCap, shareCap: orig.shareCap } }])
+    await api('POST', B, 'gate-policy', 'set', [{ writeGapSec: orig.gap }])
+    const gEnd = await api('GET', B, 'gate-policy', 'get')
+    const okEnd = gEnd.json?.policy?.comment === orig.comment
+      && gEnd.json?.quota?.selfCap === orig.selfCap
+      && gEnd.json?.traffic?.writeGapSec === orig.gap
+      && gEnd.json?.killOn === false
+    rec('D', 'gate 全部复原', okEnd, JSON.stringify(gEnd.json?.policy ?? {}).slice(0, 80))
+  }
+
+  // 8) queue 全链：注入待放行条目→updateDraft 哈希续签→reject（不触网）→清理
+  {
+    const qfile = path.join(DATA, 'pending-queue.json')
+    const qid = `acc-${RUN}`
+    const qall = fs.existsSync(qfile) ? readJson(qfile) : []
+    qall.push({
+      id: qid, kind: 'comment', intent: 'self', target: { bvid: 'BV1xx411c7mD' },
+      text: '原始待放行正文', bodyHash: 'x', token: 'acc-token', createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(), status: 'pending',
+    })
+    fs.writeFileSync(qfile, JSON.stringify(qall, null, 2), 'utf8')
+    const list = await api('POST', B, 'drafts-queue', 'list', [{}])
+    const item = (list.json?.items ?? []).find((x) => x.id === qid)
+    rec('D', 'queue 注入条目可见', Boolean(item), '')
+    if (item) {
+      const newText = `${item.text} [${MARKER}]`
+      const u = await api('POST', B, 'drafts-queue', 'updateDraft', [{ id: qid, text: newText }])
+      const okU = u.json?.ok === true && u.json?.item?.text === newText && u.json?.item?.bodyHash !== item.bodyHash && u.json?.item?.token !== item.token
+      rec('D', 'queue.updateDraft 哈希续签（§10.4 核心修复）', okU, okU ? 'token 已换' : JSON.stringify(u.json).slice(0, 120))
+      const rj = await api('POST', B, 'drafts-queue', 'reject', [{ id: qid, reason: MARKER + '：拒稿验收', askRewrite: false }])
+      const diskQ = readJson(qfile).find((x) => x.id === qid)
+      rec('D', 'queue.reject（磁盘）', rj.json?.ok === true && diskQ?.status === 'rejected', String(diskQ?.rejectReason ?? '').slice(0, 30))
     }
+    fs.writeFileSync(qfile, JSON.stringify(readJson(qfile).filter((x) => x.id !== qid), null, 2), 'utf8')
   }
 
-  // 5) 急刹：开→验证→关（最后一定关掉）
+  // 9) requestNew：真实调用（产生一条待写事件给主会话，不触网）
   {
-    const on = await api('POST', B, 'gate-policy', 'set', [{ killOn: true }])
-    const mid = await api('GET', B, 'gate-policy', 'get')
-    rec('D', '急刹开启', on.status === 200 && mid.json?.killOn === true, `killOn=${mid.json?.killOn}`)
-    const off = await api('POST', B, 'gate-policy', 'set', [{ killOn: false }])
-    const end = await api('GET', B, 'gate-policy', 'get')
-    rec('D', '急刹关闭（复原）', off.status === 200 && end.json?.killOn === false, `killOn=${end.json?.killOn}`)
-  }
-
-  // 6) 待放行：点单（只入事件，不发网络）
-  {
-    const r = await api('POST', B, 'drafts-queue', 'requestNew', [{ kind: 'dynamic', prompt: MARKER + '：点单不发声' }])
-    rec('D', '待放行点单 requestNew', r.json?.ok === true, r.json?.requestedAt ? String(r.json.requestedAt) : r.json?.error ?? '')
-  }
-
-  // 7) git 历史：记忆面板能读到仓库状态
-  {
-    const h = await api('POST', P, 'memory-center', 'history', [{ limit: 5 }])
-    rec('D', 'workspace git 历史可读', h.json?.ok === true && h.json?.status?.repo === true, `HEAD=${h.json?.status?.head ?? '?'} dirty=${h.json?.status?.dirty}`)
+    const r = await api('POST', B, 'drafts-queue', 'requestNew', [{ kind: 'dynamic', prompt: MARKER + '：点单验收' }])
+    rec('D', 'queue.requestNew', r.json?.ok === true, r.json?.requestedAt ? String(r.json.requestedAt) : r.json?.error ?? '')
   }
 }
 
 // ── E 磁盘与 git ───────────────────────────────────────────────────────────
 async function groupE() {
-  const memoActive = path.join(DEPLOY, 'workspace', 'memo', 'active')
-  const memoCore = path.join(DEPLOY, 'workspace', 'memo', 'core')
+  const memoActive = path.join(WS, 'memo', 'active')
+  const memoCore = path.join(WS, 'memo', 'core')
   const nA = fs.existsSync(memoActive) ? fs.readdirSync(memoActive).filter((f) => f.endsWith('.md')).length : -1
   const nC = fs.existsSync(memoCore) ? fs.readdirSync(memoCore).filter((f) => f.endsWith('.md')).length : -1
-  rec('E', `记忆卡片 core=${nC} active=${nA}`, nC >= 22 && nA >= 46, '')
-  const pub = fs.readFileSync(path.join(DEPLOY, 'workspace', 'diary', 'public.md'), 'utf8')
-  rec('E', '公开日记含 2026-11-04 验收段', pub.includes(MARKER), '')
+  rec('E', `记忆卡片 core=${nC} active=${nA}`, nC >= 22 && nA >= 47, '')
+  const pub = fs.readFileSync(path.join(WS, 'diary', 'public.md'), 'utf8')
+  rec('E', '公开日记含验收段', pub.includes(MARKER), '')
+  rec('E', 'causal.jsonl 在 data/bilibili/', fs.existsSync(path.join(DATA, 'causal.jsonl')), '')
   try {
-    const log = execFileSync('git', ['log', '--oneline', '-n', '20'], { cwd: path.join(DEPLOY, 'workspace'), encoding: 'utf8' })
-    const n = log.trim().split('\n').length
-    rec('E', `workspace git 提交 ≥4`, n >= 4, `最近 ${n} 条，首条 ${log.trim().split('\n')[0]}`)
+    const log = execFileSync('git', ['log', '--format=%s', '-n', '12'], { cwd: WS, encoding: 'utf8' })
+    const lines = log.trim().split('\n')
+    rec('E', 'workspace git 提交 ≥6', lines.length >= 6, `最近 ${lines.length} 条`)
+    rec('E', '本轮产生验收提交', lines.some((l) => l.includes(RUN)), lines[0])
   } catch (e) {
-    rec('E', 'workspace git 提交 ≥4', false, String(e?.message ?? e))
+    rec('E', 'workspace git 提交', false, String(e?.message ?? e))
   }
 }
 
-// ── F 残留检查 ─────────────────────────────────────────────────────────────
+// ── F 残留检查（发现即归位到 data/bilibili/，归位后复验）─────────────────────
 async function groupF() {
   const root = path.join(DEPLOY, 'data')
-  const strays = fs.existsSync(root)
-    ? fs.readdirSync(root).filter((f) => /^(watch-prefs|policy|quota|traffic-state|pending-queue|causal|KILL)/.test(f))
-    : []
-  rec('F', 'data/ 根无 bilibili 状态残留', strays.length === 0, strays.length ? '残留：' + strays.join(', ') + '（应移入 data/bilibili/ 并删除）' : '')
-  if (strays.includes('KILL')) {
-    // dataDir 修复前急刹写错了位置：真闸在 data/bilibili/KILL，根上这份是死文件，直接清掉
-    try { fs.rmSync(path.join(root, 'KILL'), { force: true }); console.log('  （已清理遗留的 data/KILL 死文件）') } catch {}
+  const pattern = /^(watch-prefs|policy|quota|traffic-state|pending-queue|causal|KILL)/
+  const strays = fs.existsSync(root) ? fs.readdirSync(root).filter((f) => pattern.test(f)) : []
+  rec('F', 'data/ 根无 bilibili 状态残留', strays.length === 0, strays.length ? '残留：' + strays.join(', ') : '')
+  for (const f of strays) {
+    const from = path.join(root, f)
+    const to = path.join(root, 'bilibili', f)
+    try {
+      if (fs.existsSync(to)) fs.rmSync(from, { force: true })
+      else fs.renameSync(from, to)
+      console.log(`  （已归位 ${f} → data/bilibili/）`)
+    } catch {}
+  }
+  if (strays.length) {
+    const left = fs.readdirSync(root).filter((f) => pattern.test(f))
+    rec('F', '残留归位后复验', left.length === 0, left.join(', '))
   }
 }
 

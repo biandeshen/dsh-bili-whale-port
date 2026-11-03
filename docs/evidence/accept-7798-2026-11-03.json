@@ -1,0 +1,349 @@
+{
+  "at": "2026-11-03T18:18:26.093Z",
+  "base": "http://127.0.0.1:7798",
+  "deploy": "C:\\Users\\Administrator\\.xiaoyu-home\\xiaoyu",
+  "results": [
+    {
+      "group": "A",
+      "name": "新架构 7798 在线",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "group": "A",
+      "name": "旧 live 7799 在线",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "group": "A",
+      "name": "7799 仍是旧内建 bili-account（未被波及）",
+      "ok": true,
+      "detail": "/assets/providers/world-bili-account-6E3RQL33.js"
+    },
+    {
+      "group": "B",
+      "name": "persona:xiaoyu 已注册",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "group": "B",
+      "name": "persona:xiaoyu 用扩展产物",
+      "ok": true,
+      "detail": "/assets/extensions/cortico-bot-xiaoyu/0.1.5/webui.js"
+    },
+    {
+      "group": "B",
+      "name": "world:bili-account 已注册",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "group": "B",
+      "name": "world:bili-account 用扩展产物",
+      "ok": true,
+      "detail": "/assets/extensions/cortico-world-bilibili/0.1.5/webui.js"
+    },
+    {
+      "group": "B",
+      "name": "world:media-studio 已注册",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "group": "B",
+      "name": "world:media-studio 用扩展产物",
+      "ok": true,
+      "detail": "/assets/extensions/cortico-world-media/0.1.5/webui.js"
+    },
+    {
+      "group": "B",
+      "name": "persona:xiaoyu 面板数=3",
+      "ok": true,
+      "detail": "实际 3"
+    },
+    {
+      "group": "B",
+      "name": "world:bili-account 面板数=4",
+      "ok": true,
+      "detail": "实际 4"
+    },
+    {
+      "group": "B",
+      "name": "world:media-studio 面板数=1",
+      "ok": true,
+      "detail": "实际 1"
+    },
+    {
+      "group": "C",
+      "name": "tank.getSnapshot",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "group": "C",
+      "name": "memory-center.list",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "group": "C",
+      "name": "journal-board.getDiary",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "group": "C",
+      "name": "journal-board.listJudgments",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "group": "C",
+      "name": "journal-board.listFeedback",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "group": "C",
+      "name": "inbox.list",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "group": "C",
+      "name": "drafts-queue.list",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "group": "C",
+      "name": "preferences.get",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "group": "C",
+      "name": "gate-policy.get",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "group": "C",
+      "name": "media-studio.listAssets",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "group": "C",
+      "name": "ffmpeg 工具链可用",
+      "ok": true,
+      "detail": "C:\\Users\\Administrator\\.dsh\\bili-whale\\bin\\ffmpeg.exe"
+    },
+    {
+      "group": "D",
+      "name": "tank.setFields 0.66（HTTP+磁盘）",
+      "ok": true,
+      "detail": "回读 0.66"
+    },
+    {
+      "group": "D",
+      "name": "tank 复原（HTTP+磁盘）",
+      "ok": true,
+      "detail": "回读 0.88"
+    },
+    {
+      "group": "D",
+      "name": "tank.setMode force_sleep（HTTP+磁盘）",
+      "ok": true,
+      "detail": "mode=force_sleep"
+    },
+    {
+      "group": "D",
+      "name": "tank.wakeNow 触发",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "group": "D",
+      "name": "tank 复原 auto",
+      "ok": true,
+      "detail": "mode=auto"
+    },
+    {
+      "group": "D",
+      "name": "memory.create（磁盘）",
+      "ok": true,
+      "detail": "id=mem-mw10h0i5-d2ni"
+    },
+    {
+      "group": "D",
+      "name": "memory.update 改文+置顶核心（磁盘）",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "group": "D",
+      "name": "memory.void（磁盘）",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "group": "D",
+      "name": "memory.restore（磁盘）",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "group": "D",
+      "name": "memory 提交信息含标记",
+      "ok": true,
+      "detail": "memory: 恢复「验收标记-acc0h0dy-改」→ active"
+    },
+    {
+      "group": "D",
+      "name": "journal.saveDiarySection（HTTP+磁盘）",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "group": "D",
+      "name": "journal.upsertJudgment",
+      "ok": true,
+      "detail": "j-4797a5"
+    },
+    {
+      "group": "D",
+      "name": "journal.replyFeedback",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "group": "D",
+      "name": "inbox.assignAction ignore",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "group": "D",
+      "name": "inbox.assignAction block_user（磁盘）",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "group": "D",
+      "name": "inbox.assignAction ask_her_reply",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "group": "D",
+      "name": "preferences.set 加词（HTTP+磁盘）",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "group": "D",
+      "name": "preferences 复原（磁盘）",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "group": "D",
+      "name": "gate 档位 comment=self（磁盘）",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "group": "D",
+      "name": "gate 配额（磁盘）",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "group": "D",
+      "name": "gate 冷却（磁盘）",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "group": "D",
+      "name": "gate 急刹（KILL 文件）",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "group": "D",
+      "name": "gate 急刹解除",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "group": "D",
+      "name": "gate 全部复原",
+      "ok": true,
+      "detail": "{\"draftMode\":\"review\",\"autoDailyCap\":0,\"autoWindow\":\"00:00-24:00\",\"like\":\"self\","
+    },
+    {
+      "group": "D",
+      "name": "queue 注入条目可见",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "group": "D",
+      "name": "queue.updateDraft 哈希续签（§10.4 核心修复）",
+      "ok": true,
+      "detail": "token 已换"
+    },
+    {
+      "group": "D",
+      "name": "queue.reject（磁盘）",
+      "ok": true,
+      "detail": "验收标记-acc0h0dy：拒稿验收"
+    },
+    {
+      "group": "D",
+      "name": "queue.requestNew",
+      "ok": true,
+      "detail": "1793729906058"
+    },
+    {
+      "group": "E",
+      "name": "记忆卡片 core=22 active=49",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "group": "E",
+      "name": "公开日记含验收段",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "group": "E",
+      "name": "causal.jsonl 在 data/bilibili/",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "group": "E",
+      "name": "workspace git 提交 ≥6",
+      "ok": true,
+      "detail": "最近 12 条"
+    },
+    {
+      "group": "E",
+      "name": "本轮产生验收提交",
+      "ok": true,
+      "detail": "diary: 主人在线编辑 public 本 2026-11-04"
+    },
+    {
+      "group": "F",
+      "name": "data/ 根无 bilibili 状态残留",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}
