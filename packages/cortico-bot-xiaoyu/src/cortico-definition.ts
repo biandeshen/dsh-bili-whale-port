@@ -8,9 +8,9 @@
  */
 import path from 'node:path'
 import { homedir } from 'node:os'
-// 转接头本来就依赖 Cortico 契约（框架默认配置、类型），这里引宿主是允许的；
-// 真正的能力包（cap-*）仍然是零 cortico 依赖的。
-import { CORE_DEFAULTS } from 'cortico/core/config.ts'
+// A3 已解除：CORE_DEFAULTS 本地副本在 persona-core（cortico-defaults.ts），
+// 转接头对宿主保持「类型形状对齐 + 默认值本地持有」，不再 import 宿主模块。
+import { CORE_DEFAULTS } from '../../persona-core/src/cortico-defaults.ts'
 import { XiaoYuPersona } from './cortico-persona.ts'
 
 export const XIAOYU_MEMORY_NAME = 'MEMORY.md'

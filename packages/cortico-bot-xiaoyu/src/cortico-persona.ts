@@ -13,8 +13,34 @@ import {
   type CorticoToolDef,
 } from '../../cortico-adapter/src/index.ts'
 import { createXiaoyuBotHub, type XiaoyuBotHub, type XiaoyuBotHubOptions } from './index.ts'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 export const MAIN_SESSION = 'main'
+
+const HERE = path.dirname(fileURLToPath(import.meta.url))
+// HERE = packages/cortico-bot-xiaoyu/src → 上两层到 packages/，再进本包 persona/
+const PERSONA_DIR = path.resolve(HERE, '..', '..', 'cortico-bot-xiaoyu', 'persona')
+
+/** 读包内正本；不存在返回 null（让调用方决定兜底）。 */
+function readPersonaFile(name: string): string | null {
+  try {
+    const p = path.join(PERSONA_DIR, name)
+    return fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : null
+  } catch {
+    return null
+  }
+}
+
+/** 部署覆盖优先（主人微调的提示词是私有资产，不进代码包）；否则用包内正本。 */
+function personaText(homeDir: string, name: string): string | null {
+  try {
+    const override = path.join(homeDir, 'prompts', name)
+    if (fs.existsSync(override)) return fs.readFileSync(override, 'utf8')
+  } catch {}
+  return readPersonaFile(name)
+}
 
 /** Cortico Persona 的最小形状（见 Cortico src/core/types.ts:1016）。 */
 export interface CorticoPersonaShape {
@@ -92,7 +118,19 @@ export class XiaoYuPersona implements CorticoPersonaShape {
 
   /** 汇总三个对内能力包的系统前缀：场值与心情 + 核心记忆 + 意见箱主人批复。 */
   async systemSegments(ctx: { now: Date; timezone: string; worlds: unknown[] }): Promise<Array<{ title: string; text: string; sourceKey?: string }>> {
-    return (await this.hub.assembleSystemPrefix({ now: ctx.now, timezone: ctx.timezone })) as never
+    // 人格正本在最前：CONSTITUTION（她是谁+铁律+记忆观）→ ORIENTATION（这一轮怎么做）。
+    // 部署 prompts/ 覆盖优先（主人微调不进代码包）；包内 persona/ 是正本。
+    const blocks: Array<{ title: string; text: string; sourceKey?: string }> = []
+    const constitution = personaText(this.memoryDir, 'CONSTITUTION.md')
+    if (constitution) {
+      blocks.push({ title: '我的宪法', text: constitution, sourceKey: 'persona.CONSTITUTION' })
+    }
+    const orientation = personaText(this.memoryDir, 'ORIENTATION.md')
+    if (orientation) {
+      blocks.push({ title: '这一轮怎么做', text: orientation, sourceKey: 'persona.ORIENTATION' })
+    }
+    const capBlocks = (await this.hub.assembleSystemPrefix({ now: ctx.now, timezone: ctx.timezone })) as never
+    return [...blocks, ...capBlocks]
   }
 
   /**
