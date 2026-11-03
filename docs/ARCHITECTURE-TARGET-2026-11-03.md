@@ -256,3 +256,158 @@ Cortico 宿主只定义了 `bot`（唯一大脑插孔，契约版本 `api: 7`）
 2. **不断现网 live**：现有 `Cortico-up`（7799 端口）在旁边照常运行不动；新包在独立目录、副本数据树与备用端口（如 7798）完成开发、自动化测试与主人真浏览器走查验收后，再一次性切换正式环境。
 3. **未审不落仓、未批不开工**：任何阶段性代码动手前，先由主人指定本次要动哪一个包。
 
+---
+
+## 8. 现有 16,015 行代码与 444 项测试逐文件复用映射表（施工对照单）
+
+> **铁律：不丢任何一条已验证的业务细节与历史修复。** 动手搬迁任何一个包时，必须逐行核对下表列出的「历史已修细节」，严禁退化。
+
+### 8.1 `Cortico-up/persona-core/src/`（16 个文件 / 2,054 行 → 100% 原样进 `packages/persona-core/`）
+
+| 现有文件 | 行数 | 必须保留的已实现能力与细节 | 目标落点 |
+|---|---|---|---|
+| `emotion.ts` | 170 | `readMood` 含 `action` 成因、阈值已由 0.25 调为 `0.2`（D1 修复） | `packages/persona-core/src/emotion.ts` |
+| `emotion-projection.ts` | 83 | 场值到情绪向量的投影计算 | `packages/persona-core/src/emotion-projection.ts` |
+| `rhythm.ts` | 130 | 状态驱动的醒/睡/待机评估（`MAX_ACTIONS_PER_DAY=Infinity`、`MIN_GAP_MS=0`，靠体力/事件自然收敛，日界 `00:00`） | `packages/persona-core/src/rhythm.ts` |
+| `npc-state-machine.ts` | 183 | 状态机转移与持续时间计算 | `packages/persona-core/src/npc-state-machine.ts` |
+| `life-activities.ts` | 118 | 日常微活动生成（称呼只读 `naming.ts`） | `packages/persona-core/src/life-activities.ts` |
+| `decay.ts` | 113 | 场值与记忆鲜活度随时间纯函数衰减 | `packages/persona-core/src/decay.ts` |
+| `effect-bus.ts` | 129 | 事件对 6 场值的增减叠加与上下界夹紧 | `packages/persona-core/src/effect-bus.ts` |
+| `budget.ts` | 84 | 体力/精力预算计算 | `packages/persona-core/src/budget.ts` |
+| `memory.ts` | 172 | `Memory` 条目构建、闪光灯记忆判定、作废章字段 | `packages/persona-core/src/memory.ts` |
+| `retrieval.ts` | 212 | `recallMemories()` 打分 `0.40*关键词+0.30*vividness+0.15*情绪贴合+0.15*新近`，`core / surprise` 双槽与 `why[]` 解释 | `packages/persona-core/src/retrieval.ts` |
+| `voice-brief.ts` | 140 | `buildVoiceBrief`（L3 纯函数，A1 标签全覆盖、低落只留一句、冷战略称） | `packages/persona-core/src/voice-brief.ts` |
+| `causal-chain.ts` | 234 | 短期因果链构建与最近成因摘要 | `packages/persona-core/src/causal-chain.ts` |
+| `conversation-assessment.ts` | 124 | 对话互动后的状态与印象评估 | `packages/persona-core/src/conversation-assessment.ts` |
+| `naming.ts` | 17 | `owner.displayName` 唯一称呼收口（不回落角色标签 `owner.name`） | `packages/persona-core/src/naming.ts` |
+| `types.ts` + `index.ts` | 145 | 全部核心类型与导出（新增 `capability.ts` 声明 `XiaoyuCapability` 接口） | `packages/persona-core/src/{types,capability,index}.ts` |
+
+### 8.2 `Cortico-up/src/worlds/bili-account/`（17 个文件 / 4,139 行 → 按职责拆入 4 个能力包）
+
+| 现有文件 | 行数 | 必须保留的历史修复与核心逻辑 | 目标落点 |
+|---|---|---|---|
+| `life-stages.ts` | 97 | 生活循环五阶段纯函数（对账→睡着恢复→决策→动作成本→记账） | `packages/cap-state-rhythm/src/life-stages.ts` |
+| `personaAdapter.ts` (上半：场值/状态段) | ~240 | `loadState/saveState` 原子写 + `.bak` 坏文件恢复；`watchedVideo` 的 `verdict: keep/drop/unclear` 三值（仅 `keep` 给正加成） | `packages/cap-state-rhythm/src/state-store.ts` |
+| `personaAdapter.ts` (下半：记忆段) | ~220 | `remember`、`rememberFirst`（仅第一次点亮 flashbulb）、`voidMemory`（唯一命中+理由≥6字）、`applyRecall`（鲜活度升+计数+1） | `packages/cap-memory/src/memory-ops.ts`（结合 `GitWorkspaceMemory`） |
+| `diary.ts` | 321 | `upsertDiarySection`（按日期块幂等替换/追加、清理历史重复 heading）、按天/按节/summary 检索 | `packages/cap-journal/src/diary.ts` |
+| `dm.ts` + `dm-reply.ts` | 134 | 私信列表解析；**B 站 10 位秒时间戳转毫秒修复**；`max(lastDmReadAt, lastInboundAt)` 7 天回信窗口 | `packages/cap-bilibili/src/client/dm.ts` |
+| `gates.ts` + `causal-io.ts` + `task-queue.ts` | 167 | 出稿前纪律闸（debrief/日记新鲜度）、`causal.jsonl` 宿主侧写入、at-least-once 持久化任务队列 | `packages/cap-bilibili/src/domain/{discipline,causal,task-queue}.ts` |
+| `config-store.ts` + `paths.ts` | 231 | **8 个发送策略档位读写（含 `comment`/`danmaku`）**、测试上下文拒写生产配置护栏（11-01 事故修复）、`DSH_HOME` 路径解析 | `packages/cap-bilibili/src/config.ts` |
+| `definition.ts` + `tool-decls.ts` + `prompts.ts` + `capability.ts` | 1,372 | 工具声明与执行绑定、**被拒的稿不再算"今天已有稿"而提示照理由重写**（`7ccd96b`）、`auto` 生效强制写私人日记通知 | 对内状态/日记段进 `cap-state-rhythm` / `cap-journal`；B 站段进 `cap-bilibili` |
+| `tank.ts` + `webui/client.ts` | 1,336 | 现有面板后端数据聚合与前端 DOM（含评论/弹幕策略下拉、待放行队列放行/丢弃按钮、58 项配置总览） | 拆入各包 `src/panel/`，并按 §10 升级为全可写控件 |
+| `runner.ts` | 21 | `spawnSync` 调外部 CLI | **唯一废弃删除**（改为进程内 Typed 函数调用） |
+
+### 8.3 `dsh-bili-whale/`（70+ 个文件 / 9,822 行 + 80 个测试文件 → 收编入包，消灭双仓）
+
+| 现有模块 / 目录 | 行数 | 必须保留的历史修复与核心逻辑 | 目标落点 |
+|---|---|---|---|
+| `tools/lib/{traffic,quota-gate,kill,go-gate,go-rebuild,pending-queue,publish-policy,plain-outbound,write-refusal,state-lock}.mjs` | 917 | 412 风控自动暂停、`url+body` 操作指纹防重发、`ack` 令牌绑 `draftId+textHash`、`plainOutbound` 去 `**` 与未闭合书名号、写失败不崩栈且记 `<kind>-failed` | `packages/cap-bilibili/src/domain/gate/`（合成唯一 `WriteGate`） |
+| `tools/drafts/{compose,store,publishers/bilibili-dynamic}.mjs` | 665 | `composeDraft` 吃 `voice` 与记忆 slot（10 状态变体产出两两不同）、嵌套书名号提取修复、图文与纯文字发布唯一实现 | `packages/cap-bilibili/src/drafts/` |
+| `tools/lib/msgfeed.mjs` + `tools/commands/{comment-await,comment-digest,likes,dm-await}.mjs` | 430 | 回复我的 / @我的 / 收到的赞 / 私信四路收件箱底层拉取与楼层最新正文解析 | `packages/cap-bilibili/src/client/inbox.ts` |
+| `tools/lib/{dm-send-core,dm-drafts,dm-history,feed-quality,feed-feedback,cred,report}.mjs` + 其余 `tools/commands/*.mjs` | ~5,400 | 推荐流 `[短于10分钟：跳过]` / `[同UP第N条：不深读]` 标注、点赞 30 天本地账去重防 toggle 取消、收藏五判据、`dynamic recent` 翻页核验 | `packages/cap-bilibili/src/client/{feed,watch,publish,interact}.ts` + 薄壳 `src/cli.ts` |
+| `tools/lib/{judgment,feedback}.mjs` + `tools/commands/{diary,judgment,feedback}.mjs` | 527 | 判断卡读写、意见箱折叠统计规则（`70f58f1` 已解决项不再点亮未解决灯） | `packages/cap-journal/src/` |
+| `tools/media/{tts,bgm,video/studio,config}.mjs` + `tools/video-build.mjs` + `vendor/dsh-video-studio` + `assets/bgm/` | ~600+ | MiMo TTS（`mimo-v2.5-tts` 茉莉音色）+ CC0 BGM 曲库 + 9:16/16:9 双封面与视频合成 | `packages/cap-media-studio/` |
+| `core/ports/temporal.mjs` | 54 | 时间窗口纯函数 | 并入 `packages/persona-core/`（移除 AMpath 注释引用） |
+| `adapters/opencode/` | — | OpenCode 宿主 daemon + MCP 适配器 | `packages/adapter-opencode/`（第二宿主插座） |
+| `core/scheduler.js` + `panel/server.js` | 986 | 10-27 已停用的旧打卡器与 10-31 已退役的 8447 独立面板 | 移入 `legacy/` 归档封存 |
+| `tests/**/*.test.mjs`（80 个文件 / 444 项测试） | — | 全套契约测试、权限档位、草稿耦合、私信时效等 | **继续使用 `node:test` 运行**（不改写为 vitest，100% 继承 444 项回归门禁） |
+
+---
+
+## 9. 多仓库收口方案与存量真实数据无损接管表
+
+### 9.1 本地 4 处目录与 2 个 GitHub 仓库的处置
+
+| 位置 | 现状 | 收口动作 |
+|---|---|---|
+| `E:\WorkSpace_Qoder\dsh-bili-whale`（远端 `biandeshen/dsh-bili-whale-port`） | 当前 CLI 仓（含 240+ 提交、`port-0.5.2` tag、80 测试文件、全部 `docs/`） | **原地升级为唯一主力产品仓**：根下建 `pnpm-workspace.yaml` 与 `packages/`，承接全部 8 个包（`persona-core` + 5 个 `cap-*` + 2 个 `cortico-*` 转接头），历史与测试零丢失 |
+| `E:\WorkSpace_Qoder\Cortico-up` | `Cortico` 的 git worktree，当前跑着 7799 现网 live | **施工期保持运行不动**；新包在备用端口验通并切换后，卸载该 worktree 目录 |
+| `E:\WorkSpace_Qoder\Cortico`（远端 `biandeshen/Cortico-local`） | 宿主主仓（master） | 切换完成后，删掉里面寄居的 `src/worlds/bili-account` 与 `persona-core`，恢复为 **100% 纯净上游 Cortico 插座**，通过 `extensions/` 软链加载 `dsh-bili-whale/packages/cortico-*` |
+| `E:\WorkSpace_Qoder\_retired-2026-11-02` 與 `AMpath` | 退役工作树备份（41M）与早期参考仓 | `_retired` 按约留至 `2026-11-09` 后删除；`AMpath` 移出工作区归档 |
+
+### 9.2 存量真实数据无损接管映射表（她半个月攒下的记忆、日记、账本一条不丢）
+
+迁移脚本遵循 `migrate-state-roots.mjs` 规范：**默认 `--dry` 只打印差异 → `--apply` 原子复制转换并记 `ledger.json`（原文件原封不动保留做备份）→ `--rollback <id>` 随时一键回退**。
+
+| 存量真实数据（现状位置与实测规模） | 装的是什么 | 新架构接管方式与目标位置 |
+|---|---|---|
+| `C:\Users\Administrator\.dsh\bili-whale\fields.json`（71 KB） | ① 6 条场值 `fields` + `lastAppliedAt`；② **60 条情绪记忆 `memories[]`**；③ **68 条因果链 `chain[]`** + `npcState/budget/emotionHistory` | 一拆三（无损）：<br>① 6 场值 → `<home>/data/persona/fields.json`<br>② 60 条记忆 → 逐条转为 `<home>/workspace/memo/{core,active,voided}/<id>.md`（`flashbulb:true` 进 `core/`，`voided:true` 进 `voided/`，其余进 `active/`，front-matter 完整保留全部 11 个字段）<br>③ 68 条链与状态机 → `<home>/data/persona/runtime.json` |
+| `C:\Users\Administrator\.dsh\whale-diary.md`（50 KB）与 `whale-diary-private.md`（65 KB） | 她写下的全部公开日记与私人日记 | 原样迁入 `<home>/workspace/diary/public.md` 与 `private.md`，并做初始 Git commit |
+| `Cortico\deployments\mybot\workspace\`（10 文件 / 2.4 MB） | `CONSTITUTION.md`、`judgments.md`（4 KB）、`handoffs/`、`blobs/` | 原样迁入 `<home>/workspace/` 与 `<home>/prompts/` |
+| `C:\Users\Administrator\.dsh\bili-whale\causal.jsonl`（207 行 / 54 KB） | 全部历史行为因果审计账 | 原样迁入 `<home>/data/bilibili/causal.jsonl` |
+| `C:\Users\Administrator\.dsh\bili-ai\{traffic-state,dm-quota,favorites,pending-replies,dm-await-state}.json` | 风控状态、点赞/收藏去重账、待放行队列、私信游标 | 原样迁入 `<home>/data/bilibili/` |
+| `C:\Users\Administrator\.dsh\bili-whale\days\2026-*` | 每日首末状态快照与反事实评测基线 | 原样迁入 `<home>/data/persona/days/`，`counterfactual.mjs` 兼容新旧两种格式 |
+| `D:\AI\养鱼\assets\daily\*.png` 与 `drafts\*.json` | 日常配图素材与历史动态草稿 | 路径由 `config.json` 声明（可直接指向 `D:\AI\养鱼\` 原地不动，或迁入 `<home>/data/media/`） |
+
+---
+
+## 10. 五大能力扩展的主人操作台 RPC 接口与前端控件规格表
+
+> **硬性验收标准**：以下每一个 RPC 方法都必须在真浏览器里点通、改完落盘、刷新后数值保持，绝不允许只画静态 DOM 或留空按钮。
+
+### 10.1 `cap-state-rhythm` 面板：`tank`（鱼缸与作息遥控台）
+
+| 方法名 (`invoke`) | 入参 | 作用与落盘动作 | 前端必须渲染的交互控件 |
+|---|---|---|---|
+| `getSnapshot` (GET) | `{}` | 返回 6 场值、当前情绪与成因、当前作息阶段（醒/睡/待机）、下次评估倒计时、最近 20 条状态变迁链 | 鱼缸头像、心情徽章、6 条带数值的场值进度条、最近变迁时间线 |
+| `setFields` (POST) | `{ patch: Partial<Fields>, note?: string }` | 直接修改 1~6 条场值（`0.0 ~ 1.0`），写回 `fields.json` 并在 `chain` 记一笔 `owner_adjust` | 每条场值旁配**可拖动滑块 + `-0.1 / +0.1` 步进按钮 +「保存修改」** |
+| `wakeNow` (POST) | `{ hint?: string }` | 立即中断当前 `setTimeout` 等待，马上触发一轮 `lifeTick`（可选附带一句主人提示，如"去看看收件箱"） | 醒目的 **「⚡ 立即戳醒她（马上跑一轮）」** 按钮 + 可选叮嘱输入框 |
+| `setMode` (POST) | `{ mode: 'auto' \| 'force_sleep' \| 'force_awake' }` | 切换作息模式（自然节律 / 强制休息不外出 / 保持清醒） | 三档分段开关（Segmented Control） |
+
+### 10.2 `cap-memory` 面板：`memory-center`（记忆管理中心）
+
+| 方法名 (`invoke`) | 入参 | 作用与落盘动作 | 前端必须渲染的交互控件 |
+|---|---|---|---|
+| `list` (GET) | `{ tier?: 'all'\|'core'\|'active'\|'archived'\|'voided', query?: string, tag?: string }` | 检索并返回记忆卡片列表（含 `id/content/tags/vividness/accessCount/createdAt/flashbulb/voidedReason`） | 顶部**搜索框 + 四层页签切换 + 标签过滤胶囊**；卡片列表展示全部元数据 |
+| `create` (POST) | `{ content: string, tags: string[], tier: 'core'\|'active', vividness?: number }` | 主人直接新建一条记忆写入 `workspace/memo/<tier>/<id>.md` 并自动 Git commit | **「+ 塞一条记忆给她」** 弹窗/表单（正文框、标签输入、是否置入核心常驻开关） |
+| `update` (POST) | `{ id: string, content?: string, tags?: string[], vividness?: number, tier?: 'core'\|'active'\|'archived' }` | 修改已有记忆正文、标签、鲜活度权重，或在 `core / active / archived` 之间移动文件 | 每张记忆卡片上的 **「编辑正文/标签」「⭐ 置顶进核心」「📥 归档」** 按钮与鲜活度滑块 |
+| `void` (POST) | `{ id: string, reason: string }` | 作废一条错误记忆（`voided: true` 并移入 `memo/voided/`） | 卡片上的 **「🚫 作废」** 按钮（点击输入理由） |
+| `restore` (POST) | `{ id: string, targetTier?: 'active'\|'core' }` | 将误作废的记忆从 `memo/voided/` 恢复回 `active/` 或 `core/` | `已作废` 页签下的 **「↩ 恢复」** 按钮 |
+
+### 10.3 `cap-journal` 面板：`journal-board`（日记、判断卡与意见箱工作台）
+
+| 方法名 (`invoke`) | 入参 | 作用与落盘动作 | 前端必须渲染的交互控件 |
+|---|---|---|---|
+| `getDiary` (GET) | `{ book: 'public'\|'private', date?: string, query?: string }` | 按本（公开/私人）、按日期块或关键词读取日记内容与日期目录树 | 左侧**日期列表树 + 公开/私人切换 + 搜索框**，右侧日记渲染视图 |
+| `saveDiarySection` (POST) | `{ book: 'public'\|'private', date: string, heading?: string, markdown: string }` | 在线修改某天（或整块）日记正文，修错位日期或格式，原子写入并生成 Git commit | 日记右上角 **「✏️ 在线编辑」** 切换为 Markdown 编辑框 + **「💾 保存并提交」** |
+| `listJudgments` (GET) | `{ verdict?: 'keep'\|'drop'\|'unclear', query?: string }` | 读取 `judgments.md` 结构化列表（视频 BV / UP 主 / 结论 / 理由 / 时间） | **【审美判断卡】独立页签**：表格视图 + `keep/drop/unclear` 筛选器 |
+| `upsertJudgment` (POST) | `{ id: string, verdict: 'keep'\|'drop'\|'unclear', note: string }` | 主人修改或新增一条判断卡结论 | 判断卡表格行内的**结论下拉框 + 备注编辑 + 保存** |
+| `listFeedback` (GET) | `{ status?: 'open'\|'resolved'\|'all' }` | 按折叠去重规则列出她的意见箱条目 | **【意见箱】独立页签**：未解决/已解决筛选、连报次数角标 |
+| `replyFeedback` (POST) | `{ id: string, ownerReply?: string, resolve: boolean, convertRule?: { kind: 'dislike'\|'keyword'\|'exemptUp', value: string } }` | 标为已解决、写入**主人批复**（下一轮自动注入她的上下文），或一键把她的抱怨转成看片过滤规则 | 每条意见下的 **「💬 写批复并解决」「➕ 一键转屏蔽词/偏好规则」「✓ 仅标已解决」** |
+
+### 10.4 `cap-bilibili` 面板：四大操作台（`inbox` · `drafts-queue` · `preferences` · `gate-policy`）
+
+| 面板 / 方法名 | 入参 | 作用与落盘动作 | 前端必须渲染的交互控件 |
+|---|---|---|---|
+| `inbox.list` (GET) | `{ kind?: 'all'\|'dm'\|'reply'\|'mention'\|'like', unreadOnly?: boolean }` | 列出四路收件箱条目（发送者、内容、关联 BV/楼层、时间、她是否已读/已回） | **【B 站收件箱】页签**：私信/回复/@/赞四路筛选 + 未读高亮列表 |
+| `inbox.assignAction` (POST) | `{ itemKey: string, action: 'ask_her_reply'\|'ignore'\|'block_user', ownerHint?: string }` | 指派她回复该条消息（可附主人叮嘱推入唤醒事件）、直接标已读忽略、或拉黑该 UID | 每条消息右侧：**「👉 让她回这条」「✓ 忽略已读」「🚫 拉黑」** |
+| `queue.list` (GET) | `{}` | 统一返回所有待放行项（**动态草稿 + 私信草稿 + 待审评论 + 待审弹幕**四合一） | **【统一待放行与改稿台】页签**：分类徽章、正文、配图预览、创建时间 |
+| `queue.updateDraft` (POST) | `{ id: string, text: string, imagePath?: string }` | **在线修改待审草稿的正文或配图，并自动重算 `bodyHash` 续签一次性令牌**（改字后直接可发，不再报错） | 每条待审项自带**可编辑文本框 + 配图更换器 +「保存修改」** |
+| `queue.release` (POST) | `{ id: string }` | 校验最新 `bodyHash` 后经 `WriteGate` 立即发布，记 `causal.jsonl` | **「✓ 放行发布」** 按钮 |
+| `queue.reject` (POST) | `{ id: string, reason: string, askRewrite: boolean }` | 拒掉该条待审项；若勾选 `askRewrite` 则把拒稿理由注入她下一轮让她重写 | **「✗ 拒掉 / 打回重写」** 按钮 + 理由输入框 |
+| `queue.requestNew` (POST) | `{ kind: 'dynamic'\|'comment', bvid?: string, prompt: string }` | 主人主动点单：指定一个 BV 号或话题，让她写一篇动态或评论草稿进队列 | 面板顶部 **「+ 点单让她写一条」** 快捷栏 |
+| `prefs.get / prefs.set` | `{ like: string[], dislike: string[], keywords: string[], exemptUps: string[], minDurationSec: number }` | 读写看片偏好、屏蔽词、关注 UP 主豁免名单、短视频跳过阈值 | **【看片偏好与过滤】页签**：胶囊标签增删器（点 `×` 删、回车加）+ 时长数字框 |
+| `gate.get / gate.set` | `{ policy, quota, traffic, killOn: boolean }` | 读写 8 个发送策略档位、每日自主/分享配额、写冷却秒数、急刹开关、手动解除 412 风控暂停 | **【安全闸与风控】页签**：**顶部红色「🛑 一键急刹 (Kill)」大开关** + 412 状态条与「解除冷却」按钮 + 8 个档位下拉框 + 配额/冷却输入框 |
+
+### 10.5 `cap-media-studio` 面板：`media-studio`（音视频工作台）
+
+| 方法名 (`invoke`) | 入参 | 作用与落盘动作 | 前端必须渲染的交互控件 |
+|---|---|---|---|
+| `listAssets` (GET) | `{}` | 列出可选日常底图（`assets/daily/*.png`）、CC0 BGM 曲库、已生成的音视频产物 | 底图缩略图网格 + BGM 下拉选择器 + 历史成片列表 |
+| `previewTts` (POST) | `{ text: string, voice?: string }` | 调 MiMo TTS 生成试听音频并返回本地试听流 URL | 台词多行输入框 + **「🔊 试听语音」** 播放器 |
+| `buildVideoDraft` (POST) | `{ image: string, text: string, bgmId: string, durationSec: number }` | 合成 1080×1920 视频 + 9:16/16:9 双封面，并可一键推入 `cap-bilibili` 待放行队列 | **「🎬 合成视频草稿」** 按钮 + 视频预览播放器 + **「送入待放行队列」** 按钮 |
+
+---
+
+## 11. 分包施工顺序（等你下令开工时按此顺序逐包交付）
+
+每一包都在 `E:\WorkSpace_Qoder\dsh-bili-whale\packages\` 下独立建包、独立过测试，**全程不碰现网 7799 进程，直到第 5 步你在备用端口真浏览器验收满意后才切 live**：
+
+1. **Step 1 · 地基包 `@xiaoyu/persona-core`**：把 16 个纯函数文件（2,054 行）迁入 `packages/persona-core/`，补上 `XiaoyuCapability` 统一契约定义 `capability.ts`，跑通全部纯函数单测。
+2. **Step 2 · 三个对内能力包（`cap-state-rhythm` + `cap-memory` + `cap-journal`）+ 薄转接头 `cortico-bot-xiaoyu`**：按 §8.2 迁入状态、四层记忆、日记/判断/意见箱代码，按 §10.1–10.3 实现三个全可写操作面板，写好存量数据无损迁移脚本（`--dry` 预演通过）。
+3. **Step 3 · 对外大包 `cap-bilibili` + 薄转接头 `cortico-world-bilibili`**：按 §8.3 收编 dsh 全部 43 条命令为进程内 Typed API，接通四路收件箱事件唤醒、补齐 `bili_comment`/`bili_danmaku`/`bili_dynamic_edit`、收口唯一 `WriteGate`，按 §10.4 实现四大操作台，原 80 个 `node:test` 测试文件全绿。
+4. **Step 4 · 音视频包 `cap-media-studio` + 薄转接头 `cortico-world-media`**：迁入 `tools/media/*` 与 `vendor/dsh-video-studio`，实现 §10.5 试听与合成工作台。
+5. **Step 5 · 备用端口（7798）整机联调与真浏览器走查 → 一键切 live → 清理旧工作树**：在 7798 端口挂齐全部扩展，逐项点通 §10 的所有写按钮与滑块，主人验收点头后切回 7799 正式环境，卸载 `Cortico-up` 冗余工作树。
+
+
+
