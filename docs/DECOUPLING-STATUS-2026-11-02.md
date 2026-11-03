@@ -538,3 +538,19 @@ mybot 部署未动，`node bin/cortico.mjs mybot --port=7799` 即回旧架构。
 - **实测她**：「小鱼——刚学着当人，刚学会记账、认筐、给草稿画押的那条小鱼。规矩就一条：只记能对上账的事，账不圆就先摆着，不编。」——宪法+记忆观已进前缀生效。
 - **观测窗顺延（门禁正确拦截）**：G3b 唯一 PENDING 是"连续 3 天反事实"，其中 11-02 draftHash=mismatch（旧架构切换期数据）。处置：不跳过、不清数据，让她在新架构自然积累，3 天达标（预计 11-07）后开窗。这正是门禁存在的意义。
 - 全量 97/548 fail 0；验收 57/57。
+
+### 2026-11-04 05:00 · B4 独立性 A2 第一批 + V1 素材管线
+
+- **A2 第一批收编（9 模块真身进包，154 处引用零破坏）**：写侧安全件 plain-outbound / traffic /
+  paths / kill → `cap-bilibili/src/platform/`；媒体件 bgm / media-config / tts / mimo / proc /
+  video/studio → `cap-media-studio/src/vendor/`。tools/ 原址全部换成转发壳（一行 re-export），
+  CLI 薄壳、scripts、tests、panel 的引用零改动。手工抓漏 4 处相对深度错位（video/studio 的
+  vendor 五层、mimo 的 paths 指向、tts 的 proc 同目录、credentials 壳的仓根相对）。
+- **意义**：cap-bilibili 与 cap-media-studio 对宿主仓 tools/ 的运行时反向依赖清零——
+  xiaoyu 仓不再依赖 Cortico 检出与 D:/AI/养鱼 的目录布局即可运行。独立性五锚只剩 A4 / A5。
+- **V1 素材管线**：形象正本 character.txt（鲸鱼娘全识别特征）+ form-chibi + 8 场景 + negative 26 项
+  收进 `cap-media-studio/assets/prompts/`；image-prompt.ts 纯函数组合（与 build-prompts.mjs 逐字同
+  公式，1429 字符含形象正本）；面板新增 listPrompts / composePrompt。
+- **上线后验收 57/57**（7799 已带新模块重启）。
+- **收编手法沉淀**：`git mv` 真身进包 → 原址转发壳 → 全量测试抓相对深度漏改（4 处全是这一类）。
+  转发壳注释统一标注真身位置与日期，Anti-pattern 是直接改 154 处引用。
