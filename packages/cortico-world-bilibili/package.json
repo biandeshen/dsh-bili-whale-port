@@ -1,0 +1,29 @@
+{
+  "name": "cortico-world-bilibili",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "小鱼的 B 站整域能力薄转接头（包装 @xiaoyu/cap-bilibili，对接 Cortico world api:6，World ID: bili-account）。",
+  "keywords": [
+    "cortico-world",
+    "cortico",
+    "bilibili"
+  ],
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "cortico": {
+    "kind": "world",
+    "api": 6,
+    "tags": [
+      "bilibili",
+      "social"
+    ],
+    "describe": "describe.json"
+  },
+  "dependencies": {
+    "@xiaoyu/persona-core": "workspace:*",
+    "@xiaoyu/cap-bilibili": "workspace:*"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@xiaoyu/cap-bilibili",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "小鱼的 B 站整域能力扩展包（四路收件箱合一 + 全量看片/互动 Typed API + 唯一 WriteGate 把关链 + 四大可写操作台，100% 宿主无关）。",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@xiaoyu/persona-core": "workspace:*"
+  }
+}
