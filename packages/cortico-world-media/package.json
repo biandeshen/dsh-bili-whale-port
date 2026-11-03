@@ -21,12 +21,14 @@
       "video",
       "tts"
     ],
-    "describe": "describe.json"
+    "describe": "describe.json",
+    "webUiClient": "dist/webui.js"
   },
   "files": [
-    "src",
+    "README.md",
     "describe.json",
-    "README.md"
+    "dist",
+    "src"
   ],
   "dependencies": {
     "@xiaoyu/persona-core": "workspace:*",

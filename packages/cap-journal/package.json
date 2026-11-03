@@ -11,5 +11,10 @@
   "dependencies": {
     "@xiaoyu/persona-core": "workspace:*",
     "@xiaoyu/cap-memory": "workspace:*"
-  }
+  },
+  "cortico": {},
+  "files": [
+    "dist",
+    "src"
+  ]
 }
