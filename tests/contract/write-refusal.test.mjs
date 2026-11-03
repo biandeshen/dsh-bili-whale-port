@@ -43,13 +43,38 @@ test('noteWriteFailure 落一条 <kind>-failed，带 actor=cli 与 bv', () => {
   assert.match(rows[0].reason, /-400/)
 })
 
-test('attemptWrite：冷却抛错 → 一行 ✗ + 一条失败账 + 退出码 4（不再是 Node 堆栈）', () => {
+test('attemptWrite：冷却抛错 → 一行 ✗ + 一条失败账 + 抛 WriteRefusedError（库不再杀进程）', () => {
   const script = path.join(tmp, 'gate.mjs')
   fs.writeFileSync(script, [
     `process.env.WHALE_HOME = ${JSON.stringify(home)};`,
-    `const { attemptWrite } = await import(${JSON.stringify(pathToFileURL(path.join(ROOT, 'tools/lib/write-refusal.mjs')).href)});`,
+    `const { attemptWrite, WriteRefusedError } = await import(${JSON.stringify(pathToFileURL(path.join(ROOT, 'tools/lib/write-refusal.mjs')).href)});`,
     `const { TrafficError } = await import(${JSON.stringify(pathToFileURL(path.join(ROOT, 'tools/lib/traffic.mjs')).href)});`,
-    `await attemptWrite('点赞', async () => { throw new TrafficError('写操作冷却中，请稍后再发送') }, { kind: 'like', bv: 'BVgate1234567' });`,
+    `try {`,
+    `  await attemptWrite('点赞', async () => { throw new TrafficError('写操作冷却中，请稍后再发送') }, { kind: 'like', bv: 'BVgate1234567' });`,
+    `  console.log('不该走到这里');`,
+    `} catch (e) {`,
+    `  console.log('CAUGHT:' + (e instanceof WriteRefusedError) + ':' + e.exit + ':' + e.kind);`,
+    `}`,
+  ].join('\n'), 'utf8')
+  const r = spawnSync(process.execPath, [script], { encoding: 'utf8', timeout: 30000 })
+  // 库层不再 process.exit：子进程正常退出（0），且把拒绝以异常形式交回调用方
+  assert.equal(r.status, 0, `库层不该杀进程：\n${r.stdout}\n${r.stderr}`)
+  assert.match(r.stderr, /^✗ 点赞没发出去：写操作冷却中/m, r.stderr)
+  assert.doesNotMatch(r.stderr, /at .*\(file:\/\//, '不许再把 Node 堆栈交给她：' + r.stderr)
+  assert.equal(r.stdout.includes('不该走到这里'), false)
+  assert.match(r.stdout, /CAUGHT:true:4:like/, '应当抛 WriteRefusedError 且带 exit=4 与 kind')
+  const last = lines().at(-1)
+  assert.equal(last.kind, 'like-failed')
+  assert.equal(last.bv, 'BVgate1234567')
+})
+
+test('CLI 入口 attemptWriteCli：闸门拒仍退 4（不是崩栈，也不是退 1）', () => {
+  const script = path.join(tmp, 'gate-cli.mjs')
+  fs.writeFileSync(script, [
+    `process.env.WHALE_HOME = ${JSON.stringify(home)};`,
+    `const { attemptWriteCli } = await import(${JSON.stringify(pathToFileURL(path.join(ROOT, 'tools/lib/write-refusal.mjs')).href)});`,
+    `const { TrafficError } = await import(${JSON.stringify(pathToFileURL(path.join(ROOT, 'tools/lib/traffic.mjs')).href)});`,
+    `await attemptWriteCli('点赞', async () => { throw new TrafficError('写操作冷却中，请稍后再发送') }, { kind: 'like', bv: 'BVgate1234567' });`,
     `console.log('不该走到这里');`,
   ].join('\n'), 'utf8')
   const r = spawnSync(process.execPath, [script], { encoding: 'utf8', timeout: 30000 })
@@ -59,15 +84,14 @@ test('attemptWrite：冷却抛错 → 一行 ✗ + 一条失败账 + 退出码 4
   assert.equal(r.stdout.includes('不该走到这里'), false)
   const last = lines().at(-1)
   assert.equal(last.kind, 'like-failed')
-  assert.equal(last.bv, 'BVgate1234567')
 })
 
-test('非闸门错误也不崩栈：同样退 4 并留下原因', () => {
+test('非闸门错误也不崩栈：CLI 退 4，库抛可捕获的错并留下原因', () => {
   const script = path.join(tmp, 'other.mjs')
   fs.writeFileSync(script, [
     `process.env.WHALE_HOME = ${JSON.stringify(home)};`,
-    `const { attemptWrite } = await import(${JSON.stringify(pathToFileURL(path.join(ROOT, 'tools/lib/write-refusal.mjs')).href)});`,
-    `await attemptWrite('收藏', async () => { throw new TypeError('fetch failed') }, { kind: 'fav', bv: 'BVother1234567' });`,
+    `const { attemptWriteCli } = await import(${JSON.stringify(pathToFileURL(path.join(ROOT, 'tools/lib/write-refusal.mjs')).href)});`,
+    `await attemptWriteCli('收藏', async () => { throw new TypeError('fetch failed') }, { kind: 'fav', bv: 'BVother1234567' });`,
   ].join('\n'), 'utf8')
   const r = spawnSync(process.execPath, [script], { encoding: 'utf8', timeout: 30000 })
   assert.equal(r.status, 4, r.stdout + r.stderr)
@@ -75,10 +99,11 @@ test('非闸门错误也不崩栈：同样退 4 并留下原因', () => {
   assert.equal(lines().at(-1).kind, 'fav-failed')
 })
 
-test('四条写链路都接了这个出口（评论/弹幕/点赞/收藏）', () => {
+test('四条写链路都接了这个出口（评论/弹幕/点赞/收藏），且走的是 CLI 版', () => {
   for (const f of ['like', 'fav', 'comment', 'danmaku']) {
     const src = fs.readFileSync(path.join(ROOT, 'tools/commands', `${f}.mjs`), 'utf8')
     assert.match(src, /from '\.\.\/lib\/write-refusal\.mjs'/, f + ' 没导入收口')
-    assert.match(src, /attemptWrite\(/, f + ' 的写请求没包：' )
+    assert.match(src, /attemptWrite\(/, f + ' 的写请求没包：')
+    assert.match(src, /attemptWriteCli as attemptWrite/, f + ' 的 CLI 入口必须走 attemptWriteCli（库层不杀进程）')
   }
 })

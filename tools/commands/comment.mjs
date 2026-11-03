@@ -21,7 +21,7 @@ import { validateShare } from '../lib/share-policy.mjs'
 import { NODE_EXE } from '../lib/nodebin.mjs'   // 2026-10-21：别用 process.execPath（Electron 里它是主程序 ✗）
 import { stateReadPath, statePath, writeStateText } from '../lib/paths.mjs'
 import { plainOutbound } from '../lib/plain-outbound.mjs'
-import { attemptWrite, noteWriteFailure } from '../lib/write-refusal.mjs'
+import { attemptWriteCli as attemptWrite, noteWriteFailure } from '../lib/write-refusal.mjs'
 import { readPolicy, tierQueues } from '../lib/publish-policy.mjs'
 
 // ── 限额闸（B 档「限额自主」的代码强制部分，2026-10-14 主人选 B 档）────────────────

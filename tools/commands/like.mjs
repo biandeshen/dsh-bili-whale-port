@@ -12,7 +12,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { credentialsPath, stateReadPath, statePath } from '../lib/paths.mjs'
 import { report } from '../lib/report.mjs'
-import { attemptWrite, noteWriteFailure } from '../lib/write-refusal.mjs'
+import { attemptWriteCli as attemptWrite, noteWriteFailure } from '../lib/write-refusal.mjs'
 
 const HOME = (process.env.USERPROFILE || process.env.HOME || '/')
 // 账本按"文档"处理：读新家、读不到再读旧家，写永远落新家。

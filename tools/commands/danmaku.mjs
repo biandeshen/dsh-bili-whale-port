@@ -17,7 +17,7 @@ import { gate } from '../lib/quota-gate.mjs'
 import { shouldGate, queueGo } from '../lib/go-gate.mjs'
 import { credentialsPath } from '../lib/paths.mjs'
 import { plainOutbound } from '../lib/plain-outbound.mjs'
-import { attemptWrite, noteWriteFailure } from '../lib/write-refusal.mjs'
+import { attemptWriteCli as attemptWrite, noteWriteFailure } from '../lib/write-refusal.mjs'
 import { config } from '../lib/config.mjs'
 import { readPolicy, tierQueues } from '../lib/publish-policy.mjs'
 const argv = process.argv.slice(2)

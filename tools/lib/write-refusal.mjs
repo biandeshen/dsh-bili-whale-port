@@ -45,7 +45,21 @@ export function noteWriteFailure({ kind, bv = '', reason = '', home = whaleHome 
  * 包住一次写请求：抛出来的错一律翻成一行 `✗ …`、记一条失败账，然后按"闸门拒"退 4。
  * 退出码 4 与 quota-gate 的既有语义一致（World 与面板都按这个数判断"没发出去但不是崩溃"）。
  * 成功账不在这里写——World 与 go-gate 放行各自已经记了，重复记会让 K4 的分母翻倍。
+ *
+ * 2026-11-04：不再 `process.exit(4)`。库函数杀进程会让调用方无法 catch，
+ * 在包内（WriteGate 要拿它判"闸门拒"）直接 exit 会把整个宿主进程带走。
+ * 现在抛 WriteRefusedError，由调用方决定退出码（CLI 薄壳仍按 4 退）。
  */
+export class WriteRefusedError extends Error {
+  constructor(message, { exit = 4, kind = '', bv = '' } = {}) {
+    super(message)
+    this.name = 'WriteRefusedError'
+    this.exit = exit
+    this.kind = kind
+    this.bv = bv
+  }
+}
+
 export async function attemptWrite(label, fn, { kind, bv = '', home = whaleHome } = {}) {
   try {
     return await fn()
@@ -53,6 +67,21 @@ export async function attemptWrite(label, fn, { kind, bv = '', home = whaleHome 
     const reason = refusalReason(e)
     console.error(`✗ ${label}没发出去：${reason}`)
     noteWriteFailure({ kind, bv, reason, home })
-    process.exit(4)
+    throw new WriteRefusedError(reason, { exit: 4, kind, bv })
+  }
+}
+
+/**
+ * CLI 入口专用：闸门拒就按约定退 4（不是崩栈，也不是退 1）。
+ * 库层（cap-bilibili 的 WriteGate）请用 attemptWrite，捕到 WriteRefusedError 自己判。
+ */
+export async function attemptWriteCli(label, fn, opts = {}) {
+  try {
+    return await attemptWrite(label, fn, opts)
+  } catch (e) {
+    if (e instanceof WriteRefusedError) {
+      process.exit(e.exit ?? 4)
+    }
+    throw e
   }
 }

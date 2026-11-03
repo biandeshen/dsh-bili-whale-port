@@ -17,7 +17,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { whalePath, credentialsPath, stateReadPath, statePath } from '../lib/paths.mjs'
 import { report } from '../lib/report.mjs'
-import { attemptWrite, noteWriteFailure } from '../lib/write-refusal.mjs'
+import { attemptWriteCli as attemptWrite, noteWriteFailure } from '../lib/write-refusal.mjs'
 
 
 const HOME = (process.env.USERPROFILE || process.env.HOME || '/')
