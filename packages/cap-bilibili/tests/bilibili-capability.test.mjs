@@ -61,11 +61,11 @@ test('cap-bilibili & cortico-world-bilibili：四路收件箱指派、统一待�
 
   // 2. 评论与动态默认 review 档位 → 进统一待放行队列 → 主人在线改字（自动去粗体、重算 bodyHash 续签令牌）→ 放行成功
   const commentTool = world.tools().find((t) => t.name === 'bili_comment')
-  const cRes = await commentTool.execute({
+  const cRes = JSON.parse(await commentTool.handler({
     bvid: 'BV1xx411c7mD',
     rpid: '8888',
     text: '**谢谢你**喜欢这段《《雷雨声分析》！',
-  })
+  }, {}))
   assert.equal(cRes.ok, false)
   assert.equal(cRes.code, 'needs-approval')
 
@@ -92,7 +92,7 @@ test('cap-bilibili & cortico-world-bilibili：四路收件箱指派、统一待�
 
   // 3. 打回重写（reject + askRewrite: true）→ 自动向她推送重写事件
   const dynTool = world.tools().find((t) => t.name === 'bili_dynamic_draft')
-  const dRes = await dynTool.execute({ text: '今天看了一条无聊的视频。' })
+  const dRes = JSON.parse(await dynTool.handler({ text: '今天看了一条无聊的视频。' }, {}))
   assert.equal(dRes.code, 'needs-approval')
   const rejRes = await world.invokePanel('drafts-queue', 'reject', {
     id: dRes.pendingId,
@@ -105,14 +105,14 @@ test('cap-bilibili & cortico-world-bilibili：四路收件箱指派、统一待�
   // 4. 一键急刹 Kill 开关：开启后任何写动作（哪怕是直发档位 like）一律返回 exit -2 killed
   await world.invokePanel('gate-policy', 'set', { killOn: true })
   const likeTool = world.tools().find((t) => t.name === 'bili_like')
-  const killedRes = await likeTool.execute({ bvid: 'BV1xx411c7mD', reason: '好片' })
+  const killedRes = JSON.parse(await likeTool.handler({ bvid: 'BV1xx411c7mD', reason: '好片' }, {}))
   assert.equal(killedRes.ok, false)
   assert.equal(killedRes.code, 'killed')
   assert.equal(killedRes.exit, -2)
 
   // 关闭 Kill 后恢复正常，且 causal.jsonl 单点记账成功
   await world.invokePanel('gate-policy', 'set', { killOn: false })
-  const likeOk = await likeTool.execute({ bvid: 'BV1xx411c7mD', reason: '好片' })
+  const likeOk = JSON.parse(await likeTool.handler({ bvid: 'BV1xx411c7mD', reason: '好片' }, {}))
   assert.equal(likeOk.ok, true)
   const causalLines = fs.readFileSync(path.join(homeDir, 'data', 'bilibili', 'causal.jsonl'), 'utf8').trim().split('\n')
   assert.ok(causalLines.some((l) => JSON.parse(l).kind === 'comment'))
