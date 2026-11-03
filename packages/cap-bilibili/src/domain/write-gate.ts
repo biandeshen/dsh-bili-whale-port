@@ -14,7 +14,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { dayKey } from '../../../persona-core/src/rhythm.ts'
-import { plainOutbound } from '../../../../tools/lib/plain-outbound.mjs'
+import { plainOutbound } from '../platform/plain-outbound.mjs'
 
 export type WriteKind =
   | 'dynamic'

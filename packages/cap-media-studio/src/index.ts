@@ -10,9 +10,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type { XiaoyuCapability } from '../../persona-core/src/capability.ts'
-import { listBgm, resolveBgm } from '../../../tools/media/bgm.mjs'
-import { MEDIA_DEFAULTS } from '../../../tools/media/config.mjs'
-import { ttsPlan, describeTts } from '../../../tools/media/tts.mjs'
+import { listBgm, resolveBgm } from './vendor/bgm.mjs'
+import { MEDIA_DEFAULTS } from './vendor/media-config.mjs'
+import { ttsPlan, describeTts } from './vendor/tts.mjs'
+import { loadPromptLibrary, composeImagePrompt, PROMPT_DIR } from './image-prompt.ts'
 import {
   renderVideoSlice,
   previewTtsAudio,
@@ -58,6 +59,8 @@ export interface VideoDraftRecord {
 export interface MediaStudioCapabilityOptions {
   /** 底图目录（assets/daily） */
   assetsDir: string
+  /** 生图提示词库目录（character.txt + form-*.txt + 场景库），默认包内 assets/prompts */
+  promptDir?: string
   /** CC0 BGM 曲库目录（assets/bgm） */
   bgmDir: string
   /** 成片输出目录 */
@@ -298,6 +301,28 @@ export function createMediaStudioCapability(
           title: '音视频创作工作台',
           description: '浏览底图与 CC0 BGM 曲库、试听 TTS 语音、一键合成视频草稿并送入 B 站待放行队列',
           methods: {
+            listPrompts: {
+              name: 'listPrompts',
+              verb: 'GET',
+              summary: '读生图提示词库：形象正本、形态档、场景清单',
+              writable: false,
+              invoke(params: { dir?: string } = {}) {
+                const lib = loadPromptLibrary(params?.dir ?? opts.promptDir ?? PROMPT_DIR)
+                if (!lib) return { ok: false, error: `提示词库缺失（character.txt 不在 ${params?.dir ?? opts.promptDir ?? PROMPT_DIR}）` }
+                return { ok: true, scenes: lib.scenes.map((s) => ({ id: s.id, name: s.name })), forms: Object.keys(lib.forms), negativeCount: lib.negative.length }
+              },
+            },
+            composePrompt: {
+              name: 'composePrompt',
+              verb: 'POST',
+              summary: '按场景+形态档组合一份完整正向提示词（形象正本自动带上）',
+              writable: true,
+              invoke(params: { sceneId: string; form?: string }) {
+                const lib = loadPromptLibrary(opts.promptDir ?? PROMPT_DIR)
+                if (!lib) return { ok: false, error: '提示词库缺失' }
+                return composeImagePrompt(lib, { sceneId: params?.sceneId, form: params?.form })
+              },
+            },
             listAssets: {
               name: 'listAssets',
               verb: 'GET',

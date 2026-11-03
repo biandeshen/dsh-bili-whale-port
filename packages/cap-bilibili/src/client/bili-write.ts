@@ -10,8 +10,8 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
-import { plainOutbound } from '../../../../tools/lib/plain-outbound.mjs'
-import { guardedFetch as defaultFetch } from '../../../../tools/lib/traffic.mjs'
+import { plainOutbound } from '../platform/plain-outbound.mjs'
+import { guardedFetch as defaultFetch } from '../platform/traffic.mjs'
 
 export const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'

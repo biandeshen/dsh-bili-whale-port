@@ -6,8 +6,8 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
-import { resolveBgm } from '../../../tools/media/bgm.mjs'
-import { ttsPlan, synthesize, describeTts } from '../../../tools/media/tts.mjs'
+import { resolveBgm } from './vendor/bgm.mjs'
+import { ttsPlan, synthesize, describeTts } from './vendor/tts.mjs'
 import {
   studioConfig,
   resolveTools,
@@ -16,7 +16,7 @@ import {
   make169Base,
   render,
   makeCover,
-} from '../../../tools/media/video/studio.mjs'
+} from './vendor/video/studio.mjs'
 
 export const VIDEO_SIZE_LIMITS = { minDuration: 3, maxDuration: 60 }
 
