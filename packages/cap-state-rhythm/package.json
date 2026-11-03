@@ -1,0 +1,14 @@
+{
+  "name": "@xiaoyu/cap-state-rhythm",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "小鱼的状态与作息能力扩展（6 场值 + 情绪 + 五阶段昼夜节律 + 鱼缸与作息遥控台，100% 宿主无关）。",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@xiaoyu/persona-core": "workspace:*"
+  }
+}

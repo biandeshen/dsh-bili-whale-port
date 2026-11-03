@@ -1,0 +1,14 @@
+{
+  "name": "@xiaoyu/cap-journal",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "小鱼的日记、审美判断卡与意见箱能力扩展（含在线 Markdown 编辑、判断卡独立表格、意见箱批复与转规则工作台，100% 宿主无关）。",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@xiaoyu/persona-core": "workspace:*"
+  }
+}

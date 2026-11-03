@@ -1,0 +1,399 @@
+/**
+ * @xiaoyu/cap-journal —— 日记、审美判断卡与意见箱能力扩展包（100% 宿主无关）。
+ *
+ * 包含：
+ * - 公开本 / 私人本双日记读写、分页检索、阶段性汇总与在线整块 Markdown 编辑
+ * - 审美判断卡（judgment.jsonl）独立表格查询与主人修改/采纳
+ * - 意见箱（feedback.jsonl）提交、折叠统计、主人批复（自动注入下一轮前缀）与一键转规则
+ * - 主人操作台 `journal-board`：getDiary / saveDiarySection / listJudgments / upsertJudgment / listFeedback / replyFeedback
+ */
+import fs from 'node:fs'
+import path from 'node:path'
+import type {
+  XiaoyuCapability,
+  TurnContext,
+  PrefixBlock,
+} from '../../persona-core/src/capability.ts'
+import { dayKey } from '../../persona-core/src/rhythm.ts'
+import {
+  diaryDefaultHeader,
+  upsertDiarySection,
+  replaceDiaryDateBlock,
+  sectionStats,
+  paginateDiary,
+  diaryHeadings,
+  summarizeDiaryRange,
+  type DiaryBook,
+  type DiarySectionInput,
+  type DiaryPageInput,
+  type DiaryPageResult,
+  type DiaryRangeSummary,
+} from './diary.ts'
+import {
+  SCOPES,
+  STANCES,
+  normalizeTokens,
+  listJudgments,
+  appendJudgment,
+  upsertJudgmentByOwner,
+  listFeedback,
+  appendFeedback,
+  replyFeedbackByOwner,
+  type JudgmentScope,
+  type JudgmentStance,
+  type JudgmentVerdict,
+  type JudgmentItem,
+  type FeedbackItem,
+} from './judgments-feedback.ts'
+
+export {
+  diaryDefaultHeader,
+  upsertDiarySection,
+  replaceDiaryDateBlock,
+  sectionStats,
+  paginateDiary,
+  diaryHeadings,
+  summarizeDiaryRange,
+  SCOPES,
+  STANCES,
+  normalizeTokens,
+  listJudgments,
+  appendJudgment,
+  upsertJudgmentByOwner,
+  listFeedback,
+  appendFeedback,
+  replyFeedbackByOwner,
+}
+export type {
+  DiaryBook,
+  DiarySectionInput,
+  DiaryPageInput,
+  DiaryPageResult,
+  DiaryRangeSummary,
+  JudgmentScope,
+  JudgmentStance,
+  JudgmentVerdict,
+  JudgmentItem,
+  FeedbackItem,
+}
+
+export interface JournalCapabilityConfig {
+  defaultPageBudgetChars: number
+  defaultDaysPerPage: number
+}
+
+export interface JournalCapabilityOptions {
+  publicDiaryFile: string
+  privateDiaryFile: string
+  judgmentFile: string
+  feedbackFile: string
+  onRuleConverted?: (rule: { kind: 'dislike' | 'keyword' | 'exemptUp'; value: string }) => void
+}
+
+function readTextSafe(file: string, book: DiaryBook): string {
+  try {
+    return fs.readFileSync(file, 'utf8')
+  } catch {
+    return diaryDefaultHeader(book)
+  }
+}
+
+function writeTextAtomic(file: string, content: string): void {
+  fs.mkdirSync(path.dirname(file), { recursive: true })
+  const tmp = `${file}.${process.pid}.${Math.random().toString(36).slice(2, 7)}.tmp`
+  fs.writeFileSync(tmp, content, 'utf8')
+  fs.renameSync(tmp, file)
+}
+
+export function createJournalCapability(
+  opts: JournalCapabilityOptions,
+): XiaoyuCapability<JournalCapabilityConfig> {
+  const diaryPath = (book: DiaryBook) =>
+    book === 'private' ? opts.privateDiaryFile : opts.publicDiaryFile
+
+  return {
+    id: 'journal',
+    title: '日记、判断卡与意见箱',
+    kind: 'internal',
+    configSchema: {
+      type: 'object',
+      title: '日记与判断配置',
+      properties: {
+        defaultPageBudgetChars: {
+          type: 'integer',
+          title: '日记单页读取字符预算',
+          default: 4000,
+          minimum: 500,
+          maximum: 9000,
+          'x-hot': true,
+        },
+        defaultDaysPerPage: {
+          type: 'integer',
+          title: '日记单页默认天数',
+          default: 3,
+          minimum: 1,
+          maximum: 30,
+          'x-hot': true,
+        },
+      },
+    },
+    defaultConfig: {
+      defaultPageBudgetChars: 4000,
+      defaultDaysPerPage: 3,
+    },
+
+    async contextSegments(_ctx: TurnContext): Promise<readonly PrefixBlock[]> {
+      const fb = listFeedback(opts.feedbackFile, { status: 'all', limit: 20 })
+      const withReplies = fb.items.filter((x) => x.ownerReply)
+      if (!withReplies.length) return []
+      const lines = withReplies.slice(0, 5).map(
+        (x) => `- [${x.id}] 你提过的「${x.issue}」 → 主人批复：「${x.ownerReply}」`,
+      )
+      return [
+        {
+          title: '意见箱主人批复',
+          text: `【主人对你意见箱的批复】\n${lines.join('\n')}`,
+          sourceKey: 'persona.journal',
+        },
+      ]
+    },
+
+    tools() {
+      return [
+        {
+          name: 'diary_read',
+          summary: '分页或按天/按小节读取公开日记或私人日记（含阶段汇总）',
+          description: '支持按 book(public/private)、page、date、heading 读取日记，或传 summary:true 统计区间内看过/收与不收/想说次数。',
+          parameters: {
+            type: 'object',
+            properties: {
+              book: { type: 'string', enum: ['public', 'private'], description: '日记本：public（给主人看）或 private（私人偏好校准）' },
+              page: { type: 'integer', description: '页码（从 0 开始，新→旧）' },
+              days: { type: 'integer', description: '每页天数（默认 3）' },
+              date: { type: 'string', description: '指定日期 YYYY-MM-DD' },
+              heading: { type: 'string', description: '只看含该标题的小节（如 看过 / 想说 / 判断）' },
+              summary: { type: 'boolean', description: '若为 true，返回日期区间统计汇总' },
+              from: { type: 'string', description: '汇总起始日期 YYYY-MM-DD' },
+              to: { type: 'string', description: '汇总截止日期 YYYY-MM-DD' },
+            },
+          },
+          execute(args: {
+            book?: DiaryBook
+            page?: number
+            days?: number
+            date?: string
+            heading?: string
+            summary?: boolean
+            from?: string
+            to?: string
+          }) {
+            const book: DiaryBook = args?.book === 'private' ? 'private' : 'public'
+            const raw = readTextSafe(diaryPath(book), book)
+            if (args?.summary) {
+              return { ok: true, book, summary: summarizeDiaryRange(raw, { from: args.from, to: args.to }), headings: diaryHeadings(raw) }
+            }
+            return { ok: true, book, ...paginateDiary(raw, args) }
+          },
+        },
+        {
+          name: 'diary_write',
+          summary: '向公开日记或私人日记写入一个小节（同日同小节有则替换、无则追加）',
+          description: '按当前逻辑日（或指定 date）写入指定小节，回执明确告知是追加还是替换。',
+          parameters: {
+            type: 'object',
+            properties: {
+              book: { type: 'string', enum: ['public', 'private'] },
+              heading: { type: 'string', description: '小节标题（如 看过 / 想说 / 本轮留下的判断）' },
+              body: { type: 'string', description: '小节正文内容' },
+              date: { type: 'string', description: '可选日期 YYYY-MM-DD，默认当天' },
+            },
+            required: ['book', 'heading', 'body'],
+          },
+          mutatesState: true,
+          execute(args: { book: DiaryBook; heading: string; body: string; date?: string }) {
+            const book: DiaryBook = args.book === 'private' ? 'private' : 'public'
+            const date = args.date?.trim() || dayKey(Date.now())
+            const file = diaryPath(book)
+            const raw = readTextSafe(file, book)
+            const before = sectionStats(raw, date, args.heading, book)
+            const next = upsertDiarySection(raw, { book, heading: args.heading, body: args.body, date })
+            writeTextAtomic(file, next)
+            return {
+              ok: true,
+              book,
+              date,
+              heading: args.heading,
+              mode: before.existed ? 'replaced' : 'appended',
+              previousChars: before.chars,
+              newChars: args.body.trim().length,
+            }
+          },
+        },
+        {
+          name: 'judgment_read',
+          summary: '读取审美判断卡独立视图（终于不用从日记正文里捞）',
+          description: '按状态（all/proposed/adopted/rejected）或结论（keep/drop/unclear）查询结构化判断卡列表。',
+          parameters: {
+            type: 'object',
+            properties: {
+              status: { type: 'string', enum: ['all', 'proposed', 'adopted', 'rejected'] },
+              verdict: { type: 'string', enum: ['keep', 'drop', 'unclear'] },
+              query: { type: 'string', description: '按关键词或 BV 号过滤' },
+            },
+          },
+          execute(args: { status?: string; verdict?: JudgmentVerdict; query?: string }) {
+            return listJudgments(opts.judgmentFile, args)
+          },
+        },
+        {
+          name: 'judgment_write',
+          summary: '新增一张结构化审美/内容判断卡',
+          description: '记录对某类内容或某个视频的偏好/回避判断（理由至少 6 个字）。',
+          parameters: {
+            type: 'object',
+            properties: {
+              scope: { type: 'string', enum: ['feed', 'draft', 'dm', 'any'] },
+              stance: { type: 'string', enum: ['prefer', 'avoid', 'noise'] },
+              verdict: { type: 'string', enum: ['keep', 'drop', 'unclear'] },
+              tokens: { type: 'array', items: { type: 'string' }, description: '2–12 字的主题词数组' },
+              reason: { type: 'string', description: '判断理由（6–200 字）' },
+              bvid: { type: 'string', description: '关联的 BV 号（可选）' },
+            },
+            required: ['tokens', 'reason'],
+          },
+          mutatesState: true,
+          execute(args: {
+            scope?: string
+            stance?: string
+            verdict?: JudgmentVerdict
+            tokens: string[]
+            reason: string
+            bvid?: string
+          }) {
+            return appendJudgment(args, opts.judgmentFile)
+          },
+        },
+        {
+          name: 'feedback_submit',
+          summary: '向主人的意见箱提交一条问题或体验反馈',
+          description: '遇到工具卡点、规则不合理或需要主人協助时提交一条反馈。',
+          parameters: {
+            type: 'object',
+            properties: {
+              issue: { type: 'string', description: '一句话现象描述' },
+              severity: { type: 'string', enum: ['low', 'high'] },
+              selfHandled: { type: 'boolean', description: '是否自己已临时绕过/对治' },
+              note: { type: 'string', description: '补充说明或自己的对治办法' },
+            },
+            required: ['issue'],
+          },
+          mutatesState: true,
+          execute(args: { issue: string; severity?: 'low' | 'high'; selfHandled?: boolean; note?: string }) {
+            return appendFeedback(args, opts.feedbackFile)
+          },
+        },
+      ]
+    },
+
+    panels() {
+      return [
+        {
+          id: 'journal-board',
+          title: '日记、判断卡与意见箱工作台',
+          description: '公开/私人日记在线 Markdown 编辑、审美判断卡独立表格与修改、意见箱主人批复与一键转规则',
+          methods: {
+            getDiary: {
+              name: 'getDiary',
+              verb: 'GET',
+              summary: '按本（public/private）、日期或关键词读取日记与目录树',
+              writable: false,
+              invoke(params: { book?: DiaryBook; date?: string; query?: string; page?: number }) {
+                const book: DiaryBook = params?.book === 'private' ? 'private' : 'public'
+                const raw = readTextSafe(diaryPath(book), book)
+                const paged = paginateDiary(raw, {
+                  date: params?.date,
+                  heading: params?.query,
+                  page: params?.page ?? 0,
+                  days: 7,
+                  budget: 8000,
+                })
+                return {
+                  ok: true,
+                  book,
+                  headings: diaryHeadings(raw),
+                  summary: summarizeDiaryRange(raw),
+                  ...paged,
+                }
+              },
+            },
+            saveDiarySection: {
+              name: 'saveDiarySection',
+              verb: 'POST',
+              summary: '主人在面板在线修改某天（或某小节）日记 Markdown 并原子落盘',
+              writable: true,
+              invoke(params: { book: DiaryBook; date: string; heading?: string; markdown: string }) {
+                if (!params?.date || typeof params?.markdown !== 'string') {
+                  return { ok: false, error: '需要提供 date 与 markdown 内容' }
+                }
+                const book: DiaryBook = params.book === 'private' ? 'private' : 'public'
+                const file = diaryPath(book)
+                const raw = readTextSafe(file, book)
+                const next = params.heading?.trim()
+                  ? upsertDiarySection(raw, {
+                      book,
+                      date: params.date.trim(),
+                      heading: params.heading.trim(),
+                      body: params.markdown,
+                    })
+                  : replaceDiaryDateBlock(raw, params.date.trim(), params.markdown)
+                writeTextAtomic(file, next)
+                return { ok: true, book, date: params.date.trim(), savedChars: params.markdown.length }
+              },
+            },
+            listJudgments: {
+              name: 'listJudgments',
+              verb: 'GET',
+              summary: '读取审美判断卡独立表格视图（支持按 keep/drop/unclear 与关键词过滤）',
+              writable: false,
+              invoke(params: { verdict?: JudgmentVerdict; status?: string; query?: string }) {
+                return listJudgments(opts.judgmentFile, params)
+              },
+            },
+            upsertJudgment: {
+              name: 'upsertJudgment',
+              verb: 'POST',
+              summary: '主人直接修改或新增一条判断卡结论（keep/drop/unclear）与备注',
+              writable: true,
+              invoke(params: { id?: string; verdict: JudgmentVerdict; note: string; status?: 'adopted' | 'rejected' | 'proposed' }) {
+                return upsertJudgmentByOwner(opts.judgmentFile, params)
+              },
+            },
+            listFeedback: {
+              name: 'listFeedback',
+              verb: 'GET',
+              summary: '按折叠去重规则列出意见箱条目（open / resolved / all）',
+              writable: false,
+              invoke(params: { status?: 'open' | 'resolved' | 'all' }) {
+                return listFeedback(opts.feedbackFile, { status: params?.status ?? 'open' })
+              },
+            },
+            replyFeedback: {
+              name: 'replyFeedback',
+              verb: 'POST',
+              summary: '主人对意见箱条目写批复（下一轮自动注入给她）、标为已解决、或一键转成看片过滤规则',
+              writable: true,
+              invoke(params: {
+                id: string
+                ownerReply?: string
+                resolve?: boolean
+                convertRule?: { kind: 'dislike' | 'keyword' | 'exemptUp'; value: string }
+              }) {
+                return replyFeedbackByOwner(opts.feedbackFile, params, opts.onRuleConverted)
+              },
+            },
+          },
+        },
+      ]
+    },
+  }
+}

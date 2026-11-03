@@ -1,0 +1,14 @@
+{
+  "name": "@xiaoyu/cap-memory",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "小鱼的四层记忆系统扩展（core/active/archived/voided Markdown 卡片 + 确定性召回 + 记忆管理中心操作台，100% 宿主无关）。",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@xiaoyu/persona-core": "workspace:*"
+  }
+}
