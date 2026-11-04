@@ -392,7 +392,15 @@ node --test tests/planner.test.mjs tests/integration.test.mjs tests/updates.test
 
 ## 许可
 
-MIT（见 `LICENSE`）。第三方与免责见 [`NOTICE.md`](NOTICE.md)。
+**代码**：MIT（见 `LICENSE`）。
+
+**图形素材**：`panel/assets/whale-girl/`（鲸鱼娘序列帧）不是 MIT——
+它是 **CC BY-NC-SA 4.0**（仅个人非商用、必须署名、衍生作品同协议共享）。
+署名 **ZipZipPipe**（原图），角色原型 **上善无形** 的「溟月」。
+`assets/bgm/` 的 mp3 是 CC0（公共领域）。
+完整清单见 [`docs/CREDITS.md`](docs/CREDITS.md) 与 [`NOTICE.md`](NOTICE.md)。
+
+第三方与免责见 [`NOTICE.md`](NOTICE.md)。
 本项目是**个人自用工具的公开版**，与 B 站、DeepSeek 官方无隶属关系；用你自己的账号做事，后果自负。
 
 <!-- 2026-10-21 issue#8 fix -->
