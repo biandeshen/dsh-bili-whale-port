@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url'
 import { DreamTick } from '../../cap-state-rhythm/src/dream-tick.ts'
 import { isAsleep } from '../../cap-state-rhythm/src/life-stages.ts'
 import { LifeHeartbeat, quietLine } from '../../cap-state-rhythm/src/life-heartbeat.ts'
+import { XIAOYU_CONTEXT_DEFAULTS, type ContextStagePolicy } from './context-config.ts'
 
 export const MAIN_SESSION = 'main'
 
@@ -64,6 +65,11 @@ export interface XiaoYuPersonaOptions extends XiaoyuBotHubOptions {
    * 由 BotDefinition 从部署配置 `tick.intervalMinutes` 传进来。
    */
   tickDelayMs?: (now: Date) => number | null
+  /**
+   * 上下文阶段预算。**每拍现读**，主人在 WebUI 改了立刻生效，不用重启。
+   * 不给就用 XIAOYU_CONTEXT_DEFAULTS。
+   */
+  context?: () => ContextStagePolicy
 }
 
 export class XiaoYuPersona implements CorticoPersonaShape {
@@ -75,11 +81,16 @@ export class XiaoYuPersona implements CorticoPersonaShape {
   private heartbeat: LifeHeartbeat | null = null
   private core: any = null
   private started = false
+  /** 上下文阶段预算（现读，WebUI 改了即生效） */
+  private readonly contextPolicy: () => ContextStagePolicy
+  /** 已经就上下文压力提醒过主人；交接后清零 */
+  private pressureWarned = false
 
   constructor(opts: XiaoYuPersonaOptions) {
     this.hub = createXiaoyuBotHub(opts)
     this.memoryDir = opts.homeDir
     this.rounds = opts.rounds ?? { soft: 6, hard: 12 }
+    this.contextPolicy = opts.context ?? ((): ContextStagePolicy => XIAOYU_CONTEXT_DEFAULTS)
     // blobs 走 workspace 的 mem: 句柄（与框架 Memory 同一套后端）
     this.blobs = {
       put: (nameHint, bytes, mime) => this.hub.blobs.put(nameHint, bytes, mime),
@@ -91,13 +102,21 @@ export class XiaoYuPersona implements CorticoPersonaShape {
         baseline: opts.tickDelayMs,
         onFire: () => {
           const core = this.core
+          // **在这一拍落下的当下**就把下一拍的真时间抓住。
+          // 文本是延迟生成的（injectDeferred 在投递时才调 make），那时再问心跳，
+          // 拿到的是"再下一拍"，而且拿到的时刻也可能已经晚到账上写不下（守卫会退回
+          // 3–7 分钟随机值）。于是 2026-11-05 线上账上写"3 分钟后评估"，
+          // 实际心跳在 10 分钟后——**账与事实对不上**，健康检查据此报假警。
+          const nextFireAt = this.heartbeat?.nextFireAt() ?? 0
           // 文本在投递那一刻生成：先记一拍作息账，再按账上的理由说话。
           const make = () => {
             const quiet = this.heartbeat?.quietSeconds() ?? 0
             const rhythm = this.hub.capabilities.find((c) => c.id === 'state-rhythm') as any
             let tick: any = null
             try {
-              tick = typeof rhythm?.lifeTick === 'function' ? rhythm.lifeTick() : null
+              tick = typeof rhythm?.lifeTick === 'function'
+                ? rhythm.lifeTick(nextFireAt)
+                : null
             } catch (e) {
               this.hostLog('warn', `作息对账失败（不阻断心跳）：${String((e as any)?.message ?? e)}`)
             }
@@ -327,6 +346,46 @@ export class XiaoYuPersona implements CorticoPersonaShape {
   /** 10 个对内工具（mood/memory/diary/judgment/feedback）挂在主会话上。 */
   ownToolNames(): string[] {
     return this.hub.tools().map((t) => t.name)
+  }
+
+  /**
+   * 批末上下文压力裁量：超软阈值先提醒，再超就请求交接。
+   *
+   * 这段对应宿主 cormini 的 onBatchEnd（bots/cormini/persona/persona.ts:653）。
+   * **以前小鱼没有这一段**，于是「上下文预算」那个旋钮即便配上去也是摆设：
+   * 她的上下文只会一路涨到 Core 的物理上限才被强制交接，中间没有软预警，
+   * 也没有她自己安排的交接点（交接后保留多少由 keepRatio 定）。
+   *
+   * 语义与宿主一致：软阈值 = 阶段预算 × softRatio；超了先注入一句速记提醒
+   * （她拿到一轮落笔时间），下一批仍超才请求交接。Core 在超过物理上限时强制交接。
+   */
+  onBatchEnd(): void {
+    const core = this.core
+    if (!core) return
+    try {
+      const info = core.sessionInfo?.(MAIN_SESSION)
+      const est = Number(info?.estTokens)
+      if (!Number.isFinite(est)) return
+      const { maxTokens, softRatio } = this.contextPolicy()
+      const soft = maxTokens * softRatio
+      if (est <= soft) {
+        this.pressureWarned = false
+        return
+      }
+      if (!this.pressureWarned) {
+        this.pressureWarned = true
+        core.injectInternal?.(
+          `【上下文压力】这一轮结束时约 ${Math.round(est)} token，超过软阈值 ${Math.round(soft)}`
+          + `（阶段预算 ${maxTokens} × ${softRatio}）。先自己把要紧的记下来——`
+          + '下一轮还超就交接，把更早的对话换成一份笔记。',
+        )
+        return
+      }
+      const handed = core.requestContextHandoff?.() === true
+      if (handed) this.pressureWarned = false
+    } catch (e) {
+      this.hostLog('warn', `上下文压力裁量失败（不阻断主循环）：${String((e as any)?.message ?? e)}`)
+    }
   }
 
   private toolDefs(): CorticoToolDef[] {

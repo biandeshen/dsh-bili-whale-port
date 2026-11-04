@@ -42,3 +42,29 @@ test('quietLine：不足一分钟按秒说，别显示"0 分钟"', () => {
   assert.equal(quietLine(37), '[system] 已安静 37 秒。')
   assert.equal(quietLine(125), '[system] 已安静 2 分钟。')
 })
+
+test('nextFireAt 交出的是**下一拍**的真时间（账与事实要对得上）', async () => {
+  const seen = []
+  const hb = new LifeHeartbeat({
+    baseline: () => 20,
+    onFire: () => { seen.push(hb.nextFireAt()) },
+  })
+  hb.start()
+  await wait(45)
+  assert.ok(seen.length >= 1, '应已投递一拍')
+  // 投递那一刻拿到的必须是**下一拍**的时间，且在将来
+  assert.ok(seen[0] > Date.now(), `nextFireAt 必须是将来的时间，实得 ${seen[0]}`)
+  // 空拍退避后，下一拍应更远（倍率翻倍）
+  await wait(120)
+  assert.ok(seen.length >= 2, `应已投递多拍，实得 ${seen.length}`)
+  assert.ok(seen[1] > seen[0], `退避后下一拍应更远：${seen[0]} → ${seen[1]}`)
+  hb.stop()
+})
+
+test('心跳关掉时 nextFireAt 也留真时间（不能写 0）', async () => {
+  const hb = new LifeHeartbeat({ baseline: () => null, onFire: () => {} })
+  hb.start()
+  await wait(20)
+  assert.ok(hb.nextFireAt() > Date.now(), '关掉心跳也要留一个将来的重读时间')
+  hb.stop()
+})

@@ -451,10 +451,11 @@ export function createStateRhythmCapability(
      * 所以这个方法把四步串起来，并且**把决定的理由带回去**——
      * "这一拍她不动"必须是能解释的（gap / cap / tired / content），不能是沉默。
      */
-    lifeTick(): {
+    lifeTick(nextCheckAtMs?: number): {
       now: number
       neverActed: boolean
       asleep: boolean
+      resting: boolean
       shouldAct: boolean
       reason: string
       kind: string | null
@@ -487,7 +488,11 @@ export function createStateRhythmCapability(
       const nextLife: LifeMemoryView = {
         ...reconciled,
         lastCheckAt: now,
-        nextCheckAt: now + delay,
+        // nextCheckAt 要写**下一拍真正会落的时间**。心跳在连续空拍时按 2^n 退避
+        // （5 分钟基线 → 最长 40 分钟），若这里按 3–7 分钟写，账上就说"4 分钟后评估"，
+        // 而实际是 40 分钟后——**账与事实对不上**，健康检查据此报假警（2026-11-05 线上实测）。
+        // 调用方（转接头）把心跳排好的真时间传进来；没传时退回 3–7 分钟。
+        nextCheckAt: Number(nextCheckAtMs) > now ? Number(nextCheckAtMs) : now + delay,
       }
       saveLifeFile(opts.lifeFile, nextLife)
       // 三态：睡着（夜间/闲够 6 小时）／歇着（累了）／醒着。

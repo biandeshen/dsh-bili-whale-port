@@ -12,6 +12,7 @@ import { homedir } from 'node:os'
 // 转接头对宿主保持「类型形状对齐 + 默认值本地持有」，不再 import 宿主模块。
 import { CORE_DEFAULTS } from '../../persona-core/src/cortico-defaults.ts'
 import { XiaoYuPersona } from './cortico-persona.ts'
+import { contextStageConfigGroup, XIAOYU_CONTEXT_DEFAULTS } from './context-config.ts'
 
 export const XIAOYU_MEMORY_NAME = 'MEMORY.md'
 
@@ -44,15 +45,26 @@ export function createXiaoyuBotDefinition(homeDir: string) {
       web: { ...CORE_DEFAULTS.web, port: 7798 },
       paths: { memory: 'workspace', data: 'data' },
       rounds: { soft: 6, hard: 12 },
+      // 上下文阶段预算：主人能在 WebUI 改，改完即生效（不必重启）。
+      context: { ...CORE_DEFAULTS.context, ...XIAOYU_CONTEXT_DEFAULTS },
     }),
     build(loaded: { config: Record<string, unknown>; memoryDir: string; rootDir?: string }) {
       // 部署目录才是她的家（数据、记忆、日记都在里面）；拿不到时才退回包默认家。
       const home = loaded.rootDir ?? homeDir ?? String(loaded.config?.homeDir ?? defaultHomeDir())
       // 心跳间隔从**部署配置**读，且每拍重读：主人在 WebUI 改了立刻生效，不用重启。
       const tickCfg = loaded.config?.tick as { intervalMinutes?: number | null } | undefined
+      // 上下文预算同理：每拍现读，WebUI 改完立刻生效。
+      const ctxCfg = (loaded.config?.context ?? {}) as Partial<typeof XIAOYU_CONTEXT_DEFAULTS>
+      const context = () => ({
+        maxTokens: Number(ctxCfg.maxTokens) > 0 ? Number(ctxCfg.maxTokens) : XIAOYU_CONTEXT_DEFAULTS.maxTokens,
+        softRatio: Number(ctxCfg.softRatio) > 0 ? Number(ctxCfg.softRatio) : XIAOYU_CONTEXT_DEFAULTS.softRatio,
+        keepRatio: Number(ctxCfg.keepRatio) > 0 ? Number(ctxCfg.keepRatio) : XIAOYU_CONTEXT_DEFAULTS.keepRatio,
+        firstTurn: ctxCfg.firstTurn === true,
+      })
       const persona = new XiaoYuPersona({
         homeDir: home,
         rounds: { soft: 6, hard: 12 },
+        context,
         tickDelayMs: () => {
           const m = tickCfg?.intervalMinutes
           return m === null || m === undefined || !Number.isFinite(Number(m)) || Number(m) <= 0
@@ -64,6 +76,16 @@ export function createXiaoyuBotDefinition(homeDir: string) {
         persona,
         onStart: () => persona.start(),
         onStop: () => persona.stop(),
+        webUi: {
+          // 主人的「配置」页签从这儿来（宿主 src/bot.ts:940 收拢 persona 的 configGroups）。
+          // 以前这里是空的——所以她的页面上连配置页签都没有，"上下文长度设不了"。
+          configGroups: [contextStageConfigGroup('xiaoyu')],
+          // 阶段预算与软预警线：控制台页上下文圈的分母与黄线。
+          status: () => {
+            const c = context()
+            return { context: { maxTokens: c.maxTokens, softRatio: c.softRatio } }
+          },
+        },
       }
     },
     describe: {

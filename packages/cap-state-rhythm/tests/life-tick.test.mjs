@@ -55,7 +55,9 @@ test('lifeTick：跨日把 actionsToday 归零，不把昨天的账算到今天'
   const dir = tmp()
   const cap = mk(dir)
   const lifeFile = path.join(dir, 'life.json')
-  const today = new Date().toISOString().slice(0, 10)
+  // 本地日界（跟 persona-core 的 dayKey 一致）：不能用 toISOString()——
+  // 那是 UTC，东八区本地 00:00–08:00 时它还停在昨天，于是这条测试在凌晨必然假失败。
+  const today = new Date().toLocaleDateString('sv-SE')
   fs.writeFileSync(lifeFile, JSON.stringify({
     day: '2000-01-01', actionsToday: 7, lastActionAt: Date.now() - 3600_000, lastCheckAt: 0, nextCheckAt: 0, mode: 'auto',
   }))
@@ -70,7 +72,7 @@ test('lifeTick：主人 force_sleep 时她说不动，理由要说清是模式�
   const cap = mk(dir)
   const lifeFile = path.join(dir, 'life.json')
   fs.writeFileSync(lifeFile, JSON.stringify({
-    day: new Date().toISOString().slice(0, 10), actionsToday: 0,
+    day: new Date().toLocaleDateString('sv-SE'), actionsToday: 0,
     lastActionAt: Date.now() - 3600_000, lastCheckAt: 0, nextCheckAt: 0, mode: 'force_sleep',
   }))
   const t = cap.lifeTick()

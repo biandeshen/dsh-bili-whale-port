@@ -39,6 +39,8 @@ export class LifeHeartbeat {
   private lastActivity: number
   private idleTicks = 0
   private lastFire = 0
+  /** 下一拍真正会落的时间（毫秒时间戳）；没排上时为 0 */
+  private nextFireAtMs = 0
   private readonly now: () => number
 
   private readonly opts: LifeHeartbeatOptions
@@ -47,6 +49,18 @@ export class LifeHeartbeat {
     this.opts = opts
     this.now = opts.now ?? (() => Date.now())
     this.lastActivity = this.now()
+  }
+
+  /**
+   * 下一拍真正会落的时间。
+   *
+   * 为什么需要它：作息账上写的 `nextCheckAt` 原本是"3–7 分钟后"，可心跳在连续空拍时
+   * 按 2^n 退避（封顶 8×，5 分钟基线 → 最长 40 分钟）。于是账上写着"4 分钟后评估"，
+   * 实际上 40 分钟后才评估——**账与事实对不上**，健康检查据此报假警。
+   * 把它交出去，账上写的就是真时间。
+   */
+  nextFireAt(): number {
+    return this.nextFireAtMs
   }
 
   /** 任何外部事件（消息、World 投递、主人戳醒）都算"她被人叫过"，退避清零。 */
@@ -86,9 +100,12 @@ export class LifeHeartbeat {
     if (this.timer) clearTimeout(this.timer)
     const delay = this.nextDelay()
     if (delay === null) {
+      // 心跳关着：也留一个真时间（30 分钟后回来重读策略），别让账上写 0
+      this.nextFireAtMs = this.now() + POLICY_RECHECK_MS
       this.timer = setTimeout(() => this.armNext(), POLICY_RECHECK_MS)
       return
     }
+    this.nextFireAtMs = this.now() + delay
     this.timer = setTimeout(() => this.fire(), delay)
     // 心跳不该拖住进程退出（测试与 CLI 复用同一个包时尤其重要）
     if (typeof this.timer === 'object' && 'unref' in this.timer) (this.timer as any).unref?.()
@@ -102,6 +119,10 @@ export class LifeHeartbeat {
       if (this.lastActivity > this.lastFire) this.idleTicks = 0
       else this.idleTicks = Math.min(this.idleTicks + 1, IDLE_TICKS_MAX)
       this.lastFire = this.now()
+      // **下一拍的真时间先算好再投递**：投递方（作息账）要拿它写 nextCheckAt，
+      // 拿到的必须是**下一拍**的时间，不是刚刚这一拍（否则账上写的是过去）。
+      // 空拍计数已经结算过了，所以这里的间隔是**退避后**的那一拍。
+      this.nextFireAtMs = this.lastFire + this.nextDelay()!
       this.opts.onFire()
     }
     this.armNext()
