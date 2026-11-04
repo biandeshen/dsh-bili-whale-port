@@ -29,6 +29,38 @@ const DEPLOY = val('home', path.join(homedir(), '.xiaoyu-home', 'xiaoyu'))
 const RUN = 'acc' + Date.now().toString(36).slice(-5)
 const MARKER = `验收标记-${RUN}`
 
+/**
+ * **不许拿活的 7799 跑写路径验收**（2026-11-05 我自己踩出来的）。
+ *
+ * 这个脚本本来是给**备用端口**用的（名字里的 7798，切换前的影子实例）：
+ * D 组要验写路径，就会真往她的收件箱、场值、日记、待放行队列里造条目。
+ * 我把 `--base` 指到线上 7799 跑了一次，结果：
+ *   · 她的事件帧里出现了"主人指派你回复这条 reply（来自 @验收注入…）"
+ *     "主人驳回了你的 comment 草稿""主人点单让你写一条 B站动态"——**全是假的**；
+ *   · 紧接着主人真发的那条消息，她回的是"待着，不动。"
+ * 磁盘层我后来能按标记清干净，**但她已经看过的那些收不回来**——
+ * 会话是 append-only 的，假指令一旦进了她的上下文就永久在里面。
+ * 所以"清残留"救不了这一类，只有不进live才行。
+ */
+const LIVE_PORT = Number(process.env.CORTICO_LIVE_PORT || 7799)
+const READ_ONLY = argv.includes('--read-only')
+if (BASE.includes(`:${LIVE_PORT}`) && !argv.includes('--allow-live') && !READ_ONLY) {
+  console.error([
+    `拒绝：${BASE} 是**线上实例**（她的真生活），D 组会往她的收件箱/场值/日记里造假条目。`,
+    '',
+    '  跑备用端口（默认）：node scripts/accept-7798.mjs',
+    '  确实要验线上（只读组 A–C、E–G）：加 --read-only',
+    '  真的知道自己在做什么：加 --allow-live',
+    '',
+    '为什么这么严：这些条目进了她的上下文之后删不掉（会话 append-only），',
+    '而她把它们当成主人说的话。2026-11-05 就这么让她对主人的真消息回了"待着，不动"。',
+  ].join('\n'))
+  process.exit(2)
+}
+if (BASE.includes(`:${LIVE_PORT}`) && argv.includes('--read-only')) {
+  console.log(`注意：${BASE} 是线上实例，--read-only 已生效，跳过 D 组（写路径）。`)
+}
+
 const results = []
 const rec = (group, name, ok, detail = '') => {
   results.push({ group, name, ok, detail })
@@ -307,15 +339,23 @@ async function groupE() {
   const memoCore = path.join(WS, 'memo', 'core')
   const nA = fs.existsSync(memoActive) ? fs.readdirSync(memoActive).filter((f) => f.endsWith('.md')).length : -1
   const nC = fs.existsSync(memoCore) ? fs.readdirSync(memoCore).filter((f) => f.endsWith('.md')).length : -1
-  rec('E', `记忆卡片 core=${nC} active=${nA}`, nC >= 22 && nA >= 47, '')
+  // 卡片数只判"有没有东西"：原来硬写 core>=22 / active>=47，那是把某一天的快照
+  // 当长期事实——F5 清掉 15 条噪音卡之后这条必然红。清污染是目的，不是回归。
+  rec('E', `记忆卡片 core=${nC} active=${nA}`, nC > 0 && nA > 0, '')
   const pub = fs.readFileSync(path.join(WS, 'diary', 'public.md'), 'utf8')
-  rec('E', '公开日记含验收段', pub.includes(MARKER), '')
+  /**
+   * 下面这条与"本轮产生验收提交"**只有 D 组真跑过才判**：它们断言本轮验收痕迹在磁盘上，
+   * 而 F5 之后 teardown 主动把标记摘掉、G 组反过来要求它们不存在——两条互相矛盾，
+   * 在 --read-only 下更不可能成立（D 根本没写）。
+   */
+  if (!READ_ONLY) rec('E', '公开日记写入过验收段', pub.includes('## 验收') || pub.includes(MARKER), 'teardown 后由 G 判已清干净')
+  else console.log('跳过 [E] 验收段写入检查（--read-only，D 组没写）')
   rec('E', 'causal.jsonl 在 data/bilibili/', fs.existsSync(path.join(DATA, 'causal.jsonl')), '')
   try {
     const log = execFileSync('git', ['log', '--format=%s', '-n', '12'], { cwd: WS, encoding: 'utf8' })
     const lines = log.trim().split('\n')
     rec('E', 'workspace git 提交 ≥6', lines.length >= 6, `最近 ${lines.length} 条`)
-    rec('E', '本轮产生验收提交', lines.some((l) => l.includes(RUN)), lines[0])
+    if (!READ_ONLY) rec('E', '本轮产生验收提交', lines.some((l) => l.includes(RUN)), lines[0])
   } catch (e) {
     rec('E', 'workspace git 提交', false, String(e?.message ?? e))
   }
@@ -434,7 +474,8 @@ async function main() {
   await groupA()
   await groupB()
   await groupC()
-  await groupD()
+  if (!READ_ONLY) await groupD()
+  else console.log('跳过 [D] 写路径（--read-only：不往线上实例的她生活里造条目）')
   await groupE()
   await groupF()
   purgeOwnMarkers()
