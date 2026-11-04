@@ -453,6 +453,20 @@ export class XiaoYuPersona implements CorticoPersonaShape {
         rounds: () => ({ soft: self.rounds.soft, hard: self.rounds.hard }),
         persistent: true,
         receivesEvents: true,
+        /**
+         * **主人的话要落在 user 消息正文里，不是 sidecar**（2026-11-05，批次 10 · F3）。
+         *
+         * 宿主默认 `eventDelivery: 'tool'`（loop.ts:628），于是外部事件被写成
+         * `function_call` + `function_call_output` 的"事件帧"，user 那一格里
+         * 只剩下能力包注入的状态块。线上抓到过一条：**861 字的 user 消息里，
+         * 主人的原话一个字都没有**，全是我方注入的情绪/状态/最近发生/记得/关联记忆。
+         * 结果就是主人问一句，她回"待着，不动"——她不是在敷衍，
+         * 是那句话没落在她当作"对方在跟我说话"的位置上。
+         *
+         * 定成 'user' 之后事件正文直接进 user 消息（loop.ts:714 renderEventLines），
+         * 和 cormini 那类内建 bot 的对话形态一致。
+         */
+        eventDelivery: 'user',
         tools: () => self.toolDefs(),
       },
     ]

@@ -221,3 +221,19 @@ test('退避本身要真的会拉长（这条守住 LifeHeartbeat 的 2^n，与 
   hb.noteActivity()
   assert.equal(hb.nextDelay(), 1000, 'noteActivity 必须把间隔拉回基线')
 })
+
+/**
+ * F3：主人的话必须落在她当作"有人在跟我说话"的位置上。
+ *
+ * 线上抓到过一条 861 字的 user 消息，里面**主人的原话一个字都没有**——
+ * 全是能力包注入的情绪/状态/最近发生/记得/关联记忆；主人的那句被宿主默认的
+ * `eventDelivery:'tool'` 写成了 function_call 事件帧（sidecar）。
+ * 她回"待着，不动"不是敷衍，是那句话没在她眼里的"对话位"上。
+ */
+test('F3：主会话把外部事件投进 user 正文，不是丢进 sidecar 事件帧', () => {
+  const p = mkPersona(tmp())
+  const [main] = p.declareSessions()
+  assert.equal(main.eventDelivery, 'user',
+    `宿主默认是 'tool'（事件进 sidecar），这里必须显式改成 'user'，实得 ${main.eventDelivery}`)
+  assert.equal(main.receivesEvents, true, '主会话要收事件，否则改了投递位置也收不到主人的话')
+})
