@@ -53,6 +53,37 @@ test('persona 的 hostLog 认 Logger 对象：能力包 start 的日志写得出
   }
 })
 
+test('心跳接上了：到点走 core.injectDeferred("tick")，没接上时她永远不会自己醒', async () => {
+  const dir = tmp()
+  const deferred = []
+  const core = { ...loggerCore(), injectDeferred: (kind, textFn) => deferred.push([kind, textFn()]) }
+  // 基线给 30ms：真实部署是 5 分钟，这里只为让测试跑得动
+  const p = new XiaoYuPersona({ homeDir: dir, vision: { ffmpegPath: 'C:/fake/ffmpeg.exe' }, tickDelayMs: () => 30 })
+  p.attach(core)
+  await p.start()
+  try {
+    await new Promise((r) => setTimeout(r, 120))
+    assert.ok(deferred.length >= 1, '心跳到点必须投一拍（重写时漏接的就是这条：她全天 0 次行动）')
+    assert.equal(deferred[0][0], 'tick', '投的是 tick 这条通道')
+    assert.match(deferred[0][1], /已安静/)
+    assert.match(deferred[0][1], /对得上账/, '心跳话术要把"记账纪律"带进去，不是空喊醒一醒')
+  } finally {
+    await p.stop()
+  }
+
+  // 不给 tickDelayMs = 主人关了心跳：不该投任何拍
+  const none = []
+  const p2 = new XiaoYuPersona({ homeDir: tmp() })
+  p2.attach({ ...loggerCore(), injectDeferred: (k, f) => none.push([k, f()]) })
+  await p2.start()
+  try {
+    await new Promise((r) => setTimeout(r, 80))
+    assert.equal(none.length, 0, '没配心跳就不许自己投拍')
+  } finally {
+    await p2.stop()
+  }
+})
+
 test('宿主日志坏成什么样都不能带崩做梦循环（错误处理器不是错误源）', async () => {
   const dir = tmp()
   const lifeFile = path.join(dir, 'life.json')

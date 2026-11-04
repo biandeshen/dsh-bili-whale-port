@@ -217,6 +217,13 @@ async function groupD() {
     const bl = await api('POST', B, 'inbox', 'assignAction', [{ itemKey: `acc-blk-${RUN}`, action: 'block_user' }])
     const blocked = fs.existsSync(path.join(DATA, 'blocked-uids.json')) ? readJson(path.join(DATA, 'blocked-uids.json')) : []
     rec('D', 'inbox.assignAction block_user（磁盘）', bl.json?.ok === true && blocked.includes(`9002${RUN}`), '')
+    // **自清到底**：拉黑是她真实的人际账，验完必须放回原样（2026-11-04 实测：
+    // 这一步以前没做，她的屏蔽名单里积了 11 条 acc* 测试账号，全是我们的痕迹）。
+    const ub = await api('POST', B, 'inbox', 'unblockUser', [{ uid: `9002${RUN}`, confirm: true }])
+    const blocked2 = fs.existsSync(path.join(DATA, 'blocked-uids.json')) ? readJson(path.join(DATA, 'blocked-uids.json')) : []
+    rec('D', 'inbox.unblockUser 复原（磁盘）', ub.json?.ok === true && !blocked2.includes(`9002${RUN}`), `剩 ${blocked2.length} 条`)
+    const ubNo = await api('POST', B, 'inbox', 'unblockUser', [{ uid: `9002${RUN}` }])
+    rec('D', 'unblockUser 不 confirm 要拒绝', ubNo.status === 500 && /confirm/.test(ubNo.json?.error ?? ''), ubNo.json?.error ?? '')
     const rep = await api('POST', B, 'inbox', 'assignAction', [{ itemKey: `acc-rep-${RUN}`, action: 'ask_her_reply', ownerHint: MARKER }])
     rec('D', 'inbox.assignAction ask_her_reply', rep.json?.ok === true && rep.json?.item?.assignedAction === 'ask_her_reply', rep.json?.error ?? '')
     const items = JSON.parse(fs.readFileSync(inboxFile, 'utf8')).filter((x) => !String(x.key).startsWith('acc-'))
@@ -335,6 +342,23 @@ async function groupF() {
   }
 }
 
+// ── G 验收不留痕（新功能：以前只判"对不对"，不判"验完有没有把她弄脏"）──────
+async function groupG() {
+  // 教训：屏蔽名单里积了 11 条 acc* 测试账号、看片偏好里进了测试词——
+  // 功能全绿，人却被我们改了。门禁必须判这一条。
+  const blockedFile = path.join(DATA, 'blocked-uids.json')
+  const blocked = fs.existsSync(blockedFile) ? readJson(blockedFile) : []
+  const mine = blocked.filter((u) => String(u).includes(RUN))
+  rec('G', '她的屏蔽名单里没有本次验收账号', mine.length === 0, mine.join(','))
+  const prefsFile = path.join(DATA, 'watch-prefs.json')
+  const prefs = fs.existsSync(prefsFile) ? readJson(prefsFile) : {}
+  const dirty = (prefs.dislike ?? []).filter((w) => /验收标记|联调屏蔽词/.test(String(w)))
+  rec('G', '看片偏好里没有验收词', dirty.length === 0, dirty.join(','))
+  const q = await api('GET', B, 'queue', 'list')
+  const leftovers = (q.json?.items ?? []).filter((x) => String(x.body ?? x.note ?? '').includes(MARKER))
+  rec('G', '待放行队列里没有本次验收条目', leftovers.length === 0, `${leftovers.length} 条`)
+}
+
 async function main() {
   console.log(`验收目标：${BASE}  部署：${DEPLOY}\n`)
   await groupA()
@@ -343,6 +367,7 @@ async function main() {
   await groupD()
   await groupE()
   await groupF()
+  await groupG()
 
   const failed = results.filter((r) => !r.ok)
   console.log(`\n合计 ${results.length} 项：${results.length - failed.length} 通过，${failed.length} 失败`)

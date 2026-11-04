@@ -26,6 +26,7 @@ const TOOL_SUMMARIES: Record<string, string> = {
   judgment_read: '读她的审美判断卡独立视图',
   judgment_write: '新增一张结构化判断卡',
   feedback_submit: '向主人的意见箱提交一条反馈',
+  see_video: '看一段本地视频：只留画面真的变了的几帧，拼成几张图',
 }
 
 function defaultHomeDir(): string {
@@ -47,9 +48,17 @@ export function createXiaoyuBotDefinition(homeDir: string) {
     build(loaded: { config: Record<string, unknown>; memoryDir: string; rootDir?: string }) {
       // 部署目录才是她的家（数据、记忆、日记都在里面）；拿不到时才退回包默认家。
       const home = loaded.rootDir ?? homeDir ?? String(loaded.config?.homeDir ?? defaultHomeDir())
+      // 心跳间隔从**部署配置**读，且每拍重读：主人在 WebUI 改了立刻生效，不用重启。
+      const tickCfg = loaded.config?.tick as { intervalMinutes?: number | null } | undefined
       const persona = new XiaoYuPersona({
         homeDir: home,
         rounds: { soft: 6, hard: 12 },
+        tickDelayMs: () => {
+          const m = tickCfg?.intervalMinutes
+          return m === null || m === undefined || !Number.isFinite(Number(m)) || Number(m) <= 0
+            ? null
+            : Number(m) * 60_000
+        },
       })
       return {
         persona,

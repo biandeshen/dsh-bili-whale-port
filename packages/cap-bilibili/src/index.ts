@@ -726,9 +726,27 @@ export function createBilibiliCapability(
                 })
               },
             },
+            unblockUser: {
+              name: 'unblockUser',
+              verb: 'POST',
+              summary: '把某个用户从屏蔽名单里放回来（拉黑是可逆的，不是一锤定音）',
+              writable: true,
+              invoke(params: { uid?: string; uids?: string[]; confirm?: boolean }) {
+                const targets = [
+                  ...(params?.uid ? [String(params.uid)] : []),
+                  ...(Array.isArray(params?.uids) ? params!.uids.map(String) : []),
+                ]
+                if (!targets.length) throw new Error('要带 uid 或 uids')
+                // 屏蔽名单是她真实的人际账，动它要显式确认；验收脚本也照这条走，不许悄悄清
+                if (params?.confirm !== true) throw new Error('要 confirm:true 才动手（这是改她的屏蔽名单）')
+                const cur = store.readBlockedUids()
+                const next = cur.filter((u) => !targets.includes(String(u)))
+                store.saveBlockedUids(next)
+                return { ok: true, removed: cur.length - next.length, remaining: next.length }
+              },
+            },
           },
         },
-        // ── 面板 2：统一待放行与改稿工作台 ──
         {
           id: 'drafts-queue',
           title: '统一待放行与改稿工作台',

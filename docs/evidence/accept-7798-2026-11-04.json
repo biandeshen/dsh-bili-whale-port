@@ -1,5 +1,5 @@
 {
-  "at": "2026-11-04T05:40:04.832Z",
+  "at": "2026-11-04T06:49:01.278Z",
   "base": "http://127.0.0.1:7799",
   "deploy": "C:\\Users\\Administrator\\.xiaoyu-home\\xiaoyu",
   "results": [
@@ -181,7 +181,7 @@
       "group": "D",
       "name": "memory.create（磁盘）",
       "ok": true,
-      "detail": "id=mem-mw1otm5h-4586"
+      "detail": "id=mem-mw1ra9we-xyq3"
     },
     {
       "group": "D",
@@ -205,7 +205,7 @@
       "group": "D",
       "name": "memory 提交信息含标记",
       "ok": true,
-      "detail": "memory: 恢复「验收标记-accotm14-改」→ active"
+      "detail": "memory: 恢复「验收标记-accra9rg-改」→ active"
     },
     {
       "group": "D",
@@ -217,7 +217,7 @@
       "group": "D",
       "name": "journal.upsertJudgment",
       "ok": true,
-      "detail": "j-87ff7b"
+      "detail": "j-e9f42c"
     },
     {
       "group": "D",
@@ -236,6 +236,18 @@
       "name": "inbox.assignAction block_user（磁盘）",
       "ok": true,
       "detail": ""
+    },
+    {
+      "group": "D",
+      "name": "inbox.unblockUser 复原（磁盘）",
+      "ok": true,
+      "detail": "剩 0 条"
+    },
+    {
+      "group": "D",
+      "name": "unblockUser 不 confirm 要拒绝",
+      "ok": true,
+      "detail": "Error: 要 confirm:true 才动手（这是改她的屏蔽名单）"
     },
     {
       "group": "D",
@@ -307,17 +319,17 @@
       "group": "D",
       "name": "queue.reject（磁盘）",
       "ok": true,
-      "detail": "验收标记-accotm14：拒稿验收"
+      "detail": "验收标记-accra9rg：拒稿验收"
     },
     {
       "group": "D",
       "name": "queue.requestNew",
       "ok": true,
-      "detail": "1793770804794"
+      "detail": "1793774941239"
     },
     {
       "group": "E",
-      "name": "记忆卡片 core=22 active=59",
+      "name": "记忆卡片 core=22 active=61",
       "ok": true,
       "detail": ""
     },
@@ -350,6 +362,24 @@
       "name": "data/ 根无 bilibili 状态残留",
       "ok": true,
       "detail": ""
+    },
+    {
+      "group": "G",
+      "name": "她的屏蔽名单里没有本次验收账号",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "group": "G",
+      "name": "看片偏好里没有验收词",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "group": "G",
+      "name": "待放行队列里没有本次验收条目",
+      "ok": true,
+      "detail": "0 条"
     }
   ]
 }

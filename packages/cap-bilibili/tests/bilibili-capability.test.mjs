@@ -61,6 +61,18 @@ test('cap-bilibili & cortico-world-bilibili：四路收件箱指派、统一待�
   const afterBlock = await world.invokePanel('inbox', 'list', { kind: 'all' })
   assert.equal(afterBlock.items.some((x) => x.uid === '1003'), false)
 
+  // 拉黑必须可逆：不 confirm 要拒绝，confirm 才放回，放回后收件箱重新看得见这个人
+  await assert.rejects(
+    () => Promise.resolve(world.invokePanel('inbox', 'unblockUser', { uid: '1003' })),
+    /confirm/,
+    '改她的屏蔽名单是写操作，不许无声无息地动',
+  )
+  const un = await world.invokePanel('inbox', 'unblockUser', { uid: '1003', confirm: true })
+  assert.equal(un.ok, true)
+  assert.equal(un.remaining, 0, `本次只拉黑过 1003，实得 ${JSON.stringify(un)}`)
+  const afterUnblock = await world.invokePanel('inbox', 'list', { kind: 'all' })
+  assert.ok(afterUnblock.blockedUids.every((u) => u !== '1003'), '名单里不该再留 1003')
+
   // 2. 评论与动态默认 review 档位 → 进统一待放行队列 → 主人在线改字（自动去粗体、重算 bodyHash 续签令牌）→ 放行成功
   const commentTool = world.tools().find((t) => t.name === 'bili_comment')
   const cRes = JSON.parse(await commentTool.handler({

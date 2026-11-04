@@ -17,6 +17,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { DreamTick } from '../../cap-state-rhythm/src/dream-tick.ts'
+import { LifeHeartbeat, quietLine } from '../../cap-state-rhythm/src/life-heartbeat.ts'
 
 export const MAIN_SESSION = 'main'
 
@@ -57,6 +58,11 @@ export interface CorticoPersonaShape {
 
 export interface XiaoYuPersonaOptions extends XiaoyuBotHubOptions {
   rounds?: { soft: number; hard: number }
+  /**
+   * 心跳基准间隔（毫秒）；返回 null = 主人关了心跳。**每拍重读**，所以 WebUI 改了立刻生效。
+   * 由 BotDefinition 从部署配置 `tick.intervalMinutes` 传进来。
+   */
+  tickDelayMs?: (now: Date) => number | null
 }
 
 export class XiaoYuPersona implements CorticoPersonaShape {
@@ -64,6 +70,8 @@ export class XiaoYuPersona implements CorticoPersonaShape {
   readonly memoryDir: string
   readonly blobs: CorticoPersonaShape['blobs']
   private readonly rounds: { soft: number; hard: number }
+  /** 她自己醒过来的那拍（缺了它，她只在有人戳时才动——那就不是人格，是聊天窗口） */
+  private heartbeat: LifeHeartbeat | null = null
   private core: any = null
   private started = false
 
@@ -76,6 +84,24 @@ export class XiaoYuPersona implements CorticoPersonaShape {
       put: (nameHint, bytes, mime) => this.hub.blobs.put(nameHint, bytes, mime),
       get: (handle) => this.hub.blobs.get(handle),
       list: (prefix) => this.hub.blobs.list(prefix),
+    }
+    if (opts.tickDelayMs) {
+      this.heartbeat = new LifeHeartbeat({
+        baseline: opts.tickDelayMs,
+        onFire: () => {
+          const core = this.core
+          // 心跳文本在投递那一刻按当前安静时长生成（宿主契约：injectDeferred 收函数）
+          const quiet = this.heartbeat?.quietSeconds() ?? 0
+          const text = `${quietLine(quiet)}这一拍没人找她——她可以自己决定做点什么（看一条、记一笔、或者就待着），`
+            + `但做过的事必须对得上账：没做的不写，写了的要有凭据。`
+          try {
+            if (typeof core?.injectDeferred === 'function') core.injectDeferred('tick', () => text)
+            else core?.injectInternal?.(text)
+          } catch (e) {
+            this.hostLog('warn', `心跳投递失败：${String((e as any)?.message ?? e)}`)
+          }
+        },
+      })
     }
   }
 
@@ -158,11 +184,16 @@ export class XiaoYuPersona implements CorticoPersonaShape {
         this.dream.start()
       }
     }
+    // 心跳：她自己醒过来的那拍。**重写时漏接的就是这一条**——
+    // 旧内建 bot 在 onStart 里 startRhythm()，转接头只挂了 DreamTick，
+    // 于是她只在有人戳 / 来消息时才动，2026-11-04 实测 actionsToday 全天 0。
+    this.heartbeat?.start()
   }
 
   async stop(): Promise<void> {
     if (!this.started) return
     this.started = false
+    this.heartbeat?.stop()
     this.dream?.stop()
     await this.hub.stop()
   }
@@ -194,6 +225,8 @@ export class XiaoYuPersona implements CorticoPersonaShape {
    * 单个能力包抛错不拖垮整批：逐包 try/catch。
    */
   async onDelivery(ctx: { now: Date; timezone: string; events: ReadonlyArray<{ type: string; source: string; text?: string; atMs?: number; meta?: Record<string, unknown> }> }): Promise<void> {
+    // 有外部事件到达 = 她被人叫过：心跳的空拍退避清零（否则安静久了会越来越稀）。
+    this.heartbeat?.noteActivity()
     // 投递路径的纪律：这里抛任何错，宿主只给一行无详情的 WARN（实测），注入全部丢失。
     // 所以整段兜底：宁可这一批不带回忆，也不能让异常冒出去。
     try {
@@ -216,7 +249,7 @@ export class XiaoYuPersona implements CorticoPersonaShape {
             if (line && line.trim()) this.core?.injectInternal?.(line)
           }
         } catch (e) {
-          try { this.core?.log?.('warn', `onDelivery 注入失败（${cap.id}）：${String((e as any)?.message ?? e)}`) } catch {}
+          this.hostLog('warn', `onDelivery 注入失败（${cap.id}）：${String((e as any)?.message ?? e)}`)
         }
       }
     } catch { /* 投递批次绝不被 Persona 的内部错误拖垮 */ }
