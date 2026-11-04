@@ -40,8 +40,12 @@ test('lifeTick：一拍就把作息账落盘（旧架构每 5 分钟有人推，
   if (!t.shouldAct) {
     assert.ok(['gap', 'cap', 'tired', 'content'].includes(t.reason), `不动的理由要在四种里，实得「${t.reason}」`)
   } else {
-    assert.ok(['explore', 'connect', 'rest'].includes(t.kind), `要动也该说清是哪种冲动，实得「${t.kind}」`)
+    assert.ok(['explore', 'connect', 'restless'].includes(t.kind), `要动也该说清是哪种冲动，实得「${t.kind}」`)
+    assert.ok(typeof t.reason === 'string' && t.reason.length > 0, '要动也要有人话理由，不许只给代号')
   }
+  // 账上从没记过行动时（新家/刚迁移），不能把她判成"睡了很久"——
+  // 15:24 线上实测出过自相矛盾的话：既说"她在睡着"又说"她想动"
+  if (t.neverActed) assert.equal(t.asleep, false, '没历史 ≠ 睡着')
   // 连跑两拍：间隔太短时应落在 gap（第二拍不该又动一次）
   const t2 = cap.lifeTick()
   assert.ok(t2.now >= t.now)

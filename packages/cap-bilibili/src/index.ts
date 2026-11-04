@@ -52,6 +52,14 @@ import {
   type WatchResult,
 } from './client/bili-watch.ts'
 import {
+  fetchSubtitles,
+  fetchComments,
+  fetchThread,
+  whois,
+  dynamicRecent,
+  fmtClock,
+} from './client/bili-profile.ts'
+import {
   executeBiliWrite,
   checkLikeNotRepeated,
   checkFavDailyCap,
@@ -434,9 +442,21 @@ export function createBilibiliCapability(
             },
             required: ['bvid'],
           },
-          async execute(args: { bvid: string }) {
+          async execute(args: { bvid: string; lan?: string; plain?: boolean }) {
             if (opts.readHandlers?.subtitles) return await opts.readHandlers.subtitles(args.bvid)
-            return { ok: true, bvid: args.bvid, subtitles: '' }
+            const r = await fetchSubtitles(readCtx, args.bvid, { lan: args?.lan })
+            if (!r.ok) return { ok: false, bvid: args.bvid, error: r.error, tracks: r.tracks }
+            // 全文可能很长：默认给带时间戳的前 60 行 + 行数与覆盖区间，全文走 plain 开关
+            const head = r.lines.slice(0, 60).map((l) => `[${fmtClock(l.from)}] ${l.text}`)
+            return {
+              ok: true,
+              bvid: args.bvid, title: r.title, durationSec: r.durationSec,
+              lan: r.lan, lanDoc: r.lanDoc, source: r.source, aiStatus: r.aiStatus,
+              count: r.lines.length, covered: `${fmtClock(r.lines[0]?.from ?? 0)} → ${fmtClock(r.lines.at(-1)?.to ?? 0)}`,
+              head, truncated: r.lines.length > head.length,
+              ...(args?.plain ? { plain: r.plain } : {}),
+              note: '字幕是最省的一条腿：先拿文字，再决定要不要抽帧看画面',
+            }
           },
         },
         {
@@ -468,12 +488,13 @@ export function createBilibiliCapability(
             },
             required: ['bvid'],
           },
-          async execute(args: { bvid: string; rootRpid?: string }) {
+          async execute(args: { bvid: string; rootRpid?: string; ps?: number; sort?: 'hot' | 'time' }) {
             if (args.rootRpid && opts.readHandlers?.thread) {
               return await opts.readHandlers.thread(args.bvid, args.rootRpid)
             }
             if (opts.readHandlers?.comments) return await opts.readHandlers.comments(args.bvid)
-            return { ok: true, bvid: args.bvid, comments: [] }
+            if (args.rootRpid) return await fetchThread(readCtx, args.bvid, args.rootRpid)
+            return await fetchComments(readCtx, args.bvid, { ps: args?.ps, sort: args?.sort })
           },
         },
         {
@@ -489,7 +510,7 @@ export function createBilibiliCapability(
           },
           async execute(args: { mid: string }) {
             if (opts.readHandlers?.whois) return await opts.readHandlers.whois(args.mid)
-            return { ok: true, mid: args.mid }
+            return await whois(readCtx, args.mid)
           },
         },
         {
@@ -500,11 +521,12 @@ export function createBilibiliCapability(
             type: 'object',
             properties: {
               date: { type: 'string', description: '可选日期 YYYY-MM-DD' },
+              limit: { type: 'number', description: '最多几条（默认 10，上限 50）' },
             },
           },
-          async execute(args: { date?: string }) {
+          async execute(args: { date?: string; limit?: number }) {
             if (opts.readHandlers?.dynamicRecent) return await opts.readHandlers.dynamicRecent(args?.date)
-            return { ok: true, items: [] }
+            return await dynamicRecent(readCtx, { date: args?.date, limit: args?.limit })
           },
         },
         // ── 七大对外写工具（全部强制走 WriteGate.execute 单点把关链） ──

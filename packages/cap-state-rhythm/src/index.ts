@@ -394,6 +394,7 @@ export function createStateRhythmCapability(
      */
     lifeTick(): {
       now: number
+      neverActed: boolean
       asleep: boolean
       shouldAct: boolean
       reason: string
@@ -430,9 +431,15 @@ export function createStateRhythmCapability(
         nextCheckAt: now + delay,
       }
       saveLifeFile(opts.lifeFile, nextLife)
+      // 账上从没记过一次行动时（搬家后的新家、或刚清过状态），isAsleep 会拿 0 当
+      // "距上次行动无穷久"→ 判成睡着，于是同一段话里既说"她在睡着"又说"她想动"。
+      // 那不是她睡着了，那是**我们没有她的历史**。这里如实报 neverActed，
+      // 并把 asleep 归到"醒着"——没做过事不等于睡了 6 小时。
+      const neverActed = Number(nextLife.lastActionAt ?? 0) <= 0
       return {
         now,
-        asleep: isAsleep(reconciled.lastActionAt, now, reconciled.mode ?? 'auto'),
+        neverActed,
+        asleep: neverActed ? false : isAsleep(reconciled.lastActionAt, now, reconciled.mode ?? 'auto'),
         shouldAct: decision.act === true,
         reason: String(decision.reason ?? ''),
         kind: decision.act ? String(decision.kind ?? '') : null,

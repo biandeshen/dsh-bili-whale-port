@@ -5,12 +5,12 @@
  * 差别只有——不读 argv、不 process.exit，返回结构化结果；fetch 可注入（测试替身）。
  * debrief/subtitles 涉及 ffmpeg 抽帧与字幕管线，保持走 readHandlers 注入（已有）。
  */
-import crypto from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { guardedFetch as defaultFetch } from '../platform/traffic.mjs'
 import { apiGet } from '../platform/api.mjs'
+import { mixinFromNav, wbiQuery } from '../platform/wbi.ts'
 import { UA } from './bili-write.ts'
 
 export interface BiliReadContext {
@@ -97,23 +97,16 @@ export interface SearchResult {
   error?: string
 }
 
-/** 搜索：WBI 签名（照抄 search.mjs：nav 取 wbi_img 两 key → MIXIN_TAB 重排取 32 位）。 */
-const MIXIN_TAB = [46,47,18,2,53,8,23,32,15,50,10,31,58,3,45,35,27,43,5,49,33,9,42,19,29,28,14,39,12,38,41,13,37,48,7,16,24,55,40,61,26,17,0,1,60,51,30,4,22,25,54,21,56,59,6,63,57,62,11,36,20,34,44,52]
-
-function wbiSign(params: Record<string, string | number>, ctx: BiliReadContext, mixinKey: string): string {
-  const qs = new URLSearchParams({ ...params, wts: String(Math.floor(Date.now() / 1000)) }).toString()
-  const sign = crypto.createHash('md5').update(qs + mixinKey).digest('hex')
-  return `${qs}&w_rid=${sign}`
-}
-
+/**
+ * 搜索：WBI 签名。签名本体已收到 `../platform/wbi.ts`（包内唯一一份），
+ * 这里只留"搜索要的那组参数"。
+ */
 export async function searchVideos(ctx: BiliReadContext, keyword: string, page = 1): Promise<SearchResult> {
   const fetch = readFetcher(ctx)
   const nav = await (await fetch('https://api.bilibili.com/x/web-interface/nav', { headers: readHeaders(ctx) })).json()
   if (nav.code !== 0) return { ok: false, items: [], error: `nav code=${nav.code}（登录态失效？）` }
-  const keyOf = (u: string) => u.slice(u.lastIndexOf('/') + 1, u.lastIndexOf('.'))
-  const wbiRaw = keyOf(nav.data?.wbi_img?.img_url ?? '') + keyOf(nav.data?.wbi_img?.sub_url ?? '')
-  const mixinKey = MIXIN_TAB.map((i) => wbiRaw[i]).join('').slice(0, 32)
-  const qs = wbiSign({ search_type: 'video', keyword, page }, ctx, mixinKey)
+  const mixinKey = mixinFromNav(nav)
+  const qs = wbiQuery(mixinKey, { search_type: 'video', keyword, page })
   const j = await (await fetch(`https://api.bilibili.com/x/web-interface/wbi/search/type?${qs}`, { headers: readHeaders(ctx, 'https://search.bilibili.com/') })).json()
   if (j.code !== 0) {
     return { ok: false, items: [], error: `code=${j.code} ${j.message ?? ''}` }

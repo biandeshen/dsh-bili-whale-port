@@ -124,10 +124,11 @@ export class XiaoYuPersona implements CorticoPersonaShape {
   private rhythmLine(tick: any): string {
     if (!tick) return '这一拍没人找她——她可以自己决定做点什么（看一条、记一笔、或者就待着），'
       + '但做过的事必须对得上账：没做的不写，写了的要有凭据。'
-    const n = (x: number) => Math.max(0, Math.round(x))
-    const since = n((tick.now - tick.lastActionAt) / 60000)
-    const head = `【作息对账】距上次行动 ${since > 0 ? `${since} 分钟` : '不到 1 分钟'}；`
-      + `今天已做 ${tick.actionsToday} 件；${tick.asleep ? '她处在睡着时段（记忆结算在这时跑）' : '她醒着'}；`
+    const since = Number(tick.lastActionAt ?? 0) > 0
+      ? `距上次行动 ${Math.max(0, Math.round((tick.now - Number(tick.lastActionAt)) / 60000))} 分钟`
+      : '账上还没有过一次行动（刚搬家或刚清过状态，这不等于她睡了很久）'
+    const head = `【作息对账】${since}；今天已做 ${tick.actionsToday} 件；`
+      + `${tick.asleep ? '她处在睡着时段（记忆结算在这时跑）' : '她醒着'}；`
     if (!tick.shouldAct) {
       const why: Record<string, string> = {
         gap: '间隔还没到，这一拍先不动',
@@ -138,12 +139,9 @@ export class XiaoYuPersona implements CorticoPersonaShape {
       return `${head}${why[String(tick.reason)] ?? `这一拍不动（理由：${tick.reason || '未知'}）`}——`
         + '不动也是账上的一笔，别为了"看起来忙"硬找事做。'
     }
-    const want: Record<string, string> = {
-      explore: '她想去探点新东西（刺激度低了）',
-      connect: '她想找人说说（连接度低了）',
-      rest: '她歇够了，想动一动',
-    }
-    return `${head}${want[String(tick.kind)] ?? `她想动（${tick.kind}）`}，冲动强度 ${Number(tick.urge).toFixed(2)}。`
+    // 要动的时候，persona-core 那边已经写好了人话理由（"有点无聊，想找点新鲜的看"等），
+    // 不要在这儿再编一套——两套说法迟早对不上账。
+    return `${head}她想动（${tick.kind}）：${tick.reason}；冲动强度 ${Number(tick.urge).toFixed(2)}。`
       + '这一拍该做点什么，做过的事必须对得上账：没做的不写，写了的要有凭据。'
   }
 
