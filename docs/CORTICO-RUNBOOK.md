@@ -47,6 +47,20 @@
 
 ## 排障
 - **重启只用** `node scripts/start-cortico.mjs`（或 `start-cortico.cmd`）：单实例、探活、并自动 resume。直接 `node bin/cortico.mjs` 启动会停在 `⏸ 已暂停`，她的生活循环却照跑（D-33）。
+- **`bin/cortico.mjs` 没有 `--help`**（2026-11-04 实测踩到）：任何未知参数（包括 `--help`）都不报错，
+  而是**按默认端口直接启动 mybot**。当时那条命令是 `node bin/cortico.mjs --help`，
+  于是拿 `CORTICO_HOME=Cortico/deployments`（=live 那份数据树）在 7788 起了一个实例，
+  接管了上一个已死进程留下的 `instance.lock`，然后被管道 SIGPIPE 掐死。
+  后果清点（都核过）：`runs/index.jsonl` 多一条启动记录 + 一个 run 目录
+  （`r-20261104-124524-cec3`），里面**落了一条事件**——
+  `{"type":"opening","text":"[system] 进程重启,session 已续上。","cursor":345}`；
+  因为总线起手就暂停，这条**没有投递**（`core-state.json` 的 `lastDeliveredCursor` 仍是 344），
+  但它确实进了事件流，下次真启动还会再有一条 opening，别把这条当成"她说了什么"。
+  `instance.lock` 随进程退出删掉；**没有**成功的模型调用、没有 B 站写、workspace git 没有新提交。
+  live 7799 本身早在 11-03 23:39 就停了（日志尾是 `LLM API 429: Go usage limit exceeded`，
+  `activeProvider` 是额度耗尽的 `opencode-go`），不是这条命令弄停的。
+  规矩补一句：**想知道 Cortico 怎么调，读 `docs/` 与 `bin/cortico.mjs` 源码，别用 `--help` 探**；
+  要起实例只用 `scripts/start-cortico.mjs`，它才有单实例探活与 pid 文件。
 - WebUI 打不开：看 `start-cortico.cmd` 窗口；确认 7799 未被旧实例占用
 - Provider 不可用：确认 18910 在跑、`.env` 有 key、`thinking:false`
 - 启动即暂停：`curl -X POST http://127.0.0.1:7799/api/run/resume`
