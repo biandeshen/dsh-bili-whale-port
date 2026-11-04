@@ -7,6 +7,7 @@
  * 产物必须是单文件 ESM：Cortico 扩展只声明一个 cortico.webUiClient 路径（dist/webui.js），
  * 浏览器端 import 不了包里的其它文件（也不会有 Node 模块可用）。
  */
+import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -67,22 +68,30 @@ for (const name of targets()) {
 
   // 只给扩展包（声明了 cortico.kind 的）补 webUiClient：能力包不是扩展包，
   // 它们的面板由所属扩展包合并后统一声明（一个扩展包只能有一个 webUiClient）。
+  //
+  // A4 版本缓存自动化：宿主的扩展 asset URL 是 /assets/extensions/<包>/<版本>/<文件>，
+  // 版本不变浏览器永远拿旧 bundle（实测踩坑：改了代码页面不更新）。把产物内容哈希写进
+  // patch 位——内容变了哈希变、版本自动 bump；内容没动版本不变、缓存继续有效。
   const pkgFile = path.join(pkgDir, 'package.json')
   const pkg = JSON.parse(fs.readFileSync(pkgFile, 'utf8'))
   const isExtension = Boolean(pkg.cortico?.kind)
-  if (isExtension && !pkg.cortico.webUiClient) {
-    pkg.cortico.webUiClient = 'dist/webui.js'
+  if (isExtension) {
+    const hash = createHash('sha256').update(fs.readFileSync(outfile)).digest('hex').slice(0, 8)
+    const [maj, min, pat] = String(pkg.version ?? '0.0.0').split('.')
+    if (pat !== hash) {
+      pkg.version = `${maj}.${min}.${hash}`
+      fs.writeFileSync(pkgFile, JSON.stringify(pkg, null, 2) + '\n', 'utf8')
+    }
+    if (!pkg.cortico.webUiClient) {
+      pkg.cortico.webUiClient = 'dist/webui.js'
+    }
+    pkg.files = [...new Set([...(pkg.files ?? []), 'dist', 'src'])].sort()
     fs.writeFileSync(pkgFile, JSON.stringify(pkg, null, 2) + '\n', 'utf8')
-  }
-  if (!isExtension && pkg.cortico?.webUiClient) {
+  } else if (pkg.cortico?.webUiClient) {
     delete pkg.cortico.webUiClient
     fs.writeFileSync(pkgFile, JSON.stringify(pkg, null, 2) + '\n', 'utf8')
   }
-  if (isExtension) {
-    pkg.files = [...new Set([...(pkg.files ?? []), 'dist', 'src'])].sort()
-    fs.writeFileSync(pkgFile, JSON.stringify(pkg, null, 2) + '\n', 'utf8')
-  }
-  built.push(`${name} → ${path.relative(ROOT, outfile)} (${fs.statSync(outfile).size} B${isExtension ? '，已声明 webUiClient' : '，能力包不声明'})`)
+  built.push(`${name} → ${path.relative(ROOT, outfile)} (${fs.statSync(outfile).size} B, v${pkg.version}${isExtension ? '，已声明 webUiClient' : '，能力包不声明'})`)
 }
 
 console.log(built.length ? built.join('\n') : '没有需要构建的 webui 产物')
