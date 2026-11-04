@@ -66,7 +66,9 @@ test('心跳接上了：到点走 core.injectDeferred("tick")，没接上时她�
     assert.ok(deferred.length >= 1, '心跳到点必须投一拍（重写时漏接的就是这条：她全天 0 次行动）')
     assert.equal(deferred[0][0], 'tick', '投的是 tick 这条通道')
     assert.match(deferred[0][1], /已安静/)
-    assert.match(deferred[0][1], /对得上账/, '心跳话术要把"记账纪律"带进去，不是空喊醒一醒')
+    // 心跳不只是"醒一下"：投递那一刻要顺带把作息账记上并说出理由
+    assert.match(deferred[0][1], /【作息对账】/, `心跳文本要带作息账，实得：${deferred[0][1]}`)
+    assert.match(deferred[0][1], /今天已做 \d+ 件|这一拍不动|她想动/, '动或不动都得有说法，不许沉默')
   } finally {
     await p.stop()
   }

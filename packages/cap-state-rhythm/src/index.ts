@@ -54,6 +54,8 @@ import {
   type RhythmMode,
   type LifeMemoryView,
 } from './life-stages.ts'
+// 作息对账一拍要用到的纯函数（persona-core 里那一份，不另抄；dayKey 已在上面导入）
+import { nextCheckDelay } from '../../persona-core/src/rhythm.ts'
 
 export {
   emptyState,
@@ -376,6 +378,69 @@ export function createStateRhythmCapability(
           },
         },
       ]
+    },
+
+    /**
+     * 作息对账一拍（**2026-11-04 补上的最后一块**）。
+     *
+     * 旧架构里"她的一天"是有人每 5 分钟推一次的：对账 → 决定动不动 → 落 life.json。
+     * 重写之后 `reconcileLife` / `decideStage` / `applyActionRecord` 三个函数都还在、
+     * 也都还导出，但**没有任何调用者**——于是 `life.json` 的 lastCheckAt 与 nextCheckAt
+     * 停在启动那一刻，actionsToday 永远 0，`cortico-health` 的「下次状态评估」一直过期。
+     * 心跳接上之后她"醒得对"了，可那一拍只是发一句话，作息账还是没人记。
+     *
+     * 所以这个方法把四步串起来，并且**把决定的理由带回去**——
+     * "这一拍她不动"必须是能解释的（gap / cap / tired / content），不能是沉默。
+     */
+    lifeTick(): {
+      now: number
+      asleep: boolean
+      shouldAct: boolean
+      reason: string
+      kind: string | null
+      urge: number
+      actionsToday: number
+      lastActionAt: number
+      nextCheckAt: number
+    } {
+      const now = Date.now()
+      const state = loadState(opts.fieldsFile)
+      const life = loadLifeFile(opts.lifeFile)
+      const reconciled = reconcileLife(
+        life,
+        life,
+        // 第三个来源本来是因果账（用来在内存/磁盘漂移时取真值）。
+        // **不能**把 life.actionsToday 当账本传进来：reconcileLife 取的是三者最大值，
+        // 昨天记了 7 件的话，跨日也会被这 7 顶回来——测试「昨天的账不该带进今天」当场抓到。
+        // 在因果账按天可查之前，这里就只给 0，宁可少算不可跨日串账。
+        { count: 0, lastAt: 0 },
+        dayKey(now),
+      )
+      const { decision } = decideStage({
+        fields: state.fields,
+        relation: (state.npcState?.current ?? 'normal') as never,
+        now,
+        mem: reconciled as never,
+        rng: Math.random,
+      })
+      const delay = nextCheckDelay(Math.random)
+      const nextLife: LifeMemoryView = {
+        ...reconciled,
+        lastCheckAt: now,
+        nextCheckAt: now + delay,
+      }
+      saveLifeFile(opts.lifeFile, nextLife)
+      return {
+        now,
+        asleep: isAsleep(reconciled.lastActionAt, now, reconciled.mode ?? 'auto'),
+        shouldAct: decision.act === true,
+        reason: String(decision.reason ?? ''),
+        kind: decision.act ? String(decision.kind ?? '') : null,
+        urge: Number(decision.urge ?? 0),
+        actionsToday: Number(nextLife.actionsToday ?? 0),
+        lastActionAt: Number(nextLife.lastActionAt ?? 0),
+        nextCheckAt: Number(nextLife.nextCheckAt ?? 0),
+      }
     },
   }
 }

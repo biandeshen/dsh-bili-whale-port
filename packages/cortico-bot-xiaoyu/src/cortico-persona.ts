@@ -91,19 +91,60 @@ export class XiaoYuPersona implements CorticoPersonaShape {
         baseline: opts.tickDelayMs,
         onFire: () => {
           const core = this.core
-          // 心跳文本在投递那一刻按当前安静时长生成（宿主契约：injectDeferred 收函数）
-          const quiet = this.heartbeat?.quietSeconds() ?? 0
-          const text = `${quietLine(quiet)}这一拍没人找她——她可以自己决定做点什么（看一条、记一笔、或者就待着），`
-            + `但做过的事必须对得上账：没做的不写，写了的要有凭据。`
+          // 文本在投递那一刻生成：先记一拍作息账，再按账上的理由说话。
+          const make = () => {
+            const quiet = this.heartbeat?.quietSeconds() ?? 0
+            const rhythm = this.hub.capabilities.find((c) => c.id === 'state-rhythm') as any
+            let tick: any = null
+            try {
+              tick = typeof rhythm?.lifeTick === 'function' ? rhythm.lifeTick() : null
+            } catch (e) {
+              this.hostLog('warn', `作息对账失败（不阻断心跳）：${String((e as any)?.message ?? e)}`)
+            }
+            return `${quietLine(quiet)}${this.rhythmLine(tick)}`
+          }
           try {
-            if (typeof core?.injectDeferred === 'function') core.injectDeferred('tick', () => text)
-            else core?.injectInternal?.(text)
+            if (typeof core?.injectDeferred === 'function') core.injectDeferred('tick', make)
+            else core?.injectInternal?.(make())
           } catch (e) {
             this.hostLog('warn', `心跳投递失败：${String((e as any)?.message ?? e)}`)
           }
         },
       })
     }
+  }
+
+  /**
+   * 把"这一拍的作息账"翻成她看得懂的一句话。
+   *
+   * 关键在**理由必须说出来**：旧架构里她不动是沉默的（decideAction 返回 act:false 就完了），
+   * 于是"她今天没做事"分不清是累了的正常结果，还是循环断了。
+   * 现在 gap/cap/tired/content 四种不动各有各的说法，账面上看得见。
+   */
+  private rhythmLine(tick: any): string {
+    if (!tick) return '这一拍没人找她——她可以自己决定做点什么（看一条、记一笔、或者就待着），'
+      + '但做过的事必须对得上账：没做的不写，写了的要有凭据。'
+    const n = (x: number) => Math.max(0, Math.round(x))
+    const since = n((tick.now - tick.lastActionAt) / 60000)
+    const head = `【作息对账】距上次行动 ${since > 0 ? `${since} 分钟` : '不到 1 分钟'}；`
+      + `今天已做 ${tick.actionsToday} 件；${tick.asleep ? '她处在睡着时段（记忆结算在这时跑）' : '她醒着'}；`
+    if (!tick.shouldAct) {
+      const why: Record<string, string> = {
+        gap: '间隔还没到，这一拍先不动',
+        cap: '今天的事做满了上限，这一拍先不动',
+        tired: '体力不够，这一拍先不动',
+        content: '没什么想动的理由，这一拍就待着',
+      }
+      return `${head}${why[String(tick.reason)] ?? `这一拍不动（理由：${tick.reason || '未知'}）`}——`
+        + '不动也是账上的一笔，别为了"看起来忙"硬找事做。'
+    }
+    const want: Record<string, string> = {
+      explore: '她想去探点新东西（刺激度低了）',
+      connect: '她想找人说说（连接度低了）',
+      rest: '她歇够了，想动一动',
+    }
+    return `${head}${want[String(tick.kind)] ?? `她想动（${tick.kind}）`}，冲动强度 ${Number(tick.urge).toFixed(2)}。`
+      + '这一拍该做点什么，做过的事必须对得上账：没做的不写，写了的要有凭据。'
   }
 
   /** 框架在 declareSessions 之前把 CoreApi 交过来；这里留作能力包注入 CoreApi 的通道。 */
