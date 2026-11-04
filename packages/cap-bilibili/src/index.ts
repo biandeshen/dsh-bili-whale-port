@@ -34,6 +34,10 @@ import {
   type WatchPreferences,
 } from './client/inbox.ts'
 import {
+  fetchDebrief,
+  type DebriefResult,
+} from './client/bili-debrief.ts'
+import {
   fetchFeed,
   searchVideos,
   checkLogin,
@@ -324,9 +328,21 @@ export function createBilibiliCapability(
             },
             required: ['bvid'],
           },
-          async execute(args: { bvid: string }) {
+          async execute(args: { bvid: string; bucketSec?: number; top?: number; comments?: number }) {
             if (opts.readHandlers?.debrief) return await opts.readHandlers.debrief(args.bvid)
-            return { ok: true, bvid: args.bvid }
+            const r: DebriefResult = await fetchDebrief(readCtx, args.bvid, {
+              bucketSec: args?.bucketSec, top: args?.top, comments: args?.comments,
+            })
+            if (!r.ok) return { ok: false, error: r.error }
+            // 压缩输出：字幕行只带前 40 行内联（全量走 judgment/diary 引用），弹幕热区带对齐字幕
+            const inlineSubs = r.subtitles.lines.slice(0, 40).map((l) => `[${Math.floor(l.from / 60)}:${String(Math.floor(l.from % 60)).padStart(2, '0')}] ${l.text}`)
+            return {
+              ok: true,
+              meta: r.meta,
+              subtitles: { hasTrack: r.subtitles.hasTrack, count: r.subtitles.count, inline: inlineSubs, truncated: r.subtitles.count > inlineSubs.length },
+              danmaku: r.danmaku,
+              comments: r.comments,
+            }
           },
         },
         {
