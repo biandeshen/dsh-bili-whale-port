@@ -84,6 +84,27 @@ export class XiaoYuPersona implements CorticoPersonaShape {
     this.core = core
   }
 
+  /**
+   * 宿主日志的安全写法（2026-11-04 08:24 线上就是在这儿崩的，7799 停了半小时）。
+   *
+   * Cortico 的 `core.log` 是 **Logger 对象**（`info/warn/error(msg, data)`，见
+   * Cortico src/core/types.ts:1181），不是 `(level, msg)` 函数。原先写成
+   * `this.core?.log?.('info', msg)`：可选调用只挡 null/undefined，**挡不住
+   * "属性存在但不是函数"**，于是 TypeError 从 DreamTick 的 catch 处理器里冒出去，
+   * 框架按未捕获异常关机——错误处理器自己成了错误源，还把原始异常一起吞了。
+   *
+   * 所以这里：认对象形状优先，函数形状兜底，任何情况都不许抛。
+   */
+  private hostLog(level: 'info' | 'warn' | 'error', msg: string, meta?: unknown): void {
+    try {
+      const log: any = (this.core as any)?.log
+      if (!log) return
+      if (typeof log === 'function') { log(level, msg); return }
+      const fn = typeof log[level] === 'function' ? log[level] : log.warn
+      if (typeof fn === 'function') fn.call(log, msg, meta)
+    } catch { /* 日志写不出去绝不能把她的循环带崩 */ }
+  }
+
   /** 挂载能力包（由 BotParts.onStart 调用）。 */
   async start(): Promise<void> {
     if (this.started) return
@@ -105,9 +126,7 @@ export class XiaoYuPersona implements CorticoPersonaShape {
           })
         }
       },
-      log: (level, msg, meta) => {
-        this.core?.log?.(level, `${msg}${meta ? ' ' + JSON.stringify(meta) : ''}`)
-      },
+      log: (level, msg, meta) => this.hostLog(level, msg, meta),
     })
     // 做梦系统：她睡着时由记忆能力包做每日结算，归档叙事写进私人日记。
     // 与生活 tick 同源挂载（此处），全局唯一；醒着/force_awake 时循环空转。
@@ -128,11 +147,13 @@ export class XiaoYuPersona implements CorticoPersonaShape {
               const diaryFile = path.join(diaryDir, 'private.md')
               const line = `\n- [${new Date().toISOString().slice(0, 10)}] ${digest}\n`
               fs.appendFileSync(diaryFile, line, 'utf8')
-              this.core?.log?.('info', `做梦：${count} 条记忆沉入归档，已写进私人日记`)
-            } catch { /* 日记写失败不影响结算本身 */ }
+              this.hostLog('info', `做梦：${count} 条记忆沉入归档，已写进私人日记`)
+            } catch (e) { /* 日记写失败不影响结算本身，但要留痕 */
+              this.hostLog('warn', `做梦日记写失败：${String((e as any)?.message ?? e)}`)
+            }
             return digest
           },
-          log: (level, msg) => this.core?.log?.(level, msg),
+          log: (level, msg) => this.hostLog(level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'info', msg),
         })
         this.dream.start()
       }

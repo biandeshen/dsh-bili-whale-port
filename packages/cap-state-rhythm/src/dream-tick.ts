@@ -45,7 +45,13 @@ export class DreamTick {
       try {
         this.tickOnce()
       } catch (e) {
-        this.opts.log?.('warn', `做梦 tick 异常（不中断循环）：${String((e as any)?.message ?? e)}`)
+        // 处理器自己绝不能抛：2026-11-04 08:24 线上那次，tick 抛了本可以被这里接住的异常，
+        // 结果 log() 里那句 `core.log?.(...)`（core.log 是对象不是函数）把 TypeError 顶成
+        // 未捕获异常，框架关机——**错误处理器成了错误源，还顺手吞掉了原始异常**。
+        const why = String((e as any)?.message ?? e)
+        try {
+          this.opts.log?.('warn', `做梦 tick 异常（不中断循环）：${why}`)
+        } catch { /* 连日志都写不了就算了，循环必须继续 */ }
       }
     }, interval)
     // 不阻止进程退出
