@@ -279,6 +279,13 @@ export class XiaoYuPersona implements CorticoPersonaShape {
     // 旧内建 bot 在 onStart 里 startRhythm()，转接头只挂了 DreamTick，
     // 于是她只在有人戳 / 来消息时才动，2026-11-04 实测 actionsToday 全天 0。
     this.heartbeat?.start()
+    /**
+     * 排程一建立就把真时间写回作息账。
+     * 不写的话，重启后最长几分钟里 `life.json` 还挂着上一个进程留下的过去时间，
+     * 健康检查据此报「下次状态评估已过期」——那是假警，但每次重启都会响一次。
+     */
+    const rhythm = this.hub.capabilities.find((c) => c.id === 'state-rhythm') as any
+    if (typeof rhythm?.markNextCheck === 'function') rhythm.markNextCheck(this.heartbeat?.nextFireAt() ?? 0)
   }
 
   async stop(): Promise<void> {

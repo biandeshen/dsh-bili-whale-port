@@ -84,3 +84,50 @@ test('lifeTick：主人 force_sleep 时她说不动，理由要说清是模式�
   const state = loadState(path.join(dir, 'fields.json'))
   assert.ok(state, '场值仍然读得到（对账不改场值，只记作息）')
 })
+
+/**
+ * markNextCheck：排程一建立就把真时间落到作息账上。
+ *
+ * 起因是 2026-11-05 07:15 那次重启：新进程的心跳排在几分钟后，而 `life.json` 还挂着
+ * 上一个进程写的过去时间，`cortico-health` 的「下次状态评估」当场报红，直到 07:20 那一拍才自愈。
+ * 假警不是小事——报习惯了，真停摆那天没人当回事。
+ */
+test('markNextCheck 只改「下一拍什么时候」，不碰计数也不碰对账', () => {
+  const dir = tmp()
+  const cap = mk(dir)
+  const lifeFile = path.join(dir, 'life.json')
+  const today = new Date().toLocaleDateString('sv-SE')
+  const before = {
+    day: today, actionsToday: 3, lastActionAt: 1700000000000,
+    lastCheckAt: 1699999000000, nextCheckAt: 1600000000000, mode: 'auto',
+  }
+  fs.writeFileSync(lifeFile, JSON.stringify(before))
+
+  const next = Date.now() + 5 * 60_000
+  cap.markNextCheck(next)
+
+  const after = JSON.parse(fs.readFileSync(lifeFile, 'utf8'))
+  assert.equal(after.nextCheckAt, next, '下一拍要写成心跳真的排好的时间')
+  assert.ok(after.nextCheckAt > Date.now(), '写完就得是未来的时间（健康检查据此判定）')
+  assert.equal(after.actionsToday, 3, '这不是新的一拍，不该动今日计数')
+  assert.equal(after.lastCheckAt, before.lastCheckAt, '上次对账时间不该被改写')
+  assert.equal(after.lastActionAt, before.lastActionAt, '上次行动时间不该被改写')
+  assert.equal(after.day, today, '日子不该变')
+})
+
+test('markNextCheck 拿过去或坏值就当没说，不许把账写花', () => {
+  const dir = tmp()
+  const cap = mk(dir)
+  const lifeFile = path.join(dir, 'life.json')
+  const good = Date.now() + 60_000
+  fs.writeFileSync(lifeFile, JSON.stringify({
+    day: new Date().toLocaleDateString('sv-SE'), actionsToday: 0,
+    lastActionAt: 0, lastCheckAt: 0, nextCheckAt: good, mode: 'auto',
+  }))
+
+  cap.markNextCheck(Date.now() - 1000)   // 过去
+  cap.markNextCheck(0)                     // 心跳还没排程
+  cap.markNextCheck(Number.NaN)            // 坏值
+  const after = JSON.parse(fs.readFileSync(lifeFile, 'utf8'))
+  assert.equal(after.nextCheckAt, good, '三种坏值都不该落盘（宁可留旧值，也不写一个已经过去的时间）')
+})

@@ -440,6 +440,21 @@ export function createStateRhythmCapability(
     },
 
     /**
+     * 只把"下一拍什么时候"写进作息账，不做对账、不做决定、不推进任何计数。
+     *
+     * 为什么要单独一条：心跳的排程活在内存里。进程一重启，`life.json` 的 `nextCheckAt`
+     * 还是上一个进程写的——账上挂着一个已经过去的时间，而下一拍要等这进程排好的几分钟之后才落，
+     * `cortico-health` 的「下次状态评估」就在这段窗口里报假警（2026-11-05 07:15 重启后实测到一次，
+     * 直到 07:20 那一拍才自愈）。**账要一直对得起事实**，所以启动那一刻就把真排程落下来。
+     */
+    markNextCheck(nextCheckAtMs: number): void {
+      const now = Date.now()
+      const at = Number(nextCheckAtMs)
+      if (!Number.isFinite(at) || at <= now) return
+      saveLifeFile(opts.lifeFile, { ...loadLifeFile(opts.lifeFile), nextCheckAt: at })
+    },
+
+    /**
      * 作息对账一拍（**2026-11-04 补上的最后一块**）。
      *
      * 旧架构里"她的一天"是有人每 5 分钟推一次的：对账 → 决定动不动 → 落 life.json。
