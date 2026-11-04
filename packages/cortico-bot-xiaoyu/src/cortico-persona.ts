@@ -17,6 +17,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { DreamTick } from '../../cap-state-rhythm/src/dream-tick.ts'
+import { isAsleep } from '../../cap-state-rhythm/src/life-stages.ts'
 import { LifeHeartbeat, quietLine } from '../../cap-state-rhythm/src/life-heartbeat.ts'
 
 export const MAIN_SESSION = 'main'
@@ -161,10 +162,18 @@ export class XiaoYuPersona implements CorticoPersonaShape {
     const diaryDir = path.join(this.memoryDir, 'workspace', 'diary')
     if (stateRhythm && memoryCap) {
       const store = memoryCap.store ?? null
+      // 能力包对象上**没有** isAsleep（它是模块级导出，不是契约字段）。
+      // 原先写 `stateRhythm.isAsleep` → undefined → 做梦每 30 分钟抛
+      // "this.opts.isAsleep is not a function"（线上日志 14:07 / 14:37 各一次），
+      // 也就是说：**她从来没有真正做过梦**，结算与遗忘叙事一次都没跑过。
+      const asleepOf = typeof stateRhythm.isAsleep === 'function'
+        ? stateRhythm.isAsleep
+        : (lastActionAt: number | null | undefined, now: number, mode?: string) =>
+            isAsleep(lastActionAt, now, (mode ?? 'auto') as never)
       if (store) {
         this.dream = new DreamTick({
           lifeFile: path.join(this.memoryDir, 'data', 'persona', 'life.json'),
-          isAsleep: stateRhythm.isAsleep,
+          isAsleep: asleepOf,
           settle: (days, threshold) => store.settle(days, threshold),
           dreamDigest: (r) => store.dreamDigest(r),
           onDream: (digest, count) => {
@@ -224,24 +233,37 @@ export class XiaoYuPersona implements CorticoPersonaShape {
    * `core.injectInternal`（钩子执行期 Core 把它收集进当前批，排在外部正文之前）。
    * 单个能力包抛错不拖垮整批：逐包 try/catch。
    */
-  async onDelivery(ctx: { now: Date; timezone: string; events: ReadonlyArray<{ type: string; source: string; text?: string; atMs?: number; meta?: Record<string, unknown> }> }): Promise<void> {
+  async onDelivery(ctx: { now?: Date; timezone?: string; events: ReadonlyArray<{ type: string; source: string; text?: string; atMs?: number; meta?: Record<string, unknown> }> }): Promise<void> {
     // 有外部事件到达 = 她被人叫过：心跳的空拍退避清零（否则安静久了会越来越稀）。
     this.heartbeat?.noteActivity()
     // 投递路径的纪律：这里抛任何错，宿主只给一行无详情的 WARN（实测），注入全部丢失。
     // 所以整段兜底：宁可这一批不带回忆，也不能让异常冒出去。
     try {
-      const queryText = ctx.events.map((e) => String(e.text ?? '')).join(' ')
+      /**
+       * **宿主在 onDelivery 上只给 `{ events }`**（Cortico src/core/loop.ts:693：
+       * `persona.onDelivery?.({ events: [...delivered] })`），没有 now 也没有 timezone——
+       * 与 systemSegments 的 `{now, timezone, worlds}` 不一样（loop.ts:544 那个确实给）。
+       * 2026-11-04 线上实测：我们照 systemSegments 的形状写了这里，于是
+       * `ctx.now.getTime()` 每拍抛 TypeError，**她每次醒来都拿不到心情与记忆召回**，
+       * 只能空转（日志里成片的「onDelivery 注入失败（state-rhythm/memory）：
+       * Cannot read properties of undefined (reading 'getTime')」）。
+       * 所以这里自己兜底求值，不指望宿主给。
+       */
+      const now = ctx.now instanceof Date ? ctx.now : new Date(Number((ctx as any).nowMs ?? Date.now()))
+      const timezone = (ctx as any).timezone
+        ?? Intl.DateTimeFormat().resolvedOptions().timeZone
+        ?? 'Asia/Shanghai'
       for (const cap of this.hub.capabilities) {
         if (!cap.onMessageDelivery) continue
         try {
           const lines = await cap.onMessageDelivery({
-            now: ctx.now,
-            timezone: ctx.timezone,
+            now,
+            timezone,
             events: ctx.events.map((e) => ({
               type: e.type,
               source: e.source,
               text: e.text ?? '',
-              atMs: e.atMs ?? ctx.now.getTime(),
+              atMs: e.atMs ?? now.getTime(),
               meta: e.meta,
             })),
           })
@@ -252,7 +274,10 @@ export class XiaoYuPersona implements CorticoPersonaShape {
           this.hostLog('warn', `onDelivery 注入失败（${cap.id}）：${String((e as any)?.message ?? e)}`)
         }
       }
-    } catch { /* 投递批次绝不被 Persona 的内部错误拖垮 */ }
+    } catch (e) {
+      // 整批兜底也要留痕：以前这里静默吞掉，线上一片"她不动"却查不到出处
+      this.hostLog('warn', `onDelivery 整批注入兜底：${String((e as any)?.message ?? e)}`)
+    }
   }
 
   /** 10 个对内工具（mood/memory/diary/judgment/feedback）挂在主会话上。 */
