@@ -458,7 +458,7 @@ export const gatePolicyPanel = {
 
       for (const f of POLICY_FIELDS) {
         const cur = String(policy[f.key] ?? f.options[0])
-        const sel = ui.select({ options: f.options, value: cur })
+        const sel = ui.select({ options: f.options.map((o) => ({ value: o, label: tierCn(o) })), value: cur })
         // 只有关紧的那一端往松的方向改才问（review→直接发 = 把审核这道闸拆掉）；
         // 同值保存和往更紧改都别弹层，confirm fatigue 是真实成本（走查 story-2 的风险条）。
         const unwatchSel = guard.watch(sel, () => cur)
