@@ -57,7 +57,13 @@ test('cap-bilibili & cortico-world-bilibili：四路收件箱指派、统一待�
   assert.ok(pushedEvents.some((e) => e.type === 'bili-account.inbox_assigned' && e.text.includes('雷雨采样')))
 
   // 主人拉黑广告号 uid=1003，收件箱立即过滤该 UID
-  await world.invokePanel('inbox', 'assignAction', { itemKey: 'at-1', action: 'block_user' })
+  // 拉黑与放回同一条规矩：不带 confirm 就拒——防护不能只长在前端的确认层上
+  await assert.rejects(
+    () => Promise.resolve(world.invokePanel('inbox', 'assignAction', { itemKey: 'at-1', action: 'block_user' })),
+    /confirm/,
+    '改她的屏蔽名单是写操作，不许无声无息地动',
+  )
+  await world.invokePanel('inbox', 'assignAction', { itemKey: 'at-1', action: 'block_user', confirm: true })
   const afterBlock = await world.invokePanel('inbox', 'list', { kind: 'all' })
   assert.equal(afterBlock.items.some((x) => x.uid === '1003'), false)
 

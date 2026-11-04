@@ -49,7 +49,7 @@ test('cortico-bot-xiaoyu：一拖三转接坞汇聚 3 个对内能力包 + 存�
   const hub = createXiaoyuBotHub({ homeDir: newHome })
   assert.equal(hub.api, 7)
   assert.equal(hub.capabilities.length, 4, 'state-rhythm / memory / journal / vision')
-  assert.equal(hub.panels().length, 4)
+  assert.equal(hub.panels().length, 5)
   assert.equal(hub.tools().length, 11)
   assert.ok(hub.tools().some((t) => t.name === 'see_video'), '看画面得真的挂在她这一轮能用的工具里')
   assert.ok(hub.panels().some((p) => p.id === 'vision'), '操作台也要有 vision 一块')

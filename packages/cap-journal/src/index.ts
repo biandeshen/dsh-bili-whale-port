@@ -6,6 +6,8 @@
  * - 审美判断卡（judgment.jsonl）独立表格查询与主人修改/采纳
  * - 意见箱（feedback.jsonl）提交、折叠统计、主人批复（自动注入下一轮前缀）与一键转规则
  * - 主人操作台 `journal-board`：getDiary / saveDiarySection / listJudgments / upsertJudgment / listFeedback / replyFeedback
+ * - 主人操作台 `feedback-triage`：意见箱分诊台（状态/严重度/是否自对治筛选 + 分页 + 批复与结案分离），
+ *   与 journal-board 共用同一套 listFeedback / replyFeedback 实现
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -13,6 +15,7 @@ import type {
   XiaoyuCapability,
   TurnContext,
   PrefixBlock,
+  PanelMethodDecl,
 } from '../../persona-core/src/capability.ts'
 import { dayKey } from '../../persona-core/src/rhythm.ts'
 import { WorkspaceGit, AUTHOR_SELF, AUTHOR_OPERATOR } from '../../cap-memory/src/workspace-git.ts'
@@ -40,6 +43,11 @@ import {
   listFeedback,
   appendFeedback,
   replyFeedbackByOwner,
+  FEEDBACK_DEFAULT_PAGE_SIZE,
+  FEEDBACK_MAX_PAGE_SIZE,
+  type FeedbackStatusFilter,
+  type FeedbackSeverityFilter,
+  type ListFeedbackOptions,
   type JudgmentScope,
   type JudgmentStance,
   type JudgmentVerdict,
@@ -64,6 +72,8 @@ export {
   listFeedback,
   appendFeedback,
   replyFeedbackByOwner,
+  FEEDBACK_DEFAULT_PAGE_SIZE,
+  FEEDBACK_MAX_PAGE_SIZE,
 }
 export type {
   DiaryBook,
@@ -76,6 +86,9 @@ export type {
   JudgmentVerdict,
   JudgmentItem,
   FeedbackItem,
+  FeedbackStatusFilter,
+  FeedbackSeverityFilter,
+  ListFeedbackOptions,
 }
 
 export interface JournalCapabilityConfig {
@@ -106,6 +119,95 @@ function writeTextAtomic(file: string, content: string): void {
   const tmp = `${file}.${process.pid}.${Math.random().toString(36).slice(2, 7)}.tmp`
   fs.writeFileSync(tmp, content, 'utf8')
   fs.renameSync(tmp, file)
+}
+
+/** convertRule.kind 的真值集合：只这三个后端会真的落到规则上，面板不许发明第四种去向。 */
+const CONVERT_RULE_KINDS = ['dislike', 'keyword', 'exemptUp']
+
+/**
+ * 意见箱查询参数归一化（浏览器传来的任何东西都可能是字符串、越界值或干脆是脏的）。
+ *
+ * 口径：
+ * - `status` 不给、或给的不是 resolved/all → 'open'（与拆分前一致，老调用方行为不变）；
+ * - `severity` 非 high/low → 'all'；
+ * - `page` 至少 1，`pageSize` 夹在 1..100；
+ * - **只有显式给了 page/pageSize 才走分页**，否则沿用旧的 `limit` 一路（limit 缺省 50）。
+ */
+function feedbackQueryOptions(params: {
+  status?: unknown
+  severity?: unknown
+  page?: unknown
+  pageSize?: unknown
+  selfHandled?: unknown
+  limit?: unknown
+}): ListFeedbackOptions {
+  const status: FeedbackStatusFilter =
+    params?.status === 'resolved' || params?.status === 'all' ? params.status : 'open'
+  const severity: FeedbackSeverityFilter =
+    params?.severity === 'high' || params?.severity === 'low' ? params.severity : 'all'
+  const out: ListFeedbackOptions = { status, severity }
+  if (params && typeof params.selfHandled === 'boolean') out.selfHandled = params.selfHandled
+  const hasPaging = params?.page !== undefined || params?.pageSize !== undefined
+  if (hasPaging) {
+    const rawPage = Math.floor(Number(params?.page ?? 1))
+    out.page = Number.isFinite(rawPage) && rawPage >= 1 ? rawPage : 1
+    const rawSize = Math.floor(Number(params?.pageSize ?? FEEDBACK_DEFAULT_PAGE_SIZE))
+    out.pageSize = Math.min(FEEDBACK_MAX_PAGE_SIZE, Math.max(1, Number.isFinite(rawSize) ? rawSize : FEEDBACK_DEFAULT_PAGE_SIZE))
+  } else if (params?.limit !== undefined) {
+    out.limit = Number(params.limit)
+  }
+  return out
+}
+
+/**
+ * 意见箱的两个数据面方法。`journal-board`（历史入口）与 `feedback-triage`（分诊台）
+ * 共用同一份实现，避免两个 tab 的口径漂走。
+ */
+function createFeedbackPanelMethods(
+  feedbackFile: string,
+  onRuleConverted?: JournalCapabilityOptions['onRuleConverted'],
+): Record<string, PanelMethodDecl<any, any>> {
+  return {
+    listFeedback: {
+      name: 'listFeedback',
+      verb: 'GET',
+      summary: '按状态/严重度/是否已自对治分页列出意见箱（未解决置顶、high 在前、新的在前，并带回全量总览计数）',
+      writable: false,
+      invoke(params: {
+        status?: FeedbackStatusFilter
+        severity?: FeedbackSeverityFilter
+        page?: number
+        pageSize?: number
+        selfHandled?: boolean
+        limit?: number
+      }) {
+        return listFeedback(feedbackFile, feedbackQueryOptions(params ?? {}))
+      },
+    },
+    replyFeedback: {
+      name: 'replyFeedback',
+      verb: 'POST',
+      summary: '主人批复（resolve:false 只批复不结案 / resolve:true 批复并结案），或转成看片过滤规则（dislike / keyword / exemptUp）',
+      writable: true,
+      invoke(params: {
+        id: string
+        ownerReply?: string
+        resolve?: boolean
+        convertRule?: { kind: 'dislike' | 'keyword' | 'exemptUp'; value: string }
+      }) {
+        const rule = params?.convertRule
+        if (rule) {
+          const kind = String(rule.kind ?? '')
+          const value = String(rule.value ?? '').trim()
+          if (!CONVERT_RULE_KINDS.includes(kind)) {
+            return { ok: false, error: `规则类型只能是 ${CONVERT_RULE_KINDS.join(' / ')}（后端只认这三种）` }
+          }
+          if (!value) return { ok: false, error: '转成规则要给内容（词或 UP 主名），空值不写入' }
+        }
+        return replyFeedbackByOwner(feedbackFile, params, onRuleConverted)
+      },
+    },
+  }
 }
 
 export function createJournalCapability(
@@ -152,7 +254,10 @@ export function createJournalCapability(
     },
 
     async contextSegments(_ctx: TurnContext): Promise<readonly PrefixBlock[]> {
-      const fb = listFeedback(opts.feedbackFile, { status: 'all', limit: 20 })
+      // 给她的是"最近提过且主人批复了的"几句，口径按时间新→旧（order:'recent'）。
+      // 分诊台的默认序是"未解决/high 置顶"，那一套是给主人处理用的；
+      // 直接套到这里会悄悄换掉注入进她提示词的内容——排序要在调用点上写明。
+      const fb = listFeedback(opts.feedbackFile, { status: 'all', limit: 20, order: 'recent' })
       const withReplies = fb.items.filter((x) => x.ownerReply)
       if (!withReplies.length) return []
       const lines = withReplies.slice(0, 5).map(
@@ -379,30 +484,16 @@ export function createJournalCapability(
                 return upsertJudgmentByOwner(opts.judgmentFile, params)
               },
             },
-            listFeedback: {
-              name: 'listFeedback',
-              verb: 'GET',
-              summary: '按折叠去重规则列出意见箱条目（open / resolved / all）',
-              writable: false,
-              invoke(params: { status?: 'open' | 'resolved' | 'all' }) {
-                return listFeedback(opts.feedbackFile, { status: params?.status ?? 'open' })
-              },
-            },
-            replyFeedback: {
-              name: 'replyFeedback',
-              verb: 'POST',
-              summary: '主人对意见箱条目写批复（下一轮自动注入给她）、标为已解决、或一键转成看片过滤规则',
-              writable: true,
-              invoke(params: {
-                id: string
-                ownerReply?: string
-                resolve?: boolean
-                convertRule?: { kind: 'dislike' | 'keyword' | 'exemptUp'; value: string }
-              }) {
-                return replyFeedbackByOwner(opts.feedbackFile, params, opts.onRuleConverted)
-              },
-            },
+            // 意见箱的两个方法走同一份实现（见 createFeedbackPanelMethods）：
+            // journal-board 保留历史入口，feedback-triage 是分诊台。
+            ...createFeedbackPanelMethods(opts.feedbackFile, opts.onRuleConverted),
           },
+        },
+        {
+          id: 'feedback-triage',
+          title: '意见箱分诊台',
+          description: '她的意见独立成 tab：未解决置顶 + high 在前 + 分页 + 严重度/自对治筛选；批复与结案分离，可只批复不结案，或转成看片过滤规则（dislike / keyword / exemptUp）',
+          methods: createFeedbackPanelMethods(opts.feedbackFile, opts.onRuleConverted),
         },
       ]
     },

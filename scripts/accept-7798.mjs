@@ -246,7 +246,13 @@ async function groupD() {
     inject(`acc-rep-${RUN}`, `9003${RUN}`, 'reply')
     const ig = await api('POST', B, 'inbox', 'assignAction', [{ itemKey: `acc-ign-${RUN}`, action: 'ignore' }])
     rec('D', 'inbox.assignAction ignore', ig.json?.ok === true && ig.json?.item?.read === true, ig.json?.error ?? '')
-    const bl = await api('POST', B, 'inbox', 'assignAction', [{ itemKey: `acc-blk-${RUN}`, action: 'block_user' }])
+    // 防护不该只长在脸上：不带 confirm 的拉黑必须被后端拒掉（面板有确认层，脚本也绕不过去）
+    const blNo = await api('POST', B, 'inbox', 'assignAction', [{ itemKey: `acc-blk-${RUN}`, action: 'block_user' }])
+    const blockedNo = fs.existsSync(path.join(DATA, 'blocked-uids.json')) ? readJson(path.join(DATA, 'blocked-uids.json')) : []
+    rec('D', 'inbox.assignAction block_user 无 confirm 被拒',
+      (blNo.status >= 400 || blNo.json?.ok === false) && !blockedNo.includes(`9002${RUN}`),
+      `status=${blNo.status} ${blNo.json?.error ?? ''}`)
+    const bl = await api('POST', B, 'inbox', 'assignAction', [{ itemKey: `acc-blk-${RUN}`, action: 'block_user', confirm: true }])
     const blocked = fs.existsSync(path.join(DATA, 'blocked-uids.json')) ? readJson(path.join(DATA, 'blocked-uids.json')) : []
     rec('D', 'inbox.assignAction block_user（磁盘）', bl.json?.ok === true && blocked.includes(`9002${RUN}`), '')
     // **自清到底**：拉黑是她真实的人际账，验完必须放回原样（2026-11-04 实测：
@@ -287,7 +293,10 @@ async function groupD() {
     rec('D', 'gate 冷却（磁盘）', readJson(path.join(DATA, 'traffic-state.json')).writeGapSec === 3, '')
     await api('POST', B, 'gate-policy', 'set', [{ killOn: true }])
     rec('D', 'gate 急刹（KILL 文件）', fs.existsSync(path.join(DATA, 'KILL')), '')
-    await api('POST', B, 'gate-policy', 'set', [{ killOn: false, clearTrafficPause: true }])
+    // 412 熔断是平台给她上的保护闸：不带 confirm 的解除要被后端拒（防护不只长在前端确认层上）
+    const cpNo = await api('POST', B, 'gate-policy', 'set', [{ clearTrafficPause: true }])
+    rec('D', 'gate 解除 412 无 confirm 被拒', cpNo.status >= 400 || cpNo.json?.ok === false, `status=${cpNo.status} ${cpNo.json?.error ?? ''}`)
+    await api('POST', B, 'gate-policy', 'set', [{ killOn: false, clearTrafficPause: true, confirm: true }])
     rec('D', 'gate 急刹解除', !fs.existsSync(path.join(DATA, 'KILL')), '')
     await api('POST', B, 'gate-policy', 'set', [{ policy: { comment: orig.comment } }])
     await api('POST', B, 'gate-policy', 'set', [{ quota: { selfCap: orig.selfCap, shareCap: orig.shareCap } }])

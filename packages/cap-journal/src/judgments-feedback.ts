@@ -234,10 +234,81 @@ export interface FeedbackItem {
   convertedRule: { kind: string; value: string } | null
 }
 
-export function listFeedback(
-  file: string,
-  opts: { status?: 'open' | 'resolved' | 'all'; limit?: number } = {},
-): { ok: true; openCount: number; total: number; items: FeedbackItem[] } {
+export type FeedbackStatusFilter = 'open' | 'resolved' | 'all'
+export type FeedbackSeverityFilter = 'high' | 'low' | 'all'
+
+export interface ListFeedbackOptions {
+  /** open（默认）/ resolved / all —— 与旧调用口径一致 */
+  status?: FeedbackStatusFilter
+  /** high / low / all（默认不过滤） */
+  severity?: FeedbackSeverityFilter
+  /** 给了就按「她是否已自行对治」过滤；不给 = 不过滤 */
+  selfHandled?: boolean
+  /** 页码，从 1 开始。给了 page 或 pageSize 就走分页，否则沿用旧的 limit 口径。 */
+  page?: number
+  pageSize?: number
+  limit?: number
+  /**
+   * 排序口径，缺省 `triage`（未解决 / high / 新的在前——分诊台要的正是这个）。
+   * `recent` = 按时间新→旧，是 `{status:'all',limit:20}` 这种"取最近 N 条"的老调用口径：
+   * `contextSegments` 给她注入"最近提过且主人批复了的"那几句就走这一路。
+   * 换排序必须写在调用点上，不能由分页与否暗中决定。
+   */
+  order?: 'triage' | 'recent'
+}
+
+export interface FeedbackListResult {
+  ok: true
+  /** 全量读数（不受当前筛选与分页影响），供顶部分诊总览用 */
+  total: number
+  openCount: number
+  highCount: number
+  highOpenCount: number
+  selfHandledCount: number
+  /** 当前筛选（状态 + 严重度 + 她是否自对治）命中的条数，分页基数 */
+  filteredCount: number
+  page: number
+  pageSize: number
+  hasMore: boolean
+  items: FeedbackItem[]
+}
+
+/** 分诊台默认每页条数（设计 story-6：10 条/页）与上限（面板与数据层同一口径）。 */
+export const FEEDBACK_DEFAULT_PAGE_SIZE = 10
+export const FEEDBACK_MAX_PAGE_SIZE = 100
+
+/**
+ * 分诊排序：未解决置顶 → 其中 high 在前 → 新的在前。
+ * 时间取条目自带的 ISO 时间戳；解析不出来（历史脏行）就退化成写入顺序，
+ * 不再依赖 JSONL 的行序（旧实现是 slice(-limit).reverse()，等于「文件里靠后=更新」，
+ * 一旦条目被折叠或补写就不可控）。
+ */
+function feedbackTriageCompare(
+  a: { item: FeedbackItem; ms: number; index: number },
+  b: { item: FeedbackItem; ms: number; index: number },
+): number {
+  const openA = a.item.resolved ? 1 : 0
+  const openB = b.item.resolved ? 1 : 0
+  if (openA !== openB) return openA - openB
+  const highA = a.item.severity === 'high' ? 0 : 1
+  const highB = b.item.severity === 'high' ? 0 : 1
+  if (highA !== highB) return highA - highB
+  if (a.ms !== b.ms) return b.ms - a.ms
+  return b.index - a.index
+}
+
+function clampPageSize(raw: unknown): number {
+  const n = Math.floor(Number(raw))
+  if (!Number.isFinite(n) || n < 1) return FEEDBACK_DEFAULT_PAGE_SIZE
+  return Math.min(FEEDBACK_MAX_PAGE_SIZE, n)
+}
+
+function feedbackPage(raw: unknown): number {
+  const n = Math.floor(Number(raw))
+  return Number.isFinite(n) && n >= 1 ? n : 1
+}
+
+export function listFeedback(file: string, opts: ListFeedbackOptions = {}): FeedbackListResult {
   const entries = readJsonl(file)
   const resolvedMap = new Map<string, any>()
   const replyMap = new Map<string, { ownerReply?: string; convertedRule?: { kind: string; value: string } }>()
@@ -265,20 +336,53 @@ export function listFeedback(
         convertedRule: rep?.convertedRule ?? null,
       }
     })
+
+  // 全量读数：总览行要说「19 high / 6 未解决 / 20 已自对治」，这些数不随筛选与分页变
   const openCount = items.filter((x) => !x.resolved).length
-  const status = opts.status ?? 'open'
-  const filtered =
-    status === 'all'
-      ? items
-      : status === 'resolved'
-      ? items.filter((x) => x.resolved)
-      : items.filter((x) => !x.resolved)
-  const limit = opts.limit ?? 50
+  const highCount = items.filter((x) => x.severity === 'high').length
+  const highOpenCount = items.filter((x) => x.severity === 'high' && !x.resolved).length
+  const selfHandledCount = items.filter((x) => x.selfHandled).length
+
+  const paged = opts.page !== undefined || opts.pageSize !== undefined
+  const withKeys = items
+    .map((item, index) => ({ item, index, ms: Number(new Date(item.at).getTime()) || 0 }))
+  const order = opts.order ?? 'triage'
+  const ordered = (order === 'recent'
+    ? withKeys.sort((a, b) => (b.ms - a.ms) || (b.index - a.index))
+    : withKeys.sort(feedbackTriageCompare)
+  ).map((row) => row.item)
+
+  const status: FeedbackStatusFilter =
+    opts.status === 'all' || opts.status === 'resolved' || opts.status === 'open' ? opts.status : 'open'
+  const severity: FeedbackSeverityFilter =
+    opts.severity === 'high' || opts.severity === 'low' || opts.severity === 'all' ? opts.severity : 'all'
+  const filterSelfHandled = typeof opts.selfHandled === 'boolean' ? opts.selfHandled : undefined
+
+  const filtered = ordered.filter((x) => {
+    if (status === 'open' && x.resolved) return false
+    if (status === 'resolved' && !x.resolved) return false
+    if (severity !== 'all' && x.severity !== severity) return false
+    if (filterSelfHandled !== undefined && x.selfHandled !== filterSelfHandled) return false
+    return true
+  })
+
+  const page = paged ? feedbackPage(opts.page) : 1
+  const size = paged ? clampPageSize(opts.pageSize ?? FEEDBACK_DEFAULT_PAGE_SIZE) : Math.max(1, Math.floor(Number(opts.limit ?? 50)) || 50)
+  const start = (page - 1) * size
+  const out = paged ? filtered.slice(start, start + size) : filtered.slice(0, size)
+
   return {
     ok: true,
     openCount,
     total: items.length,
-    items: filtered.slice(-limit).reverse(),
+    highCount,
+    highOpenCount,
+    selfHandledCount,
+    filteredCount: filtered.length,
+    page,
+    pageSize: size,
+    hasMore: start + out.length < filtered.length,
+    items: out,
   }
 }
 

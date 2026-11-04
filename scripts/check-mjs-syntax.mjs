@@ -31,6 +31,21 @@ const RULES = [
   { re: /^\s*(interface|type)\s+[A-Z]\w*\s*[<{=]/m, why: 'TS 声明关键字' },
   { re: /^\s*(?:private|protected|public)\s+(?:readonly\s+)?[a-zA-Z_$][\w$]*\s*[=(]/m, why: 'TS 构造器参数属性 / 可见性修饰符' },
   { re: /\)\s*:\s*(?:string|number|boolean|void|unknown)\b/, why: '返回值类型标注' },
+  /**
+   * 下面两条是 2026-11-05 又踩两次之后补回来的（`.mjs` 里写了 `(h: any) =>` 和 `const out: any[] =`）。
+   *
+   * 上一版删掉"参数标注"这条是对的：`{ a: never }` 与 `(a: never)` 逐字符同形，纯文本判不了。
+   * 这两条不一样——要求 **`)` 后面紧跟 `=>`**、以及 **`const/let` 名字后面直接跟冒号**，
+   * 合法 JS 里都写不出来（对象字面量不可能变成箭头参数的收尾括号；`const x` 后面只能是 `=`）。
+   */
+  {
+    re: /\(\s*[a-zA-Z_$][\w$]*\s*:\s*(?:any|unknown|never|string|number|boolean|void|object|symbol|\w+(?:<[^()]*>)?(?:\[\])?)\s*\)\s*=>/,
+    why: '箭头参数上的 TS 类型标注（要求右括号紧跟 =>，所以不会撞上对象字面量）',
+  },
+  {
+    re: /\b(?:const|let|var)\s+[a-zA-Z_$][\w$]*\s*:\s*(?:any|unknown|never|string|number|boolean|void|[A-Z]\w*|[{[])/,
+    why: '变量声明上的 TS 类型标注（JS 里 const 名字后面只能跟 =）',
+  },
 ]
 
 function walk(dir, out = []) {

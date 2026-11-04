@@ -220,7 +220,7 @@ export class WriteGate {
     fs.writeFileSync(this.quotaFile, JSON.stringify(cur, null, 2), 'utf8')
   }
 
-  readTraffic(): { writeGapSec: number; pausedUntil: number; lastWriteAt: number; seenFingerprints: string[] } {
+  readTraffic(): { writeGapSec: number; pausedUntil: number; lastWriteAt: number; seenFingerprints: string[]; pauseReason: string } {
     try {
       const raw = JSON.parse(fs.readFileSync(this.trafficFile, 'utf8'))
       return {
@@ -228,13 +228,15 @@ export class WriteGate {
         pausedUntil: Number(raw.pausedUntil ?? 0),
         lastWriteAt: Number(raw.lastWriteAt ?? 0),
         seenFingerprints: Array.isArray(raw.seenFingerprints) ? raw.seenFingerprints.slice(-500) : [],
+        // 熔断为什么触发：主人要不要提前解除，全看这一句。以前只存 pausedUntil，页面上只能显示倒计时。
+        pauseReason: String(raw.pauseReason ?? ''),
       }
     } catch {
-      return { writeGapSec: 10, pausedUntil: 0, lastWriteAt: 0, seenFingerprints: [] }
+      return { writeGapSec: 10, pausedUntil: 0, lastWriteAt: 0, seenFingerprints: [], pauseReason: '' }
     }
   }
 
-  saveTraffic(patch: Partial<{ writeGapSec: number; pausedUntil: number; lastWriteAt: number; seenFingerprints: string[] }>) {
+  saveTraffic(patch: Partial<{ writeGapSec: number; pausedUntil: number; lastWriteAt: number; seenFingerprints: string[]; pauseReason: string }>) {
     const cur = this.readTraffic()
     const next = { ...cur, ...patch }
     fs.mkdirSync(this.dataDir, { recursive: true })
@@ -243,7 +245,7 @@ export class WriteGate {
   }
 
   clearTrafficPause() {
-    return this.saveTraffic({ pausedUntil: 0, lastWriteAt: 0 })
+    return this.saveTraffic({ pausedUntil: 0, lastWriteAt: 0, pauseReason: '' })
   }
 
   private writeCausal(entry: Record<string, unknown>): void {
@@ -481,9 +483,12 @@ export class WriteGate {
 
     if (!execResult.ok) {
       if (execResult.status === 412) {
-        this.saveTraffic({ pausedUntil: now + 30 * 60_000 })
+        // 记下"为什么被熔断"：解除确认层要有原因可看，不然主人只能对着一个倒计时猜。
+        // 具体是哪个接口返回的 412 现在拿不到（执行器只回 error/status），别在这里编一个。
+        const why = `写 ${action.kind}${action.target.bvid ? `（${action.target.bvid}）` : ''} 被平台判 412：${execResult.error ?? '未提供原因'}，已自动进入 30 分钟熔断保护`
+        this.saveTraffic({ pausedUntil: now + 30 * 60_000, pauseReason: why })
         this.writeCausal({ kind: `${action.kind}-failed`, stage: 'transport', actor: action.actor, reason: 'http_412' })
-        return { ok: false, exit: 4, code: 'cooldown', stage: 'transport', reason: '触发平台 412 风控，已自动进入 30 分钟熔断保护' }
+        return { ok: false, exit: 4, code: 'cooldown', stage: 'transport', reason: why }
       }
       this.writeCausal({ kind: `${action.kind}-failed`, stage: 'platform', actor: action.actor, reason: execResult.error ?? 'platform_error' })
       return { ok: false, exit: 6, code: 'platform', stage: 'platform', reason: execResult.error ?? '平台返回错误' }

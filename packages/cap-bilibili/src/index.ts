@@ -734,7 +734,14 @@ export function createBilibiliCapability(
                 itemKey: string
                 action: 'ask_her_reply' | 'ignore' | 'block_user'
                 ownerHint?: string
+                confirm?: boolean
               }) {
+                // 拉黑当场生效在平台侧，改的是她真实的人际账；放回来虽然可逆，对方的观感不可逆。
+                // 跟 unblockUser 同一条规矩（抛错而不是返回 ok:false，两个方向走同一种失败）：
+                // 动屏蔽名单必须显式确认，验收脚本也照这条走。
+                if (params?.action === 'block_user' && params?.confirm !== true) {
+                  throw new Error('要 confirm:true 才动手（这是改她的屏蔽名单）')
+                }
                 return store.assignAction(params, (item, hint) => {
                   if (hostRef) {
                     hostRef.pushEvent({
@@ -887,7 +894,14 @@ export function createBilibiliCapability(
                 policy?: Partial<BiliPublishPolicy>
                 quota?: { selfCap?: number; shareCap?: number }
                 writeGapSec?: number
+                confirm?: boolean
               }) {
+                // 412 熔断是平台给她上的保护闸，手动松开等于在她可能仍被风控时立刻恢复对外写。
+                // 面板那道确认层之外再兜一层（与 unblockUser / block_user 同一种失败口径）：
+                // 脚本也不许一把梭把风控当 bug 关掉。
+                if (params?.clearTrafficPause && params?.confirm !== true) {
+                  throw new Error('解除 412 风控熔断要 confirm:true（这是把她从平台保护里放出来）')
+                }
                 if (typeof params?.killOn === 'boolean') {
                   gate.setKill(params.killOn)
                 }

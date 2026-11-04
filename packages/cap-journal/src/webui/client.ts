@@ -1,29 +1,31 @@
 /**
- * 日记、判断卡与意见箱工作台（浏览器端面板）。
+ * 日记、判断卡工作台与意见箱分诊台（浏览器端面板）。
  *
  * 解决三件"操作不了"的事：
- *   ① 日记只能读不能改（她写错日期、格式烂，主人在页面上干瞪眼）→ ���线 Markdown 编辑并落盘；
+ *   ① 日记只能读不能改（她写错日期、格式烂，主人在页面上干瞪眼）→ 在线 Markdown 编辑并落盘；
  *   ② 审美判断卡没有独立视图（她自己也抱怨"只能从日记正文里捞"）→ 表格 + 可改结论；
- *   ③ 意见箱只能标"已解决" → 写主人批复（下一轮自动注入给她）或一键转成看片过滤规则。
+ *   ③ 意见箱 51 条全塞在日记面板里，按钮只有硬编码 resolve:true 的「写批复并解决」
+ *      （2026-11-05 审计 D2/D9/D10：无分页无筛选、批复与结案分不开、空的规则值照发）
+ *      → 拆成独立的 `feedback-triage` tab：总览行 + 状态/严重度/是否自对治筛选 + 分页 +
+ *        批复与结案分离 + 规则类型下拉（只给后端真认的 dislike / keyword / exemptUp）。
  */
 import type { PanelCtx } from '../../../cortico-adapter/src/webui-helpers.ts'
-import { call, actionButton } from '../../../cortico-adapter/src/webui-helpers.ts'
+import { call, actionButton, createDirtyGuard } from '../../../cortico-adapter/src/webui-helpers.ts'
 
 export const journalBoardPanel = {
   mount(ctx: PanelCtx) {
     const { ui, root } = ctx
     const card = ui.sheet({
-      title: '日记、判断卡与意见箱',
-      en: 'diary, judgment cards and issue box',
-      desc: '读她的两本日记并在线改；看她的审美判断卡；给她的意见写批复或转成规则。',
+      title: '日记与判断卡',
+      en: 'diary and judgment cards',
+      desc: '读她的两本日记并在线改；看她的审美判断卡。她的意见在「意见箱分诊台」tab 处理。',
     })
     root.appendChild(card.el)
 
     const msg = ui.msgline()
     const diaryBox = ui.h('div')
     const judgeBox = ui.h('div')
-    const fbBox = ui.h('div')
-    card.body.append(diaryBox, judgeBox, fbBox, msg)
+    card.body.append(diaryBox, judgeBox, msg)
 
     // ── 日记 ──
     const bookSeg = ui.segmented(
@@ -107,42 +109,292 @@ export const journalBoardPanel = {
     }
     judgeBox.append(ui.h('h3'))
 
-    // ── 意见箱 ──
-    async function loadFeedback() {
-      const res = await call<any>(ctx, msg, 'listFeedback', { status: 'all' })
-      if (!res) return
-      fbBox.replaceChildren(ui.h('h3'))
-      const meta = ui.h('div')
-      meta.style.margin = '6px 0'
-      meta.textContent = `共 ${res.total} 条，未解决 ${res.openCount} 条`
-      fbBox.append(meta)
-      for (const f of res.items ?? []) {
-        const box = ui.sheet({ title: f.issue?.slice(0, 40) || f.id, desc: `#${f.id} · ${f.severity}${f.selfHandled ? '·她已对治' : ''} · ${f.resolved ? `已解决(${f.resolvedBy})` : '未解决'}` })
-        const reply = ui.textarea({ value: f.ownerReply ?? '', placeholder: '给她的批复（下一轮自动注入）', rows: 2 })
-        const acts = ui.actions()
-        const replyBtn = actionButton(ctx, ui, msg, '💬 写批复并解决', 'replyFeedback', undefined, {
-          variant: 'primary',
-          argsFactory: () => [{ id: f.id, ownerReply: reply.value, resolve: true }],
-          after: loadFeedback,
-        })
-        const ruleInput = ui.input({ placeholder: '转成看片过滤词（可选）' })
-        const ruleBtn = actionButton(ctx, ui, msg, '➕ 一键转成屏蔽词并解决', 'replyFeedback', undefined, {
-          argsFactory: () => [{ id: f.id, ownerReply: reply.value, resolve: true, convertRule: { kind: 'dislike', value: ruleInput.value.trim() } }],
-          after: loadFeedback,
-        })
-        acts.append(replyBtn, ruleBtn)
-        box.body.append(reply, ruleInput, acts)
-        fbBox.append(box.el)
-      }
-      const reload = actionButton(ctx, ui, msg, '刷新意见箱', 'listFeedback', undefined, { after: loadFeedback })
-      fbBox.append(reload)
-    }
-    fbBox.append(ui.h('h3'))
-
     void loadDiary()
     void loadJudgments()
-    void loadFeedback()
   },
 }
 
-export default { panels: { 'journal-board': journalBoardPanel } }
+/** 每页 10 条（设计 story-6 口径），与数据层 FEEDBACK_DEFAULT_PAGE_SIZE 同值；浏览器 bundle 不 import Node 侧模块，所以这里写死并留注。 */
+const TRIAGE_PAGE_SIZE = 10
+
+/** 规则去向只列后端真认的三种（见 judgments-feedback.ts 的 convertRule.kind）。「转偏好词」「转待办」后端没有落点，不假装能做。 */
+const RULE_KINDS = [
+  { value: 'dislike', label: '转屏蔽词（她不再看这类）' },
+  { value: 'keyword', label: '转搜索关键词' },
+  { value: 'exemptUp', label: '转 UP 主豁免名单' },
+]
+
+/** `at` 是 ISO 串，页面上只留「日期 时间」这一眼能读完的长度。 */
+function shortTime(at: unknown): string {
+  return String(at ?? '').replace('T', ' ').slice(0, 16)
+}
+
+export const feedbackTriagePanel = {
+  mount(ctx: PanelCtx) {
+    const { ui, root } = ctx
+    const card = ui.sheet({
+      title: '意见箱分诊台',
+      en: 'issue box triage',
+      desc: '她自己提的意见按「未解决 → high → 新的」排。批复与结案分开：可以先只回一句而不结案。',
+    })
+    root.appendChild(card.el)
+
+    const msg = ui.msgline()
+    // 刷新是整块重建：批复输入框打到一半，切个筛选就没了（走查 story-3）
+    const guard = createDirtyGuard(ui)
+    const overview = ui.h('div')
+    const filterRow = ui.h('div')
+    const listBox = ui.h('div')
+    const pagerRow = ui.actions()
+    overview.style.margin = '6px 0'
+    filterRow.style.display = 'flex'
+    filterRow.style.flexWrap = 'wrap'
+    filterRow.style.gap = '10px'
+    filterRow.style.alignItems = 'center'
+    filterRow.style.marginBottom = '10px'
+    card.body.append(overview, filterRow, listBox, pagerRow, msg)
+
+    // ── 筛选状态（数据面还会再归一化一次：page≥1、pageSize 夹 1..100、未知 severity 退 all） ──
+    let status = 'open'
+    let severity = 'all'
+    let onlyUnself = false
+    let page = 1
+
+    const statusSeg = ui.segmented(
+      [
+        { value: 'open', label: '未解决' },
+        { value: 'resolved', label: '已解决' },
+        { value: 'all', label: '全部' },
+      ],
+      {
+        value: status,
+        onSelect: (v: string) => {
+          status = v
+          page = 1
+          void refresh()
+        },
+      },
+    )
+    const severitySeg = ui.segmented(
+      [
+        { value: 'all', label: '严重度：全部' },
+        { value: 'high', label: '只看 high' },
+        { value: 'low', label: '只看 low' },
+      ],
+      {
+        value: severity,
+        onSelect: (v: string) => {
+          severity = v
+          page = 1
+          void refresh()
+        },
+      },
+    )
+    const unselfBox = ui.checkbox('只看她未自对治', {
+      checked: false,
+      title: '勾上＝藏掉她已经自己绕过去的条目，只留真需要主人拍板的',
+      onChange: (v: boolean) => {
+        onlyUnself = v
+        page = 1
+        void refresh()
+      },
+    })
+    filterRow.append(statusSeg.el, severitySeg.el, unselfBox.el)
+
+    const prevBtn = ui.button('← 上一页', {
+      onClick: () => {
+        if (page <= 1) return
+        page -= 1
+        void refresh()
+      },
+    })
+    const nextBtn = ui.button('下一页 →', {
+      onClick: () => {
+        page += 1
+        void refresh()
+      },
+    })
+    const pageInfo = ui.h('span')
+    // 刷新只要重新取数：actionButton 会先发一次请求再 after 刷一遍，等于双查
+    const reloadBtn = ui.button('↻ 刷新', { onClick: () => void refresh() })
+    pagerRow.append(prevBtn, pageInfo, nextBtn, reloadBtn)
+
+    /**
+     * 一条意见的三个动作都走这里：只批复 / 批复并结案 / 转规则。
+     *
+     * 流程（校验 → 发请求 → 刷新 → 失败原因在刷新之后写回）由共享的 `actionButton` 承担，
+     * 这里不另写一份：那种"每个面板各抄一遍按钮逻辑"正是 31 处调用点各修各的起因。
+     * 校验放在 `preRun`：空的批复、空的规则值发出去只会给她写一条没内容的记录（审计 D10），
+     * 没过就只写消息行、一条请求都不发。busy 态、防连点、失败写回也一并从那里来。
+     */
+    function triageButton(
+      label: string,
+      opts: {
+        variant?: string
+        build: () => Record<string, unknown> | string
+        /** 存成功之后把这一行的"存档口径"更新掉，免得刚写完就被"你有没保存的修改"再拦一道 */
+        onSaved?: (res: any) => void
+      },
+    ): HTMLButtonElement {
+      let payload: Record<string, unknown> | null = null
+      return actionButton(ctx, ui, msg, label, 'replyFeedback', undefined, {
+        variant: opts.variant,
+        preRun: async () => {
+          const built = opts.build()
+          if (typeof built === 'string') return built
+          payload = built
+          return null
+        },
+        argsFactory: () => payload,
+        after: (res) => {
+          if (res && (res as any).ok !== false) opts.onSaved?.(res)
+          return refresh()
+        },
+      })
+    }
+
+    function renderEntry(f: any): HTMLElement {
+      const box = ui.sheet({
+        title: f.issue || f.id,
+        desc: `#${f.id} · ${f.day || '（无日期）'} ${shortTime(f.at)}`,
+      })
+      const meta = ui.h('div')
+      meta.style.display = 'flex'
+      meta.style.flexWrap = 'wrap'
+      meta.style.gap = '6px'
+      meta.style.alignItems = 'center'
+      meta.append(
+        ui.pill(f.severity === 'high' ? 'high' : 'low', f.severity === 'high' ? 'on' : 'plain'),
+        ui.pill(
+          f.resolved ? `已结案${f.resolvedBy ? `（${f.resolvedBy}）` : ''}` : '未结案',
+          f.resolved ? 'off' : 'plain',
+        ),
+      )
+      if (f.selfHandled) meta.append(ui.pill('她已对治', 'plain'))
+      box.body.append(meta)
+
+      if (f.note) {
+        const n = ui.h('div')
+        n.style.whiteSpace = 'pre-wrap'
+        n.style.margin = '6px 0'
+        n.textContent = `她自己给的对治：${f.note}`
+        box.body.append(n)
+      }
+      if (f.ownerReply) {
+        const r = ui.h('div')
+        r.style.whiteSpace = 'pre-wrap'
+        r.style.margin = '6px 0'
+        r.textContent = `主人已批复：「${f.ownerReply}」`
+        box.body.append(r)
+      }
+      if (f.convertedRule) {
+        const r = ui.h('div')
+        r.style.margin = '6px 0'
+        r.textContent = `已转规则：${f.convertedRule.kind} ＝ ${f.convertedRule.value}`
+        box.body.append(r)
+      }
+
+      const reply = ui.textarea({
+        value: f.ownerReply ?? '',
+        placeholder: '给她的批复（下一轮自动注入给她）',
+        rows: 2,
+      })
+      const acts = ui.actions()
+      const ruleKind = ui.select({ options: RULE_KINDS, value: 'dislike' })
+      const ruleValue = ui.input({ placeholder: '词 / UP 主名（必填）' })
+      // 这两个框登记进未保存闸门：存档口径分别是"她已经收到的批复"和"空"
+      guard.watch(reply, () => f.ownerReply ?? '')
+      guard.watch(ruleValue, () => '')
+      /** 存成功之后对齐存档口径：批复进模型、规则值清掉，不然下一次刷新必被"未保存"拦一道 */
+      const markSaved = (res: any) => {
+        if (typeof res?.ownerReply === 'string') f.ownerReply = res.ownerReply
+        if (res?.resolved) f.resolved = true
+        ruleValue.value = ''
+      }
+      acts.append(
+        triageButton('💬 只写批复（不结案）', {
+          build: () => {
+            const text = reply.value.trim()
+            if (!text) return '批复是空的——只批复不结案时总得写一句，我没有发请求。'
+            return { id: f.id, ownerReply: text, resolve: false }
+          },
+          onSaved: markSaved,
+        }),
+        triageButton('✓ 批复并结案', {
+          variant: 'primary',
+          build: () => {
+            const params: Record<string, unknown> = { id: f.id, resolve: true }
+            const text = reply.value.trim()
+            if (text) params.ownerReply = text
+            return params
+          },
+          onSaved: markSaved,
+        }),
+        ruleKind,
+        ruleValue,
+        triageButton('➕ 转成过滤规则（不结案）', {
+          build: () => {
+            const value = ruleValue.value.trim()
+            if (!value) return '转规则要给内容（屏蔽词、搜索词或 UP 主名），空值我没有发请求。'
+            const params: Record<string, unknown> = {
+              id: f.id,
+              resolve: false,
+              convertRule: { kind: ruleKind.value, value },
+            }
+            const text = reply.value.trim()
+            if (text) params.ownerReply = text
+            return params
+          },
+          onSaved: markSaved,
+        }),
+      )
+      box.body.append(reply, acts)
+      return box.el
+    }
+
+    async function refresh() {
+      if (!(await guard.guard())) return
+      const params: Record<string, unknown> = { status, severity, page, pageSize: TRIAGE_PAGE_SIZE }
+      if (onlyUnself) params.selfHandled = false
+      const res = await call<any>(ctx, msg, 'listFeedback', params)
+      if (!res) return
+      // 下面整块重建：登记簿跟着清空，由 renderEntry 重新登记新的输入框
+      guard.reset()
+
+      // replaceChildren 会把分段控件与勾选框从 DOM 上摘下来，所以每次刷新先原样挂回去
+      // （cap-bilibili 同款做法：先 replaceChildren(seg.el) 再补别的）
+      filterRow.replaceChildren(statusSeg.el, severitySeg.el, unselfBox.el)
+
+      page = Number(res.page ?? 1) || 1
+      const size = Number(res.pageSize ?? TRIAGE_PAGE_SIZE) || TRIAGE_PAGE_SIZE
+      const filtered = Number(res.filteredCount ?? (res.items ?? []).length) || 0
+      const pages = Math.max(1, Math.ceil(filtered / size))
+      overview.textContent =
+        `${res.total ?? 0} 条 · 未解决 ${res.openCount ?? 0} · high ${res.highCount ?? 0}` +
+        `（其中未解决 ${res.highOpenCount ?? 0}） · 她已对治 ${res.selfHandledCount ?? 0}` +
+        ` · 当前筛选 ${filtered} 条`
+
+      // 空态：这一档真的没有条目才铺占位；行容器用普通 div 自己管
+      // （ui.table 的 clear 占位行会和已加进去的数据行并存，上一周真浏览器实测踩过）。
+      listBox.replaceChildren()
+      const rows = res.items ?? []
+      if (!rows.length) {
+        listBox.append(ui.placeholder(filtered === 0 ? '这一档没有要处理的意见。' : '这一页没有条目，翻回去看看。'))
+      } else {
+        for (const f of rows) listBox.append(renderEntry(f))
+      }
+      prevBtn.disabled = page <= 1
+      nextBtn.disabled = !res.hasMore
+      pageInfo.textContent = `第 ${page} / ${pages} 页`
+    }
+
+    void refresh()
+  },
+}
+
+export default {
+  panels: {
+    'journal-board': journalBoardPanel,
+    'feedback-triage': feedbackTriagePanel,
+  },
+}
