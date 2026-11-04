@@ -554,3 +554,19 @@ mybot 部署未动，`node bin/cortico.mjs mybot --port=7799` 即回旧架构。
 - **上线后验收 57/57**（7799 已带新模块重启）。
 - **收编手法沉淀**：`git mv` 真身进包 → 原址转发壳 → 全量测试抓相对深度漏改（4 处全是这一类）。
   转发壳注释统一标注真身位置与日期，Anti-pattern 是直接改 154 处引用。
+
+### 2026-11-04 12:45 · V-Now 三刀 + A2 一处反向依赖补漏
+
+- **A2 补漏（这次才发现的漏网）**：`tools/lib/bili-api.mjs`（apiGet / signWbi 真身）被包内
+  `bili-read.ts`、`bili-debrief.ts` 跨目录反向 import——B4 那批只收了 plain-outbound/traffic/
+  paths/kill 四件，api.mjs 不在名单里，所以"反向依赖清零"那句当时**说满了**。现在真身收进
+  `cap-bilibili/src/platform/api.mjs`，原址换转发壳（tools/ 与 tests/ 零改动），包内改引真身。
+  复核方式：`grep -rn "tools/lib" packages/cap-*/src/**/*.ts` → 只剩注释里提到原命令的名字。
+- **V-Now（视觉）三刀**：cap-vision 能力包（vendor dsh-see-now 8 个纯模块，逐字节核对 +
+  sha256 落档）→ `bili_watch` 工具与 `bili_debrief` 的 `withFrames` → 挂进人格中枢
+  （capabilities 3→4、tools 10→11、panels 3→4）。实测与负结果都写在 docs/V-NOW-2026-11-04.md：
+  44 分钟片 58.6 秒出 6 张（旧 scene+逐段 -ss 方案同素材 ETIMEDOUT）、`cutsOnly` 因 cuts 恒为 0
+  被砍、循环片 dupMin 8→12 只算缓解、真链路 BV1884g6mE8K 出图肉眼验过。
+- **线上未动**：7799 仍是上一轮那个进程，`see_video` / `bili_watch` 在她的运行时里还看不见
+  （要重启 + Cortico 重新生成 describe.json）。服务级动作，等主人点头。
+- 全量 104 文件 / 568 项 / fail 0；冻结哈希一致；本地 ahead 26 未推（GitHub 443 仍不通）。
