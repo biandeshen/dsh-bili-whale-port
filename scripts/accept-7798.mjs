@@ -357,6 +357,76 @@ async function groupG() {
   const q = await api('GET', B, 'queue', 'list')
   const leftovers = (q.json?.items ?? []).filter((x) => String(x.body ?? x.note ?? '').includes(MARKER))
   rec('G', '待放行队列里没有本次验收条目', leftovers.length === 0, `${leftovers.length} 条`)
+
+  /**
+   * 2026-11-05 补的三处：G 组当时只盯了屏蔽名单/偏好/队列，
+   * **漏了日记、判断卡、意见箱批复**——正好就是脏掉她生活的那三层。
+   * 主人那句"她现在甚至都不回我消息"追下去，因果账里 30 条、判断卡 15 条、
+   * 公开日记一段，全是我们跑门禁跑出来的（她自己在私人日记里都写明了 15/16 是噪音）。
+   * 门禁不能只判"功能对不对"，还得判"验完把她弄干净了没有"。
+   */
+  for (const [book, file] of [['公开', 'public'], ['私人', 'private']]) {
+    const p = path.join(DEPLOY, 'workspace', 'diary', `${file}.md`)
+    const txt = fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : ''
+    const hit = /验收标记-acc|验收脚本标记-/.test(txt)
+    rec('G', `${book}日记里没有验收小节`, !hit, hit ? txt.match(/验收标记-\S+|验收脚本标记-\S+/)?.[0] ?? '' : '')
+  }
+  for (const [what, rel] of [['判断卡', 'judgment.jsonl'], ['意见箱', 'feedback.jsonl']]) {
+    const p = path.join(DEPLOY, 'data', 'persona', rel)
+    const txt = fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : ''
+    const n = txt.split('\n').filter((l) => /验收标记-acc|验收脚本标记-/.test(l)).length
+    rec('G', `${what}里没有验收条目`, n === 0, `${n} 条`)
+  }
+  const fieldsP = path.join(DEPLOY, 'data', 'persona', 'fields.json')
+  if (fs.existsSync(fieldsP)) {
+    const chain = readJson(fieldsP).chain ?? []
+    const polluted = chain.filter((c) => /验收标记-acc|验收脚本标记-/.test(JSON.stringify(c))).length
+    rec('G', '她的因果账里没有验收标记', polluted === 0, `${polluted} 条 / 共 ${chain.length} 条`)
+  }
+}
+
+/**
+ * 把自己写进去的东西收回去（G 组之前跑，这样 G 是真的在验收，而不是走形式）。
+ *
+ * D 组要验写路径，就必然要往她的日记/判断卡/意见箱/因果账里写——
+ * 那三层**没有 void 接口**（她自己在私人日记里都写了"15/16 是噪音、judgment 没有 void 工具"），
+ * 所以这里直接在文件层摘掉本次与历次的验收标记，改前一律 .pre-purge-* 备份。
+ * 不碰 `data/runs/**`：那是宿主的 append-only 原始凭据。
+ */
+function purgeOwnMarkers() {
+  const mark = /验收标记-acc|验收脚本标记-|accept-?779[0-9]/
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15)
+  const files = [
+    ['因果账', path.join(DEPLOY, 'data', 'persona', 'fields.json'), 'json-chain'],
+    ['判断卡', path.join(DEPLOY, 'data', 'persona', 'judgment.jsonl'), 'lines'],
+    ['意见箱', path.join(DEPLOY, 'data', 'persona', 'feedback.jsonl'), 'lines'],
+    ['公开日记', path.join(WS, 'diary', 'public.md'), 'diary'],
+    ['私人日记', path.join(WS, 'diary', 'private.md'), 'diary'],
+  ]
+  for (const [what, file, mode] of files) {
+    if (!fs.existsSync(file)) continue
+    const raw = fs.readFileSync(file, 'utf8')
+    if (!mark.test(raw)) continue
+    let next
+    if (mode === 'json-chain') {
+      const s = JSON.parse(raw)
+      next = JSON.stringify({ ...s, chain: (s.chain ?? []).filter((c) => !mark.test(JSON.stringify(c))) }, null, 2)
+    } else if (mode === 'lines') {
+      next = raw.split('\n').filter((l) => l.trim() && !mark.test(l)).join('\n') + '\n'
+    } else {
+      const out = []
+      let dropping = false
+      for (const line of raw.split('\n')) {
+        if (/^##\s+验收\s*$/.test(line)) { dropping = true; continue }
+        if (dropping && /^#{1,2}\s/.test(line)) dropping = false
+        if (!dropping) out.push(line)
+      }
+      next = out.join('\n')
+    }
+    fs.copyFileSync(file, file + '.pre-purge-' + stamp)
+    fs.writeFileSync(file, next)
+    console.log(`  · 收回${what}里的验收标记（备份 .pre-purge-${stamp}）`)
+  }
 }
 
 async function main() {
@@ -367,6 +437,7 @@ async function main() {
   await groupD()
   await groupE()
   await groupF()
+  purgeOwnMarkers()
   await groupG()
 
   const failed = results.filter((r) => !r.ok)
