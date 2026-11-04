@@ -96,14 +96,28 @@ try {
   pass = ok(all.includes('恐怖深海鱼'), '身份锚（账号）', all.includes('恐怖深海鱼') ? '在' : '前缀里没有账号身份') && pass
 } catch (e) { pass = ok(false, '人设前缀', e.message) && pass }
 try {
-  const read = (f) => JSON.parse(fs.readFileSync(path.join(H, '.dsh', 'bili-whale', 'control', f), 'utf8'))
+  /**
+   * 作息账的家在切换后换了地方：新架构写 `~/.xiaoyu-home/<bot>/data/persona/life.json`
+   * （cap-state-rhythm 的 lifeTick 每拍推进它），而旧内建 bot 那套才写
+   * `~/.dsh/bili-whale/control/life-status.json`。
+   * 2026-11-04 这条探针一直读旧文件，于是永远报「下次状态评估 02:51 已过期」——
+   * 而同一时刻 life.json 里 nextCheckAt 明明是未来的时间。**假阳性第三种**：
+   * 读错了家。现在先读新家，读不到才退回旧家那两份。
+   */
+  const lifeNew = path.join(DEPLOY, BOT, 'data', 'persona', 'life.json')
   let st = null
-  try { st = read('life-status.json') } catch { st = read('cortico-wake.json') }
-  const next = st.nextCheckAt || st.nextWakeAt
-  const detail = new Date(next).toLocaleString()
-    + (st.mode === 'state-driven' ? `（状态驱动；今天已行动 ${st.actionsToday ?? st.wakesToday ?? 0} 次${st.lastKind ? '，上次 ' + st.lastKind : ''}）` : '')
+  let from = lifeNew
+  try { st = JSON.parse(fs.readFileSync(lifeNew, 'utf8')) } catch {
+    from = 'control/life-status.json'
+    const read = (f) => JSON.parse(fs.readFileSync(path.join(H, '.dsh', 'bili-whale', 'control', f), 'utf8'))
+    try { st = read('life-status.json') } catch { st = read('cortico-wake.json') }
+  }
+  const next = Number(st.nextCheckAt || st.nextWakeAt || 0)
+  const detail = `${new Date(next).toLocaleString()}（读的是 ${from}）`
+    + (st.mode && st.mode !== 'auto' ? `（状态驱动；今天已行动 ${st.actionsToday ?? st.wakesToday ?? 0} 次${st.lastKind ? '，上次 ' + st.lastKind : ''}）`
+      : `（今天已行动 ${st.actionsToday ?? 0} 次）`)
   pass = ok(next > Date.now(), '下次状态评估', detail) && pass
-} catch (e) { pass = ok(false, '下次状态评估', 'life-status.json 缺失') && pass }
+} catch (e) { pass = ok(false, '下次状态评估', '作息账读不到：' + e.message) && pass }
 try { const k = fs.existsSync(path.join(H, '.dsh', 'bili-whale', 'control', 'kill')); pass = ok(!k, 'kill switch', k ? '已触发（应关闭）' : '未触发') && pass } catch {}
 try {
   const { listPending } = await import('./ack.mjs')

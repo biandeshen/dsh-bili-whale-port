@@ -41,6 +41,16 @@
       "tags": []
     },
     {
+      "name": "bili_watch",
+      "summary": "看一条视频的画面：下载 + 变化分留帧 + 拼成几张图",
+      "description": "看一条视频的画面：下载 + 变化分留帧 + 拼成几张图",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "tags": []
+    },
+    {
       "name": "bili_subtitles",
       "summary": "读取视频的 CC 或 AI 字幕全文",
       "description": "读取视频的 CC 或 AI 字幕全文",

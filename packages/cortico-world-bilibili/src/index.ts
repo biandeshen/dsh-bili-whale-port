@@ -64,6 +64,7 @@ const TOOL_SUMMARIES: Record<string, string> = {
   bili_inbox_ack: '把处理完的收件箱条目标为已读',
   bili_feed: '刷 B 站首页推荐流（自动套用看片偏好与时长标注）',
   bili_debrief: '深读一条视频：标题、简介、弹幕采样与高赞评论',
+  bili_watch: '看一条视频的画面：下载 + 变化分留帧 + 拼成几张图',
   bili_subtitles: '读取视频的 CC 或 AI 字幕全文',
   bili_search: '按关键词搜索 B 站视频',
   bili_comments: '查看视频评论区与楼中楼',

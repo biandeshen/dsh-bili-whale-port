@@ -99,6 +99,16 @@
         "properties": {}
       },
       "tags": []
+    },
+    {
+      "name": "see_video",
+      "summary": "看一段本地视频：只留画面真的变了的几帧，拼成几张图",
+      "description": "看一段本地视频：只留画面真的变了的几帧，拼成几张图",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "tags": []
     }
   ],
   "bot": {
