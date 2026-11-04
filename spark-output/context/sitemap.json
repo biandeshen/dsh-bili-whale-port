@@ -1,0 +1,49 @@
+{
+  "skill": "sitemap",
+  "generated_at": "2026-11-05T02:00:00+08:00",
+  "project_name": "小鱼控制台改版",
+  "platform": "web",
+  "primary_navigation": [
+    { "id": "day", "label": "她的一天", "route": "/persona/day", "icon_hint": "sun", "children": [] },
+    { "id": "tank", "label": "鱼缸", "route": "/persona/tank", "icon_hint": "waves", "children": [] },
+    { "id": "memory", "label": "记忆", "route": "/persona/memory", "icon_hint": "brain", "children": [] },
+    { "id": "journal", "label": "日记", "route": "/persona/journal", "icon_hint": "book-open", "children": [] },
+    { "id": "triage", "label": "意见箱", "route": "/persona/triage", "icon_hint": "inbox", "children": [] },
+    { "id": "bili", "label": "B站", "route": "/world/bili", "icon_hint": "tv", "children": ["inbox", "drafts", "watching", "connection"] },
+    { "id": "media", "label": "创作", "route": "/world/media", "icon_hint": "film", "children": [] },
+    { "id": "settings", "label": "设置", "route": "/settings", "icon_hint": "settings", "children": [] }
+  ],
+  "pages": [
+    { "id": "page-day", "route": "/persona/day", "label": "她的一天", "purpose": "回答「她现在在干什么、今天干了什么、刚才说了什么」——事件流+今日概览+最近发言三合一，persona 默认落地页", "parent": "day", "access": "authenticated", "related_features": ["可解释性", "情感化像人", "会话卫生"], "related_stories": [], "notes": "数据源：recentChain(已有后端)、lifeTick 今日计数、session 尾部 assistant 发言；视觉按生活口吻写，不做运维时间线" },
+    { "id": "page-tank", "route": "/persona/tank", "label": "鱼缸", "purpose": "看她的实时状态并干预：场值滑块/戳醒/作息模式/睡眠时段；保留现有控件，补戳醒回执与下一拍倒计时", "parent": "tank", "access": "authenticated", "related_features": ["交互防护", "可解释"], "related_stories": [] },
+    { "id": "page-memory", "route": "/persona/memory", "label": "记忆", "purpose": "四层记忆增删改查+版本历史回滚（补上承诺的回滚）+冲突视图+召回解释", "parent": "memory", "access": "authenticated", "related_features": ["可解释", "交互防护"], "related_stories": [] },
+    { "id": "page-journal", "route": "/persona/journal", "label": "日记", "purpose": "读改两本日记+判断卡；意见箱拆出后本页只剩「她写的」，加翻页与编辑防护", "parent": "journal", "access": "authenticated", "related_features": ["交互防护"], "related_stories": [], "notes": "拆分动作：意见箱移出本页" },
+    { "id": "page-triage", "route": "/persona/triage", "label": "意见箱", "purpose": "她提反馈的分诊工作台：未解决置顶/严重度筛选/分页/批复与解决分离/规则类型下拉（转屏蔽词/转偏好/转待办）", "parent": "triage", "access": "authenticated", "related_features": ["内容分诊", "可解释"], "related_stories": [], "notes": "audit D1/D2/D9/D10 的正主；数据源 journal 包的 feedback 方法，UI 独立成页" },
+    { "id": "page-bili-inbox", "route": "/world/bili/inbox", "label": "收件箱与指派", "purpose": "四路消息+指派；补只看未读/拉黑名单管理/按人聚合", "parent": "bili", "access": "authenticated", "related_features": ["交互防护", "可解释"], "related_stories": [] },
+    { "id": "page-bili-drafts", "route": "/world/bili/drafts", "label": "待放行改稿台", "purpose": "统一队列：改字续签/放行前确认含正文预览/过期标黄/来源标注", "parent": "bili", "access": "authenticated", "related_features": ["交互防护", "可解释"], "related_stories": [] },
+    { "id": "page-bili-watching", "route": "/world/bili/watching", "label": "看片偏好", "purpose": "偏好词+豁免+阈值+每条规则命中统计；她的眼睛（vision 面板）并入本页作子区", "parent": "bili", "access": "authenticated", "related_features": ["可解释"], "related_stories": [], "notes": "合并动作：vision 面板并入为「她怎么看」子区，同为看片域" },
+    { "id": "page-bili-connection", "route": "/world/bili/connection", "label": "连接", "purpose": "账号绑定/解绑替换（粘贴cookie→whois校验→落盘）、登录态体检、通知测试、模型通道状态", "parent": "bili", "access": "authenticated", "related_features": ["IA旋钮", "可解释"], "related_stories": [], "notes": "新增页：K6 自举三件的归属地；旧 /api/cookie 的能力复位" },
+    { "id": "page-bili-gate", "route": "/world/bili/gate", "label": "安全闸", "purpose": "纯行为闸：急刹/8档位(补全2个)/配额/读配额/花费上限/412带原因；解除类操作全部二次确认", "parent": "bili", "access": "authenticated", "related_features": ["交互防护", "IA旋钮"], "related_stories": [], "notes": "从「安全闸配额风控」瘦身为纯闸，连接类移去 connection 页" },
+    { "id": "page-media", "route": "/world/media", "label": "创作", "purpose": "底图缩略图网格/BGM试听带mood/台词计数/成片进度/历史作品可预览；试听修复（去 /api/files）", "parent": "media", "access": "authenticated", "related_features": ["可解释", "交互防护"], "related_stories": [] },
+    { "id": "page-settings", "route": "/settings", "label": "设置", "purpose": "configGroups 声明的四组配置（心跳/上下文预算/作息/外观）+人设正本编辑入口+数据清理分级+文档入口", "parent": "settings", "access": "authenticated", "related_features": ["IA旋钮"], "related_stories": [] }
+  ],
+  "key_flows": [
+    { "name": "早上一眼看她", "page_sequence": ["page-day", "page-tank", "page-triage"] },
+    { "name": "处理她的反馈", "page_sequence": ["page-triage", "page-memory", "page-journal"] },
+    { "name": "指派回消息到放行", "page_sequence": ["page-bili-inbox", "page-bili-drafts"] },
+    { "name": "换号/体检", "page_sequence": ["page-bili-connection", "page-bili-gate"] },
+    { "name": "出一条视频稿", "page_sequence": ["page-media", "page-bili-drafts"] }
+  ],
+  "metadata": {
+    "depth_max": 2,
+    "page_count": 12,
+    "platform_notes": "Web 桌面单用户；宿主侧导航由 4 persona 页 + 4 world 页 + 设置组成；vision 并入 watching 作子区（同为看片域）；安全闸与连接分离（行为闸 vs 通道管理）",
+    "structure_actions": [
+      "新增 page-day「她的一天」（persona 默认落地页，回答她在干什么）",
+      "新增 page-bili-connection「连接」（账号绑定/体检/通知测试）",
+      "拆分：意见箱从「日记判断卡意见箱」三合一分出为独立分诊台",
+      "合并：cap-vision「她的眼睛」并入 B站「看片偏好」页作「她怎么看」子区",
+      "瘦身：「安全闸配额风控」里的通道/凭据类移去「连接」，保持纯行为闸"
+    ]
+  }
+}

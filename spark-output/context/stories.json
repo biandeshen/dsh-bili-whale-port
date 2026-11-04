@@ -1,0 +1,212 @@
+{
+  "skill": "stories",
+  "generated_at": "2026-11-05T02:10:00+08:00",
+  "project_name": "小鱼控制台改版",
+  "direction": "把她从被噪声淹没的响应式工具，变成主人真正掌控、真正像人一样活着的存在：会话卫生、防护三件套、旋钮上页面、她的一天、意见箱分诊",
+  "persona": {
+    "name": "主人",
+    "description": "小鱼（B站 AI 人格）的唯一运营者；Java 出身转 AI 创作的非设计师；每天来看她、跟她说话、指派与放行",
+    "jtbd": "当小鱼不回话、参数改不了、反馈堆成山时，主人想通过一个操作台真正掌控她的生活，从而她能像人一样活着、自己能少当人肉运维"
+  },
+  "stories": [
+    {
+      "id": "story-1",
+      "title": "她开口了：控制台只剩她和你",
+      "size": "story",
+      "persona": "主人",
+      "scenario": "晚上想跟她聊天，发消息却先被 111 条心跳自我对话淹没",
+      "acceptance_criteria": [
+        "连续 1 小时心跳注入条数比修复前下降 80% 以上，退避间隔肉眼可见拉长",
+        "主人发一条消息，回答无注入插队直接出现，且是第二人称对话",
+        "同一屏不再出现两个体力值（状态块同源）",
+        "「戳醒她」有回执：这一拍做了什么/没做什么、理由"
+      ],
+      "design_touchpoints": [
+        "screen:宿主控制台 #/live",
+        "screen:鱼缸面板",
+        "component:消息流/状态块注入/回执 pill",
+        "state:回执成功/注入极简态"
+      ],
+      "related_strategy_dimension": "会话卫生",
+      "risk": "唯一动她行为的改动：上线头 24 小时必须盯 actionsToday 与主动发言数，别只看注入计数变漂亮",
+      "priority": "p0",
+      "critical_assumption": true
+    },
+    {
+      "id": "story-2",
+      "title": "按按钮不再赌运气：防护三件套",
+      "size": "story",
+      "persona": "主人",
+      "scenario": "要放行发往 B 站的稿子或解除风控暂停，按之前想看清后果",
+      "acceptance_criteria": [
+        "危险操作（放行/拒稿/解除风控/拉黑/覆盖日记/置顶核心/删偏好词）100% 先确认后执行",
+        "actionButton busy 态：点击即禁用+文案变化，失败原因进消息行",
+        "放行确认层显示完整正文与不可撤回提示",
+        "解除 412 确认层显示 reason/riskEndpoint 与剩余时间"
+      ],
+      "design_touchpoints": [
+        "screen:待放行台/安全闸/收件箱/日记/记忆/偏好",
+        "component:确认弹层/busy 按钮/消息行",
+        "state:确认前/执行中/成功/失败"
+      ],
+      "related_strategy_dimension": "交互设计·防护",
+      "risk": "confirm fatigue 是最大敌人：守住'只有不可逆或对外写才确认'，别把保存也加上",
+      "priority": "p0",
+      "critical_assumption": true
+    },
+    {
+      "id": "story-3",
+      "title": "打字打一半不再蒸发：编辑不丢",
+      "size": "story",
+      "persona": "主人",
+      "scenario": "改记忆错字、改待放行稿、补日记时，输入被刷新悄悄清掉",
+      "acceptance_criteria": [
+        "withDirtyGuard：任何 refresh 前检测未保存输入并提示",
+        "放行发布检测未保存修改：先提示/自动保存，绝不静默丢弃",
+        "记忆/收件箱列表改按 id 局部更新，不再整列表重建",
+        "记忆搜索 300ms 防抖"
+      ],
+      "design_touchpoints": [
+        "screen:记忆/待放行台/收件箱/日记",
+        "component:dirty 提示条/局部更新列表/防抖搜索",
+        "state:编辑中/切换拦截/保存成功"
+      ],
+      "related_strategy_dimension": "交互设计·防护",
+      "risk": "vanilla TS 没有 diff，老实按 id patch，别手痒上框架",
+      "priority": "p0",
+      "critical_assumption": false
+    },
+    {
+      "id": "story-4",
+      "title": "旋钮全上页面：设置与连接",
+      "size": "story",
+      "persona": "主人",
+      "scenario": "想改心跳间隔/上下文预算，或 cookie 过期换号，现在只能改文件重启",
+      "acceptance_criteria": [
+        "bot 声明 configGroups 四组，改完热生效不重启",
+        "「连接」页：粘贴 cookie → whois 校验 → 显示身份状态 → 落盘，支持解绑替换",
+        "「连接」页：登录态体检一行 + 通知测试按钮",
+        "安全闸补全 autoDailyCap / autoWindow 两档位"
+      ],
+      "design_touchpoints": [
+        "screen:设置（新）/连接（新）/安全闸",
+        "component:schema 表单/粘贴校验流/体检读数行/测试按钮",
+        "state:加载/校验成功失败/已连接未连接"
+      ],
+      "related_strategy_dimension": "信息架构·旋钮",
+      "risk": "configGroups 便宜，真正的新活是 cookie 粘贴流的三步反馈设计——每步都要给明确反馈",
+      "priority": "p0",
+      "critical_assumption": false
+    },
+    {
+      "id": "story-5",
+      "title": "她的一天：一眼看到她在干嘛",
+      "size": "story",
+      "persona": "主人",
+      "scenario": "早上打开控制台，想一眼看到她做了什么、现在什么状态、刚说了什么",
+      "acceptance_criteria": [
+        "新增 persona 默认落地页：三枚读数 + 生活口吻事件流 + 最近发言",
+        "事件文案按动作类型转人话，运维字段折叠",
+        "事件可跳转：看片→看片页，草稿→待放行台",
+        "今日读数与 lifeTick 实时一致"
+      ],
+      "design_touchpoints": [
+        "screen:她的一天（新）",
+        "component:读数卡/时间线/跳转链接/空态",
+        "state:加载/空/正常/她睡着"
+      ],
+      "related_strategy_dimension": "可解释·像人",
+      "risk": "验收标记类脏数据会直接毁掉事件流体验——上线前先清残留或按来源过滤",
+      "priority": "p0",
+      "critical_assumption": true
+    },
+    {
+      "id": "story-6",
+      "title": "意见箱分诊台：51 条终于处理得动",
+      "size": "story",
+      "persona": "主人",
+      "scenario": "19 条 high 反馈堆着，面板 133 个按钮没法处理",
+      "acceptance_criteria": [
+        "意见箱从日记面板拆出独立 tab",
+        "未解决置顶 + 分页（10 条/页）+ 严重度筛选",
+        "批复与解决分离：可只批复不结案",
+        "处理方式下拉 4 种去向 + 空值校验；判断卡计数可筛选、卡链回视频"
+      ],
+      "design_touchpoints": [
+        "screen:意见箱（新）",
+        "component:筛选 tab/分页列表/严重度 pill/批复+处理方式组合",
+        "state:未解决/已解决/她已对治/加载/空"
+      ],
+      "related_strategy_dimension": "内容设计·分诊",
+      "risk": "别漏 f-2e24bd：顶部给一行总览（19 high/6 未解决/20 已自对治），处理人一眼知道优先级",
+      "priority": "p1",
+      "critical_assumption": false
+    },
+    {
+      "id": "story-7",
+      "title": "修好坏掉的与半吊子（10 个 Micro）",
+      "size": "micro",
+      "persona": "主人",
+      "scenario": "面板描述承诺过的功能不能用或不存在",
+      "acceptance_criteria": [
+        "试听配音单次生成且能播放（修 /api/files 404 + 双倍调用）",
+        "版本历史每条带「回滚到此」+ 确认",
+        "日记上一页/下一页；切本即刷；只读/编辑分离；日期控件",
+        "点单解析 BV；diff 不堆叠；中文化清扫；force_awake 到期自动回 auto"
+      ],
+      "design_touchpoints": [
+        "screen:媒体/记忆/日记/待放行/鱼缸",
+        "component:按钮态/回滚按钮/翻页/下拉",
+        "state:成功/失败/空"
+      ],
+      "related_strategy_dimension": "防护·可解释",
+      "risk": "没难度只有数量：适合当批次间隙填空题，每完成一个提交一次",
+      "priority": "p1",
+      "critical_assumption": false
+    },
+    {
+      "id": "story-8",
+      "title": "数字说人话：读数与解释视图",
+      "size": "story",
+      "persona": "主人",
+      "scenario": "看到 0.9606346078812088、auto、哈希串这些生数字看不懂",
+      "acceptance_criteria": [
+        "全站读数格式化：0 原始浮点、枚举中文化",
+        "鱼缸新增最近发生事件流 + 今日读数",
+        "记忆卡显示召回四因子分数 + 列表可按被想起次数排序",
+        "偏好规则命中统计；412 显示原因接口；用量未计价明示；底图缩略图网格 + BGM 试听"
+      ],
+      "design_touchpoints": [
+        "screen:鱼缸/记忆/偏好/待放行/用量/创作",
+        "component:格式化读数/展开解释/缩略图网格/试听按钮",
+        "state:正常/空/加载"
+      ],
+      "related_strategy_dimension": "数据可视化·解释",
+      "risk": "这是信任工程不是美化：四因子解释与命中统计建议提前与 Story 6 同做",
+      "priority": "p1",
+      "critical_assumption": false
+    },
+    {
+      "id": "story-9",
+      "title": "安全闸收干净 + 她的眼睛归位",
+      "size": "micro",
+      "persona": "主人",
+      "scenario": "旋钮散落各面板，猜不到哪个开关在哪",
+      "acceptance_criteria": [
+        "安全闸瘦身为纯行为闸：档位表单级保存 + dirty 高亮",
+        "vision 并入看片页「她怎么看」子区 + 缩略图缓存",
+        "收件箱只看未读开关 + 拉黑名单管理",
+        "读配额 + 日花费上限 fail-closed + 通道状态行 + 412 实时倒计时"
+      ],
+      "design_touchpoints": [
+        "screen:安全闸/看片/收件箱/记忆/用量",
+        "component:表单级保存/子区布局/开关/读数行",
+        "state:正常/dirty/确认"
+      ],
+      "related_strategy_dimension": "信息架构·防护",
+      "risk": "依赖 Story 4 的连接页先存在（通道类有地方搬），别提前做",
+      "priority": "p2",
+      "critical_assumption": false
+    }
+  ]
+}

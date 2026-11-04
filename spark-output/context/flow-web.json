@@ -1,0 +1,157 @@
+{
+  "skill": "flow-web",
+  "generated_at": "2026-11-05T02:40:00+08:00",
+  "project_name": "小鱼控制台改版",
+  "scenario": "Internal Ops（内部运营工具）— 方法论参照",
+  "component_library": "Cortico ui 契约（vanilla TS；非 React 栈，Skill 默认组件库不适用，产物为 panel 设计稿）",
+  "tech_stack": "vanilla TS + cortico-adapter webui-helpers + 宿主 ui（sheet/section/statgrid/table/placeholder/segmented/select/msgline）",
+  "flows": [
+    {
+      "name": "她的一天",
+      "page_sequence": [
+        "page-day"
+      ],
+      "screens": [
+        {
+          "name": "S1 状态读数带",
+          "components": [
+            "statgrid"
+          ],
+          "states": [
+            "sleeping-special",
+            "boundary-zero-explained"
+          ]
+        },
+        {
+          "name": "S2 生活事件流",
+          "components": [
+            "table",
+            "placeholder",
+            "source-filter"
+          ],
+          "states": [
+            "empty-first-time",
+            "paged",
+            "dirty-filtered"
+          ]
+        },
+        {
+          "name": "S3 她最近说的话",
+          "components": [
+            "section",
+            "placeholder"
+          ],
+          "states": [
+            "placeholder-until-data-source-decided"
+          ]
+        }
+      ],
+      "exit_states": {
+        "success": "一眼读完她的日子（她的口吻）",
+        "error": "acc* 过滤+展开；（来源不明）不崩",
+        "abandon": "纯读页无未保存态"
+      },
+      "design_file": "spark-output/flow-web/day-client.design.ts"
+    },
+    {
+      "name": "连接",
+      "page_sequence": [
+        "page-bili-connection"
+      ],
+      "screens": [
+        {
+          "name": "S1 账号身份卡",
+          "components": [
+            "sheet",
+            "input",
+            "pill",
+            "busy-button"
+          ],
+          "states": [
+            "loading-submit",
+            "error-validation-no-write",
+            "empty-first-time"
+          ]
+        },
+        {
+          "name": "S2 登录态体检",
+          "components": [
+            "section",
+            "checklist-rows"
+          ],
+          "states": [
+            "ok/ degraded/ missing per row"
+          ]
+        },
+        {
+          "name": "S3 通知与通道",
+          "components": [
+            "button",
+            "msgline"
+          ],
+          "states": [
+            "test-ok",
+            "test-failed-checklist"
+          ]
+        }
+      ],
+      "exit_states": {
+        "success": "身份卡点亮已登录",
+        "error": "cookie 无效不落盘旧连接保持",
+        "abandon": "未验证不写入"
+      }
+    },
+    {
+      "name": "意见箱分诊台",
+      "page_sequence": [
+        "page-triage"
+      ],
+      "screens": [
+        {
+          "name": "S1 分诊头",
+          "components": [
+            "chip",
+            "segmented",
+            "input"
+          ],
+          "states": [
+            "overview-row",
+            "severity-tabs"
+          ]
+        },
+        {
+          "name": "S2 未解决队列",
+          "components": [
+            "paged-list",
+            "textarea",
+            "select",
+            "busy-button"
+          ],
+          "states": [
+            "empty-celebration",
+            "error-keep-content",
+            "paged"
+          ]
+        },
+        {
+          "name": "S3 已解决归档",
+          "components": [
+            "collapsed-section",
+            "search"
+          ],
+          "states": [
+            "collapsed-default",
+            "searchable"
+          ]
+        }
+      ],
+      "exit_states": {
+        "success": "批复写入按去向分流",
+        "error": "批复内容原样保留就地重试",
+        "abandon": "切换前 dirty 提示"
+      }
+    }
+  ],
+  "legacy_pages_notes": "其余 9 页不画全屏，改造要点见 stories/edge 两份产物对应章节",
+  "handoff": "设计稿非施工代码；施工权在主会话（批次负责人），交接方式见 flow-web/README.md"
+}

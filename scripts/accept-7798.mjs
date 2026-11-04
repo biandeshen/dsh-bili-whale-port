@@ -423,6 +423,19 @@ async function groupG() {
     const polluted = chain.filter((c) => /验收标记-acc|验收脚本标记-/.test(JSON.stringify(c))).length
     rec('G', '她的因果账里没有验收标记', polluted === 0, `${polluted} 条 / 共 ${chain.length} 条`)
   }
+  /**
+   * 记忆层（2026-11-05 补）：F5 第一次清的时候**漏了这里**——
+   * 因果账/判断卡/意见箱都在 `data/` 下，我按 `data/` 扫，
+   * 而记忆卡是 `workspace/memo/` 里的 git 记账文件，11 张验收假记忆就这么留在活跃层。
+   * 只判活跃层与核心层：`voided/` 里的那些是**已作废、可查、不进召回**，
+   * 按"不删原始数据"留着当审计痕迹，不该被判成脏。
+   */
+  for (const tier of ['core', 'active']) {
+    const dir = path.join(WS, 'memo', tier)
+    const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.md')) : []
+    const dirty = files.filter((f) => /验收标记-acc|验收脚本标记-|accept779/.test(fs.readFileSync(path.join(dir, f), 'utf8')))
+    rec('G', `记忆 ${tier} 层没有验收卡`, dirty.length === 0, `${dirty.length}/${files.length}`)
+  }
 }
 
 /**

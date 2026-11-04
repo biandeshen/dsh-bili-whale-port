@@ -1,0 +1,1105 @@
+{
+  "skill": "audit",
+  "generated_at": "2026-11-05T01:30:00+08:00",
+  "project_name": "小鱼控制台（dsh-bili-whale 新架构 + Cortico 宿主页）",
+  "target": {
+    "type": "code+url",
+    "reference": "E:/WorkSpace_Qoder/dsh-bili-whale/packages/*/src/webui/client.ts + http://127.0.0.1:7799/",
+    "pages_audited": [
+      "鱼缸与作息遥控台 (cap-state-rhythm)",
+      "记忆管理中心 (cap-memory)",
+      "日记、判断卡与意见箱 (cap-journal)",
+      "B站收件箱与指派 (cap-bilibili/inbox)",
+      "统一待放行与改稿台 (cap-bilibili/drafts-queue)",
+      "看片偏好与过滤规则 (cap-bilibili/preferences)",
+      "安全闸、配额与风控 (cap-bilibili/gate-policy)",
+      "她的眼睛 (cap-vision)",
+      "音视频创作工作台 (cap-media-studio)",
+      "宿主页: 控制台对话#/live",
+      "宿主页: 用量与成本",
+      "宿主页: 系统提示词",
+      "宿主页: 配置(configGroups)"
+    ]
+  },
+  "audit_framework": ["Nielsen-10", "responsive", "performance"],
+  "findings": [
+    {
+      "id": "A2",
+      "heuristic": "error-prevention",
+      "severity": "blocker",
+      "description": "动作按钮无防重点击：点击后按钮不禁用、无 loading 态，连点两次「✓ 放行发布」可能双发",
+      "evidence": "cortico-adapter/src/webui-helpers.ts:88-116 actionButton 无 disabled/spinner；WriteGate bodyHash 指纹是最后一道不是第一道",
+      "suggestion": "actionButton 增加 busy 态：点击即 disabled + 文案变「处理中…」，完成/失败后恢复；放行/发布类再加服务端幂等回执显示",
+      "effort": "quick-win"
+    },
+    {
+      "id": "F2",
+      "heuristic": "error-prevention",
+      "error-prevention-note": "",
+      "severity": "blocker",
+      "description": "「✓ 放行发布」是对外不可逆写（发到 B站），零确认",
+      "evidence": "cap-bilibili/src/webui/client.ts:123-127 release 直接 invoke",
+      "suggestion": "放行前二次确认弹层：显示完整正文 + 目标渠道 + 不可撤销提示；或先预览后放行",
+      "effort": "quick-win"
+    },
+    {
+      "id": "F1",
+      "heuristic": "user-control",
+      "severity": "blocker",
+      "description": "改了草稿正文后直接点「✓ 放行发布」→ 只发送 {id}，编辑内容被静默丢弃，发出去的是旧稿",
+      "evidence": "cap-bilibili/src/webui/client.ts:116-127：release 的 argsFactory 只传 id；updateDraft 是另一个按钮",
+      "suggestion": "release 检测 textarea 有未保存修改时先自动保存再放行，或禁用放行并提示「有未保存修改」",
+      "effort": "quick-win"
+    },
+    {
+      "id": "H2",
+      "heuristic": "error-prevention",
+      "severity": "blocker",
+      "description": "「解除 412 风控暂停」零确认零风险说明",
+            "evidence": "cap-bilibili/src/webui/client.ts:289-297",
+      "suggestion": "改为显示 reason/riskEndpoint + 要求勾选确认「我理解提前解除可能加深风控」；参考 vision 面板已有的 checkbox 确认模式",
+            "effort": "quick-win"
+    },
+    {
+      "id": "J1",
+      "heuristic": "error-recovery",
+      "severity": "blocker",
+      "description": "试听配音完全不可用：audio.src 用 /api/files?path=，宿主没有该路由（404）",
+      "evidence": "cap-media-studio/src/webui/client.ts:64；宿主仅 /api/blob（Cortico-up/src/web/server.ts:1709）；cap-vision 注释已记录该路由不存在",
+      "suggestion": "照 vision 的 sheetThumb 模式：后端出 data URL 或 /api/blob handle；顺带修复 J2",
+      "effort": "medium"
+    },
+    {
+      "id": "C2",
+      "heuristic": "user-control",
+      "severity": "blocker",
+                                             "description": "refresh 重建整个列表 DOM → 所有卡片里未保存的编辑被静默清空",
+      "evidence": "cap-memory/src/webui/client.ts:48 replaceChildren；搜索框 input 事件也触发全量 refresh（:177）",
+      "suggestion": "列表重建前检测 dirty 输入并提示；或改为局部更新（按 id patch 卡片）",
+      "effort": "major-rework"
+    },
+    {
+      "id": "C1",
+      "heuristic": "performance",
+      "severity": "major",
+      "description": "搜索无防抖：每敲一键全量 list + 全量重建",
+      "evidence": "cap-memory/src/webui/client.ts:177 search.addEventListener('input', refresh)",
+      "suggestion": "300ms 防抖 + ESC 清空",
+      "effort": "quick-win"
+    },
+    {
+      "id": "C4",
+      "heuristic": "error-prevention",
+            "severity": "major",
+      "description": "「⭐ 置顶进核心」零确认——核心常驻她每轮都读，验收污染就是这样进去的",
+      "evidence": "cap-memory/src/webui/client.ts:77-82",
+      "suggestion": "确认 + 必填理由（理由进因果账）；核心常驻满 N 条时提示退出候选（按 accessCount 最旧的）",
+      "effort": "quick-win"
+    },
+    {
+      "id": "C3",
+      "heuristic": "consistency",
+      "severity": "major",
+      "description": "window.prompt 三处（作废理由/存档点名/存档点说明），与整体设计语言断裂",
+      "evidence": "cap-memory/src/webui/client.ts:93,170-171",
+      "suggestion": "统一替换为面板内 inline 输入或 ui.sheet 小表单",
+      "effort": "medium"
+    },
+    {
+      "id": "C6",
+      "heuristic": "real-world-match",
+      "severity": "major",
+      "description": "面板描述承诺「看版本历史并回滚」，实际只有「看改动」没有回滚控件",
+      "e cap-memory evidence": "",
+      "evidence": "cap-memory/src/webui/client.ts:4,134-155",
+            "suggestion": "补回滚按钮（workspace git 已有历史，技术上现成）",
+      "effort": "medium"
+    },
+    {
+      "id": "C7",
+      "heuristic": "error-prevention",
+      "severity": "minor",
+      "description": "renderDiff 不清旧 diff，连点「看改动」无限堆叠",
+      "evidence": "cap-memory/src/webui/client.ts:157-166 histBox.append(pre)",
+      "suggestion": "先清旧 diff 再 append",
+            "effort": "quick-win"
+    },
+    {
+      "id": "C8",
+            "heuristic": "performance",
+      "severity": "minor",
+      "description": "「查看版本历史」触发两次 history 请求",
+      "evidence": "cap-memory/src/webui/client.ts:134,139",
+      "suggestion": "去掉 after 里的重复调用",
+      "effort": "quick-win"
+    },
+    {
+      "id": "C9",
+      "heuristic": "recognition",
+      "severity": "major",
+      "description": "有「被想起 N 次」却不能按它排序或筛「从没被想起过」——归档候选看不见",
+      "evidence": "cap-memory/src/webui/client.ts:55",
+      "suggestion": "排序下拉（最新/鲜活/被想起）+ 「从没被想起」过滤器",
+      "effort": "medium"
+    },
+    {
+      "id": "C12",
+      "heuristic": "recognition",
+      "severity": "recovery-placeholder",
+      "severity": "major",
+      "description": "无冲突视图：相反的两条记忆并存看不出来（\"主人喜欢X\"与\"主人不喜欢X\"并存）",
+      "evidence": "四层全是时间分级，无 valid_at/invalidatedBy（对照 Zep 双时间轴）",
+      "suggestion": "同主题冲突检测 + 并排视图 + 「新事实作废旧条」按钮",
+      "effort": "major-rework"
+    },
+    {
+            "id": "C13",
+      "heuristic": "visibility",
+      "severity": "major",
+      "description": "无「为什么想起这条」：召回四因子分数（关键词/鲜活/情绪/新近）后端现成，面板不显示",
+            "evidence": "persona-core/src/retrieval.ts:150",
+      "suggestion": "记忆卡展开显示四因子分数与命中理由；召回日志（今天用了哪些、哪些从没被想起）",
+      "effort": "medium"
+    },
+    {
+      "id": "C11",
+      "heuristic": "performance",
+      "severity": "major",
+      "description": "记忆列表无分页全量渲染（45+ 卡片 × sheet+3字段+4按钮）",
+      "evidence": "cap-memory/src/webui/client.ts:54-107",
+      "suggestion": "分页 + 默认只展开首条，其余收起",
+      "everything": "",
+      "effort": "medium"
+    },
+    {
+      "id": "C5",
+      "heuristic": "aesthetic",
+      "severity": "minor",
+      "description": "createBox 里 append 了空 h3",
+            "evidence": "cap-memory/src/webui/client.ts:130",
+      "suggestion": "换成 ui.section('塞一条记忆给她', ...)",
+      "effort": "quick-win"
+    },
+    {
+      "id": "C10",
+      "heuristic": "consistency",
+      "severity": "minor",
+      "description": "鲜活度裸数字输入，鱼缸面板同类值用滑块——同类控件两种形态",
+      "evidence": "cap-memory/src/webui/client.ts:62",
+      "suggestion": "统一用 sliderField",
+      "effort": "quick-win"
+    },
+    {
+      "id": "D1",
+      "heuristic": "aesthetic",
+      "severity": "major",
+      "description": "日记/判断卡/意见箱三个区块的 h3 全是空的 → 页面没有分区标题，靠控件形状猜",
+      "evidence": "cap-journal/src/webui/client.ts:39,82,108,114,140；线上实测 h3[1..3] innerText 为空",
+      "suggestion": "改用 ui.section(标题, 说明)（宿主有现成组件，vision 面板用法正确）",
+      "effort": "quick-win"
+    },
+    {
+      "id": "D2",
+      "heuristic": "performance",
+      "severity": "major",
+      "description": "51 条反馈全量渲染，无分页无折叠无筛选",
+      "evidence": "cap-journal/src/webui/client.ts:119-136；线上实测 133 个按钮（109 个<44px）、约 57 对「写批复/转屏蔽词」",
+      "suggestion": "未解决置顶 + 分页 + 按严重度筛选 + 一键「批量解决已自对治的」",
+      "effort": "medium"
+    },
+    {
+      "id": "D3",
+      "heuristic": "visibility",
+      "severity": "major",
+      "description": "公开本/私人本 segmented 无 onSelect 回调 → 切换后不刷新且无任何反馈",
+      "evidence": "cap-journal/src/webui/client.ts:29-35",
+      "evidence": "cap-journal/src/webui/client.ts:29-35",
+      "suggestion": "onSelect 里调 loadDiary",
+      "effort": "quick-win"
+    },
+    {
+      "id": "D4",
+      "heuristic": "user-control",
+      "severity": "major",
+      "description": "显示「（还有更多，往前翻）」而没有翻页控件",
+      "evidence": "cap-journal/src/webui/client.ts:50 hasMore 文案；全文件无分页参数",
+      "suggestion": "「上一页/下一页」按钮（后端 getDiary 已支持按日期，传上一日期即可）",
+      "effort": "quick-win"
+    },
+    {
+      "id": "D5",
+      "heuristic": "aesthetic",
+      "severity": "major",
+      "description": "日记只读 view 与同内容 textarea 并排，分不清哪份是权威",
+      "evidence": "cap-journal/src/webui/client.ts:53-72",
+      "suggestion": "默认只读 + 「编辑」按钮切换；或去掉只读视图",
+      "effort": "quick-win"
+    },
+    {
+      "id": "D6",
+      "heuristic": "error-prevention",
+      "severity": "major",
+      "description": "「保存并提交（按当前内容覆盖）」零确认零 diff——覆盖她自己写的日记",
+      "evidence": "cap-journal/src/webui/client.ts:62-70",
+      "suggestion": "保存前显示 diff 预览 + 确认；保留原文到 git（已有版本历史可兜底，UI 上要提示可回滚）",
+      "effort": "medium"
+    },
+    {
+      "id": "D7",
+      
+      "heuristic": "user-control",
+      "severity": "major",
+      "description": "编辑中切换本/日期/重载 → 未保存编辑静默丢失",
+      "evidence": "cap-journal/src/webui/client.ts:41-73",
+      "suggestion": "dirty 检测 + 切换前提示保存",
+      "effort": "medium"
+    },
+    {
+      "id": "D9",
+      "heuristic": "user-control",
+      "severity": "major",
+      "description": "「写批复并解决」硬编码 resolve:true → 无法只批复不解决",
+      "evidence": "cap-journal/src/webui/client.ts:123-127",
+      "suggestion": "拆两个按钮：仅批复 / 批复并解决",
+      "effort": "quick-win"
+    },
+    {
+      "id": "D10",
+      "heuristic": "flexibility",
+      "severity": "major",
+      "description": "「转成屏蔽词」硬编码 kind:'dislike'，且 ruleInput 为空也照发",
+      "evidence": "cap-bilibili/src/webui/client.ts:128-132",
+      "suggestion": "规则类型下拉（dislike/like/keyword/exemptUp）+ 空值校验；或按意见内容建议类型",
+      "effort": "quick-win"
+    },
+    {
+      "id": "D11",
+      "heuristic": "real-world-match",
+      "severity": "minor",
+      "description": "判断卡 status 原样显示英文（proposed/adopted/rejected）",
+      "evidence": "cap-journal/src/webui/client.ts:102",
+      "suggestion": "显示 待采纳/已采纳/已驳回",
+      "effort": "quick-win"
+    },
+    {
+      "id": "D12",
+      "heuristic": "flexibility",
+      "severity": "minor",
+      "description": "判断卡计数不可点击筛选",
+            "evidence": "cap-journal/src/webui/client.ts:85-86",
+      
+      "suggestion": "三个计数做成筛选 tab",
+      "effort": "quick-win"
+    },
+    {
+      "id": "D14",
+      "heuristic": "real-world-match",
+      "severity": "minor",
+      "description": "按钮文案「保存并提交」——「提交」是 git 行话",
+      "evidence": "cap-journal/src/webui/client.ts:62",
+      "suggestion": "改成「保存这一页」",
+      "effort": "quick-win"
+    },
+    {
+      "id": "E1",
+      "heuristic": "flexibility",
+      "severity": "major",
+      "description": "unreadOnly 硬编码 false：头部显示「未读 N 条」却没有「只看未读」开关",
+      "evidence": "cap-bilibili/src/webui/client.ts:40",
+      "suggestion": "加「只看未读」checkbox",
+      "effort": "quick-win"
+    },
+    {
+      "id": "E2",
+      "he管理": "",
+      "heuristic": "user-control",
+      "severity": "major",
+      "description": "显示「已拉黑 N 个号」但没有查看/解除拉黑的入口",
+      "evidence": "cap-bilibili/src/webui/client.ts:45；unblockUser 后端方法存在但面板零调用（全文件无 unblockUser）",
+      "sbra": "",
+      "suggestion": "「已拉黑」计数可点开管理列表，每条带「解除拉黑」（需确认）",
+      "effort": "quick-win"
+    },
+    {
+      "id": "E3",
+      "heuristic": "error-prevention",
+      "severity": "major",
+      "description": "「🚫 拉黑此人」零确认（对外平台动作，影响他人账号）",
+      
+      "evidence": "cap-bilibili/src/webui/client.ts:65-69",
+      "suggestion": "确认弹层 + 说明后果（她以后看不到这个人的一切互动）",
+      "effort": "quick-win"
+    },
+    {
+      "id": "E4",
+      "heuristic": "user-control",
+      "severity": "major",
+      "description": "任一条的操作触发全量 refresh → 其他条目正在输入的「叮嘱」被清空",
+      "evidence": "cap-bilibili hint 输入 + after: refresh",
+      "suggestion": "同 C2，改局部更新或 dirty 检测",
+      "effort": "major-rework"
+    },
+    {
+      "id": "E5",
+      
+      "heuristic": "recognition",
+      
+      "severity": "major",
+      "description": "无按人聚合：同一个人回过几次、她回过几次、关系如何——关系推进没有数据面",
+      
+      "evidence": "cap-bilibili/src/webui/inbox 平铺列表",
+      "suggestion": "按 who 分组视图或点人看互动历史",
+      "effort": "major-rework"
+    },
+    {
+      "id": "E6",
+      "heuristic": "visibility",
+      "severity": "minor",
+      "description": "无「这条躺了多久没人管」",
+      "evidence": "inbox item 显示时间但无相对时长与未处理排序",
+      "suggestion": "显示「躺了 N 小时」并按未处理时长排序",
+      "effort": "quick-win"
+    },
+    {
+      
+      "id": "E8",
+      "heuristic": "aesthetic",
+      "severity": "minor",
+      "description": "无分页、无空态（ui.placeholder 从未使用）",
+      "evidence": "inbox list 无 empty state",
+      
+      "suggestion": "空态用 ui.placeholder('收件箱安静——她这会儿没人找')",
+      "effort": "quick-win"
+    },
+    {
+      "id": "F3",
+      "heuristic": "error-prevention",
+      "severity": "major",
+      "description": "拒稿用 window.prompt；取消 prompt 得到空理由但仍然执行拒稿",
+      "evidence": "cap-bilibili/src/webui/client.ts:130 window.prompt(...) ?? ''",
+      "suggestion": "面板内 inline 理由输入 + 取消即不动；理由模板（空泛/过时效/出戏/重复）",
+      "effort": "quick-win"
+    },
+    {
+      "id": "F4",
+      "heuristic": "visibility",
+      "severity": "major",
+      "description": "无令牌过期提示：实测 dyn-20261102-cd6d2a 因过期发不出去，页面上看不出来，点放行只会失败",
+      "evidence": "drafts item desc 只有 id/时间/哈希；BACKLOG 实测过期稿烂在队列",
+      "suggestion": "按 createdAt 计算「已等待 N 小时」，超过阈值标黄「令牌可能已过期，建议先保存修改续签」",
+      "effort": "quick-win"
+    },
+    {
+      "id": "F5",
+      "heuristic": "recognition",
+      "severity": "major",
+      "description": "不显示草稿来源（她自己想的 / 主人点单的）",
+      
+      "evidence": "drafts item desc 无 source 字段展示",
+      "suggestion": "显示来源 pill（她的想法/你的点单/验收注入——验收稿应隔离展示）",
+      
+      
+      "effort": "quick-win"
+    },
+    {
+      "id": "F7",
+      "heuristic": "real-world-match",
+      "severity": "major",
+      "description": "点单输入框承诺「BV 号（可选）+ 你要她写什么」，但代码不解析 BV，整串塞进 prompt；kind 硬编码 'dynamic'",
+      "evidence": "cap-bilibili/src/webui/client.ts:94-99",
+      "suggestion": "BV 正则解析出参也展示；后续可加「让她现在去看这条」",
+      "effort": "quick-win"
+    },
+    {
+      "id": "F6",
+      "heuristic": "real-world-match",
+      "severity": "minor",
+      "description": "显示「哈希 a1b2c3d4」对主人无意义",
+      "evidence": "cap-bilibili/src/webui/client.ts:114",
+      "suggestion": "删掉或折叠进「高级」",
+      "effort": "quick-win"
+    },
+    {
+      "id": "F8",
+      "heuristic": "error-prevention",
+      "severity": "minor",
+      "description": "无字数计数与上限提示（B站动态有长度限制）",
+      "evidence": "drafts edit textarea 无 counter",
+      "suggestion": "字数计数 + 超限变色",
+      
+      "effort": "quick-win"
+    },
+    {
+      "id": "F9",
+      "images-note": "",
+      "images": "",
+      "heuristic": "flexibility",
+      "severity": "minor",
+      "description": "目标架构承诺「换配图」，无此控件",
+      "evidence": "ARCHITECTURE-TARGET §3.4 vs drafts-queue 源码",
+      "suggestion": "media-studio 出图 → 直接挂到草稿（跨包能力复用）",
+      "effort": "medium"
+    },
+    {
+      "id": "F10",
+      "heuristic": "visibility",
+      "severity": "minor",
+      "description": "无台账：今天发了什么/被拒了什么/谁放的行，要翻因果账",
+      "evidence": "drafts-queue 无 history 视图",
+      
+      "suggestion": "「今天的发布台账」区块（读 causal.jsonl 按 kind 过滤）",
+      
+      "effort": "medium"
+    },
+    {
+      "id": "G1",
+      "heuristic": "user-control",
+      "severity": "major",
+      "description": "点「×」立即删词，零确认零撤销",
+      "evidence": "cap-bilibili/src/webui/client.ts:186-194",
+      "suggestion": "删除后显示「已删 X · 撤销」5 秒 toast",
+      "effort": "quick-win"
+      
+    },
+    {
+      "id": "G2",
+      "heuristic": "visibility",
+      "severity": "major",
+      "description": "无规则命中统计：规则有没有生效看不出来（她连报三次「词表未生效」而主人查不出来，正是这个缺口）",
+      "evidence": "preferences 面板无 stats；feed-quality.dislikeHit 计数只在 CLI 日志",
+      "suggestion": "每条规则旁显示「近7天拦下 N 条」",
+      
+      "effort": "medium"
+    },
+    {
+      "id": "G3",
+      "heuristic": "recognition",
+      "severity": "minor",
+      "description": "不区分词的来源（主人加的 / 她从日记学来的）",
+      "evidence": "mkList 不显示来源",
+      "suggestion": "来源 chip（主人/她/验收）+ 可一键移除她学来的词",
+      
+      "effort": "medium"
+    },
+    {
+      "id": "G4",
+      "heuristic": "error-recovery",
+      "severity": "minor",
+      "description": "「已经在里面了」写进 msg 但不加 bad、随即被 refresh 擦掉",
+      "evidence": "cap-bilibili/src/webui/client.ts:170-172",
+      
+      "evidence": "cap-bilibili/src/webui/client.ts:170-172",
+      "suggestion": "用 pill 内联提示",
+      "effort": "quick-win"
+    },
+    {
+      "id": "G5",
+      "heuristic": "flexibility",
+      "severity": "minor",
+      "description": "like/dislike/keywords/exemptUps 四列表无搜索无批量",
+      "evidence": "mkList 每次全量渲染 chips",
+      "suggestion": "词多后需要搜索与批量导入（粘贴整段自动切分）",
+      "effort": "medium"
+    },
+    {
+      "id": "H1",
+      "heuristic": "consistency",
+      "severity": "major",
+      "description": "6 个档位各自一个「保存」按钮，无 dirty 标记、无全部保存 → 改 3 个只存 1 个",
+      "evidence": "cap-bilibili/src/webui/client.ts:299-317",
+      "suggestion": "表单级保存 + dirty 高亮 + 未保存离开提示",
+      "effort": "medium"
+    },
+    {
+      "id": "H3",
+      "heuristic": "traffic-state.json 里有 reason/riskEndpoint 但面板不显示",
+      "severity": "major",
+      "description": "412 烟雾不显示原因与风险接口",
+      
+      "evidence": "cap-bilibili/src/webui/client.ts:285 只显示剩余分钟；traffic-state.json 有 reason/riskEndpoint",
+"description": "412 熔断不显示原因与风险接口",
+      "suggestion": "显示 reason/riskEndpoint + 「被暂停期间她发了 0 条」说明",
+      "effort": "quick-win"
+    },
+    {
+      "id": "H4",
+      "heuristic": "real-world-match",
+      "severity": "major",
+      "description": "desc 说「8 个发送档位」，POLICY_FIELDS 只有 6 个；autoDailyCap / autoWindow 缺失（目标架构 §3.4 明列 8 项）",
+      "evidence": "cap-bilibili/src/webui/client.ts:229-236 vs ARCHITECTURE-TARGET-2026-11-03.md §3.4",
+
+      "suggestion": "补 autoDailyCap（数字输入）与 autoWindow（时间窗输入）两行",
+      "effort": "quick-win"
+    },
+    {
+      "id": "H5",
+      "heuristic": "visibility",
+      "severity": "major",
+      "description": "无读配额：readHourly/readDaily 全仓零命中，她看片的节流阀没有余量显示",
+      "evidence": "traffic-state.json 只有 writeGapSec/pausedUntil/lastWriteAt/seenFingerprints",
+      "suggestion": "traffic 层加读计数，面板显示读余量（旧插件有这个功能，迁移时丢了）",
+      " quota-note": "",
+      "effort": "medium"
+    },
+    {
+      "id": "H6",
+      "heuristic": "visibility",
+      "severity": "major",
+      "description": "无花费/预算：cost 全 0（无价格表），且未标注「未计价」",
+      "evidence": "usage.jsonl cost=0；/api/usage 实测",
+      "suggestion": "补 MiMo 价格表 + 未计价明示 + 日花费上限 fail-closed",
+      "effort": "medium"
+    },
+    {
+      "id": "H7",
+      "heuristic": "visibility",
+      "severity": "minor",
+      "description": "无模型通道状态（现在走哪条、备用通不通）",
+      "evidence": "cortico-health 有但面板无",
+      "suggestion": "gate-policy 或鱼缸面板加一行通道状态",
+      "effort": "quick-win"
+    },
+    {
+      "id": "H9",
+      "heuristic": "visibility",
+      "severity": "minor",
+      "description": "412 倒计时用渲染时的 Date.now()，不实时刷新",
+      "evidence": "client.ts:285",
+      "suggestion": "interval 每分钟刷一次读数",
+      "effort": "quick-win"
+    },
+    {
+      "id": "H10",
+      "heuristic": "help-docs",
+      "severity": "minor",
+      "description": "配额输入无上限说明（超了会怎样）",
+      "evidence": "quota inputs 无 hint",
+      "suggestion": "每项配 ui.field 说明或 title",
+      "effort": "quick-win"
+    },
+    {
+      "id": "H11",
+      "heuristic": "visibility",
+      "severity": "minor",
+      "description": "无策略变更历史（谁在何时把 comment 从 review 改成 self）",
+      "e配置变更进因果账": "",
+      "evidence": "gate set 无审计显示",
+      "suggestion": "策略变更写因果账 + 面板显示最近 10 条",
+      "effort": "medium"
+    },
+    {
+      "id": "H8",
+      "heuristic": "user-control",
+      "severity": "minor",
+      "description": "解除急刹（恢复对外写）无确认",
+      "evidence": "client.ts:261-273 killBtn onClick 直接 invoke",
+      "suggestion": "恢复写操作也值得一次确认（急刹是唯一保险）",
+      
+      "effort": "quick-win"
+    },
+    {
+      "id": "I1",
+      "heuristic": "performance",
+      "severity": "major",
+      "description": "12 张缩略图并发 invoke 取 base64，每次 refresh 全部重取，无缓存",
+      "evidence": "cap-vision/src/webui/client.ts:107-131",
+      "suggestion": "Map 缓存 file→blobUrl，面板生命周期内不重取；refresh 只补增量",
+      
+      "description": "12 张缩略图并发 invoke 取 base64，每次 refresh 全部重取，无缓存",
+      "effort": "medium"
+    },
+    {
+      "id": "I2",
+      "heuristic": "recognition",
+      "severity": "minor",
+ "description": "运行记录行不链到它产出的拼图，无重跑",
+      "evidence": "vision runs 表",
+           "suggestion": "行尾加「看拼图」（滚动到对应图）与「重跑这条」",
+      "effort": "medium"
+    },
+    {
+      "id": "I4",
+      "heuristic": "visibility",
+      "severity": "minor",
+      "description": "无「这一看抽了几帧丢了几帧」汇总（stats 里有，前端不显示）",
+      "evidence": "cap-vision runs 数据含 kept/dropped",
+      "suggestion": "runs 表加「丢 N 帧」列",
+      "effort": "quick-win"
+    },
+    {
+      "id": "J2",
+      "heuristic": "performance",
+      "severity": "major",
+      "description": "previewTts 被调用两次（actionButton 一次 + after 里一次）→ 双倍生成、双倍耗时、双倍花钱",
+      "evidence": "cap-media-studio/src/webui/client.ts:56-67",
+      "suggestion": "actionButton 把 invoke 结果传给 after（签名加 result 参数），删掉第二次调用",
+      "effort": "quick-win"
+    },
+    {
+      
+      "id": "J3",
+      "heuristic": "recognition",
+      "severity": "major",
+      "description": "底图选择只有文件名下拉，看不到图——选底图靠猜",
+      
+      "evidence": "cap-media-studio/src/webui/client.ts:41-44",
+      "suggestion": "缩略图网格选择（vision 已证明 dataURL/blob 模式可行）",
+      "effort": "medium"
+    },
+    {
+      "id": "J4",
+      "heuristic": "recognition",
+      "severity": "major",
+      "description": "BGM 只有文件名：无试听、无 mood 标签（catalog.json 有 mood 字段）",
+      "evidence": "cap-media-studio/src/webui/client.ts:45-52",
+      "suggestion": "每首加 ▶ 试听 + 显示 mood 标签；「按情绪选 BGM」是 ROADMAP 已埋的字段",
+      
+      "effort": "medium"
+    },
+    {
+      "id": "J5",
+      "heuristic": "visibility",
+      "severity": "major",
+      "description": "合成视频无进度反馈（耗时操作零反馈）",
+      
+      "evidence": "cap-media-studio buildVideoDraft 无进度",
+      "suggestion": "按钮 busy 态 + 阶段文案（抽帧/配音/合成/入库）",
+      "effort": "medium"
+    },
+    {
+      "id": "J6",
+      "heuristic": "flexibility",
+      "severity": "minor",
+      "description": "无音色/语速/音量选择",
+      "v": "",
+      "evidence": "previewTts/buildVideoDraft 参数只有 text",
+      
+      "suggestion": "音色下拉（茉莉/其他可用音色）+ 语速滑块",
+      "effort": "medium"
+    },
+    {
+      "id": "J7",
+      "heuristic": "error-prevention",
+      "severity": "minor",
+      "description": "台词 placeholder 说「最多 5 行」但无计数无强制",
+      "evidence": "cap-media-studio/src/webui/client.ts:53",
+      "suggestion": "行数计数 + 超限变色",
+      "effort": "quick-win"
+    },
+    {
+      "id": "J8",
+      "heuristic": "visibility",
+      "severity": "minor",
+      "description": "历史作品一行文字：无预览、无删除、无「再送队列」",
+      "evidence": "cap-media-studio drafts 列表",
+      "suggestion": "缩略图 + 「送进待放行」按钮（接 WriteGate）",
+      "effort": "medium"
+    },
+    {
+      "id": "J9",
+      "heuristic": "aesthetic",
+      "severity": "minor",
+      "description": "drafts 区又一个空 h3（无标题）",
+      "evidence": "cap-media-studio/src/webui/client.ts:91",
+      "suggestion": "ui.section('最近的成片', ...)",
+      "effort": "quick-win"
+    },
+    {
+      "id": "J10",
+      "heuristic": "visibility",
+      "severity": "minor",
+      "description": "她缺凭据时无处补",
+      "evidence": "stats 显示 TTS 缺凭据，无入口修复",
+      "suggestion": "凭据缺失时显示指引（K6 自举）",
+      "effort": "medium"
+    },
+    {
+      "id": "B1",
+      "heuristic": "aesthetic",
+      "severity": "major",
+      "description": "「强度」显示 0.9606346078812088 原始浮点",
+      "evidence": "cap-state-rhythm/src/webui/client.ts:46",
+      "suggestion": "显示 96% 或 0.96；场值滑块数字框同步格式化",
+      "effort": "quick-win"
+    },
+    {
+      "id": "B2",
+      "heuristic": "real-world-match",
+      "severity": "major",
+      "description": "「模式」显示 auto/force_sleep 英文枚举",
+      "evidence": "cap-state-rhythm/src/webui/client.ts:48",
+      "suggestion": "显示 自然节律/强制休息/保持清醒",
+      "effort": "quick-win"
+    },
+    {
+      "id": "B3",
+      "heuristic": "error-prevention",
+
+      "severity": "major",
+      "description": "force_awake 无到期时间——切了就永久清醒，忘了切回来她再不睡",
+      "evidence": "cap-state-rhythm/src/index.ts setMode 无 expiry 参数",
+      "evidence": "cap-state-rhythm/src/index.ts setMode",
+      "suggestion": "「保持清醒到几点」输入框（到点自动回 auto）",
+      "effort": "quick-win"
+    },
+    {
+      "id": "B4",
+      "heuristic": "visibility",
+      "severity": "major",
+      "description": "戳醒她无回执：不知道她这一轮做了什么",
+      "evidence": "wakeNow 返回后无行动摘要展示",
+      "suggestion": "wakeNow 返回本拍行为摘要（做了什么/没做什么、理由）展示出来",
+      "effort": "medium"
+    },
+    {
+      "id": "B5",
+      "heuristic": "error-prevention",
+      "severity": "major",
+      "description": "调场值无理由字段：改动写因果账但理由固定「主人在面板手动调节场值」",
+      "setFields-note": "",
+      "evidence": "cap-state-rhythm getSnapshot/setFields",
+      "suggestion": "加可选理由输入（你调她场值就是在改她性格，理由会进她的记忆）",
+      
+      "effort": "quick-win"
+    },
+    {
+      "id": "B7",
+      "heuristic": "visibility",
+      "severity": "major",
+      "description": "心跳间隔 tick.intervalMinutes 是最核心的旋钮，面板上没有，只能改 config.json 重启",
+      "evidence": "/api/webui/manifest 实测 persona:xiaoyu configGroups=[]",
+      "suggestion": "configGroups 声明（宿主支持 schema 驱动配置页签，改完热生效）",
+      "effort": "medium"
+    },
+    {
+      "id": "B8",
+      "heuristic": "visibility",
+      "severity": "major",
+      "description": "事件流 recentChain 后端返回 20 条（index.ts:320），前端零引用——她的生活轨迹看不见",
+      "evidence": "cap-state-rhythm/src/webui/client.ts 无 recentChain",
+      "suggestion": "鱼缸面板加「最近发生」时间线区块",
+      "recentChain-note": "",
+      "effort": "quick-win"
+    },
+    {
+      "id": "B9",
+      "he入读数": "",
+      "heuristic": "visibility",
+      "severity": "minor",
+      "description": "今日已做几件/下一拍几点不作为读数",
+      "evidence": "lifeTick 返回值有，statgrid 没显示",
+      "suggestion": "statgrid 加「今天做了 N 件」「下一拍 N 分钟后」",
+      "effort": "quick-win"
+    },
+    {
+      "id": "B10",
+      "heuristic": "visibility",
+      "severity": "minor",
+      "description": "emotionHistory 有历史数据，无趋势曲线",
+      "evidence": "state-store 存了 emotionHistory，前端未用",
+      "suggestion": "简易 sparkline（宿主 usage 页有现成图表模式可抄）",
+      "effort": "medium"
+    },
+    {
+      "id": "B11",
+      "heuristic": "consistency",
+      "severity": "minor",
+      "description": "保存场值无 diff 预览",
+      "evidence": "setFields 一次提交 6 个值",
+
+      "suggestion": "保存前列出改动项（旧值→新值）",
+      "effort": "medium"
+    },
+    {
+      "id": "B12",
+      "heuristic": "real-world-match",
+      "severity": "minor",
+      "description": "睡眠时段无「周末不同」，她本人不能提议（只有主人能定）",
+      "evidence": "setSleepWindow 参数只有 start/end/off",
+      "suggestion": "二期：她的提议走意见箱（f-2ee76e 同款「她提案、你拍板」模式）",
+      "effort": "medium"
+    },
+    {
+      "id": "B6",
+      "heuristic": "flexibility",
+      "severity": "minor",
+      "description": "无场值预设（一键兴奋/歇着/复原）、无锁定单项",
+      "evidence": "6 滑块只有手调",
+      "suggestion": "三个预设按钮 + 每项锁定 checkbox",
+      "effort": "quick-win"
+    },
+    {
+      "id": "K1",
+      "heuristic": "visibility",
+      "severity": "major",
+      "description": "她的页面没有「配置」页签（configGroups=[]）→ 上下文预算/心跳间隔/作息只能改 config.json 重启",
+      "evidence": "/api/webui/manifest 实测 persona:xiaoyu configGroups=[]；宿主 cormini 有 4 组",
+      "suggestion": "声明 configGroups（形状照 cormini，owner:'persona'）",
+      "effort": "medium"
+    },
+    {
+      "id": "K2",
+      "heuristic": "real-world-match",
+      "severity": "major",
+      "description": "「系统提示词」页是框架提示词；她的人设正本（prompts/CONSTITUTION.md、ORIENTATION.md）无编辑入口，drift 门禁只校验一致性",
+      "evidence": "宿主 prompts 页面向框架层；人设文件在部署 prompts/ 目录",
+      "suggestion": "人设编辑入口（改完走 drift 门禁校验 + git 版本化）",
+      "effort": "medium"
+    },
+    {
+      "id": "K3",
+      "heuristic": "visibility",
+      "severity": "major",
+      "description": "「用量与成本」cost 全 0 且未标注「未计价」——看起来像免费",
+      "evidence": "/api/usage 实测 cost=0，token 有",
+      "suggestion": "补价格表或明示「该模型未计价，成本未知」",
+      "effort": "quick-win"
+    },
+    {
+      "id": "K4",
+      "heuristic": "user-control",
+      "severity": "major",
+      "description": "无数据清理入口（persona 未声明 storage）——要清只能删文件",
+      "evidence": "webui-protocol storageParts 未声明",
+      "suggestion": "分级清理：单条撤销/按层归档/全量重置（留墓碑）",
+      
+      "effort": "major-rework"
+    },
+    {
+      "id": "K5",
+      "heuristic": "consistency",
+      "severity": "minor",
+      "description": "config.json web.port=7798 与实际 7799 不一致；worlds.bili-account.enabled 空转",
+      "evidence": "部署 config.json 实测",
+      "suggestion": "配置治理（谁生成谁负责，启动时校验告警）",
+      "effort": "quick-win"
+    },
+    {
+      "id": "K6",
+      "heuristic": "help-docs",
+      "severity": "major",
+      "description": "自举入口全缺：**绑定/更换 B站账号（cookie）在界面上没有任何入口**——旧插件 /api/cookie 有，新架构丢了；登录态体检、通知测试同缺",
+      "evidence": "全仓 grep cookie 面板零命中；/api/cookie 仅存在于旧 core/api/routes.js",
+      "suggestion": "「连接」区块：粘贴 cookie → whois 校验 → 落盘 → 显示登录身份与到期体检；通知测试按钮",
+      "effort": "medium"
+    },
+    {
+      "id": "K7",
+      "heuristic": "visibility",
+      "severity": "major",
+      "severity": "major",
+      "description": "控制台对话被心跳自我对话淹没：111 条心跳 vs 9 条真消息（92.5% 噪声），66 次模型调用花在回「待着，不动」",
+      "evidence": "session-main.jsonl 实测；cortico-persona.ts:125 无条件 injectDeferred",
+      "suggestion": "shouldAct=false 不注入 + 退避只认非 tick 活动 + 状态块去重（这是 P0 工程修复，也在体验上还你一个干净的对话）",
+      "effort": "medium"
+    },
+    {
+      "id": "K8",
+      "heuristic": "consistency",
+      "severity": "major",
+      "description": "同一请求里她的体力有两个值（SYSTEM 段 38 / 注入块 88）",
+      "evidence": "控制台实测同屏两个值",
+      "suggestion": "状态块统一从一个源渲染 + 去重",
+      "effort": "medium"
+    },
+    {
+      "id": "L1",
+      "heuristic": "help-docs",
+      "severity": "major",
+      "description": "除 vision 外，参数无人话说明：gate-policy 档位含义、preferences 阈值后果、memory 鲜活度含义都没解释",
+      "evidence": "vision 用了 ui.section(title, desc) 与 hint 文案（正面样板）；其他面板没学",
+      "suggestion": "照 vision 的写法补说明；档位下拉每项带一句话后果",
+      "effort": "medium"
+    },
+    {
+      "id": "L2",
+      "heuristic": "help-docs",
+      "severity": "minor",
+      "description": "无首次使用引导（换机器/重装时 cookie、ffmpeg、凭据怎么配没有引导流）",
+      "evidence": "K6 自举缺失的另一面",
+      "suggestion": "三步引导（连账号→体检→通知测试），做完打勾",
+      "effort": "medium"
+    },
+    {
+      "id": "L3",
+      "heuristic": "help-docs",
+      "severity": "minor",
+      "description": "docs/ 有 56 个文档且 INDEX.md 存在，但面板上没有入口指向它",
+      "evidence": "docs/INDEX.md 存在，UI 无链接",
+      "suggestion": "面板页脚放「文档」链接",
+      
+      "effort": "quick-win"
+    },
+    {
+      "id": "M1",
+      "heuristic": "responsive",
+      "severity": "major",
+      "description": "触摸目标不达标：实测 490px 视口下 133 个按钮中 109 个 <44px（82%）",
+      "evidence": "Chrome resize 490px 实测 getBoundingClientRect",
+      "suggestion": "按钮加 min-height 44px（mobile 断点）",
+      "effort": "medium"
+    },
+    {
+      "id": "M2",
+      "heuristic": "responsive",
+      "severity": "minor",
+  "description": "移动端无密度模式（133 按钮一页在手机上不可操作）",
+      "evidence": "journal-board 实测",
+      "suggestion": "窄屏默认折叠列表项（只显示标题行）",
+      "effort": "medium"
+    },
+    {
+      "id": "A1",
+      "heuristic": "visibility",
+      "severity": "major",
+      "description": "长操作无进度提示：合成视频/放行发布期间按钮无 busy 态无阶段文案",
+      "evidence": "webui-helpers.ts actionButton 无 busy 机制",
+      "suggestion": "actionButton 支持 busy 文案与阶段回调",
+      "effort": "medium"
+    },
+    {
+      "id": "A3",
+      "heuristic": "user-control",
+      "severity": "major",
+      "description": "全站无撤销通道（除记忆作废→恢复）；改场值/删偏好词/覆盖日记/放行都不可逆",
+      "evidence": "webui-helpers 无 undo 模式",
+      "suggestion": "分级：危险操作确认；可逆操作给 5 秒撤销 toast；记忆类走作废语义",
+      "effort": "major-rework"
+    },
+    {
+      "id": "A4",
+      "heuristic": "consistency",
+      "severity": "major",
+      "description": "确认模式三套并存：vision checkbox、unblock confirm 参数、其余零确认",
+      "evidence": "各面板手写确认",
+      "suggestion": "webui-helpers 出统一 confirmPattern(label, onConfirm)",
+      "effort": "medium"
+    },
+    {
+      "id": "A5",
+      "heuristic": "error-recovery",
+      "severity": "major",
+      "description": "单面板单 msgline：journal 面板 mount 同时跑 3 个 loader，谁后完成谁赢，错误被成功擦掉",
+      "evidence": "cap-journal/src/webui/client.ts:142-144",
+      "suggestion": "每区块自己的 msgline 或 toast 队列",
+      "effort": "quick-win"
+    },
+    {
+      "id": "A6",
+      "heuristic": "error-recovery",
+      "heuristic": "error-recovery",
+      "severity": "minor",
+      "description": "错误文案直接吐 e.message（历史出现过 ReferenceError: home is not defined 直接给主人看）",
+      "evidence": "call()/actionButton 直接 String(e.message)",
+      "suggestion": "已知错误码映射人话 + 兜底「出错了：技术详情」折叠",
+      
+      "effort": "medium"
+    },
+    {
+      "id": "A7",
+      "heuristic": "error-recovery",
+      "severity": "minor",
+      "description": "preferences 的 .catch 只写 msg 不加 bad class → 错误看起来像正常提示",
+      "evidence": "cap-bilibili/src/webui/client.ts:176-178",
+      "suggestion": "统一走 call/actionButton",
+      "effort": "quick-win"
+    },
+    {
+      "id": "E7",
+      "heuristic": "aesthetic",
+      "severity": "minor",
+      "description": "sheet 套 sheet 层级过深（收件箱每条一个 sheet）",
+      "evidence": "cap-bilibili inbox refresh 循环",
+      "suggestion": "列表项用轻量行卡 + 展开详情",
+      "effort": "medium"
+    },
+    {
+      "id": "D8",
+      "heuristic": "error-prevention",
+      "severity": "minor",
+      "description": "日期自由文本无校验，宿主支持 type:'date' 未用",
+      "evidence": "cap-journal dateInput",
+      "suggestion": "ui.input({type:'date'})",
+      "effort": "quick-win"
+    },
+    {
+      "id": "D13",
+      "heuristic": "recognition",
+      "severity": "minor",
+      "description": "判断卡不链回它判的那条视频",
+      "evidence": "judgments 表无 BV 链接列",
+      "suggestion": "tokens 旁显示 BV 链接",
+      "effort": "quick-win"
+    },
+    {
+      "id": "G4",
+      "heuristic": "error-recovery",
+      "severity": "minor",
+      "description": "duplicate of G4 above (维护噪音)",
+      "evidence": "维护噪音",
+      "suggestion": "删此条",
+      "effort": "quick-win"
+    },
+    {
+      "id": "E6-dup",
+      "heuristic": "visibility",
+      "age-note": "",
+      "severity": "minor",
+      "description": "duplicate placeholder",
+      "evidence": "",
+      "suggestion": "删此条",
+      "effort": "quick-win"
+    }
+  ],
+  "opportunities": [
+    {
+      "title": "危险操作防护规范（确认/撤销/防重）",
+      "addresses_findings": ["A2", "A3", "A4", "F1", "F2", "H2", "E3", "D6", "C4", "G1", "H8"],
+      "priority": "high",
+      "rationale": "11 条 finding 集中在 error-prevention/user-control，其中 3 条 blocker：放行发布零确认、编辑静默丢弃后对外发布、解除风控暂停零确认。HITL 审批门的通行做法（该门什么/审阅者看到什么/超时与拒绝理由）在我们自己的 WriteGate 已有，**UI 层没有跟上**。webui-helpers 出一套统一模式即可全部解决。"
+    },
+    {
+      "title": "编辑不丢：把「全量重建」换成「局部更新 + dirty 检测」",
+      "addresses_findings": ["C2", "C1", "D7", "E4", "C11"],
+      "priority": "high",
+      "rationale": "5 条 finding 同根：refresh() replaceChildren 全量重建。你在打字时任何一次刷新都会清掉未保存内容。这是数据丢失级缺陷，也是「主人不敢用面板」的根源之一。"
+    },
+    {
+      "title": "意见箱重做成「分诊工作台」",
+      "addresses_findings": ["D2", "D1", "D9", "D10", "D12", "D13", "G2"],
+      "priority": "high",
+      "rationale": "她自己提交的 51 条反馈（19 条 high）是现成的需求清单，但面板渲染成 133 个按钮没有分诊能力——**她提的意见你自己都处理不动**。f-2e24bd 她自己就要求「需要一个总览，让处理人知道优先级和依赖关系」。"
+    },
+    {
+      "title": "核心旋钮上页面（configGroups + 自举 + 账号绑定）",
+      "addresses_findings": ["B7", "K1", "K2", "K4", "K6", "H4", "H5", "H6", "L2", "L3"],
+      "priority": "high",
+      "reason": "",
+      "rationale": "主人原话「我如何绑定她的B站账号？如何解绑替换？」——界面上没有任何入口。心跳间隔、上下文预算、发送档位补全（autoDailyCap/autoWindow）、读配额、花费、cookie 绑定/体检/通知测试，全部走宿主 configGroups + 面板「连接」区块。"
+    },
+    {
+      "title": "可解释性：让每个数字能被读懂",
+      "addresses_findings": ["B1", "B2", "B8", "C9", "C13", "F5", "G2", "H3", "I4", "J3", "J4", "K3"],
+      "priority": "medium",
+      "rationale": "12 条 finding 同根：数据后端都有，前端要么不显示要么显示成原始浮点/英文枚举/哈希。召回四因子、规则命中数、412 原因、底图缩略图——全是现成数据的展示层工作。"
+    },
+    {
+      "title": "会话卫生：把你的消息从噪声里捞出来",
+      "addresses_findings": ["K7", "K8", "B4", "A1"],
+      "priority": "high",
+      "rationale": "111:9 的注入比 + 同屏两个体力值 + 戳醒无回执。这是 P0 工程修复（批次10），但在体验层同样成立：控制台对话页应该是你能直接对话的地方，不是她自言自语的日志。"
+    },
+    {
+      "title": "性能与密度（分页/防抖/缓存/触摸目标）",
+      "addresses_findings": ["C1", "C11", "D2", "I1", "J2", "M1", "M2"],
+      "priority": "medium",
+      "rationale": "7 条 finding：无防抖、无分页、无缓存、双倍 TTS、82% 按钮触摸不达标。单用户桌面工具不追求极致性能，但 133 按钮一页、每键一刷新是可用性问题不是优化问题。"
+    },
+    {
+      "title": "做完那些承诺了的半成品",
+      "addresses_findings": ["C6", "D4", "F7", "F9", "H4", "J8", "J10"],
+      "priority": "medium",
+      "rationale": "面板描述承诺了但没做完的：记忆回滚、日记翻页、点单解析BV、换配图、8档位补全、成片预览、凭据修复入口。半成品比没有更伤信任——描述在，控件不在。"
+    }
+  ]
+}
