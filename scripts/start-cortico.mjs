@@ -12,11 +12,17 @@ const HOME = process.env.USERPROFILE || process.env.HOME || '.'
 const CONTROL = path.join(HOME, '.dsh', 'bili-whale', 'control')
 const PID_FILE = path.join(CONTROL, 'cortico.pid')
 const LOG_FILE = path.join(CONTROL, 'cortico.log')
-// live 的代码树与部署树是分开的两份：代码在 Cortico-up（reanchor/replay 那条线），
-// 部署与数据仍用 Cortico/deployments（她的 memory/session/config 都在那）。
-// 两条必须成对，少一条就会起出一个"新代码配另一份数据"的实例；env 可覆盖回滚。
+// live 的代码树、部署树、bot 名是**三条成对**的线（2026-11-04 切换后校准）：
+//   代码 = Cortico-up（reanchor/replay 那条线，扩展 link-install 在这）
+//   部署 = ~/.xiaoyu-home（新家：她的 memory/session/config/workspace 都在这，deployment.json 里 bot=xiaoyu）
+//   bot  = xiaoyu（新架构人格：cortico-bot-xiaoyu + 四个能力包）
+// 少一条就会起出"新代码配旧数据"或"旧 bot 配新数据"的实例——今天 12:53 就误起过一次
+// CORTICO_HOME=Cortico/deployments + bot=mybot 的组合（那是**回滚点**，cormini 人格）。
+// 回滚点仍可用，只是必须三条一起指回去：
+//   CORTICO_HOME=E:/WorkSpace_Qoder/Cortico/deployments CORTICO_BOT=mybot node scripts/start-cortico.mjs
 const CORTICO = process.env.CORTICO_ROOT || 'E:/WorkSpace_Qoder/Cortico-up'
-const DEPLOY_ROOT = process.env.CORTICO_HOME || 'E:/WorkSpace_Qoder/Cortico/deployments'
+const DEPLOY_ROOT = process.env.CORTICO_HOME || path.join(HOME, '.xiaoyu-home')
+const BOT = process.env.CORTICO_BOT || 'xiaoyu'
 const PROXY = path.join(HOME, '.dsh', 'ofm-go-proxy', 'proxy.mjs')
 const NODE = process.platform === 'win32' ? 'C:/Program Files/nodejs/node.exe' : process.execPath
 
@@ -69,7 +75,7 @@ if (!proxyUp) {
 
 // Cortico
 const fd = fs.openSync(LOG_FILE, 'a')
-const child = spawn(NODE, [...CA_FLAGS, path.join(CORTICO, 'bin', 'cortico.mjs'), 'mybot', '--port=7799'], {
+const child = spawn(NODE, [...CA_FLAGS, path.join(CORTICO, 'bin', 'cortico.mjs'), BOT, '--port=7799'], {
   cwd: CORTICO, detached: true, stdio: ['ignore', fd, fd],
   // 传给子进程：扩展安装走 pnpm（另一个 node 进程），它也要读系统证书库
   env: { ...process.env, CORTICO_HOME: DEPLOY_ROOT, NODE_OPTIONS: [process.env.NODE_OPTIONS, ...CA_FLAGS].filter(Boolean).join(' ').trim() },

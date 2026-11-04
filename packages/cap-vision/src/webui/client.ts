@@ -80,18 +80,20 @@ export const visionPanel = {
       box.append(runsHead)
 
       // ── 拼图墙
-      const wall = ui.section('她留下的拼图', '每张图左上角有帧号，对应那条片子里的时间点。')
+      const all = res.sheets?.newest ?? []
+      const wall = ui.section('她留下的拼图', `共 ${all.length} 张，这里摆最近 12 张；每张左上角有帧号，对应那条片子里的时间点。点开是新标签看原图。`)
       const grid = ui.h('div')
       grid.style.display = 'grid'
       grid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(220px, 1fr))'
       grid.style.gap = '10px'
-      for (const s of (res.sheets?.newest ?? []).slice(0, 6)) {
-        const cell = ui.h('a')
-        cell.href = `/api/files?path=${encodeURIComponent(s.file)}`
-        cell.target = '_blank'
+      const newest = all.slice(0, 12)
+      for (const s of newest) {
+        // 宿主的图片出口只有 /api/blob?handle=（没有按任意路径取文件的路由，
+        // 2026-11-04 实测 ?path= 那种拼法一律 404 裂图），而把拼图塞进工作区
+        // 等于把二进制灌进她的记忆 git。所以缩略图由本包自己出：sheetThumb → data URL。
+        const cell = ui.h('div')
         cell.style.display = 'block'
         const img = ui.h('img')
-        img.src = `/api/files?path=${encodeURIComponent(s.file)}`
         img.style.width = '100%'
         img.style.borderRadius = '6px'
         img.alt = s.name
@@ -101,8 +103,33 @@ export const visionPanel = {
         cap.textContent = `${new Date(s.mtime).toLocaleString()} · ${(s.bytes / 1024).toFixed(0)} KB`
         cell.append(img, cap)
         grid.append(cell)
+        // 懒取：取不到就把文件名留着，不摆裂图；取到了套一层链接，点开看原图
+        void ctx.invoke('sheetThumb', [{ file: s.file }])
+          .then((r: any) => {
+            if (!r?.dataUrl) {
+              img.remove()
+              cap.textContent = `${s.name}（缩略图出不了：${r?.error ?? '未知'}）`
+              return
+            }
+            img.src = r.dataUrl
+            // 大图的 href 不能用 data: URL——Chrome 直接拦 data: 的顶层导航
+            // （2026-11-04 实测：点三下不开标签，defaultPrevented 还是 false，
+            // 页面代码看不出问题）。换成同字节的 blob URL 就能开，面板卸载时回收。
+            const bin = atob(String(r.dataUrl).slice(String(r.dataUrl).indexOf(',') + 1))
+            const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0))
+            const blobUrl = URL.createObjectURL(new Blob([bytes], { type: 'image/png' }))
+            ctx.signal.addEventListener('abort', () => URL.revokeObjectURL(blobUrl), { once: true })
+            const a = ui.h('a')
+            a.href = blobUrl
+            a.target = '_blank'
+            a.rel = 'noopener'
+            a.title = s.name
+            a.append(img)
+            cell.prepend(a)
+          })
+          .catch((e: any) => { img.remove(); cap.textContent = `${s.name}（${String(e?.message ?? e)}）` })
       }
-      if (!(res.sheets?.newest ?? []).length) {
+      if (!newest.length) {
         const empty = ui.h('div')
         empty.textContent = '还没有拼图。'
         grid.append(empty)

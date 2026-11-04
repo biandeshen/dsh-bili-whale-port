@@ -90,6 +90,11 @@ export function actionButton(
     onClick: async () => {
       msg.textContent = ''
       msg.classList.remove('bad')
+      // 失败原因先存着，等 after 的刷新做完再写回去：refresh() 里那句 call() 开头就
+      // msg.textContent=''，当场写的错误会被自己的刷新擦掉——2026-11-04 真浏览器实测：
+      // 「删掉超期的」没勾确认，后端 500 正确拒了，页面上却一个字都没显示，
+      // 用户只能以为按钮坏了。
+      let failure: string | null = null
       try {
         // 参数也算在 try 里：算错参数不该让整次点击静默失败（实测踩过：argsFactory 抛错
         // 会冒泡成未捕获错误，请求发不出去，页面看不出任何原因）。
@@ -97,14 +102,16 @@ export function actionButton(
         const out = await ctx.invoke(method, payload === undefined ? undefined : (Array.isArray(payload) ? payload : [payload]))
         // 服务端用 {ok:false,...} 表达"没做"（如闸门拒），要显示出来而不是当成成功
         if (out && typeof out === 'object' && (out as any).ok === false) {
-          msg.textContent = String((out as any).error ?? (out as any).reason ?? '操作没成功')
-          msg.classList.add('bad')
+          failure = String((out as any).error ?? (out as any).reason ?? '操作没成功')
         }
       } catch (e) {
-        msg.textContent = String(e instanceof Error ? e.message : e)
-        msg.classList.add('bad')
+        failure = String(e instanceof Error ? e.message : (e as any)?.error ?? e)
       }
       await opts.after?.()
+      if (failure !== null) {
+        msg.textContent = failure
+        msg.classList.add('bad')
+      }
     },
   })
 }

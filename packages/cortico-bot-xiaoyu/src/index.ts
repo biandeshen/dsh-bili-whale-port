@@ -82,7 +82,9 @@ export function createXiaoyuBotHub(opts: XiaoyuBotHubOptions): XiaoyuBotHub {
     onRuleConverted: opts.onRuleConverted,
     git: memoryCap.git ?? undefined,
   })
-  // 看画面（V-Now）：判帧/装箱/出图用 vendor 的 dsh-see-now 管道，缺 ffmpeg 只降级不报错
+  // 看画面（V-Now）：判帧/装箱/出图用 vendor 的 dsh-see-now 管道，缺 ffmpeg 只降级不报错。
+  // dataDir 直接给到 <home>/data/vision（包内不再加一层，2026-11-04 浏览器实测踩过双重嵌套）。
+  // 拼图留在 data 下不进工作区：她的记忆 git 不该收二进制。
   const visionCap = createVisionCapability({
     dataDir: path.join(opts.homeDir, 'data', 'vision'),
     ...(opts.vision?.analyze ? { analyze: opts.vision.analyze } : {}),

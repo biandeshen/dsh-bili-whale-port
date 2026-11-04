@@ -92,7 +92,12 @@ export interface RunRecord {
 }
 
 export interface VisionCapabilityOptions {
-  /** 本包自己的数据目录（宿主给的是部署级共享 dataDir，必须再下一层，见 A2 踩坑） */
+  /**
+   * 本包自己的数据目录（**调用方给哪就用哪，不再自己加一层**）。
+   * 2026-11-04 真浏览器实测踩过：这里曾再 join 一个 'vision'，而转接头已经传
+   * `<home>/data/vision`，于是面板读的是 `data/vision/vision/`，
+   * 跑过的记录与拼图在页面上全都看不见（runs 空、墙空），而 RPC 单测照样绿。
+   */
   dataDir: string
   /** 注入 ffmpeg 路径；缺省按 resolveFfmpeg 的顺序找 */
   ffmpegPath?: string
@@ -106,7 +111,7 @@ export interface VisionCapabilityOptions {
 const VIDEO_EXT = /\.(mp4|m4v|mkv|webm|flv|mov|ts)$/i
 
 export function createVisionCapability(opts: VisionCapabilityOptions): XiaoyuCapability<VisionConfig> {
-  const root = path.join(opts.dataDir, 'vision')
+  const root = opts.dataDir
   const sheetsDir = path.join(root, 'sheets')
   const configFile = path.join(root, 'config.json')
   const runsFile = path.join(root, 'runs.json')
@@ -155,6 +160,33 @@ export function createVisionCapability(opts: VisionCapabilityOptions): XiaoyuCap
         return { file: p, name: f, mtime: st.mtime.toISOString(), bytes: st.size }
       })
       .sort((a, b) => (a.mtime < b.mtime ? 1 : -1))
+  }
+
+  /**
+   * 缩略图：800x450 的原图直接塞进页面太沉（一张 ~100KB，六张就是 600KB 的一次刷新），
+   * 而且**宿主根本没有按路径取文件的路由**——`/api/files?path=` 那种拼法实测 404 裂图，
+   * `/api/blob` 只认工作区句柄，把拼图放进工作区又等于把二进制灌进她的记忆 git。
+   * 所以这里自己出图：ffmpeg 缩到 320 宽落在 data 下，面板按 data URL 取，用完即走。
+   */
+  const thumbDir = path.join(sheetsDir, 'thumbs')
+  async function makeThumb(file: string): Promise<{ dataUrl?: string; error?: string }> {
+    if (!fs.existsSync(file)) return { error: `拼图不在了：${file}` }
+    const out = path.join(thumbDir, path.basename(file, '.png') + '.320.png')
+    if (!fs.existsSync(out) || fs.statSync(out).mtimeMs < fs.statSync(file).mtimeMs) {
+      const ff = ffmpeg()
+      if (!ff.path) return { error: '没有 ffmpeg，出不了缩略图' }
+      const { spawn } = await import('node:child_process')
+      const r = await new Promise<{ code: number | null; err: string }>((resolve) => {
+        fs.mkdirSync(thumbDir, { recursive: true })
+        const c = spawn(ff.path as string, ['-hide_banner', '-loglevel', 'error', '-y', '-i', file, '-vf', 'scale=320:-2', out], { stdio: ['ignore', 'ignore', 'pipe'] })
+        let err = ''
+        c.stderr.on('data', (d: Buffer) => { err = `${err}${d}`.slice(-400) })
+        c.on('error', (e) => resolve({ code: -1, err: String(e.message) }))
+        c.on('close', (code) => resolve({ code, err }))
+      })
+      if (r.code !== 0 || !fs.existsSync(out)) return { error: `缩略图生成失败：${r.err.slice(0, 160) || `退出码 ${r.code}`}` }
+    }
+    return { dataUrl: 'data:image/png;base64,' + fs.readFileSync(out).toString('base64') }
   }
 
   const emptyStats = {
@@ -265,7 +297,9 @@ export function createVisionCapability(opts: VisionCapabilityOptions): XiaoyuCap
           ffmpeg: { available: Boolean(ff.path), path: ff.path, source: ff.source, tried: ff.tried },
           config: readConfig(),
           defaults: VISION_DEFAULTS,
-          sheets: { count: sheets.length, bytes: sheets.reduce((n, s) => n + s.bytes, 0), dir: sheetsDir, newest: sheets.slice(0, 6) },
+          // newest 的上限要和面板摆的数量一致：曾经这里截 6 张、stat 报 7 张，
+          // 看上去就像"少了一张"（2026-11-04 浏览器复验点名过）
+          sheets: { count: sheets.length, bytes: sheets.reduce((n, s) => n + s.bytes, 0), dir: sheetsDir, newest: sheets.slice(0, 12) },
           runs,
           vendor: {
             name: 'dsh-see-now 0.0.10', license: 'Apache-2.0',
@@ -293,6 +327,19 @@ export function createVisionCapability(opts: VisionCapabilityOptions): XiaoyuCap
       invoke: ({ limit = 40 }: { limit?: number }) => {
         const n = Math.max(1, Math.min(200, Number(limit) || 40))
         return { dir: sheetsDir, items: listSheetFiles().slice(0, n) }
+      },
+    },
+    sheetThumb: {
+      name: 'sheetThumb', verb: 'GET', writable: false,
+      summary: '取一张拼图的 320 宽缩略图（data URL；宿主没有按路径取文件的路由，只能自己出图）',
+      invoke: async ({ file }: { file: string }) => {
+        const abs = String(file ?? '')
+        // 只允许本包产物目录里的 png：不给面板变成任意文件读取口
+        const rel = path.relative(sheetsDir, abs)
+        if (!abs || rel.startsWith('..') || path.isAbsolute(rel) || !abs.endsWith('.png')) {
+          throw new Error('只认本包 sheets 目录里的 png')
+        }
+        return makeThumb(abs)
       },
     },
     cleanupSheets: {

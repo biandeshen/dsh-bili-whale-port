@@ -52,9 +52,9 @@ test('see_video 把配置预算传给管道，并落运行记录', async () => {
   assert.equal(seen[0].targetFrames, 24, '面板改的预算要真的进到管道参数')
   assert.equal(seen[0].maxSheets, 3)
   assert.equal(seen[0].timeoutMs, 240000, 'timeoutSec 换算成 ms')
-  assert.equal(seen[0].outDir, path.join(dir, 'vision', 'sheets'), '产物落在本包自己的子目录')
+  assert.equal(seen[0].outDir, path.join(dir, 'sheets'), '产物落在本包自己的子目录')
   assert.equal(r.images[0].fromSec, 0)
-  const runs = JSON.parse(fs.readFileSync(path.join(dir, 'vision', 'runs.json'), 'utf8'))
+  const runs = JSON.parse(fs.readFileSync(path.join(dir, 'runs.json'), 'utf8'))
   assert.equal(runs.length, 1)
   assert.equal(runs[0].kept, 9)
 })
@@ -90,7 +90,7 @@ test('缺 ffmpeg / 文件不存在 / 不是视频都返回结构化错误，不�
 test('cleanupSheets 不 confirm 就拒绝，只删超期的 png', () => {
   const dir = tmp()
   const cap = createVisionCapability({ dataDir: dir, ffmpegPath: 'ffmpeg', now: () => new Date('2026-11-04T12:00:00Z') })
-  const sheets = path.join(dir, 'vision', 'sheets')
+  const sheets = path.join(dir, 'sheets')
   fs.mkdirSync(sheets, { recursive: true })
   const old = path.join(sheets, 'old.png')
   const fresh = path.join(sheets, 'fresh.png')
@@ -113,9 +113,33 @@ test('setTuning 只收白名单字段，坏值不落盘', () => {
   assert.deepEqual(r.changed, ['targetFrames'])
   assert.equal(cap.panels()[0].methods.getSnapshot.invoke({}).config.targetFrames, 30)
   assert.throws(() => cap.panels()[0].methods.setTuning.invoke({ nothing: 1 }), /可识别的字段/)
-  const cfg = JSON.parse(fs.readFileSync(path.join(dir, 'vision', 'config.json'), 'utf8'))
+  const cfg = JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf8'))
   assert.equal(cfg.evil, undefined, '面板不是任意键写盘的口子')
   assert.equal(cfg.keepDays, VISION_DEFAULTS.keepDays, '没改的字段保持默认')
+})
+
+test('面板读的就是工具写的那一处：目录不许双重嵌套；缩略图只认本包产物', async () => {
+  // 2026-11-04 真浏览器实测：转接头传 <home>/data/vision，包内又加一层 'vision'，
+  // 于是 see_video 写的 runs/sheets 落在 data/vision/，面板却去读 data/vision/vision/，
+  // 页面上"最近看过什么"和"拼图墙"永远是空的——而单测全绿（因为单测两边都用同一个 dir）。
+  // 这条测试故意让 dataDir 与断言分离：跑一次工具，再看面板 getSnapshot 能不能看见。
+  const dir = tmp()
+  const file = fakeVideo(dir)
+  const cap = createVisionCapability({
+    dataDir: path.join(dir, 'data', 'vision'),
+    ffmpegPath: 'C:/fake/ffmpeg.exe',
+    analyze: async (f) => okResult(f),
+  })
+  await cap.tools()[0].execute({ file, durationSec: 120 })
+  const snap = cap.panels()[0].methods.getSnapshot.invoke({})
+  assert.equal(snap.runs.length, 1, '运行记录要与工具写盘的同一处')
+  assert.equal(snap.sheets.dir, path.join(dir, 'data', 'vision', 'sheets'), '不许再套一层 vision')
+
+  // 缩略图不能变成任意文件读取口
+  const thumb = cap.panels()[0].methods.sheetThumb
+  await assert.rejects(() => Promise.resolve(thumb.invoke({ file: 'C:/Windows/win.ini' })), /只认本包/)
+  await assert.rejects(() => Promise.resolve(thumb.invoke({ file: path.join(dir, 'elsewhere.png') })), /只认本包/)
+  await assert.rejects(() => Promise.resolve(thumb.invoke({ file: path.join(snap.sheets.dir, '..', '..', '..', 'secret.png') })), /只认本包/)
 })
 
 test('resolveFfmpeg 顺序：env 优先，其次 PATH，再 repo/bin，再 ~/.dsh/bili-whale/bin，最后剪映', () => {

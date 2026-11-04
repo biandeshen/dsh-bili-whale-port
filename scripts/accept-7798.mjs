@@ -101,11 +101,14 @@ async function groupB() {
       rec('B', `${id} 用扩展产物`, ext, p.client?.js ?? '无 client')
     }
   }
-  const expect = { [P]: 3, [B]: 4, [M]: 1 }
+  // persona 三块 → 四块（V-Now 加了 vision「她的眼睛」）；数量对不代表挂对，所以同时点名字
+  const expect = { [P]: 4, [B]: 4, [M]: 1 }
   for (const [id, n] of Object.entries(expect)) {
     const got = (byId[id]?.panels ?? []).length
     rec('B', `${id} 面板数=${n}`, got === n, `实际 ${got}`)
   }
+  const personaPanels = (byId[P]?.panels ?? []).map((x) => x?.id ?? x).map(String)
+  rec('B', 'persona 面板含 vision（她的眼睛）', personaPanels.includes('vision'), personaPanels.join(','))
 }
 
 // ── C 读方法冒烟 ───────────────────────────────────────────────────────────

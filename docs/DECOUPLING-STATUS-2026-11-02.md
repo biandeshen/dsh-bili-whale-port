@@ -570,3 +570,27 @@ mybot 部署未动，`node bin/cortico.mjs mybot --port=7799` 即回旧架构。
 - **线上未动**：7799 仍是上一轮那个进程，`see_video` / `bili_watch` 在她的运行时里还看不见
   （要重启 + Cortico 重新生成 describe.json）。服务级动作，等主人点头。
 - 全量 104 文件 / 568 项 / fail 0；冻结哈希一致；本地 ahead 26 未推（GitHub 443 仍不通）。
+
+### 2026-11-04 13:20 · 视觉上线 + 7799 起回新架构（含一次我自己的起错部署）
+
+- **停机根因不是外部**：新家 `r-20261104-075441-609f/incidents/...uncaught-exception.json` 写着
+  `TypeError: this.core?.log is not a function`（cortico-persona.ts:135 ← dream-tick.ts:48）。
+  Cortico 的 `core.log` 是 Logger 对象（`info/warn/error(msg,data)`），可选调用 `?.()` 挡不住
+  "存在但不是函数"；更糟的是炸点在 **catch 处理器内部**，原始异常一起被吞。
+  修：persona 加 `hostLog()`（认对象、兜函数、绝不抛）+ DreamTick 的 catch 再包一层；
+  三条回归测试（`host-log-shape.test.mjs`）里第一条就是"旧写法必炸"。
+- **起错部署这件事如实记**：我用 `node bin/cortico.mjs --help` 探命令，Cortico 不认 --help，
+  按默认参数起了 `Cortico/deployments` + bot `mybot`（=cormini 旧人格，回滚点）在 7788，
+  后又用 `start-cortico.mjs` 的**旧默认值**把它起在 7799 约 6 分钟，并跑了 57 项验收 → 30 项红。
+  这不是她的家：新家 deployment.json 是 `bot: xiaoyu`。已停掉、旧家 config 的 activeProvider
+  复原成 opencode-go、残留 instance.lock 删除；期间旧家多了 1 条 runs 记录与一个 run 目录
+  （总线起手暂停，未投递、无模型调用、无 B 站写、workspace git 无新提交）。
+  **根因是 start-cortico.mjs 的默认值停在切换前**：已改成三条成对
+  （CORTICO_ROOT=Cortico-up / CORTICO_HOME=~/.xiaoyu-home / CORTICO_BOT=xiaoyu），
+  回滚点仍可用 env 三个一起指回去。
+- **上线后**：`Bot: xiaoyu`、console+bili-account+media-studio 三 World、主模型 mimo-v2.6-flash、
+  验收 **58/58**（新增一项"persona 面板含 vision"）。
+- **面板五轮才过**（详见 docs/V-NOW-2026-11-04.md §7 那张表）：目录双重嵌套、宿主没有
+  `/api/files?path=` 路由、错误文字被自己的刷新擦掉、stat 与墙张数不一致、
+  Chrome 拦 data: 顶层导航。经验：单测两边共用同一个临时目录，永远抓不到"转接头多套一层"。
+- 全量 105 文件 / 572 项 / fail 0；冻结哈希一致；ahead 30 未推（GitHub 443 仍不通）。
