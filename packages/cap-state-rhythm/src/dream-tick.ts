@@ -17,8 +17,11 @@ export interface DreamTickOptions {
   lifeFile: string
   /** 梦话回调：digest 为第一人称遗忘叙事（null = 本夜无归档，不写） */
   onDream: (digest: string | null, archivedCount: number) => void
-  /** 睡着判定 */
-  isAsleep: (lastActionAt: number | null | undefined, now: number, mode?: string) => boolean
+  /**
+   * 睡着判定。第四个参数把她账上的时段带进来（`{ sleepWindow }`），
+   * 不给就由实现方用默认——**不给不等于关掉**。
+   */
+  isAsleep: (lastActionAt: number | null | undefined, now: number, mode?: string, extra?: { sleepWindow?: { start: string; end: string } | null }) => boolean
   /** 结算执行者（MemoryCardStore.settle） */
   settle: (days?: number, archiveThreshold?: number) => unknown
   /** 结算→梦话翻译（MemoryCardStore.dreamDigest） */
@@ -70,7 +73,7 @@ export class DreamTick {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   }
 
-  private readLife(): { lastActionAt?: number; mode?: string } {
+  private readLife(): { lastActionAt?: number; mode?: string; sleepWindow?: unknown } {
     try {
       return JSON.parse(fs.readFileSync(this.opts.lifeFile, 'utf8'))
     } catch {
@@ -83,7 +86,16 @@ export class DreamTick {
     const today = this.today()
     // 强制清醒模式不做梦；白天（醒着）也不做梦——梦是睡着时的事
     if (life.mode === 'force_awake') return { dreamed: false, digest: null }
-    if (!this.opts.isAsleep(life.lastActionAt ?? 0, Date.now(), life.mode ?? 'auto')) {
+    /**
+     * 要把她账上**实际设定的**时段传进去。
+     * 以前这里只给三个参数，`isAsleep` 拿不到 sleepWindow 就用默认的 01:00–07:00——
+     * 于是主人在面板上"关掉时段判据"之后，夜里照旧会触发结算。
+     * `life.json` 里没这个键（从没设过）= 用默认；显式 `null` = 关掉，两种都得尊重。
+     */
+    const win = Object.hasOwn(life as object, 'sleepWindow')
+      ? { sleepWindow: (life.sleepWindow ?? null) as never }
+      : {}
+    if (!this.opts.isAsleep(life.lastActionAt ?? 0, Date.now(), life.mode ?? 'auto', win)) {
       return { dreamed: false, digest: null }
     }
     if (this.lastSettleDay === today) return { dreamed: false, digest: null }

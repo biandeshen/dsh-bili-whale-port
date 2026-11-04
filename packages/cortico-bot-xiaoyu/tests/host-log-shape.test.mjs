@@ -60,6 +60,11 @@ test('心跳接上了：到点走 core.injectDeferred("tick")，没接上时她�
   // 基线给 30ms：真实部署是 5 分钟，这里只为让测试跑得动
   const p = new XiaoYuPersona({ homeDir: dir, vision: { ffmpegPath: 'C:/fake/ffmpeg.exe' }, tickDelayMs: () => 30 })
   p.attach(core)
+  // 强制这一拍"该动"：批次 10（F1）之后，不该动时 render 返回 null 是**正确行为**，
+  // 而这条测试要守的是"心跳接线了 + 文本内容对"，所以把概率门这一拍按下去。
+  const rhythm = p.hub.capabilities.find((c) => c.id === 'state-rhythm')
+  const real = rhythm.lifeTick.bind(rhythm)
+  rhythm.lifeTick = (next) => ({ ...real(next), shouldAct: true, kind: 'explore', reason: '有点无聊，想找点新鲜的看', urge: 0.7 })
   await p.start()
   try {
     await new Promise((r) => setTimeout(r, 120))

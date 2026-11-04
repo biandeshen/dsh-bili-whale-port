@@ -16,7 +16,10 @@ function mk(dir, fields = {}) {
     memories: [], chain: [], npcState: { current: 'normal', bond: { level: 0.5 } },
     budget: { day: '2026-11-04', spent: {} }, emotionHistory: [], lastAppliedAt: new Date().toISOString(),
   }))
-  fs.writeFileSync(lifeFile, JSON.stringify({ day: '2026-11-04', actionsToday: 0, lastActionAt: 0, lastCheckAt: 0, nextCheckAt: 0, mode: 'auto' }))
+  // **测试不许看天色**：作息判据里有一条"夜间时段算睡着"（默认 01:00–07:00），
+  // 留着默认值，这条测试白天过、凌晨挂（2026-11-05 01:45 实测就是这样）。
+  // 这里显式关掉时段判据，让它只按"闲了多久"判——测的是逻辑，不是当时的钟点。
+  fs.writeFileSync(lifeFile, JSON.stringify({ day: '2026-11-04', actionsToday: 0, lastActionAt: 0, lastCheckAt: 0, nextCheckAt: 0, mode: 'auto', sleepWindow: null }))
   return createStateRhythmCapability({ fieldsFile, lifeFile })
 }
 

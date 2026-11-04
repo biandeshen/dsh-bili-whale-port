@@ -107,16 +107,30 @@ export function reconcileLife(
   }
 }
 
-/** ② 睡着：夜间时段，或确实有过行动且闲够 6 小时（force_* 最高优先）。 */
+/** ② 睡着：闲够多久算睡下（没有夜间时段时的另一条判据）。 */
 export const SLEEP_AFTER_MS = 6 * 3_600_000
+
+/**
+ * ② 睡着：夜间时段，或确实有过行动且闲够 6 小时（force_* 最高优先）。
+ *
+ * **`extra.sleepWindow` 必须真的传进去**：这里曾经接了这个参数却没用，
+ * 于是调用方（做梦系统）传下来的时段被丢掉、永远按默认 01:00–07:00 判——
+ * 主人把时段关掉之后，她夜里照旧会去跑记忆结算。**接口收了却不用的参数，
+ * 比没有这个参数更坏**：调用方以为自己在控制，其实没有。
+ */
 export function isAsleep(
   lastActionAt: number | null | undefined,
   now: number = Date.now(),
   mode: RhythmMode = 'auto',
   extra?: { energy?: number; sleepWindow?: SleepWindow; timezone?: string },
 ): boolean {
+  const mem: { lastActionAt: number; mode: RhythmMode; sleepWindow?: SleepWindow } =
+    { lastActionAt: Number(lastActionAt ?? 0), mode }
+  // 只有调用方**明确给了**这个键才覆盖：不给（undefined）才用默认时段，
+  // 给了 null 是"关掉时段判据"，那也是明确的意图，不能当成没给。
+  if (extra && Object.hasOwn(extra, 'sleepWindow')) mem.sleepWindow = extra.sleepWindow ?? null
   return restState(
-    { lastActionAt: Number(lastActionAt ?? 0), mode },
+    mem,
     extra && extra.energy !== undefined ? { energy: extra.energy } : null,
     now,
     extra?.timezone,

@@ -46,6 +46,7 @@ test('做梦系统：睡着才结算、同日不重复、强制清醒不做梦�
     lifeFile,
     isAsleep,
     settle: store.settle,
+    dreamDigest: (r) => `夜里结算 ${r.archived?.length ?? 0} 条`,
     onDream: () => null,
     intervalMs: 60_000,
   })
@@ -53,10 +54,16 @@ test('做梦系统：睡着才结算、同日不重复、强制清醒不做梦�
   const r3 = tick2.tickOnce()
   assert.equal(r3.dreamed, false)
 
-  // 4. 醒着（lastActionAt 刚刚）不做梦
-  fs.writeFileSync(lifeFile, JSON.stringify({ lastActionAt: Date.now(), mode: 'auto' }), 'utf8')
+  /**
+   * 4. 醒着（刚动过）不做梦。
+   *
+   * **这条以前是看天色过的**：只给三个参数的 isAsleep 会套用默认夜间时段，
+   * 白天跑通过、凌晨 01:45 跑就挂（2026-11-05 实测）。
+   * 现在把时段显式关掉（sleepWindow: null），测的是逻辑而不是当时的钟点。
+   */
+  fs.writeFileSync(lifeFile, JSON.stringify({ lastActionAt: Date.now(), mode: 'auto', sleepWindow: null }), 'utf8')
   const r4 = tick2.tickOnce()
-  assert.equal(r4.dreamed, false)
+  assert.equal(r4.dreamed, false, '刚动过 + 时段关掉 = 醒着，不该结算')
 
   // 5. 无归档 → onDream 收到 null 且梦话为 null（不硬凑）
   fs.writeFileSync(lifeFile, JSON.stringify({ lastActionAt: 0, mode: 'auto' }), 'utf8')
@@ -71,4 +78,37 @@ test('做梦系统：睡着才结算、同日不重复、强制清醒不做梦�
   const r5 = tick3.tickOnce()
   assert.equal(r5.dreamed, true)
   assert.equal(r5.digest, null)
+})
+
+test('做梦系统要把她账上的睡眠时段带给判定（主人关掉时段，夜里就不该结算）', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dream-win-'))
+  const lifeFile = path.join(dir, 'life.json')
+  const seen = []
+  const tick = new DreamTick({
+    lifeFile,
+    // 记录判定收到的第四个参数：这是"接口收了却不用"那类 bug 的唯一抓法
+    isAsleep: (last, now, mode, extra) => { seen.push(extra); return false },
+    settle: () => ({ archived: [] }),
+    dreamDigest: () => null,
+    onDream: () => null,
+    intervalMs: 60_000,
+  })
+
+  // ① 从没设过时段 → 不该塞 sleepWindow 这个键（让实现方用默认）
+  fs.writeFileSync(lifeFile, JSON.stringify({ lastActionAt: 0, mode: 'auto' }), 'utf8')
+  tick.tickOnce()
+  assert.ok(!Object.hasOwn(seen.at(-1) ?? {}, 'sleepWindow'),
+    `没设过时段时不许带 sleepWindow 键（带了就等于替主人做决定），实得 ${JSON.stringify(seen.at(-1))}`)
+
+  // ② 主人显式关掉 → 必须把 null 带到判定里
+  fs.writeFileSync(lifeFile, JSON.stringify({ lastActionAt: 0, mode: 'auto', sleepWindow: null }), 'utf8')
+  tick.tickOnce()
+  assert.ok(seen.at(-1) && seen.at(-1).sleepWindow === null,
+    `关掉时段要传达到判定，实得 ${JSON.stringify(seen.at(-1))}`)
+
+  // ③ 主人改了时段 → 原样带过去
+  fs.writeFileSync(lifeFile, JSON.stringify({ lastActionAt: 0, mode: 'auto', sleepWindow: { start: '22:00', end: '06:00' } }), 'utf8')
+  tick.tickOnce()
+  assert.deepEqual(seen.at(-1), { sleepWindow: { start: '22:00', end: '06:00' } },
+    '改过的时段要原样带进判定')
 })

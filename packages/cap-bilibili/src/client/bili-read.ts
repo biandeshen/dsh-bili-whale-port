@@ -30,16 +30,46 @@ export function readHeaders(ctx: BiliReadContext, referer = 'https://www.bilibil
   }
 }
 
+/**
+ * 读凭据文件。
+ *
+ * **两种格式都收**（2026-11-05 线上事故）：
+ *   ① JSON：`{"sessdata":"...","bili_jct":"...","buvid3":"..."}`（旧家 `~/.bili-ai/credentials.json` 的形状）
+ *   ② env：`NAME=value` 每行一个（宿主 `secretReader` 读的形状，src/core/secrets.ts:16）
+ *
+ * 为什么必须收两种：同一个文件要同时喂给两条路——
+ *   · 读工具走 `credentialsFile`（本函数）
+ *   · 写工具走 `ctx.secret('BILI_SESSDATA')`（宿主的 secretReader，只认 `NAME=value`）
+ * 以前只认 JSON，于是写工具从同一个文件里读不到东西，而读工具在文件不存在时
+ * **静默返回空凭据**——她照常调用，只是带着空 cookie，失败信息还指向风控，
+ * 看着像"被 B 站 412 了"，其实是根本没登录。
+ */
 export function loadCredentials(credentialsFile: string): { sessdata: string; bili_jct: string; buvid3: string } {
+  const empty = { sessdata: '', bili_jct: '', buvid3: '' }
+  let text: string
   try {
-    const raw = JSON.parse(fs.readFileSync(credentialsFile, 'utf8'))
-    return {
-      sessdata: String(raw.sessdata ?? ''),
-      bili_jct: String(raw.bili_jct ?? ''),
-      buvid3: String(raw.buvid3 ?? ''),
-    }
+    text = fs.readFileSync(credentialsFile, 'utf8')
   } catch {
-    return { sessdata: '', bili_jct: '', buvid3: '' }
+    return empty
+  }
+  // ① JSON
+  try {
+    const raw = JSON.parse(text)
+    return {
+      sessdata: String(raw.sessdata ?? raw.SESSDATA ?? ''),
+      bili_jct: String(raw.bili_jct ?? raw.BILI_JCT ?? ''),
+      buvid3: String(raw.buvid3 ?? raw.BUVID3 ?? ''),
+    }
+  } catch { /* 不是 JSON，往下按 env 解析 */ }
+  // ② env（值读到首个空白字符，与宿主 secretReader 同口径）
+  const pick = (name: string): string => {
+    const m = new RegExp(`^[ \\t]*${name}[ \\t]*=[ \\t]*(\\S+)`, 'm').exec(text)
+    return m ? m[1] : ''
+  }
+  return {
+    sessdata: pick('BILI_SESSDATA') || pick('SESSDATA'),
+    bili_jct: pick('BILI_JCT') || pick('bili_jct'),
+    buvid3: pick('BILI_BUVID3') || pick('BUVID3'),
   }
 }
 

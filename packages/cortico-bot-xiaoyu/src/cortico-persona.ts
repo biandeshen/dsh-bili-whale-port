@@ -120,6 +120,25 @@ export class XiaoYuPersona implements CorticoPersonaShape {
             } catch (e) {
               this.hostLog('warn', `作息对账失败（不阻断心跳）：${String((e as any)?.message ?? e)}`)
             }
+            /**
+             * **她不该动的时候，一个字都不注入**（2026-11-05 线上活故障，主人："她现在甚至都不回我消息"）。
+             *
+             * 实测会话记录 384 条里，心跳自己灌进来的 user 消息 **125 条**，
+             * 真人的只有 **17 条**——噪声占 88%；她的 105 段回复里 **83 段是"待着，不动"**。
+             * 她的心思全花在向主人播报"这一拍我不动"上，主人的话被挤到中间
+             * （lost-in-the-middle：同样内容放在中段，准确率掉 15–20 个百分点）。
+             *
+             * 这是实现偏离了设计：`decideAction` 的概率门（persona-core/src/rhythm.ts:108）
+             * 本意是**决定要不要叫醒她**，我们实现成了"先叫醒她，再告诉她别动"。
+             * 每 5 分钟花一次模型调用，换回一句"待着，不动"。
+             *
+             * 修法就是回到原意：账**照记**（lifeTick 在上面已经跑完，actionsToday /
+             * nextCheckAt / 理由都进账本，主人随时查得到），但 `shouldAct=false` 时
+             * **返回 null 不投递**。宿主的 renderDeferred 见 null 就 `continue`
+             * （Cortico src/core/loop.ts:671「未生成正文，不归档、不投递」），
+             * 批里没有正文 → changed=false → 不唤模型。**一次调用都不花。**
+             */
+            if (tick && tick.shouldAct === false) return null
             return `${quietLine(quiet)}${this.rhythmLine(tick)}`
           }
           try {
@@ -290,6 +309,28 @@ export class XiaoYuPersona implements CorticoPersonaShape {
   }
 
   /**
+   * 这一批里有没有**真的**有人叫她。
+   *
+   * 为什么要有这个判断（2026-11-05 线上实测）：心跳的空拍退避（`base × 2^n`，封顶 8×，
+   * 5 分钟基线最长该拉到 40 分钟）**从来没生效过一次**——会话里连续两条 tick 都写
+   * "已安静 5 分钟"。原因是 `onDelivery` 第一行无条件 `noteActivity()`，
+   * 而**心跳自己注入的 tick 也是走投递进来的**，于是每拍都把退避清零：
+   * 她越闲，叫她越勤，正好反过来。
+   *
+   * 宿主的标记是确定的，不用猜：
+   *   · `injectInternal` / `injectDeferred` → `origin: 'internal'`、`source: 'persona'`
+   *     （Cortico src/core/loop.ts:1991 与 :2017）
+   *   · World / 面板经 `pushEvent` 进来的 → `origin: 'external'`（World 不给时 Core 填）
+   *
+   * 所以"有人叫她"= 这一批里至少有一条不是 internal。
+   * 主人戳醒（`persona.wake_now`）、收件箱事件、控制台消息都是 external，照常算；
+   * 她自己给自己的 tick、能力包注入的回忆块都不算。
+   */
+  private isRealActivity(events: ReadonlyArray<{ source?: string; origin?: string }>): boolean {
+    return (events ?? []).some((e) => (e as any)?.origin !== 'internal')
+  }
+
+  /**
    * 消息进上下文之前：汇总三个包的召回并经 core.injectInternal 注入（跨渠道一致的自动回忆）。
    *
    * 宿主契约（src/core/loop.ts:693）：onDelivery 的**返回值会被忽略**，注入只能走
@@ -297,8 +338,19 @@ export class XiaoYuPersona implements CorticoPersonaShape {
    * 单个能力包抛错不拖垮整批：逐包 try/catch。
    */
   async onDelivery(ctx: { now?: Date; timezone?: string; events: ReadonlyArray<{ type: string; source: string; text?: string; atMs?: number; meta?: Record<string, unknown> }> }): Promise<void> {
-    // 有外部事件到达 = 她被人叫过：心跳的空拍退避清零（否则安静久了会越来越稀）。
-    this.heartbeat?.noteActivity()
+    /**
+     * 有外部事件到达 = 她被人叫过：心跳的空拍退避清零（否则安静久了会越来越稀）。
+     *
+     * **但心跳自己注入的 tick 不算**（2026-11-05 线上实测：退避一次都没生效过）。
+     * 心跳投递的文本也是走 onDelivery 进来的，而且它在**每一拍**都来——
+     * 于是每拍都把 `lastActivity` 推到 `lastFire` 之后，`idleTicks` 永远归零，
+     * 5 分钟基线永远不涨到 40 分钟。线上会话里连续两条 tick 都写"已安静 5 分钟"，
+     * 就是退避从来没生效的证据。
+     *
+     * 判据：**只认真事件**——主人发的消息、World 投递的外部事件。
+     * 心跳的 tick 是我们自己叫自己，不算"有人叫她"。
+     */
+    if (this.isRealActivity(ctx.events)) this.heartbeat?.noteActivity()
     // 投递路径的纪律：这里抛任何错，宿主只给一行无详情的 WARN（实测），注入全部丢失。
     // 所以整段兜底：宁可这一批不带回忆，也不能让异常冒出去。
     try {
