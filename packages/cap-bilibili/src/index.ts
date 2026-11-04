@@ -3,10 +3,11 @@
  *
  * 包含：
  * - 四路入站感知合一（dm / reply / mention / like）与主动事件唤醒
- * - 17 个进程内 Typed 工具（补齐 bili_inbox_read / bili_inbox_ack / bili_comment / bili_danmaku / bili_dynamic_edit 等）
+ * - 18 个进程内 Typed 工具（补齐 bili_inbox_read / bili_inbox_ack / bili_comment / bili_danmaku / bili_dynamic_edit / bili_watch 等）
  * - 唯一不可逆写把关链（WriteGate）与统一待放行队列（动态草稿/私信草稿/待审评论/待审弹幕四合一）
  * - 四大主人可写操作台（inbox / drafts-queue / preferences / gate-policy）
  */
+import path from 'node:path'
 import type {
   XiaoyuCapability,
   CapabilityHost,
@@ -44,6 +45,12 @@ import {
   loadCredentials as loadReadCredentials,
   type BiliReadContext,
 } from './client/bili-read.ts'
+import {
+  watchVideo,
+  alignVisual,
+  type WatchContext,
+  type WatchResult,
+} from './client/bili-watch.ts'
 import {
   executeBiliWrite,
   checkLikeNotRepeated,
@@ -91,6 +98,7 @@ export interface BilibiliCapabilityConfig extends BiliPublishPolicy {
 export interface BilibiliReadHandlers {
   feed?: (opts: { count?: number; prefs: WatchPreferences }) => Promise<unknown>
   debrief?: (bvid: string) => Promise<unknown>
+  watch?: (bvid: string) => Promise<unknown>
   subtitles?: (bvid: string) => Promise<unknown>
   search?: (keyword: string) => Promise<unknown>
   comments?: (bvid: string) => Promise<unknown>
@@ -110,6 +118,11 @@ export interface BilibiliCapabilityOptions {
   readContext?: BiliReadContext
   /** 凭据文件路径；配合 writeContext.cred 缺省时从这里读 */
   credentialsFile?: string
+  /**
+   * 看画面（V-Now 第⑥路）：目录与管道注入。
+   * 缺省落在 dataDir 下自己的子目录（A2 踩过的坑：dataDir 是部署级共享的，必须再下一层）。
+   */
+  watch?: Partial<Pick<WatchContext, 'videoDir' | 'sheetDir' | 'analyze' | 'keepVideo'>>
 }
 
 export function createBilibiliCapability(
@@ -127,6 +140,15 @@ export function createBilibiliCapability(
   }
   // 真实读上下文：与写共用凭据；fetch 可独立注入
   const readCtx = opts.readContext ?? { cred: writeCtx.cred, fetch: undefined as any }
+
+  // 看画面上下文：目录在 dataDir 下再下一层，管道可注入替身
+  const watchCtx: WatchContext = {
+    ...readCtx,
+    videoDir: opts.watch?.videoDir ?? path.join(opts.dataDir, 'shots', 'video'),
+    sheetDir: opts.watch?.sheetDir ?? path.join(opts.dataDir, 'shots', 'sheets'),
+    ...(opts.watch?.analyze ? { analyze: opts.watch.analyze } : {}),
+    keepVideo: opts.watch?.keepVideo ?? true,
+  }
 
   /** 默认内容判据：按 kind 走各自原有的判据（30 天去重 / 收藏两条 / 回信时效窗）。 */
   const defaultContentCheck = (
@@ -328,7 +350,7 @@ export function createBilibiliCapability(
             },
             required: ['bvid'],
           },
-          async execute(args: { bvid: string; bucketSec?: number; top?: number; comments?: number }) {
+          async execute(args: { bvid: string; bucketSec?: number; top?: number; comments?: number; withFrames?: boolean }) {
             if (opts.readHandlers?.debrief) return await opts.readHandlers.debrief(args.bvid)
             const r: DebriefResult = await fetchDebrief(readCtx, args.bvid, {
               bucketSec: args?.bucketSec, top: args?.top, comments: args?.comments,
@@ -336,12 +358,68 @@ export function createBilibiliCapability(
             if (!r.ok) return { ok: false, error: r.error }
             // 压缩输出：字幕行只带前 40 行内联（全量走 judgment/diary 引用），弹幕热区带对齐字幕
             const inlineSubs = r.subtitles.lines.slice(0, 40).map((l) => `[${Math.floor(l.from / 60)}:${String(Math.floor(l.from % 60)).padStart(2, '0')}] ${l.text}`)
-            return {
+            const out: Record<string, unknown> = {
               ok: true,
               meta: r.meta,
               subtitles: { hasTrack: r.subtitles.hasTrack, count: r.subtitles.count, inline: inlineSubs, truncated: r.subtitles.count > inlineSubs.length },
               danmaku: r.danmaku,
               comments: r.comments,
+            }
+            // ⑥ 画面这一路默认关：它要下整条片子再跑一趟管道（44 分钟实测 59 秒 + 数百 MB），
+            // 主动刷 feed 时不该每次都付这个钱；明确要"看画面"时再开。
+            if (args.withFrames) {
+              const w = await watchVideo(watchCtx, args.bvid)
+              out.visual = w.ok
+                ? { quality: w.quality, mp4: w.videoFile, sheets: w.steps, stats: w.visual?.stats ?? null, degraded: w.degraded ?? null }
+                : { error: w.error }
+              // 弹幕热区 → 落在第几张图的哪段时间窗
+              out.hotToSheet = alignVisual(
+                r.danmaku.tops.map((t) => ({ fromSec: t.fromSec, toSec: t.toSec, realCount: t.realCount })),
+                w.steps,
+              )
+            } else {
+              out.visual = { skipped: '画面这路没开（要下整条片子）。想看画面用 bili_watch，或在 bili_debrief 传 withFrames:true' }
+            }
+            return out
+          },
+        },
+        {
+          name: 'bili_watch',
+          summary: '看一条 B 站视频的画面：下载 + 变化分留帧 + 拼成几张图',
+          description: [
+            '只留「画面真的变了」的那几帧，按片长摊开节奏，拼成几张 800x450 的图（每张约 216 token）。',
+            '返回每张图覆盖的时间窗与落盘路径；拿到路径后用 read_image 看。',
+            '判据是逐帧 HSV 变化分（切点/积分/兜底三路），不是等间隔抽样。',
+            '成本提示：要下整条片子再跑一趟 ffmpeg（44 分钟实测约 59 秒、数百 MB），别在刷 feed 时批量调用。',
+          ].join(' '),
+          parameters: {
+            type: 'object',
+            properties: {
+              bvid: { type: 'string', description: '视频 BV 号' },
+              targetFrames: { type: 'number', description: '想留多少帧（默认按管道配置 48；越大越细越贵）' },
+              startSec: { type: 'number', description: '从第几秒开始看' },
+              endSec: { type: 'number', description: '看到第几秒' },
+              keepVideo: { type: 'boolean', description: '看完是否留着 mp4（默认留）' },
+            },
+            required: ['bvid'],
+          },
+          async execute(args: { bvid: string; targetFrames?: number; startSec?: number; endSec?: number; keepVideo?: boolean }) {
+            if (opts.readHandlers?.watch) return await opts.readHandlers.watch(args.bvid)
+            const w: WatchResult = await watchVideo(
+              args.keepVideo === undefined ? watchCtx : { ...watchCtx, keepVideo: args.keepVideo },
+              args.bvid,
+              { targetFrames: args?.targetFrames, startSec: args?.startSec, endSec: args?.endSec },
+            )
+            if (!w.ok) return { ok: false, error: w.error }
+            return {
+              ok: true,
+              bvid: w.bvid, title: w.title, durationSec: w.durationSec, quality: w.quality,
+              mp4: w.videoFile, mp4MB: +(w.videoBytes / 1024 / 1024).toFixed(1),
+              sheets: w.steps,
+              stats: w.visual?.stats ?? null,
+              tuning: w.visual?.tuning ?? null,
+              ...(w.degraded ? { degraded: w.degraded } : {}),
+              hint: '每张图左上角有帧号，和 sheets[].fromSec/toSec 对齐；用 read_image 逐张看',
             }
           },
         },

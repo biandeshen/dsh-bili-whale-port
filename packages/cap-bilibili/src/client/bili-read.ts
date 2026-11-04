@@ -9,8 +9,8 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { guardedFetch as defaultFetch } from '../../../../tools/lib/traffic.mjs'
-import { apiGet } from '../../../../tools/lib/bili-api.mjs'
+import { guardedFetch as defaultFetch } from '../platform/traffic.mjs'
+import { apiGet } from '../platform/api.mjs'
 import { UA } from './bili-write.ts'
 
 export interface BiliReadContext {

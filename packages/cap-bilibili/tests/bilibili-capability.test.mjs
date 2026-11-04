@@ -21,7 +21,9 @@ test('cap-bilibili & cortico-world-bilibili：四路收件箱指派、统一待�
   assert.equal(world.id, 'bili-account')
   assert.equal(world.api, 6)
   assert.equal(world.panels().length, 4)
-  assert.equal(world.tools().length, 16)
+  assert.equal(world.panels().length, 4)
+  assert.equal(world.tools().length, 17, '加/减工具时这里必须一起改，并同步 ORIENTATION.md 的工具清单')
+  assert.ok(world.tools().some((t) => t.name === 'bili_watch'), 'V-Now：看画面入口在包内，不再是 CLI')
 
   world.start({
     homeDir,

@@ -3,6 +3,15 @@ import { guardedFetch as fetch } from '../lib/traffic.mjs'
 import { apiGet } from '../lib/bili-api.mjs'
 // 让 agent 真"看"视频：取直链 → 下载 → ffmpeg 抽帧拼成一张九宫格 → 输出图片路径（再交给 read_image 看）
 //
+// ⚠️ 2026-11-04 起：这条**不再是 agent 走的那条路**。她的看画面改成
+//    cap-vision 的变化分管道（一趟解码、按片长摊开留帧；44 分钟实测 58.6 秒 6 张图，
+//    本命令那套"scene 空跑 + 逐段 -ss 重开"在同素材上 ETIMEDOUT）。
+//    agent 侧入口：bili_watch 工具 / bili_debrief 的 withFrames。
+//    本命令先留着的原因：它还有一个新管道没补上的产出——**SUBS 字幕条版**
+//    （裁底部 17% 放大竖排，讲解型视频字幕就是全部信息量时比全画幅好读）。
+//    补进 cap-vision（band 模式）之后本命令退役；在那之前别删。
+//    账记在 docs/V-NOW-2026-11-04.md §5 与 B7b-2。
+//
 // 用法: node bili-watch.mjs <BV号> [列x行，默认 3x3] [outDir]
 //   例: node bili-watch.mjs BV1iLYm6VET3            → 3x3 九宫格
 //       node bili-watch.mjs BV1iLYm6VET3 4x4        → 16 格，看得更细

@@ -9,7 +9,7 @@
  */
 import zlib from 'node:zlib'
 import { createHash } from 'node:crypto'
-import { guardedFetch as defaultFetch } from '../../../../tools/lib/traffic.mjs'
+import { guardedFetch as defaultFetch } from '../platform/traffic.mjs'
 import { UA } from './bili-write.ts'
 
 export interface DebriefContext {
