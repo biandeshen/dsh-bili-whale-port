@@ -195,7 +195,8 @@ export interface WhoisResult { ok: boolean; mid: string; name: string; sign: str
 export async function whois(ctx: BiliReadContext, mid: string): Promise<WhoisResult> {
   const H = headersFor(ctx, 'https://www.bilibili.com/')
   const mixin = await loadMixin(ctx.fetch ?? defaultFetch, H)
-  const d = await jget(ctx, `https://api.bilibili.com/x/space/wbi/acc/info?${wbiQuery(mixin, { mid: String(mid), location: '' })}`, H)
+  // 参数集必须和 whois.mjs 一模一样只签 {mid}：多带一个空 location 实测被 -400 拒掉
+  const d = await jget(ctx, `https://api.bilibili.com/x/space/wbi/acc/info?${wbiQuery(mixin, { mid: String(mid) })}`, H)
   if (d.code !== 0) {
     return { ok: false, mid: String(mid), name: '', sign: '', level: null, fans: null, error: `code=${d.code} ${d.message ?? d.msg ?? ''}` }
   }
@@ -222,7 +223,10 @@ export async function dynamicRecent(
   ctx: BiliReadContext,
   opt: { date?: string; mid?: string | number; limit?: number } = {},
 ): Promise<DynamicRecentResult> {
-  const H = headersFor(ctx, 'https://space.bilibili.com/')
+  // referer 必须是 https://t.bilibili.com/（照 dynamic.mjs 的 REF）：
+  // 换成 space.bilibili.com 实测被挡回一屏 HTML 而不是 JSON（风控页），
+  // 不是接口坏了，是 referer 不对——这种差别只有真打一次才看得出来。
+  const H = headersFor(ctx, 'https://t.bilibili.com/')
   const day = String(opt.date ?? new Date().toLocaleDateString('sv-SE'))
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return { ok: false, day, count: 0, items: [], error: 'date 要形如 2026-11-04' }
   const limit = Math.min(50, Math.max(1, Number(opt.limit ?? 10) || 10))
