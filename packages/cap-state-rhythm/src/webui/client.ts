@@ -44,7 +44,7 @@ export const tankPanel = {
         ui.statgrid([
           { k: '情绪', v: String(mood.primary ?? '—') },
           { k: '强度', v: String(mood.intensity ?? '—') },
-          { k: '作息', v: snap.asleep ? '睡着了' : '醒着' },
+          { k: '作息', v: snap.rest === 'asleep' ? '睡着了' : snap.rest === 'resting' ? '累了，歇着' : '醒着' },
           { k: '模式', v: String(snap.mode ?? 'auto') },
         ]),
       )
@@ -101,6 +101,38 @@ export const tankPanel = {
         after: refresh,
       })
       actions.append(modeRow, applyMode)
+
+      // 睡着时段：累了歇着 ≠ 睡着了，两件事分开给主人控
+      const sleepRow = ui.h('div')
+      sleepRow.style.margin = '12px 0'
+      const win = snap.sleepWindow
+      const startIn = ui.input({ value: win ? String(win.start) : '01:00', placeholder: '01:00' })
+      const endIn = ui.input({ value: win ? String(win.end) : '07:00', placeholder: '07:00' })
+      const setInputsEnabled = (on: boolean) => {
+        startIn.disabled = !on
+        endIn.disabled = !on
+      }
+      setInputsEnabled(Boolean(win))
+      const sleepSeg = ui.segmented(
+        [
+          { value: 'on', label: '按时段判睡' },
+          { value: 'off', label: '关掉时段（只按闲多久）' },
+        ],
+        { value: win ? 'on' : 'off', onSelect: (v) => setInputsEnabled(v === 'on') },
+      )
+      const applySleep = actionButton(ctx, ui, msg, '设定睡着时段', 'setSleepWindow', undefined, {
+        argsFactory: () => [sleepSeg.value === 'off' ? { off: true } : { start: startIn.value.trim(), end: endIn.value.trim() }],
+        after: refresh,
+      })
+      sleepRow.append(
+        ui.field('几点睡', startIn),
+        ui.field('几点醒', endIn),
+      )
+      const restNow = snap.rest === 'asleep' ? '她现在睡着'
+        : snap.rest === 'resting' ? '她有点累，在歇着（不做梦，体力慢慢回）'
+        : '她醒着'
+      const restPill = ui.pill(`【${restNow}】`, snap.rest === 'asleep' ? 'on' : undefined)
+      actions.append(restPill, sleepRow, sleepSeg.el, applySleep)
     }
 
     void refresh()

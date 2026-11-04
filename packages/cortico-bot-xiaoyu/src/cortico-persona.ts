@@ -127,8 +127,12 @@ export class XiaoYuPersona implements CorticoPersonaShape {
     const since = Number(tick.lastActionAt ?? 0) > 0
       ? `距上次行动 ${Math.max(0, Math.round((tick.now - Number(tick.lastActionAt)) / 60000))} 分钟`
       : '账上还没有过一次行动（刚搬家或刚清过状态，这不等于她睡了很久）'
-    const head = `【作息对账】${since}；今天已做 ${tick.actionsToday} 件；`
-      + `${tick.asleep ? '她处在睡着时段（记忆结算在这时跑）' : '她醒着'}；`
+    // 三态要说清是三态：累了歇着 ≠ 睡着了。主人那句话点的就是这个——
+    // "人累了就会休息，她不也能这样？"能，但休息不触发夜间记忆结算，睡觉才触发。
+    const state = tick.rest === 'asleep' ? '她在睡着时段（记忆结算与遗忘叙事在这时跑）'
+      : tick.rest === 'resting' ? '她有点累，在歇着（体力慢慢回，但不算睡着，不做梦）'
+      : '她醒着'
+    const head = `【作息对账】${since}；今天已做 ${tick.actionsToday} 件；${state}；`
     if (!tick.shouldAct) {
       const why: Record<string, string> = {
         gap: '间隔还没到，这一拍先不动',
@@ -201,12 +205,13 @@ export class XiaoYuPersona implements CorticoPersonaShape {
     const diaryDir = path.join(this.memoryDir, 'workspace', 'diary')
     if (stateRhythm && memoryCap) {
       const store = memoryCap.store ?? null
-      // 能力包对象上**没有** isAsleep（它是模块级导出，不是契约字段）。
-      // 原先写 `stateRhythm.isAsleep` → undefined → 做梦每 30 分钟抛
-      // "this.opts.isAsleep is not a function"（线上日志 14:07 / 14:37 各一次），
+      // 睡着判据由能力包自己给（它绑好了时段、模式与体力）：先取 lifeAsleep()，
+      // 取不到才退回模块级 isAsleep。
+      // 以前是反过来——从能力包对象上找 `isAsleep`（那是模块级导出，对象上没有），
+      // 于是每晚抛 "this.opts.isAsleep is not a function" 被 catch 吞掉，
       // 也就是说：**她从来没有真正做过梦**，结算与遗忘叙事一次都没跑过。
-      const asleepOf = typeof stateRhythm.isAsleep === 'function'
-        ? stateRhythm.isAsleep
+      const asleepOf = typeof stateRhythm.lifeAsleep === 'function'
+        ? (_lastActionAt: number | null | undefined, now: number, _mode?: string) => stateRhythm.lifeAsleep(now)
         : (lastActionAt: number | null | undefined, now: number, mode?: string) =>
             isAsleep(lastActionAt, now, (mode ?? 'auto') as never)
       if (store) {

@@ -46,12 +46,16 @@ import {
 import {
   reconcileLife,
   isAsleep,
+  restState,
   restRecovery,
   decideStage,
   applyActionRecord,
   gapLeft,
   SLEEP_AFTER_MS,
+  DEFAULT_SLEEP_WINDOW,
+  REST_BELOW_ENERGY,
   type RhythmMode,
+  type SleepWindow,
   type LifeMemoryView,
 } from './life-stages.ts'
 // 作息对账一拍要用到的纯函数（persona-core 里那一份，不另抄；dayKey 已在上面导入）
@@ -79,11 +83,14 @@ export {
   WATCH_VERDICT_IDS,
   reconcileLife,
   isAsleep,
+  restState,
   restRecovery,
   decideStage,
   applyActionRecord,
   gapLeft,
   SLEEP_AFTER_MS,
+  DEFAULT_SLEEP_WINDOW,
+  REST_BELOW_ENERGY,
 }
 export type {
   PersonaState,
@@ -104,11 +111,20 @@ export interface StateRhythmCapabilityOptions {
   fieldsFile: string
   lifeFile: string
   onWakeTriggered?: (info: { reason: string; hint?: string; atMs: number }) => void
+  /** 她所在的时区；睡眠时段按它算（不传就用系统本地时区） */
+  timezone?: string
 }
 
 function loadLifeFile(file: string): LifeMemoryView {
   try {
     const raw = JSON.parse(fs.readFileSync(file, 'utf8'))
+    // sleepWindow 要区分"没设过"（undefined → 用默认时段）与"主人明确关掉"（null → 不按时段判睡）：
+    // 这个区别丢了，主人关掉时段判据这件事会在下一次读档时悄悄复原。
+    const win = raw.sleepWindow === null
+      ? null
+      : (raw.sleepWindow && /^\d{1,2}:\d{2}$/.test(String(raw.sleepWindow.start)) && /^\d{1,2}:\d{2}$/.test(String(raw.sleepWindow.end))
+        ? { start: String(raw.sleepWindow.start), end: String(raw.sleepWindow.end) }
+        : undefined)
     return {
       day: String(raw.day ?? dayKey(Date.now())),
       actionsToday: Number(raw.actionsToday ?? 0),
@@ -117,6 +133,7 @@ function loadLifeFile(file: string): LifeMemoryView {
       lastKind: raw.lastKind ?? null,
       mode: (raw.mode === 'force_sleep' || raw.mode === 'force_awake') ? raw.mode : 'auto',
       nextCheckAt: Number(raw.nextCheckAt ?? 0),
+      ...(win === undefined ? {} : { sleepWindow: win }),
     }
   } catch {
     return {
@@ -288,12 +305,16 @@ export function createStateRhythmCapability(
                 const state = loadState(opts.fieldsFile)
                 const life = loadLifeFile(opts.lifeFile)
                 const mood = readMood(state)
-                const asleep = isAsleep(life.lastActionAt, Date.now(), life.mode ?? 'auto')
+                const rest = restState(life, state.fields, Date.now(), opts.timezone)
                 return {
                   ok: true,
                   fields: state.fields,
                   mood,
-                  asleep,
+                  // 三态而不是一个布尔：歇着（累了）与睡着（夜间）是两件事
+                  rest,
+                  asleep: rest === 'asleep',
+                  resting: rest === 'resting',
+                  sleepWindow: life.sleepWindow === undefined ? DEFAULT_SLEEP_WINDOW : life.sleepWindow,
                   mode: life.mode ?? 'auto',
                   life,
                   recentChain: [...state.chain].reverse().slice(0, 20),
@@ -368,10 +389,48 @@ export function createStateRhythmCapability(
                 const life = loadLifeFile(opts.lifeFile)
                 const nextLife: LifeMemoryView = { ...life, mode }
                 saveLifeFile(opts.lifeFile, nextLife)
+                const state = loadState(opts.fieldsFile)
+                const rest = restState(nextLife, state.fields, Date.now(), opts.timezone)
                 return {
                   ok: true,
                   mode,
-                  asleep: isAsleep(nextLife.lastActionAt, Date.now(), mode),
+                  rest,
+                  asleep: rest === 'asleep',
+                }
+              },
+            },
+            setSleepWindow: {
+              name: 'setSleepWindow',
+              verb: 'POST',
+              summary: '改她的夜间睡眠时段（默认 01:00–07:00；传 off 关掉时段判据，只按"闲了多久"）',
+              writable: true,
+              invoke(params: { start?: string; end?: string; off?: boolean }) {
+                const life = loadLifeFile(opts.lifeFile)
+                let win: SleepWindow
+                if (params?.off === true) win = null
+                else {
+                  const start = String(params?.start ?? '').trim()
+                  const end = String(params?.end ?? '').trim()
+                  if (!/^\d{1,2}:\d{2}$/.test(start) || !/^\d{1,2}:\d{2}$/.test(end)) {
+                    return { ok: false, error: 'start/end 要形如 01:00 / 07:00，或者传 off:true 关掉' }
+                  }
+                  const h = (s: string) => Number(s.split(':')[0])
+                  const m = (s: string) => Number(s.split(':')[1])
+                  if (h(start) > 23 || h(end) > 23 || m(start) > 59 || m(end) > 59) return { ok: false, error: '时刻超出 24 小时制' }
+                  if (start === end) return { ok: false, error: '时段起止相同等于整天空窗，要关就传 off:true' }
+                  win = { start, end }
+                }
+                const nextLife: LifeMemoryView = { ...life, sleepWindow: win }
+                saveLifeFile(opts.lifeFile, nextLife)
+                const state = loadState(opts.fieldsFile)
+                const rest = restState(nextLife, state.fields, Date.now(), opts.timezone)
+                return {
+                  ok: true,
+                  sleepWindow: win,
+                  rest,
+                  note: win
+                    ? `夜间 ${win.start}–${win.end} 算睡着（记忆结算与遗忘叙事只在这时跑）；白天体力低于 ${REST_BELOW_ENERGY} 算"歇着"，慢慢回血但不做梦`
+                    : '已关掉时段判据：只按"距上次行动 ≥6 小时"算睡着',
                 }
               },
             },
@@ -431,15 +490,16 @@ export function createStateRhythmCapability(
         nextCheckAt: now + delay,
       }
       saveLifeFile(opts.lifeFile, nextLife)
-      // 账上从没记过一次行动时（搬家后的新家、或刚清过状态），isAsleep 会拿 0 当
-      // "距上次行动无穷久"→ 判成睡着，于是同一段话里既说"她在睡着"又说"她想动"。
-      // 那不是她睡着了，那是**我们没有她的历史**。这里如实报 neverActed，
-      // 并把 asleep 归到"醒着"——没做过事不等于睡了 6 小时。
-      const neverActed = Number(nextLife.lastActionAt ?? 0) <= 0
+      // 三态：睡着（夜间/闲够 6 小时）／歇着（累了）／醒着。
+      // 以前这里只有一个布尔，且 `lastActionAt<=0` 被当成"睡了很久"——
+      // 线上因此说出过自相矛盾的话（14:47：既说"她在睡着时段"又说"她想动"）。
+      const rest = restState(nextLife, state.fields, now, opts.timezone)
       return {
         now,
-        neverActed,
-        asleep: neverActed ? false : isAsleep(reconciled.lastActionAt, now, reconciled.mode ?? 'auto'),
+        neverActed: Number(nextLife.lastActionAt ?? 0) <= 0,
+        rest,
+        asleep: rest === 'asleep',
+        resting: rest === 'resting',
         shouldAct: decision.act === true,
         reason: String(decision.reason ?? ''),
         kind: decision.act ? String(decision.kind ?? '') : null,
@@ -448,6 +508,18 @@ export function createStateRhythmCapability(
         lastActionAt: Number(nextLife.lastActionAt ?? 0),
         nextCheckAt: Number(nextLife.nextCheckAt ?? 0),
       }
+    },
+
+    /**
+     * 做梦系统要的判据：**必须走三态里的"睡着"**。
+     * 转接头以前直接从能力包对象上取 `isAsleep`（那是模块级导出，对象上没有），
+     * 结果每晚抛异常被 catch 吞掉，她一次梦都没做过。现在由本包给出绑好的函数，
+     * 时段与模式都从她自己的账里读。
+     */
+    lifeAsleep(now: number = Date.now()): boolean {
+      const life = loadLifeFile(opts.lifeFile)
+      const state = loadState(opts.fieldsFile)
+      return restState(life, state.fields, now, opts.timezone) === 'asleep'
     },
   }
 }

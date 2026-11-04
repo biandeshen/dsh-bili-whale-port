@@ -1,5 +1,5 @@
 {
-  "at": "2026-11-04T06:49:01.278Z",
+  "at": "2026-11-04T10:48:55.099Z",
   "base": "http://127.0.0.1:7799",
   "deploy": "C:\\Users\\Administrator\\.xiaoyu-home\\xiaoyu",
   "results": [
@@ -181,7 +181,7 @@
       "group": "D",
       "name": "memory.create（磁盘）",
       "ok": true,
-      "detail": "id=mem-mw1ra9we-xyq3"
+      "detail": "id=mem-mw1zus49-qqic"
     },
     {
       "group": "D",
@@ -205,7 +205,7 @@
       "group": "D",
       "name": "memory 提交信息含标记",
       "ok": true,
-      "detail": "memory: 恢复「验收标记-accra9rg-改」→ active"
+      "detail": "memory: 恢复「验收标记-acczurzw-改」→ active"
     },
     {
       "group": "D",
@@ -217,7 +217,7 @@
       "group": "D",
       "name": "journal.upsertJudgment",
       "ok": true,
-      "detail": "j-e9f42c"
+      "detail": "j-883b37"
     },
     {
       "group": "D",
@@ -319,17 +319,17 @@
       "group": "D",
       "name": "queue.reject（磁盘）",
       "ok": true,
-      "detail": "验收标记-accra9rg：拒稿验收"
+      "detail": "验收标记-acczurzw：拒稿验收"
     },
     {
       "group": "D",
       "name": "queue.requestNew",
       "ok": true,
-      "detail": "1793774941239"
+      "detail": "1793789335058"
     },
     {
       "group": "E",
-      "name": "记忆卡片 core=22 active=61",
+      "name": "记忆卡片 core=22 active=62",
       "ok": true,
       "detail": ""
     },

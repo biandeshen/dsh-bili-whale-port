@@ -16,6 +16,70 @@ export type LifeMemoryView = LifeMemory & {
   lastSilentDay?: string
   nextCheckAt?: number
   mode?: RhythmMode
+  /** 睡眠时段（主人可改可关）；null = 关掉时段判据，只按"闲了多久" */
+  sleepWindow?: SleepWindow
+}
+
+/**
+ * 「累了就歇」和「睡着了」是两件事，2026-11-04 之前被塞进同一个布尔里。
+ *
+ * 主人的话点破了这点：**人累了就会休息，她也能这样。** 对——但休息不等于睡觉：
+ *   • 歇着（resting）：体力低了就不做事，白天也会发生，慢慢回血；
+ *   • 睡着（asleep）：夜间时段（或长时间闲置），**记忆结算与遗忘叙事只在这里跑**。
+ * 原来只有 `isAsleep = 距上次行动 ≥6h`，于是：她几天没做事就永远不算睡（体力永不回满）、
+ * 白天闲 6 小时却算"过夜"（做梦被提前触发）、账上没历史时同一段话自相矛盾
+ * （14:47 线上实测：既说"她在睡着时段"又说"她想动"）。
+ */
+export type SleepWindow = { start: string; end: string } | null
+export const DEFAULT_SLEEP_WINDOW: SleepWindow = { start: '01:00', end: '07:00' }
+/** 体力低于这个数就算"她累了"（比 decideAction 的 tired 门槛 0.18 宽松：累了不等于不想动） */
+export const REST_BELOW_ENERGY = 0.35
+
+const hhmm = (s: string): number | null => {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(s ?? '').trim())
+  if (!m) return null
+  const h = Number(m[1]), mi = Number(m[2])
+  return h >= 0 && h < 24 && mi >= 0 && mi < 60 ? h * 60 + mi : null
+}
+
+/** 本地时刻落在不在睡眠时段里（支持跨零点，如 23:30–06:00） */
+export function inSleepWindow(now: number, window: SleepWindow = DEFAULT_SLEEP_WINDOW, tz?: string): boolean {
+  if (!window) return false
+  const a = hhmm(window.start), b = hhmm(window.end)
+  if (a === null || b === null || a === b) return false
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(new Date(now))
+  const hour = Number(parts.find((p) => p.type === 'hour')?.value ?? NaN)
+  const minute = Number(parts.find((p) => p.type === 'minute')?.value ?? NaN)
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return false
+  const cur = (hour % 24) * 60 + minute
+  return a < b ? cur >= a && cur < b : cur >= a || cur < b
+}
+
+/**
+ * 三态判据（**这是这次改动的正主**）：
+ *   force_sleep → 睡着；force_awake → 醒着；
+ *   在睡眠时段内 → 睡着；
+ *   距上次行动 ≥6h 且确实有过行动 → 睡着（熬夜加班也算睡了，只是没到点）；
+ *   体力 < 0.35 → 歇着；
+ *   其余 → 醒着。
+ * 注意 `lastActionAt<=0`（刚搬家/刚清账）**不再算睡着**：那叫没历史，不叫睡了 6 小时。
+ */
+export function restState(
+  mem: { lastActionAt?: number; mode?: RhythmMode; sleepWindow?: SleepWindow },
+  fields: { energy?: number } | null | undefined,
+  now: number = Date.now(),
+  tz?: string,
+): 'asleep' | 'resting' | 'awake' {
+  if (mem.mode === 'force_sleep') return 'asleep'
+  if (mem.mode === 'force_awake') return 'awake'
+  const win = mem.sleepWindow === undefined ? DEFAULT_SLEEP_WINDOW : mem.sleepWindow
+  if (inSleepWindow(now, win, tz)) return 'asleep'
+  const last = Number(mem.lastActionAt ?? 0)
+  if (last > 0 && now - last >= SLEEP_AFTER_MS) return 'asleep'
+  if (Number(fields?.energy ?? 1) < REST_BELOW_ENERGY) return 'resting'
+  return 'awake'
 }
 
 /** ① 对账：把"今天做了几次"收敛到三者最大值，跨日先归零。 */
@@ -43,22 +107,34 @@ export function reconcileLife(
   }
 }
 
-/** ② 睡着：距上次动作 ≥6h 算睡下（除非主人切了 force_awake / force_sleep）。 */
+/** ② 睡着：夜间时段，或确实有过行动且闲够 6 小时（force_* 最高优先）。 */
 export const SLEEP_AFTER_MS = 6 * 3_600_000
 export function isAsleep(
   lastActionAt: number | null | undefined,
   now: number = Date.now(),
   mode: RhythmMode = 'auto',
+  extra?: { energy?: number; sleepWindow?: SleepWindow; timezone?: string },
 ): boolean {
-  if (mode === 'force_sleep') return true
-  if (mode === 'force_awake') return false
-  if (lastActionAt == null || !Number.isFinite(Number(lastActionAt)) || Number(lastActionAt) <= 0) return true
-  return now - Number(lastActionAt) >= SLEEP_AFTER_MS
+  return restState(
+    { lastActionAt: Number(lastActionAt ?? 0), mode },
+    extra && extra.energy !== undefined ? { energy: extra.energy } : null,
+    now,
+    extra?.timezone,
+  ) === 'asleep'
+  // 旧行为里 `lastActionAt<=0 → 睡着` 是错的：那叫"没历史"。
+  // 传了 extra.energy 时，'resting' 也返回 false（歇着不是睡着，不该触发夜间结算）。
 }
 
-/** ② 的恢复量：只有睡着才回体力；醒着返回 0。 */
-export function restRecovery(fields: any, hours: number, asleep: boolean): number {
-  return asleep ? restRecoveryDelta(fields, hours) : 0
+/** ② 的恢复量：睡着按原速率，歇着给一半——白天累了也该慢慢回血，不然一 tired 就再也不满。 */
+export function restRecovery(
+  fields: { energy?: number } | any,
+  hours: number,
+  asleep: boolean,
+  resting = false,
+): number {
+  if (asleep) return restRecoveryDelta(fields, hours)
+  if (resting) return restRecoveryDelta(fields, hours * 0.5)
+  return 0
 }
 
 /** ④ 决定：这一轮动不动（尊重主人设定的 mode）。 */
