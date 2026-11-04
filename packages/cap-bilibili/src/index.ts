@@ -34,6 +34,13 @@ import {
   type WatchPreferences,
 } from './client/inbox.ts'
 import {
+  fetchFeed,
+  searchVideos,
+  checkLogin,
+  loadCredentials as loadReadCredentials,
+  type BiliReadContext,
+} from './client/bili-read.ts'
+import {
   executeBiliWrite,
   checkLikeNotRepeated,
   checkFavDailyCap,
@@ -95,6 +102,8 @@ export interface BilibiliCapabilityOptions {
   readHandlers?: BilibiliReadHandlers
   /** 真实写链路的上下文（凭据 + 本地账读法）。给了就用真执行器与真判据。 */
   writeContext?: BiliWriteContext
+  /** 真实读链路的上下文（凭据 + fetch 替身）。给了 feed/search 就走真端点。 */
+  readContext?: BiliReadContext
   /** 凭据文件路径；配合 writeContext.cred 缺省时从这里读 */
   credentialsFile?: string
 }
@@ -112,6 +121,8 @@ export function createBilibiliCapability(
   const writeCtx: BiliWriteContext = opts.writeContext ?? {
     cred: opts.credentialsFile ? loadCredentials(opts.credentialsFile) : { sessdata: '', bili_jct: '', buvid3: '' },
   }
+  // 真实读上下文：与写共用凭据；fetch 可独立注入
+  const readCtx = opts.readContext ?? { cred: writeCtx.cred, fetch: undefined as any }
 
   /** 默认内容判据：按 kind 走各自原有的判据（30 天去重 / 收藏两条 / 回信时效窗）。 */
   const defaultContentCheck = (
@@ -289,7 +300,17 @@ export function createBilibiliCapability(
             if (opts.readHandlers?.feed) {
               return await opts.readHandlers.feed({ count: args?.count, prefs })
             }
-            return { ok: true, prefs, items: [] }
+            const r = await fetchFeed(readCtx, { count: args?.count })
+            if (!r.ok) return { ok: false, error: r.error, prefs }
+            // 套用看片偏好标注（与旧 annotateFeed 同口径：时长阈值 / 屏蔽词高亮）
+            const min = prefs.minDurationSec
+            for (const it of r.items) {
+              const marks: string[] = []
+              if (min > 0 && it.durationSec > 0 && it.durationSec < min) marks.push(`短于${Math.round(min / 60)}分钟：跳过`)
+              if (prefs.dislike.some((w) => it.title.includes(w))) marks.push('命中屏蔽词')
+              if (marks.length) it.title = `${it.title}  [${marks.join('；')}]`
+            }
+            return { ok: true, source: r.source, prefs, items: r.items }
           },
         },
         {
@@ -337,7 +358,8 @@ export function createBilibiliCapability(
           },
           async execute(args: { keyword: string }) {
             if (opts.readHandlers?.search) return await opts.readHandlers.search(args.keyword)
-            return { ok: true, keyword: args.keyword, items: [] }
+            const r = await searchVideos(readCtx, args.keyword)
+            return { ...r, keyword: args.keyword }
           },
         },
         {
