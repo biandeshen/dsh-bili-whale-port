@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { emptyState, applyEvent, applyEffects, saveState, loadState, remember, describeState } from '../../src/worlds/bili-account/personaAdapter.ts'
+import { emptyState, applyEvent, applyEffects, saveState, loadState, remember, describeState } from '../../legacy/bili-account-retired/personaAdapter.ts'
 
 const DAY = 86400_000
 const T0 = Date.parse('2026-10-01T21:40:00+08:00')

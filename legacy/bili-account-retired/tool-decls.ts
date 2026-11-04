@@ -3,8 +3,8 @@
  * 纯数据：参数 schema + 摘要。handler 在 `definition.ts` 的 `tools()` 里按下标装配
  * （`DECLS[8]` 这类引用），所以这里是**有序**数组，增删要同时改那边的下标。
  */
-import { describeTools } from '../../world.ts'
-import type { DescribeText } from '../../core/types.ts'
+import { describeTools } from '../../src/world.ts'
+import type { DescribeText } from '../../src/core/types.ts'
 
 export const TOOL_SUMMARIES: Record<string, DescribeText> = {
   bili_traffic: { zh: '读取请求预算/熔断状态', en: 'Read traffic budget state.' },

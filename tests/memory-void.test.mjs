@@ -12,7 +12,7 @@ import { voidMemories, restoreMemories, isVoided } from '@xiaoyu/persona-core/me
 import { recallMemories } from '@xiaoyu/persona-core/retrieval'
 import { createInitialState } from '@xiaoyu/persona-core/npc-state-machine'
 import { DEFAULT_ATOMIC_FIELDS } from '@xiaoyu/persona-core/types'
-import { findMemories, voidMemory } from '../src/worlds/bili-account/personaAdapter.ts'
+import { findMemories, voidMemory } from '../legacy/bili-account-retired/personaAdapter.ts'
 
 const NOW = Date.parse('2026-11-01T12:00:00.000Z')
 const mem = (id, content, extra) => ({
@@ -87,7 +87,7 @@ test('voidMemory（适配器层）：点到的那条作废，其余原样', () =
 
 test('bili_memory_void 工具：拒空理由、拒多条命中、成功后回执说清留原文且没有撤销通道', async () => {
   process.env.WHALE_HOME = HOME
-  const { BILI_ACCOUNT } = await import('../src/worlds/bili-account/definition.ts')
+  const { BILI_ACCOUNT } = await import('../legacy/bili-account-retired/definition.ts')
   const world = BILI_ACCOUNT.create({ repoRoot: HOME, botDir: HOME })
   const tool = world.tools().find((t) => t.name === 'bili_memory_void')
   assert.ok(tool, '她需要一个能更正记忆的入口')

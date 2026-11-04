@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { BILI_ACCOUNT } from '../src/worlds/bili-account/definition.ts'
+import { BILI_ACCOUNT } from '../legacy/bili-account-retired/definition.ts'
 
 /** 造一棵临时目录树；repoRoot 与 botDir 都在里面，绝不碰正式部署。 */
 function tree(files) {

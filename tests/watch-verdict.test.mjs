@@ -4,7 +4,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   emptyState, applyEffects, describeState, readMood, remember, PRESETS, WATCH_VERDICTS,
-} from '../src/worlds/bili-account/personaAdapter.ts'
+} from '../legacy/bili-account-retired/personaAdapter.ts'
 
 const DAY = 86400_000
 const NOW = Date.now()

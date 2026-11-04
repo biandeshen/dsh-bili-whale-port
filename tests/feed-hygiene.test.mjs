@@ -1,7 +1,7 @@
 // 她 10-30 / 10-31 在私人日记里立过的选片规矩，现在由工具直接标在候选上（原来每轮要她自己数）。
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { annotateFeed, recentWatch, remember, emptyState } from '../src/worlds/bili-account/personaAdapter.ts'
+import { annotateFeed, recentWatch, remember, emptyState } from '../legacy/bili-account-retired/personaAdapter.ts'
 import { watchedFromMemories } from '@xiaoyu/persona-core/retrieval'
 
 const FEED = [

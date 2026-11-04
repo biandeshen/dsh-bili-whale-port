@@ -5,8 +5,8 @@
  * 的能力范围里，所以这份清单不给任何写路径。
  */
 import path from 'node:path'
-import { readInstalled } from '../../extensions.ts'
-import type { ToolDescribe } from '../../core/types.ts'
+import { readInstalled } from '../../src/extensions.ts'
+import type { ToolDescribe } from '../../src/core/types.ts'
 import { readJsonSafe } from './paths.ts'
 
 /** Core 给的工具表条目；owner 是提供方（World id 或 'persona'）。 */

@@ -70,13 +70,13 @@ describe('readTextFile', () => {
       'src/core/event-store.ts',
       'src/core/transcript.ts',
       'src/protocol/open-responses/context-log.ts',
-      'src/worlds/bili-account/causal-io.ts',
-      'src/worlds/bili-account/definition.ts',
-      'src/worlds/bili-account/paths.ts',
-      'src/worlds/bili-account/personaAdapter.ts',
-      'src/worlds/bili-account/prompts.ts',
-      'src/worlds/bili-account/tank.ts',
-      'src/worlds/bili-account/task-queue.ts',
+      'legacy/bili-account-retired/causal-io.ts',
+      'legacy/bili-account-retired/definition.ts',
+      'legacy/bili-account-retired/paths.ts',
+      'legacy/bili-account-retired/personaAdapter.ts',
+      'legacy/bili-account-retired/prompts.ts',
+      'legacy/bili-account-retired/tank.ts',
+      'legacy/bili-account-retired/task-queue.ts',
     ]);
   });
 });

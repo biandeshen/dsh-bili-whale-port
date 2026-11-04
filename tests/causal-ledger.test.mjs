@@ -5,7 +5,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { dayKey } from '@xiaoyu/persona-core/rhythm'
-import { countCausalActions } from '../src/worlds/bili-account/definition.ts'
+import { countCausalActions } from '../legacy/bili-account-retired/definition.ts'
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'causal-ledger-'))
 

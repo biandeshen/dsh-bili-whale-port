@@ -15,7 +15,7 @@ import path from 'node:path'
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'life-stages-'))
 
 test('五阶段：对账 → 结算 → 衰减/恢复 → 决定 → 记账，顺序不可换', async () => {
-  const P = await import('../src/worlds/bili-account/life-stages.ts')
+  const P = await import('../legacy/bili-account-retired/life-stages.ts')
 
   // ① 对账：life.json 被并发实例写回旧值，因果链只增不减
   const reconcil = P.reconcileLife(
@@ -32,7 +32,7 @@ test('五阶段：对账 → 结算 → 衰减/恢复 → 决定 → 记账，�
 })
 
 test('② 睡着判定：只有"距上次动作 ≥6h"才算睡下，刚忙完不算', async () => {
-  const P = await import('../src/worlds/bili-account/life-stages.ts')
+  const P = await import('../legacy/bili-account-retired/life-stages.ts')
   const hour = 3_600_000
   const now = Date.parse('2026-11-02T10:00:00.000Z')
   assert.equal(P.isAsleep(now - (5 * hour + 59 * 60_000), now), false, '5h59m 还醒着')
@@ -41,8 +41,8 @@ test('② 睡着判定：只有"距上次动作 ≥6h"才算睡下，刚忙完�
 })
 
 test('③ 审批结果结算：游标之前的不重复吃，理由原样带进记忆', async () => {
-  const { consumeDraftResults } = await import('../src/worlds/bili-account/prompts.ts')
-  const { loadState } = await import('../src/worlds/bili-account/personaAdapter.ts')
+  const { consumeDraftResults } = await import('../legacy/bili-account-retired/prompts.ts')
+  const { loadState } = await import('../legacy/bili-account-retired/personaAdapter.ts')
   const entries = [
     { kind: 'draft-result', at: '2026-11-02T01:00:00.000Z', result: 'rejected', draftId: 'd1', reason: '选题偏了' },
     { kind: 'draft-result', at: '2026-11-02T02:00:00.000Z', result: 'sent', draftId: 'd2' },
@@ -64,7 +64,7 @@ test('③ 审批结果结算：游标之前的不重复吃，理由原样带进�
 })
 
 test('④ 决定之后才扣成本：不动就不扣场值', async () => {
-  const P = await import('../src/worlds/bili-account/life-stages.ts')
+  const P = await import('../legacy/bili-account-retired/life-stages.ts')
   const { dayKey } = await import('@xiaoyu/persona-core/rhythm')
   const now = Date.parse('2026-11-02T10:00:00.000Z')
   // 造一个"确实不想动"的她：刚动过（restPressure=0）、什么事都不缺（explore/connect=0）
@@ -85,7 +85,7 @@ test('④ 决定之后才扣成本：不动就不扣场值', async () => {
 })
 
 test('⑤ 记账在触发之前：先写 life.json 再入队，重启不会补一次', async () => {
-  const P = await import('../src/worlds/bili-account/life-stages.ts')
+  const P = await import('../legacy/bili-account-retired/life-stages.ts')
   const order = []
   P.applyActionRecord(
     { day: '2026-11-02', actionsToday: 2, lastActionAt: 0 },
@@ -99,7 +99,7 @@ test('⑤ 记账在触发之前：先写 life.json 再入队，重启不会补�
 })
 
 test('阶段封装保持纯函数：同一输入两次结果相同，不读真状态目录', async () => {
-  const P = await import('../src/worlds/bili-account/life-stages.ts')
+  const P = await import('../legacy/bili-account-retired/life-stages.ts')
   const mem = { day: '2026-11-02', actionsToday: 1, lastActionAt: 0 }
   const a = P.reconcileLife(mem, null, { count: 2, lastAt: 5 })
   const b = P.reconcileLife(mem, null, { count: 2, lastAt: 5 })

@@ -1,12 +1,12 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { canDraft, canApplyWatched, draftRefusal } from '../src/worlds/bili-account/gates.ts'
-import { makeRunner } from '../src/worlds/bili-account/runner.ts'
-import { emptyState, applyEvent, readMood, describeState, remember, recentWatch, annotateFeed } from '../src/worlds/bili-account/personaAdapter.ts'
-import { sanitizeEffects } from '../src/worlds/bili-account/definition.ts'
-import { upsertDiarySection, sectionStats } from '../src/worlds/bili-account/diary.ts'
-import { canReply, dmAutoPlan, DM_REPLY_WINDOW_MS } from '../src/worlds/bili-account/dm-reply.ts'
-import { diaryFresh, diaryRefusal } from '../src/worlds/bili-account/gates.ts'
+import { canDraft, canApplyWatched, draftRefusal } from '../legacy/bili-account-retired/gates.ts'
+import { makeRunner } from '../legacy/bili-account-retired/runner.ts'
+import { emptyState, applyEvent, readMood, describeState, remember, recentWatch, annotateFeed } from '../legacy/bili-account-retired/personaAdapter.ts'
+import { sanitizeEffects } from '../legacy/bili-account-retired/definition.ts'
+import { upsertDiarySection, sectionStats } from '../legacy/bili-account-retired/diary.ts'
+import { canReply, dmAutoPlan, DM_REPLY_WINDOW_MS } from '../legacy/bili-account-retired/dm-reply.ts'
+import { diaryFresh, diaryRefusal } from '../legacy/bili-account-retired/gates.ts'
 
 const HOUR = 3600_000
 const DAY = 86400_000

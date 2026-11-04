@@ -4,8 +4,8 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { BILI_ACCOUNT, exportPolicyNotice } from '../src/worlds/bili-account/definition.ts'
-import { readPolicyLite, policyInWindow, policySet, policyState, autoSentToday, draftForDay, freshAckToken, openFeedbackCount, settingsOverview, settingsState, personaNameFromConfig, hostDisplayName, renameSelf } from '../src/worlds/bili-account/tank.ts'
+import { BILI_ACCOUNT, exportPolicyNotice } from '../legacy/bili-account-retired/definition.ts'
+import { readPolicyLite, policyInWindow, policySet, policyState, autoSentToday, draftForDay, freshAckToken, openFeedbackCount, settingsOverview, settingsState, personaNameFromConfig, hostDisplayName, renameSelf } from '../legacy/bili-account-retired/tank.ts'
 
 const decl = BILI_ACCOUNT.create().webUi('zh')
 
@@ -39,7 +39,7 @@ test('invoke 路由：未知面板/未知方法显式拒绝，不静默吞', asy
 
 // ── 发送策略（tank.ts 纯函数；写盘只在临时文件里发生，绝不碰真配置） ──────────
 test('策略页每个下拉都真的挂到了页面上（2026-11-03 漏项：建了 select 忘了 ui.field，页面看不见）', () => {
-  const src = fs.readFileSync(new URL('../src/worlds/bili-account/webui/client.ts', import.meta.url), 'utf8')
+  const src = fs.readFileSync(new URL('../legacy/bili-account-retired/webui/client.ts', import.meta.url), 'utf8')
   // 只看策略面板那个函数：弹窗里的一次性输入框（whyInput 之类）本来就不走 ui.field
   const start = src.indexOf('function mountPolicy(')
   assert.ok(start > 0, '找不到 mountPolicy')
@@ -286,7 +286,7 @@ test('草稿目录只有一处解析：面板与 badge 同源，badge 数得出�
   process.env.WHALE_DRAFTS = dir
   try {
     // 模块级 DRAFTS_DIR 在 import 时定值，所以带一个新的 query 重新加载一份拿新 env。
-    const fresh = await import(`../src/worlds/bili-account/tank.ts?drafts=${Date.now()}`)
+    const fresh = await import(`../legacy/bili-account-retired/tank.ts?drafts=${Date.now()}`)
     fs.writeFileSync(path.join(dir, '2026-11-01.json'), JSON.stringify({ id: 'dyn-1', status: 'pending', text: 'x' }), 'utf8')
     fs.writeFileSync(path.join(dir, '2026-10-31.json'), JSON.stringify({ id: 'dyn-0', status: 'sent', text: 'y' }), 'utf8')
     assert.equal(fresh.pendingDraftCount(), 1, 'badge 数出的 pending 必须和面板看到的是同一批文件')
@@ -321,14 +321,14 @@ test('待放行 = 草稿 + 待审回信：徽标与面板同一口径，且新�
     // 先只放旧家：读取要能退到旧家（go-gate 在迁移前写的就是这里）
     fs.mkdirSync(path.join(home, '.bili-ai'), { recursive: true })
     fs.writeFileSync(path.join(home, '.bili-ai', 'pending-replies.json'), JSON.stringify({ items: [{}, {}, {}] }), 'utf8')
-    let fresh = await import(`../src/worlds/bili-account/tank.ts?pending=${Date.now()}`)
+    let fresh = await import(`../legacy/bili-account-retired/tank.ts?pending=${Date.now()}`)
     assert.equal(fresh.pendingReplyCount(), 3, '旧家那 3 条也要算进待放行')
     assert.equal(fresh.pendingTotal(), 4, '1 条草稿 + 3 条回信')
 
     // 再放新家：新家优先，旧家作废（两边都有时不叠加）
     fs.mkdirSync(path.join(whale, 'bili-ai'), { recursive: true })
     fs.writeFileSync(path.join(whale, 'bili-ai', 'pending-replies.json'), JSON.stringify({ items: [{}, {}] }), 'utf8')
-    fresh = await import(`../src/worlds/bili-account/tank.ts?pending=${Date.now()}b`)
+    fresh = await import(`../legacy/bili-account-retired/tank.ts?pending=${Date.now()}b`)
     assert.equal(fresh.pendingReplyCount(), 2, '新家存在就只认新家')
     assert.equal(fresh.pendingTotal(), 3, '1 条草稿 + 2 条回信')
   } finally {
@@ -344,8 +344,8 @@ test('待放行 = 草稿 + 待审回信：徽标与面板同一口径，且新�
 // tool-decls / capability / paths / causal-io / prompts。搬家的验收标准是**对外契约一模一样**，
 // 这条锁住三件事：工具表仍按序、handler 下标仍对得上、旧入口仍能按名字 import。
 test('拆出去的工具表与 handler 下标仍对得上，旧入口仍可用', async () => {
-  const { DECLS, BILI_TOOL_DECLS } = await import('../src/worlds/bili-account/tool-decls.ts')
-  const def = await import('../src/worlds/bili-account/definition.ts')
+  const { DECLS, BILI_TOOL_DECLS } = await import('../legacy/bili-account-retired/tool-decls.ts')
+  const def = await import('../legacy/bili-account-retired/definition.ts')
 
   // ① 声明是有序数组：handler 用 DECLS[n] 取参数 schema，顺序变了等于换了参数
   assert.equal(DECLS.length, 18, '工具数变了就要同步改 tools() 里的下标')
@@ -388,7 +388,7 @@ test('待放行三路都算：漏掉 dm 回信就会和面板差数', async () =
   delete process.env.DSH_HOME
   process.env.USERPROFILE = home
   try {
-    const t = await import(`../src/worlds/bili-account/tank.ts?three=${Date.now()}`)
+    const t = await import(`../legacy/bili-account-retired/tank.ts?three=${Date.now()}`)
     assert.equal(t.pendingDraftCount(), 1, '动态稿 1')
     assert.equal(t.pendingReplyCount(), 2, '待审回信 2')
     assert.equal(t.pendingDmReplyCount(), 1, '私信回信只数待处理的（sent 不算）')

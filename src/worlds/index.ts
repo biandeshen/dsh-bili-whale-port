@@ -15,7 +15,6 @@ const EXPORTS = {
   bilibili: 'BILIBILI',
   minecraft: 'MINECRAFT',
   websearch: 'WEBSEARCH',
-  'bili-account': 'BILI_ACCOUNT',
 } as const;
 
 export type BuiltinWorldId = keyof typeof EXPORTS;

@@ -10,8 +10,8 @@ import { readMood } from '@xiaoyu/persona-core/emotion'
 import { buildVoiceBrief } from '@xiaoyu/persona-core/voice-brief'
 import { DEFAULT_ATOMIC_FIELDS } from '@xiaoyu/persona-core/types'
 import { pickActivities } from '@xiaoyu/persona-core/life-activities'
-import { diaryDefaultHeader } from '../src/worlds/bili-account/diary.ts'
-import { ownerNameFromConfig } from '../src/worlds/bili-account/tank.ts'
+import { diaryDefaultHeader } from '../legacy/bili-account-retired/diary.ts'
+import { ownerNameFromConfig } from '../legacy/bili-account-retired/tank.ts'
 
 const causeMood = (source) => readMood({
   fields: { ...DEFAULT_ATOMIC_FIELDS },

@@ -3,7 +3,7 @@
 // 分页不是省 token，是让"没给她的部分"变成她看得见的事实——回执必须自己说清楚。
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { paginateDiary } from '../src/worlds/bili-account/diary.ts'
+import { paginateDiary } from '../legacy/bili-account-retired/diary.ts'
 
 const day = (d, lines) => [`## ${d}`, '', ...lines.map((l) => l), ''].join('\n')
 const BOOK = [
@@ -107,7 +107,7 @@ test('没有哪一节命中时直说，而不是给一本空的', () => {
 })
 
 test('diaryHeadings 列出这一本有哪些节（新→旧，去重）', async () => {
-  const { diaryHeadings } = await import('../src/worlds/bili-account/diary.ts')
+  const { diaryHeadings } = await import('../legacy/bili-account-retired/diary.ts')
   assert.deepEqual(diaryHeadings(book), ['看过', '今日指标', '想说'])
 })
 
@@ -115,7 +115,7 @@ test('diaryHeadings 列出这一本有哪些节（新→旧，去重）', async 
 // 她要回答"这一周判了多少条"，过去只能一页页读回来手工数。汇总只数她自己写下的，
 // 数不出来就说数不出来，不拿 0 冒充。
 test('summary：区间内天数、BV 数、想说节数都数得出来', async () => {
-  const { summarizeDiaryRange } = await import('../src/worlds/bili-account/diary.ts')
+  const { summarizeDiaryRange } = await import('../legacy/bili-account-retired/diary.ts')
   const raw = [
     '## 2026-10-29', '## 看过', '看了 BV1aaaaaaaaa', '## 想说', '有点累',
     '## 2026-10-30', '## 看过', '看了 BV1bbbbbbbbb 和 BV1aaaaaaaaa', '## 想说', '今天还行',
@@ -130,13 +130,13 @@ test('summary：区间内天数、BV 数、想说节数都数得出来', async (
 })
 
 test('summary：没有判断小节时说"数不出来"，不说 0', async () => {
-  const { summarizeDiaryRange } = await import('../src/worlds/bili-account/diary.ts')
+  const { summarizeDiaryRange } = await import('../legacy/bili-account-retired/diary.ts')
   const s = summarizeDiaryRange(['## 2026-11-01', '## 看过', '看了一条'].join('\n'))
   assert.equal(s.verdicts, null, 'null 与 {keep:0,drop:0} 是两件事')
 })
 
 test('summary：判断小节里「不收」不会被算成一次「收」', async () => {
-  const { summarizeDiaryRange } = await import('../src/worlds/bili-account/diary.ts')
+  const { summarizeDiaryRange } = await import('../legacy/bili-account-retired/diary.ts')
   const raw = [
     '## 2026-11-01',
     '## 判断', '这条不收，那条也放弃', '另一条收了，留下',

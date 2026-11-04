@@ -5,7 +5,7 @@
  * 全部搬进这一页，与聊天同入口同主题。服务端数据面见 `../definition.ts` 的 `webUi()`
  * 与 `../tank.ts`；本文件只画图与发请求，不带业务规则。
  */
-import type { WebUiClientBundle, WebUiPanelContext } from '../../../web/shared/client-panel.ts';
+import type { WebUiClientBundle, WebUiPanelContext } from '../../src/web/shared/client-panel.ts';
 
 const POLL_MS = 20_000;
 

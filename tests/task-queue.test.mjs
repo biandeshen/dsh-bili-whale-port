@@ -5,7 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import {
   readQueue, writeQueue, newTask, dueTasks, markDelivered, markAttempt, prune, expireStale,
-} from '../src/worlds/bili-account/task-queue.ts'
+} from '../legacy/bili-account-retired/task-queue.ts'
 
 const T = Date.parse('2026-10-29T12:00:00+08:00')
 

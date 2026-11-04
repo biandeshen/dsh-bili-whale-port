@@ -3,7 +3,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
-import { BILI_ACCOUNT } from '../src/worlds/bili-account/definition.ts'
+import { BILI_ACCOUNT } from '../legacy/bili-account-retired/definition.ts'
 
 test('bili-account 声明了一份 envPrompt 模板，变量名与实现对得上', () => {
   const w = BILI_ACCOUNT.create()

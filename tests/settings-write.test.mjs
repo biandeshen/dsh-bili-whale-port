@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { settingsSet, settingsOverview, policySet } from '../src/worlds/bili-account/tank.ts'
+import { settingsSet, settingsOverview, policySet } from '../legacy/bili-account-retired/tank.ts'
 
 const tmp = (obj) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'settings-write-'))

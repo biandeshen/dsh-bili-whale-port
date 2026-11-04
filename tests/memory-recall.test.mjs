@@ -5,8 +5,8 @@
 //   ④ 审批结果四种都进记忆，failed/cooldown 不再等于没发生。
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { emptyState, remember, rememberFirst, describeStateWithTrace, applyRecall } from '../src/worlds/bili-account/personaAdapter.ts'
-import { consumeDraftResults } from '../src/worlds/bili-account/definition.ts'
+import { emptyState, remember, rememberFirst, describeStateWithTrace, applyRecall } from '../legacy/bili-account-retired/personaAdapter.ts'
+import { consumeDraftResults } from '../legacy/bili-account-retired/definition.ts'
 
 const seed = (n) => {
   let s = emptyState()

@@ -5,8 +5,8 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { parseDmPeek, toMs } from '../src/worlds/bili-account/dm.ts'
-import { canReply, dmAutoPlan, noteInboxRead, noteInbound, DM_REPLY_WINDOW_MS } from '../src/worlds/bili-account/dm-reply.ts'
+import { parseDmPeek, toMs } from '../legacy/bili-account-retired/dm.ts'
+import { canReply, dmAutoPlan, noteInboxRead, noteInbound, DM_REPLY_WINDOW_MS } from '../legacy/bili-account-retired/dm-reply.ts'
 
 const DAY = 86400_000
 /** dm-await 透传 B站 的 timestamp：10 位秒。*/

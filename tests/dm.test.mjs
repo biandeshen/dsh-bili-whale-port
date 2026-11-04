@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { parseDmPeek } from '../src/worlds/bili-account/dm.ts'
+import { parseDmPeek } from '../legacy/bili-account-retired/dm.ts'
 
 const hit = (over = {}) => JSON.stringify({
   hit: true, mid: '233643544', name: '主人', text: '在吗', ts: 1761760000,

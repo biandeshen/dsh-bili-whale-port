@@ -13,7 +13,7 @@ const DRAFTS = path.join(HOME, 'drafts')
 process.env.WHALE_DRAFTS = DRAFTS
 fs.mkdirSync(DRAFTS, { recursive: true })
 
-const { todayDraftLine } = await import('../src/worlds/bili-account/definition.ts')
+const { todayDraftLine } = await import('../legacy/bili-account-retired/definition.ts')
 const { dayKey } = await import('@xiaoyu/persona-core/rhythm')
 
 const day = dayKey(Date.now())
