@@ -1,5 +1,5 @@
 {
-  "at": "2026-11-04T05:00:49.313Z",
+  "at": "2026-11-04T05:40:04.832Z",
   "base": "http://127.0.0.1:7799",
   "deploy": "C:\\Users\\Administrator\\.xiaoyu-home\\xiaoyu",
   "results": [
@@ -19,7 +19,7 @@
       "group": "A",
       "name": "7799 已切到新扩展 bili-account",
       "ok": true,
-      "detail": "/assets/extensions/cortico-world-bilibili/0.1.9a2f7a6c/webui.js"
+      "detail": "/assets/extensions/cortico-world-bilibili/0.1.b5c56d8a/webui.js"
     },
     {
       "group": "B",
@@ -31,7 +31,7 @@
       "group": "B",
       "name": "persona:xiaoyu 用扩展产物",
       "ok": true,
-      "detail": "/assets/extensions/cortico-bot-xiaoyu/0.1.1787db68/webui.js"
+      "detail": "/assets/extensions/cortico-bot-xiaoyu/0.1.b39c7763/webui.js"
     },
     {
       "group": "B",
@@ -43,7 +43,7 @@
       "group": "B",
       "name": "world:bili-account 用扩展产物",
       "ok": true,
-      "detail": "/assets/extensions/cortico-world-bilibili/0.1.9a2f7a6c/webui.js"
+      "detail": "/assets/extensions/cortico-world-bilibili/0.1.b5c56d8a/webui.js"
     },
     {
       "group": "B",
@@ -55,7 +55,7 @@
       "group": "B",
       "name": "world:media-studio 用扩展产物",
       "ok": true,
-      "detail": "/assets/extensions/cortico-world-media/0.1.71033e73/webui.js"
+      "detail": "/assets/extensions/cortico-world-media/0.1.648f0369/webui.js"
     },
     {
       "group": "B",
@@ -181,7 +181,7 @@
       "group": "D",
       "name": "memory.create（磁盘）",
       "ok": true,
-      "detail": "id=mem-mw1nf4oo-3gvh"
+      "detail": "id=mem-mw1otm5h-4586"
     },
     {
       "group": "D",
@@ -205,7 +205,7 @@
       "group": "D",
       "name": "memory 提交信息含标记",
       "ok": true,
-      "detail": "memory: 恢复「验收标记-accnf4kw-改」→ active"
+      "detail": "memory: 恢复「验收标记-accotm14-改」→ active"
     },
     {
       "group": "D",
@@ -217,7 +217,7 @@
       "group": "D",
       "name": "journal.upsertJudgment",
       "ok": true,
-      "detail": "j-579278"
+      "detail": "j-87ff7b"
     },
     {
       "group": "D",
@@ -307,17 +307,17 @@
       "group": "D",
       "name": "queue.reject（磁盘）",
       "ok": true,
-      "detail": "验收标记-accnf4kw：拒稿验收"
+      "detail": "验收标记-accotm14：拒稿验收"
     },
     {
       "group": "D",
       "name": "queue.requestNew",
       "ok": true,
-      "detail": "1793768449264"
+      "detail": "1793770804794"
     },
     {
       "group": "E",
-      "name": "记忆卡片 core=22 active=58",
+      "name": "记忆卡片 core=22 active=59",
       "ok": true,
       "detail": ""
     },
