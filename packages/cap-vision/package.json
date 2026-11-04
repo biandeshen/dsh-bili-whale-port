@@ -1,0 +1,19 @@
+{
+  "name": "@xiaoyu/cap-vision",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "小鱼的视觉能力扩展包（dsh-see-now 变化分帧管道 + 离线 ffmpeg 驱动，100% 宿主无关）。",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@xiaoyu/persona-core": "workspace:*"
+  },
+  "cortico": {},
+  "files": [
+    "dist",
+    "src"
+  ]
+}
