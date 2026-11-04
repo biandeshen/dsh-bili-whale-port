@@ -2,9 +2,9 @@
  * cortico-bot-xiaoyu —— 对内能力「一拖三」薄转接头（kind: "bot", api: 7）。
  *
  * 职责：
- * - 将 3 个宿主无关的对内能力包（cap-state-rhythm / cap-memory / cap-journal）组装为一个统一的人格中枢；
- * - 汇总 3 个能力包的系统前缀（contextSegments）、入站消息动态注入（onMessageDelivery）、
- *   10 个对内工具（tools）以及 3 个可写主人操作台（tank / memory-center / journal-board）；
+ * - 将 4 个宿主无关的对内能力包（cap-state-rhythm / cap-memory / cap-journal / cap-vision）组装为一个统一的人格中枢；
+ * - 汇总 4 个能力包的**全部**工具与 4 个可写主人操作台（tank / memory-center / journal-board / vision）——
+ *   工具数以 `hub.tools().length` 实测为准，不在注释里写死（写过 10，加一个包就过期了）；
  * - 向下适配 Cortico BotDefinition（api: 7），同时暴露宿主无关的 `createXiaoyuBotHub` 供任意底座直接挂载。
  */
 import path from 'node:path'
@@ -25,11 +25,14 @@ import {
 import { createMemoryCapability } from '../../cap-memory/src/index.ts'
 import { GitWorkspaceMemory } from '../../cap-memory/src/workspace.ts'
 import { createJournalCapability } from '../../cap-journal/src/index.ts'
+import { createVisionCapability, type OfflineOptions } from '../../cap-vision/src/index.ts'
 
 export interface XiaoyuBotHubOptions {
   homeDir: string
   onWakeTriggered?: (info: { reason: string; hint?: string; atMs: number }) => void
   onRuleConverted?: (rule: { kind: 'dislike' | 'keyword' | 'exemptUp'; value: string }) => void
+  /** 看画面：注入管道替身（测试）或指定 ffmpeg（宿主已有那份） */
+  vision?: { analyze?: (file: string, opts: OfflineOptions) => Promise<unknown>; ffmpegPath?: string }
 }
 
 export interface XiaoyuBotHub {
@@ -79,11 +82,18 @@ export function createXiaoyuBotHub(opts: XiaoyuBotHubOptions): XiaoyuBotHub {
     onRuleConverted: opts.onRuleConverted,
     git: memoryCap.git ?? undefined,
   })
+  // 看画面（V-Now）：判帧/装箱/出图用 vendor 的 dsh-see-now 管道，缺 ffmpeg 只降级不报错
+  const visionCap = createVisionCapability({
+    dataDir: path.join(opts.homeDir, 'data', 'vision'),
+    ...(opts.vision?.analyze ? { analyze: opts.vision.analyze } : {}),
+    ...(opts.vision?.ffmpegPath ? { ffmpegPath: opts.vision.ffmpegPath } : {}),
+  })
 
   const capabilities: readonly XiaoyuCapability<any>[] = [
     stateRhythmCap,
     memoryCap,
     journalCap,
+    visionCap,
   ]
 
   for (const cap of capabilities) {
