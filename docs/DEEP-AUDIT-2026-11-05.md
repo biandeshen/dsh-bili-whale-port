@@ -1321,3 +1321,31 @@ runner 换 `safeLog`（与 hostLog 同形状的三态识别），回归测试钉
 「她的一天」新区块空态文案正确。
 **未验证项（诚实标注）**：她会否真的调 `life_do`、以及夜里反思/做梦在真实模型上的行为，
 要等今晚的线上观察——这是下一轮回看的头一件事。
+
+### 12.12 B15：她的自主求知与记忆自审（2026-11-06）
+
+需求不是现编的——从意见箱三条已批复意见接回（f-aa12d0 / f-5ab4ec / f-bb3847）。
+
+**bili_seek**（好奇心队列取件口）：她 f-aa12d0 的原话是"没有一个'去池子里捞点新东西来'的按钮"。
+两种捞法：keyword 直搜；`fromJudgment:true` 从她判过「收」的判断卡 tokens 里定向捞——
+"上次收了钢琴曲，再来几个同类的"。套 feed 同款偏好标注（时长/屏蔽词标在标题上），只读不发表。
+**架构取舍**：判断卡是 journal 的账，bilibili 包不反向依赖 journal——加
+`BilibiliReadHandlers.keptJudgmentTokens` 注入点，由 cortico-world 转接头接 `listJudgments`
+（转接头层认识两边合法）。没注入时 `fromJudgment` 明说"没接上"，keyword 直捞不受影响。
+
+**judgment_revisit**（复盘式练习取题器）：f-5ab4ec 原话"允许把历史判断卡翻出来假设性重判"。
+只读，优先级 = 同主题结论打架 > unclear > 挂着的 proposed，每题带原结论/原理由/隔了多久。
+**不写任何账**——改判是她日记里自己那句"复盘改判"，结案是主人的事。
+
+**activeReview**（活跃层自审）：f-bb3847 原话"活跃 45 条……过两周就不重要但还占检索位"。
+仿 coreReview 的只读建议器：久未浮现 / 流水账 / 与核心同主题三类，每条带建议动作；
+处置走主人已有的 void/移层控件，不自动动账。
+线上首跑（她真实的账）：43 条活跃，流水账形状 15 条、与核心同主题 1 条。
+
+工具数：bot 12→13（judgment_revisit），world 17→18（bili_seek），describe.json 两份同步。
+全量 148 文件 / 839 测试 0 红；真浏览器验收：bot 工具表 13 个含 judgment_revisit，
+activeReview 经面板 API 线上调用返回真实三类计数。
+
+**顺手修掉的前置**：意见箱 53 条曾 46 条结案但零批复正文——已逐条批复写回（open 52→0），
+fetchFeed 单源失效不再静默（sourceFails 逐源列死法）。另按主人拍板把控制台对局域网开放
+（`--host=0.0.0.0` + 防火墙仅专用网络档放行，start-cortico-firewall.cmd 带 --check/--remove）。
