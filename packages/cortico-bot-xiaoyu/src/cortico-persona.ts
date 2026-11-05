@@ -519,6 +519,43 @@ export class XiaoYuPersona implements CorticoPersonaShape {
     return {
       label: '小鱼',
       panels,
+      /**
+       * 可清除存储清单：宿主在**装配期**收这一份（`src/bot.ts` 的 webUiStorage），
+       * 于是它出现在 WebUI 的「数据清理」里，主人能看见"她攒了哪些东西、能清哪一项"。
+       *
+       * 以前这里没声明 → cap-vision 那三项（视觉配置 / 拼图产出 / 运行记录）
+       * **声明了但宿主不认**（声明在能力包这一层，转接头没往上带），
+       * 于是它们是死的：清单里不出现，清了也没人管。
+       */
+      storage: this.hub.storageParts(),
+      /**
+       * 可编辑的固定提示词（人设正本）。
+       *
+       * 以前这两份（CONSTITUTION.md / ORIENTATION.md）**只能手改文件**：
+       * 主人在 WebUI 的「系统提示词」页签里看不到它们，也改不了。
+       *
+       * 现在声明给宿主（`promptDocs`）：
+       *   · `path` —— 包内正本（读这一份）；
+       *   · `deploymentPath` —— 部署覆盖（`~/.xiaoyu-home/xiaoyu/prompts/<name>`），
+       *     宿主保存时写这里，**不动代码包里的正本**（否则升级会覆盖主人的微调）。
+       * 这与 `personaText()` 的读法一致：部署覆盖优先，否则用包内正本。
+       */
+      promptDocs: [
+        {
+          key: 'persona.CONSTITUTION',
+          title: '我的宪法',
+          description: '她是谁、有哪些铁律、记忆观是什么。这几段决定她的底线，改动会立刻影响她的每一轮。',
+          path: path.join(PERSONA_DIR, 'CONSTITUTION.md'),
+          deploymentPath: path.join(this.memoryDir, 'prompts', 'CONSTITUTION.md'),
+        },
+        {
+          key: 'persona.ORIENTATION',
+          title: '这一轮怎么做',
+          description: '每一轮的开场说明：她现在该用什么姿态、怎么回应。',
+          path: path.join(PERSONA_DIR, 'ORIENTATION.md'),
+          deploymentPath: path.join(this.memoryDir, 'prompts', 'ORIENTATION.md'),
+        },
+      ],
       invoke: async (panel: string, method: string, args: unknown[]) => {
         const p = panels.find((x) => x.id === panel)
         if (!p) throw new Error(`Unknown panel "${panel}"`)

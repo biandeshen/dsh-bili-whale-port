@@ -12,7 +12,9 @@ import type {
   TurnContext,
   DeliveryContext,
   PrefixBlock,
+  StorageUnit,
 } from '../../persona-core/src/capability.ts'
+import path from 'node:path'
 import { dayKey } from '../../persona-core/src/rhythm.ts'
 import {
   MemoryCardStore,
@@ -86,6 +88,41 @@ export function createMemoryCapability(
     }
   }
 
+  /**
+   * 可清除存储单元：主人的「数据清理」页据此列出她攒了什么、能清哪一项。
+   *
+   * 以前本包**没有声明**任何存储单元——于是她在 WebUI 的「数据清理」里
+   * 什么都看不见（审计 §2.x F12：数据清理分级）。
+   * 现在按层分开列，主人能看清"哪一层有多少、删了会怎样"：
+   *   · 核心常驻（core）：删掉 = 她真的不再记得这些；
+   *   · 近期活跃（active）：删掉 = 最近的记忆没了；
+   *   · 远期归档（archived）：删掉 = 沉下去的那些也清掉（原文在 git 里，还能回滚）；
+   *   · 已作废（voided）：删掉 = 作废记录也没了（不可恢复，danger）。
+   *
+   * 记忆卡片本身**不删**（core 尤其不删）：她的账是她的历史，
+   * 要清得走面板上的作废/归档动作，不是在清理页里一把梭。
+   */
+  const storageParts = (): StorageUnit[] => {
+    const unit = (tier: MemoryTier, label: string, note: string, danger = false): StorageUnit => ({
+      key: `memory.${tier}`,
+      label,
+      kind: 'disk',
+      location: path.join(opts.memoRoot, tier),
+      danger,
+      note,
+      stat: () => {
+        const s = store.tierSize(tier)
+        return `${s.count} 条 / ${(s.bytes / 1024).toFixed(0)} KB`
+      },
+    })
+    return [
+      unit('core', '核心常驻记忆', '她每一轮都记得的那些。清理页里只报数量，不提供删除——要让她放下某条，走记忆中心「移出核心」。'),
+      unit('active', '近期活跃记忆', '最近在用的记忆。'),
+      unit('archived', '远期归档记忆', '已经沉下去、偶尔会被想起的那些。原文在 git 里，还能回滚。'),
+      unit('voided', '已作废记忆', '作废过的条目（原文仍在）。删掉这段记录不可恢复。', true),
+    ]
+  }
+
   return {
     id: 'memory',
     title: '四层记忆系统',
@@ -93,6 +130,7 @@ export function createMemoryCapability(
     git: workspace?.git ?? null,
     /** 做梦系统（睡眠期结算）等内部协作者经此取 store；不属于 XiaoyuCapability 公共面 */
     store,
+    storageParts,
     configSchema: {
       type: 'object',
       title: '记忆分层与衰减阈值',

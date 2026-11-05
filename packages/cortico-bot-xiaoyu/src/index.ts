@@ -17,6 +17,7 @@ import {
   type PrefixBlock,
   type ToolRegistration,
   type CapabilityPanelDecl,
+  type StorageUnit,
 } from '../../persona-core/src/capability.ts'
 import {
   createStateRhythmCapability,
@@ -57,6 +58,11 @@ export interface XiaoyuBotHub {
   assembleDeliveryInjections(ctx: DeliveryContext): Promise<string[]>
   tools(): ToolRegistration<any, any>[]
   panels(): CapabilityPanelDecl[]
+  /**
+   * 各能力包声明的可清除存储单元（宿主在装配期收这一份）。
+   * 以前能力包声明了没人往上带，于是这些项是死的。
+   */
+  storageParts(): StorageUnit[]
   invokePanel(panelId: string, method: string, params?: Record<string, unknown>): Promise<unknown>
 }
 
@@ -159,6 +165,27 @@ export function createXiaoyuBotHub(opts: XiaoyuBotHubOptions): XiaoyuBotHub {
 
     panels(): CapabilityPanelDecl[] {
       return capabilities.flatMap((c) => [...c.panels()])
+    },
+
+    /**
+     * 各能力包声明的可清除存储单元，原样往上带（宿主在装配期收 persona 这一份）。
+     *
+     * 键名**不改**：能力包自己负责命名空间（cap-vision 是 `vision.config` /
+     * `vision.sheets` / `vision.runs`，cap-memory 是 `memory.core`…）。
+     * 这里只做一件事：去掉重复的键（两个能力包撞了同一个键，后来的丢掉——
+     * 宿主那边按 key 索引，撞了就后一个覆盖前一个）。
+     */
+    storageParts(): StorageUnit[] {
+      const seen = new Set<string>()
+      const out: StorageUnit[] = []
+      for (const c of capabilities) {
+        for (const u of c.storageParts?.() ?? []) {
+          if (seen.has(u.key)) continue
+          seen.add(u.key)
+          out.push(u)
+        }
+      }
+      return out
     },
 
     async invokePanel(panelId: string, method: string, params: Record<string, unknown> = {}): Promise<unknown> {

@@ -16,6 +16,7 @@ import type {
   TurnContext,
   PrefixBlock,
   PanelMethodDecl,
+  StorageUnit,
 } from '../../persona-core/src/capability.ts'
 import { dayKey } from '../../persona-core/src/rhythm.ts'
 import { WorkspaceGit, AUTHOR_SELF, AUTHOR_OPERATOR } from '../../cap-memory/src/workspace-git.ts'
@@ -222,10 +223,49 @@ export function createJournalCapability(
     } catch { /* 文件已保存；提交失败进 git.status().commitError */ }
   }
 
+  /**
+   * 可清除存储单元：两本日记 + 判断卡 + 意见箱。
+   *
+   * 以前本包没声明任何存储单元 → 主人的「数据清理」页里看不见她的日记攒了多少。
+   * 现在按文件分开列：
+   *   · 公开本日记 / 私人本日记：删掉 = 那些字真的没了（git 里还有历史，能回滚）；
+   *   · 审美判断卡：她对"什么值得记"的结论；
+   *   · 意见箱（feedback.jsonl）：她提的意见与主人的批复。
+   *
+   * 私人本标 danger：那是她写给自己的东西，删了不可恢复。
+   */
+  const storageParts = (): StorageUnit[] => {
+    const fileUnit = (key: string, label: string, file: string, note: string, danger = false): StorageUnit => ({
+      key,
+      label,
+      kind: 'disk',
+      location: file,
+      danger,
+      note,
+      stat: () => {
+        try {
+          const st = fs.statSync(file)
+          const text = fs.readFileSync(file, 'utf8')
+          const lines = text.split('\n').filter((l) => l.trim()).length
+          return `${(st.size / 1024).toFixed(1)} KB / ${lines} 行`
+        } catch {
+          return '还没有'
+        }
+      },
+    })
+    return [
+      fileUnit('journal.public', '公开本日记', opts.publicDiaryFile, '她写给别人看的那本。git 里有历史，删了还能回滚。'),
+      fileUnit('journal.private', '私人本日记', opts.privateDiaryFile, '她写给自己的那本。删掉不可恢复。', true),
+      fileUnit('journal.judgments', '审美判断卡', opts.judgmentFile, '她对"什么值得记"的结论（keep / drop / unclear）。'),
+      fileUnit('journal.feedback', '意见箱', opts.feedbackFile, '她提的意见与主人的批复。'),
+    ]
+  }
+
   return {
     id: 'journal',
     title: '日记、判断卡与意见箱',
     kind: 'internal',
+    storageParts,
     configSchema: {
       type: 'object',
       title: '日记与判断配置',

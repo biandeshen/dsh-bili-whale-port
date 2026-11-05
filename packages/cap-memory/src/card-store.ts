@@ -123,6 +123,19 @@ export class MemoryCardStore {
     return path.join(this.memoRoot, tier)
   }
 
+  /**
+   * 某一层现在占了多少（条数 + 字节）。
+   * 主的「数据清理」页要用它报"哪一层有多少"（见 cap-memory 的 storageParts）。
+   */
+  tierSize(tier: MemoryTier): { count: number; bytes: number } {
+    const cards = this.readAll({ tier })
+    let bytes = 0
+    for (const c of cards) {
+      try { bytes += fs.statSync(this.cardPath(tier, c.id)).size } catch { /* 读不到就跳过 */ }
+    }
+    return { count: cards.length, bytes }
+  }
+
   private cardPath(tier: MemoryTier, id: string): string {
     const safeId = String(id).replace(/[^a-zA-Z0-9_-]/g, '_')
     return path.join(this.tierDir(tier), `${safeId}.md`)
