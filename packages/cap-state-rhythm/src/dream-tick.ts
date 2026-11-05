@@ -31,6 +31,16 @@ export interface DreamTickOptions {
    * 又一个空旋钮。现在由主人现读后传进来。
    */
   archiveThreshold?: number
+  /**
+   * 睡前的反思（主人拍板：反思花模型钱）。
+   *
+   * 由外部（cortico-bot-xiaoyu）实现：起一个临时 session 让她真的想一遍。
+   * 这里只负责**在结算之后问一次**要不要想，并把结果记进账（每天最多一次）。
+   *
+   * **本地那条路（settle + dreamDigest）不受影响**：反思失败、没凭据、开关关着，
+   * 她照样做梦、照样沉记忆——反思只是多出来的一件事，不是前置条件。
+   */
+  onReflect?: (ctx: { archived: number; digest: string | null; atMs: number }) => Promise<void> | void
   /** 结算→梦话翻译（MemoryCardStore.dreamDigest） */
   dreamDigest: (settleResult: unknown) => string | null
   /** 结算间隔毫秒（默认 30 分钟） */
@@ -112,6 +122,17 @@ export class DreamTick {
     const archived = (result as any)?.archived?.length ?? 0
     const digest = this.opts.dreamDigest(result)
     this.opts.onDream(digest, archived)
+    // 反思（可选、要花钱、默认关）：**放在本地结算之后**，失败也不影响做梦这条正路。
+    // 这里**不 await**——反思要起模型，await 会把这一拍堵住；它本来就是后台那件事。
+    if (this.opts.onReflect) {
+      try {
+        void Promise.resolve(this.opts.onReflect({ archived, digest, atMs: Date.now() })).catch((e: any) => {
+          try { this.opts.log?.('warn', `睡前反思失败（不影响做梦）：${String(e?.message ?? e)}`) } catch { /* 连日志都写不了就算了 */ }
+        })
+      } catch (e: any) {
+        try { this.opts.log?.('warn', `睡前反思失败（不影响做梦）：${String(e?.message ?? e)}`) } catch { /* 忽略 */ }
+      }
+    }
     return { dreamed: true, digest }
   }
 }

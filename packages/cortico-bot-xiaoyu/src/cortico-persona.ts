@@ -20,6 +20,8 @@ import { DreamTick } from '../../cap-state-rhythm/src/dream-tick.ts'
 import { isAsleep } from '../../cap-state-rhythm/src/life-stages.ts'
 import { LifeHeartbeat, quietLine } from '../../cap-state-rhythm/src/life-heartbeat.ts'
 import { XIAOYU_CONTEXT_DEFAULTS, type ContextStagePolicy } from './context-config.ts'
+import { DREAM_SESSION_ID, type DreamReflectionConfig } from '../../cap-state-rhythm/src/dream-reflection.ts'
+import { runDreamReflection } from './dream-reflection-runner.ts'
 
 export const MAIN_SESSION = 'main'
 
@@ -76,6 +78,11 @@ export interface XiaoYuPersonaOptions extends XiaoyuBotHubOptions {
    * 不给就用 cap-memory 的默认（8 / 40 / 0.35）。
    */
   memoryConfig?: () => { residentCap?: number; activeCap?: number; archiveThreshold?: number }
+  /**
+   * 睡前反思的配置（现读）。**默认关**——要花模型钱得主人显式打开。
+   * 由 BotDefinition 从部署配置 `reflection` 段传进来。
+   */
+  reflection?: () => Partial<DreamReflectionConfig>
 }
 
 export class XiaoYuPersona implements CorticoPersonaShape {
@@ -91,6 +98,8 @@ export class XiaoYuPersona implements CorticoPersonaShape {
   private readonly contextPolicy: () => ContextStagePolicy
   /** 记忆分层配置（现读，WebUI 改了即生效）：核心常驻上限 / 活跃容量 / 归档阈值 */
   private readonly memoryConfig?: () => { residentCap?: number; activeCap?: number; archiveThreshold?: number }
+  /** 睡前反思配置（现读）：默认关，每天最多一次，轮数硬上限 */
+  private readonly reflectionConfig?: () => Partial<DreamReflectionConfig>
   /** 已经就上下文压力提醒过主人；交接后清零 */
   private pressureWarned = false
 
@@ -100,6 +109,7 @@ export class XiaoYuPersona implements CorticoPersonaShape {
     this.rounds = opts.rounds ?? { soft: 6, hard: 12 }
     this.contextPolicy = opts.context ?? ((): ContextStagePolicy => XIAOYU_CONTEXT_DEFAULTS)
     this.memoryConfig = opts.memoryConfig
+    this.reflectionConfig = opts.reflection
     // blobs 走 workspace 的 mem: 句柄（与框架 Memory 同一套后端）
     this.blobs = {
       put: (nameHint, bytes, mime) => this.hub.blobs.put(nameHint, bytes, mime),
@@ -204,6 +214,51 @@ export class XiaoYuPersona implements CorticoPersonaShape {
     this.core = core
   }
 
+  /** 读她账上的作息（反思要算"睡了多久"）。读不到就当作没睡过。 */
+  private readLifeForReflection(): { lastActionAt?: number } | null {
+    try {
+      const f = path.join(this.memoryDir, 'data', 'persona', 'life.json')
+      return JSON.parse(fs.readFileSync(f, 'utf8'))
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * 反思那一轮的上下文：她是谁 + 这几天身上发生了什么 + 今天沉下去的旧事。
+   * 只给她自己的东西——**不碰主人的会话原文**。
+   */
+  private reflectionPromptContext(): {
+    constitution?: string
+    orientation?: string
+    state?: string
+    archived?: string
+    today?: string
+  } {
+    const constitution = personaText(this.memoryDir, 'CONSTITUTION.md') ?? undefined
+    const orientation = personaText(this.memoryDir, 'ORIENTATION.md') ?? undefined
+    let state = ''
+    let archived = ''
+    try {
+      const memoryCap = this.hub.capabilities.find((c) => c.id === 'memory') as any
+      const store = memoryCap?.store
+      if (store) {
+        const recent = store.readAll({ tier: 'active' }).slice(-8)
+        state = recent.map((c: any) => `- ${String(c.content ?? '').slice(0, 60)}`).join('\n')
+        const arch = store.readAll({ tier: 'archived' }).slice(-5)
+        archived = arch.map((c: any) => `- ${String(c.content ?? '').slice(0, 60)}`).join('\n')
+      }
+    } catch { /* 读不到就少给一段，不影响反思本身 */ }
+    const today = new Date().toLocaleDateString('sv-SE')
+    return {
+      ...(constitution ? { constitution } : {}),
+      ...(orientation ? { orientation } : {}),
+      ...(state ? { state } : {}),
+      ...(archived ? { archived } : {}),
+      today,
+    }
+  }
+
   /**
    * 宿主日志的安全写法（2026-11-04 08:24 线上就是在这儿崩的，7799 停了半小时）。
    *
@@ -285,6 +340,27 @@ export class XiaoYuPersona implements CorticoPersonaShape {
             return digest
           },
           log: (level, msg) => this.hostLog(level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'info', msg),
+          /**
+           * 睡前的反思（主人拍板：反思花模型钱）。
+           *
+           * 放在本地结算**之后**：做梦这条正路（沉记忆 + 遗忘叙事）先跑完，
+           * 反思是额外的一件事，失败也不影响它。
+           * 临时 session（不落主对话）+ 每天最多一次 + 轮数硬上限，都在 runner 里。
+           */
+          onReflect: async () => {
+            const outcome = await runDreamReflection({
+              core: this.core,
+              ledgerFile: path.join(this.memoryDir, 'data', 'persona', 'dream-reflection.json'),
+              getConfig: () => this.reflectionConfig?.() ?? {},
+              promptContext: () => this.reflectionPromptContext(),
+              sleptHours: () => {
+                const life = this.readLifeForReflection()
+                const last = Number(life?.lastActionAt ?? 0)
+                return last > 0 ? (Date.now() - last) / 3600_000 : 0
+              },
+            })
+            this.hostLog('info', `睡前反思：${outcome.reason}${outcome.surfaced ? ` · ${outcome.surfaced.slice(0, 120)}` : ''}`)
+          },
         })
         this.dream.start()
       }
@@ -488,6 +564,25 @@ export class XiaoYuPersona implements CorticoPersonaShape {
          * 和 cormini 那类内建 bot 的对话形态一致。
          */
         eventDelivery: 'user',
+        tools: () => self.toolDefs(),
+      },
+      {
+        /**
+         * 睡前的反思（主人拍板：反思花模型钱）。
+         *
+         * 单独一个 session 的理由：它**不能进主对话**——
+         *   · `persistent: false` → 跑完就散，不留痕在会话里；
+         *   · `receivesEvents: false` → 不会把主人的消息、她的心跳灌进去；
+         *   · 轮数比主会话小（soft 2 / hard 3）：反思是"想一想"，不是"接着聊"。
+         *
+         * 工具只给她自己那几把（记忆/日记），**没有 B 站那把**——
+         * 她半夜想东西，绝不能顺手把稿子发出去。
+         */
+        id: DREAM_SESSION_ID,
+        label: 'dream',
+        rounds: () => ({ soft: 2, hard: 3 }),
+        persistent: false,
+        receivesEvents: false,
         tools: () => self.toolDefs(),
       },
     ]

@@ -229,12 +229,30 @@ export const draftsQueuePanel = {
       head.textContent = `待放行 ${res.count ?? 0} 条`
       listBox.append(head)
 
+      // 过期未放行的稿子：队长（审计 §2.7 F9）
+      // 「dyn-20261102-cd6d4a」那样一条烂在队列里好几天，主人早忘了它，
+      // 某天顺手"全部放行"就飞出去了。现在过期的**标出来 + 放行多问一次**，
+      // 但**不删**——有些稿子就是憋了几天才想好，那种放行本来就该放。
+      const staleCount = Number(res.staleCount ?? 0)
+      if (staleCount > 0) {
+        const warn = ui.h('div')
+        warn.style.margin = '6px 0'
+        warn.textContent = `其中 ${staleCount} 条已经放了超过 ${res.staleAfterHours ?? 48} 小时（最久的一条 ${res.oldestAgeHours ?? 0} 小时）。`
+          + '这些放行时会再问你一次——别顺手放出去。'
+        listBox.append(warn)
+      }
+
       for (const it of res.items ?? []) {
         const box = ui.sheet({
           // 标题不放正文预览了：正文一保存就跟标题对不上（要看的就是输入框那一份）
           title: `${kindCn(it.kind)}草稿`,
           desc: queueDesc(it),
         })
+        if (it.stale) {
+          const pill = ui.pill(`已放 ${it.ageHours ?? 0} 小时（过期）`, 'on')
+          pill.style.margin = '4px 0'
+          box.body.append(pill)
+        }
         const edit = ui.textarea({ value: it.text ?? '', rows: 5 })
         // 存档口径 = 队列里那份正文；输入框不等于它就是"有还没保存的话"
         guard.watch(edit, () => it.text ?? '')
@@ -282,7 +300,28 @@ export const draftsQueuePanel = {
             warn: () => releaseWarn(it.kind),
             ok: '确认发布',
           },
-          after: refresh,
+          after: (r: any) => {
+            // 后端对"放了太久"的稿子会回 ok:false + code:'stale'：
+            // 这时**不刷新**（免得把提示冲掉），而是摆出第二颗「仍然放行」——
+            // 要连按两次才发得出去，脚本也一样（后端要求 staleConfirm:true）。
+            if (r && r.code === 'stale') {
+              const again = actionButton(ctx, ui, msg, '⚠️ 仍然放行这一条', 'release', undefined, {
+                variant: 'danger',
+                argsFactory: () => [{ id: it.id, staleConfirm: true }],
+                confirm: {
+                  title: '这条已经放了很久，还要发？',
+                  body: String(r.reason ?? ''),
+                  warn: '过期不等于该扔，但别顺手放出去。',
+                  danger: true,
+                  ok: '仍然放行',
+                },
+                after: refresh,
+              })
+              acts.append(again)
+              return
+            }
+            return refresh()
+          },
         })
         // 拒稿用 window.prompt 收理由——那本身就是一道确认，不再叠第二层弹层（confirm fatigue）
         let rejectReason = ''
@@ -541,6 +580,42 @@ export const gatePolicyPanel = {
         { k: '412 熔断', v: paused ? `剩 ${remainMin} 分钟` : '未触发' },
       ])
       box.append(stats)
+
+      // ── 读侧配额余量（读护栏那份账，审计 §2.7 F7）──
+      // 以前面板上**一个字都看不到**读侧余量：她某天说"我读不到东西了"，
+      // 主人分不清是配额到了还是账号掉线。现在把护栏真正生效的上限与已用摆出来。
+      const rq = res.readQuota ?? null
+      if (rq) {
+        const rqHead = ui.section('读侧配额余量', '读护栏按账号记账：每小时与每天各有一个上限，用满了她就读不到东西了。'
+          + '这一栏只读；要调上限改读护栏的 risk 配置（面板上显示的就是真正生效的那个数）。')
+        if (rq.available === false) {
+          rqHead.append(ui.placeholder(`读不到读护栏的账：${rq.note ?? '未知原因'}。不是"余量无限"，是没读着。`))
+        } else {
+          const rqStat = ui.statgrid([
+            { k: '今日已读', v: `${rq.totalDay ?? 0}/${rq.limits?.readDaily ?? '—'}` },
+            { k: '今日余量', v: `${rq.totalLeftDay ?? 0}` },
+            { k: '每小时上限', v: `${rq.limits?.readHourly ?? '—'}` },
+            { k: '账号数', v: `${(rq.accounts ?? []).length}` },
+          ])
+          rqHead.append(rqStat)
+          if (rq.anyExhausted) {
+            rqHead.append(ui.pill('有账号已经用满读配额 —— 她读不到东西就是这个原因', 'on'))
+          }
+          if ((rq.accounts ?? []).length) {
+            const t = ui.table({ head: ['账号', '本小时已读', '今日已读', '今日余量'] })
+            for (const a of rq.accounts ?? []) {
+              t.addRow([
+                String(a.account ?? '').slice(0, 12) + '…',
+                `${a.usedHour ?? 0}/${a.hourLimit ?? '—'}`,
+                `${a.usedDay ?? 0}/${a.dayLimit ?? '—'}`,
+                String(a.leftDay ?? 0),
+              ])
+            }
+            rqHead.append(t.el)
+          }
+        }
+        box.append(rqHead)
+      }
 
       if (paused) {
         const why = ui.msgline(`熔断原因：${traffic.pauseReason || '未记录（这条熔断比"记录原因"早）'}`, true)

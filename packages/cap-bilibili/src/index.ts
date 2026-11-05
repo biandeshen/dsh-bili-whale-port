@@ -28,6 +28,7 @@ import {
   type GateVerdict,
   type PendingQueueItem,
 } from './domain/write-gate.ts'
+import { readReadQuota } from './domain/read-quota.ts'
 import {
   BiliInboxAndPrefsStore,
   DEFAULT_WATCH_PREFS,
@@ -864,11 +865,23 @@ export function createBilibiliCapability(
             list: {
               name: 'list',
               verb: 'GET',
-              summary: '列出全部待放行草稿与互动项',
+              summary: '列出全部待放行草稿与互动项（含每条放了多久、是不是过期）',
               writable: false,
               invoke(params: { status?: 'pending' | 'all' }) {
-                const items = gate.listQueue(params?.status ?? 'pending')
-                return { ok: true, count: items.length, items }
+                if ((params?.status ?? 'pending') === 'all') {
+                  const items = gate.listQueue('all')
+                  return { ok: true, count: items.length, items }
+                }
+                // pending：带上年龄与过期标记（审计 §2.7 F9 —— 烂在队列里几天的稿子要看得见）
+                const overview = gate.queueOverview(48)
+                return {
+                  ok: true,
+                  count: overview.items.length,
+                  items: overview.items,
+                  staleCount: overview.staleCount,
+                  oldestAgeHours: overview.oldestAgeHours,
+                  staleAfterHours: overview.staleAfterHours,
+                }
               },
             },
             updateDraft: {
@@ -883,10 +896,10 @@ export function createBilibiliCapability(
             release: {
               name: 'release',
               verb: 'POST',
-              summary: '放行指定待审项并经 WriteGate 立即发布',
+              summary: '放行指定待审项并经 WriteGate 立即发布（过期未放行的要额外确认一次）',
               writable: true,
-              async invoke(params: { id: string }) {
-                return await gate.release(params?.id)
+              async invoke(params: { id: string; staleConfirm?: boolean }) {
+                return await gate.release(params?.id, { staleConfirm: params?.staleConfirm === true })
               },
             },
             reject: {
@@ -1000,7 +1013,7 @@ export function createBilibiliCapability(
             get: {
               name: 'get',
               verb: 'GET',
-              summary: '读取 8 个发送档位、今日配额用量、风控冷却状态与 Kill 急刹状态',
+              summary: '读取 8 个发送档位、今日配额用量、风控冷却状态与 Kill 急刹状态（含读侧配额余量）',
               writable: false,
               invoke() {
                 return {
@@ -1009,6 +1022,8 @@ export function createBilibiliCapability(
                   policy: gate.readPolicy(),
                   quota: gate.readQuota(),
                   traffic: gate.readTraffic(),
+                  // 读侧余量（读护栏那份账，审计 §2.7 F7）
+                  readQuota: readReadQuota(),
                 }
               },
             },

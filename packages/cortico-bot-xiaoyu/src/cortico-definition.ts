@@ -15,6 +15,7 @@ import { XiaoYuPersona } from './cortico-persona.ts'
 import { contextStageConfigGroup, XIAOYU_CONTEXT_DEFAULTS } from './context-config.ts'
 import { tickConfigGroup, XIAOYU_TICK_DEFAULTS } from './tick-config.ts'
 import { memoryConfigGroup, XIAOYU_MEMORY_DEFAULTS } from './memory-config.ts'
+import { reflectionConfigGroup, XIAOYU_REFLECTION_DEFAULTS } from './reflection-config.ts'
 
 export const XIAOYU_MEMORY_NAME = 'MEMORY.md'
 
@@ -53,6 +54,8 @@ export function createXiaoyuBotDefinition(homeDir: string) {
       tick: { ...XIAOYU_TICK_DEFAULTS },
       // 记忆分层：核心常驻上限 / 活跃容量 / 归档阈值（现读，改完即生效）。
       memory: { ...XIAOYU_MEMORY_DEFAULTS },
+      // 睡前的反思：**默认关**（要花模型钱，主人显式打开才开）。
+      reflection: { ...XIAOYU_REFLECTION_DEFAULTS },
     }),
     build(loaded: { config: Record<string, unknown>; memoryDir: string; rootDir?: string }) {
       // 部署目录才是她的家（数据、记忆、日记都在里面）；拿不到时才退回包默认家。
@@ -63,6 +66,8 @@ export function createXiaoyuBotDefinition(homeDir: string) {
       const ctxCfg = (loaded.config?.context ?? {}) as Partial<typeof XIAOYU_CONTEXT_DEFAULTS>
       // 记忆分层配置：同样现读（核心常驻上限 / 活跃容量 / 归档阈值）。
       const memCfg = (loaded.config?.memory ?? {}) as Partial<typeof XIAOYU_MEMORY_DEFAULTS>
+      // 睡前反思配置：**默认关**（要花模型钱，主人显式打开才开）。
+      const refCfg = (loaded.config?.reflection ?? {}) as Partial<typeof XIAOYU_REFLECTION_DEFAULTS>
       const context = () => ({
         maxTokens: Number(ctxCfg.maxTokens) > 0 ? Number(ctxCfg.maxTokens) : XIAOYU_CONTEXT_DEFAULTS.maxTokens,
         softRatio: Number(ctxCfg.softRatio) > 0 ? Number(ctxCfg.softRatio) : XIAOYU_CONTEXT_DEFAULTS.softRatio,
@@ -80,6 +85,15 @@ export function createXiaoyuBotDefinition(homeDir: string) {
           archiveThreshold: Number(memCfg.archiveThreshold) > 0
             ? Number(memCfg.archiveThreshold)
             : XIAOYU_MEMORY_DEFAULTS.archiveThreshold,
+        }),
+        // 睡前反思配置现读：**默认关**。
+        reflection: () => ({
+          enabled: refCfg.enabled === true,
+          maxPerDay: Number(refCfg.maxPerDay) > 0 ? Number(refCfg.maxPerDay) : XIAOYU_REFLECTION_DEFAULTS.maxPerDay,
+          maxRounds: Number(refCfg.maxRounds) > 0 ? Number(refCfg.maxRounds) : XIAOYU_REFLECTION_DEFAULTS.maxRounds,
+          minSleepHours: Number(refCfg.minSleepHours) >= 0
+            ? Number(refCfg.minSleepHours)
+            : XIAOYU_REFLECTION_DEFAULTS.minSleepHours,
         }),
         tickDelayMs: () => {
           const m = tickCfg?.intervalMinutes
@@ -102,6 +116,7 @@ export function createXiaoyuBotDefinition(homeDir: string) {
             contextStageConfigGroup('xiaoyu'),
             tickConfigGroup('xiaoyu-tick'),
             memoryConfigGroup('xiaoyu-memory'),
+            reflectionConfigGroup('xiaoyu-reflection'),
           ],
           // 阶段预算与软预警线：控制台页上下文圈的分母与黄线。
           status: () => {

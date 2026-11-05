@@ -114,6 +114,8 @@ export interface PendingQueueItem {
   updatedAt: string
   status: 'pending' | 'released' | 'rejected'
   rejectReason?: string
+  /** 被判定为"过期未放行"（放行时要额外确认；**不删，只标记**） */
+  stale?: boolean
 }
 
 export function sha1Hex(text: string): string {
@@ -286,6 +288,48 @@ export class WriteGate {
     }
   }
 
+  /**
+   * 队列概览：每条待放行项有多老、是不是过期（审计 §2.7 F9）。
+   *
+   * 缺口长什么样：`dyn-20261102-cd6d4a` 那样一条**烂在队列里好几天**——
+   * 主人早忘了它，可它还在；某天主人随手点"全部放行"，三天前的东西就这么飞出去了。
+   *
+   * 现在的口径：**只标过期，不删**。
+   *   · 过期 = 创建至今超过 `staleAfterHours`（默认 48 小时）；
+   *   · 放行那一头会**额外要一次确认**（面板 + 后端双保险）；
+   *   · 删除仍然只能由主人在面板上显式拒稿——**过期不等于该扔**，
+   *     有些稿子就是"憋了三天想好了才发"，那种放行本来就该放。
+   */
+  queueOverview(staleAfterHours = 48, now = Date.now()): {
+    items: Array<PendingQueueItem & { ageHours: number; stale: boolean }>
+    staleCount: number
+    oldestAgeHours: number
+    staleAfterHours: number
+  } {
+    const limit = Math.max(1, Math.floor(staleAfterHours))
+    const items = this.listQueue('pending').map((it) => {
+      const at = Date.parse(it.createdAt)
+      const ageHours = Number.isFinite(at) ? Math.max(0, (now - at) / 3600_000) : 0
+      return { ...it, ageHours: Math.round(ageHours * 10) / 10, stale: ageHours >= limit }
+    })
+    items.sort((a, b) => b.ageHours - a.ageHours)
+    return {
+      items,
+      staleCount: items.filter((i) => i.stale).length,
+      oldestAgeHours: items.length ? Math.max(...items.map((i) => i.ageHours)) : 0,
+      staleAfterHours: limit,
+    }
+  }
+
+  /** 这一条是不是过期未放行（放行时后端据此额外要求确认）。 */
+  isStale(id: string, staleAfterHours = 48, now = Date.now()): boolean {
+    const it = this.listQueue('all').find((x) => x.id === id && x.status === 'pending')
+    if (!it) return false
+    const at = Date.parse(it.createdAt)
+    if (!Number.isFinite(at)) return false
+    return (now - at) / 3600_000 >= Math.max(1, Math.floor(staleAfterHours))
+  }
+
   private saveQueueAll(items: PendingQueueItem[]): void {
     fs.mkdirSync(this.dataDir, { recursive: true })
     const tmp = `${this.queueFile}.${process.pid}.tmp`
@@ -394,7 +438,7 @@ export class WriteGate {
     return { ok: true, item: nextItem }
   }
 
-  async release(id: string): Promise<GateVerdict> {
+  async release(id: string, opts: { staleConfirm?: boolean; staleAfterHours?: number } = {}): Promise<GateVerdict> {
     const all = this.listQueue('all')
     const idx = all.findIndex((x) => x.id === id && x.status === 'pending')
     if (idx < 0) {
@@ -404,6 +448,20 @@ export class WriteGate {
     // 校验当前存储正文与 bodyHash 一致
     if (sha1Hex(item.text) !== item.bodyHash) {
       return { ok: false, exit: 2, code: 'policy', stage: 'gate', reason: '草稿正文哈希不匹配，请先保存修改后再放行' }
+    }
+    // 过期未放行的稿子：放行要**额外确认一次**（审计 §2.7 F9）。
+    // 「随手全部放行」不该把三天前的东西一起飞出去。
+    // 只拦过期项，且**不删**——主人仍可以确认后放行（有些稿子就是憋了几天才想好）。
+    if (this.isStale(id, opts.staleAfterHours ?? 48) && opts.staleConfirm !== true) {
+      const ageH = Math.round(((Date.now() - Date.parse(item.createdAt)) / 3600_000) * 10) / 10
+      return {
+        ok: false,
+        exit: 2,
+        code: 'stale',
+        stage: 'gate',
+        reason: `这条已经放了 ${ageH} 小时（超过 ${opts.staleAfterHours ?? 48} 小时）。`
+          + '确认要发就再点一次放行，或者先改改正文——过期不等于该扔，但别顺手放出去。',
+      }
     }
     const verdict = await this.execute({
       kind: item.kind,
