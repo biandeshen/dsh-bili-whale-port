@@ -139,7 +139,10 @@ export function buildWriteAction(input: WriteActionInput): WriteAction {
 export interface WriteGateOptions {
   dataDir: string
   executor?: (action: WriteAction) => Promise<{ ok: boolean; dynId?: string; rpid?: string; error?: string; status?: number }>
-  contentCheck?: (action: WriteAction) => { ok: true } | { ok: false; code?: 'policy' | 'precondition'; reason: string }
+  contentCheck?: (action: WriteAction) =>
+    | { ok: true }
+    | { ok: false; code?: 'policy' | 'precondition'; reason: string }
+    | Promise<{ ok: true } | { ok: false; code?: 'policy' | 'precondition'; reason: string }>
   onDraftRejected?: (item: PendingQueueItem, reason: string, askRewrite: boolean) => void
   onDraftRequested?: (req: { kind: 'dynamic' | 'comment'; bvid?: string; prompt: string; atMs: number }) => void
 }
@@ -550,9 +553,9 @@ export class WriteGate {
       }
     }
 
-    // ③ 内容判据（独立判据函数）
+    // ③ 内容判据（独立判据函数；可以是异步的——私信那条要查关系接口）
     if (this.opts.contentCheck) {
-      const c = this.opts.contentCheck(action)
+      const c = await this.opts.contentCheck(action)
       if (!c.ok) {
         const code = c.code ?? 'policy'
         this.writeCausal({ kind: `${action.kind}-failed`, stage: 'gate', actor: action.actor, bvid: action.target.bvid, reason: c.reason })

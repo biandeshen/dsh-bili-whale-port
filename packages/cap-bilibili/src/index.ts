@@ -70,7 +70,7 @@ import {
   checkLikeNotRepeated,
   checkFavDailyCap,
   checkFavReason,
-  checkDmReplyWindow,
+  checkDmMutualFollow,
   loadCredentials,
   type BiliWriteContext,
 } from './client/bili-write.ts'
@@ -86,7 +86,7 @@ export {
   checkLikeNotRepeated,
   checkFavDailyCap,
   checkFavReason,
-  checkDmReplyWindow,
+  checkDmMutualFollow,
   loadCredentials,
 }
 export type {
@@ -228,10 +228,15 @@ export function createBilibiliCapability(
     keepVideo: opts.watch?.keepVideo ?? true,
   }
 
-  /** 默认内容判据：按 kind 走各自原有的判据（30 天去重 / 收藏两条 / 回信时效窗）。 */
-  const defaultContentCheck = (
+  /**
+   * 默认内容判据：按 kind 走各自原有的判据（30 天去重 / 收藏两条 / **私信必须互关**）。
+   *
+   * 私信那条以前判的是"7 天回信时效窗"——凭空来的规则，而且依赖一个**没人写**的字段，
+   * 于是她永远回不了私信。现在换成 B 站真正的硬要求：互关。
+   */
+  const defaultContentCheck = async (
     action: WriteAction,
-  ): { ok: true } | { ok: false; code?: 'policy' | 'precondition'; reason: string } => {
+  ): Promise<{ ok: true } | { ok: false; code?: 'policy' | 'precondition'; reason: string }> => {
     switch (action.kind) {
       case 'like':
         return checkLikeNotRepeated(String(action.target.bvid ?? ''), writeCtx)
@@ -241,25 +246,53 @@ export function createBilibiliCapability(
         return checkFavReason(action.body)
       }
       case 'dm':
-        return checkDmReplyWindow(writeCtx)
+        return await checkDmMutualFollow(writeCtx, String(action.target.mid ?? ''))
       default:
         return { ok: true }
     }
   }
 
-  /** 默认执行器：真的发 B 站请求（点赞/收藏/评论/弹幕），其余 kind 走调用方注入。 */
+  /**
+   * 默认执行器：真的发 B 站请求。
+   *
+   * 现在六种都有真执行器：点赞 / 收藏 / 评论 / 弹幕 / **动态** / **私信**。
+   * 以前只有前四种——动态与私信虽然有闸门档位和工具，却**发不出去**
+   * （回「kind=dm 还没有真实执行器」）。她作为 B 站账号最本分的两个动作都缺着。
+   */
   const defaultExecutor = async (
     action: WriteAction,
   ): Promise<{ ok: boolean; dynId?: string; rpid?: string; error?: string; status?: number }> => {
-    if (action.kind !== 'like' && action.kind !== 'fav' && action.kind !== 'comment' && action.kind !== 'danmaku') {
+    if (
+      action.kind !== 'like' && action.kind !== 'fav' && action.kind !== 'comment'
+      && action.kind !== 'danmaku' && action.kind !== 'dynamic' && action.kind !== 'edit-dynamic'
+      && action.kind !== 'dm'
+    ) {
       return { ok: false, error: `kind=${action.kind} 还没有真实执行器（需要注入 writeExecutor）` }
     }
-    const out = await executeBiliWrite(action.kind, action, writeCtx)
+    // 私信需要"她自己登录的 mid"当 sender_uid：现读一次 nav（读侧已封装 checkLogin）。
+    // 读不到就让私信那一条自己回缺 mid 的错，不影响别的动作。
+    let selfMid: string | undefined
+    if (action.kind === 'dm') {
+      try {
+        const me = await checkLogin(readCtx)
+        selfMid = me.ok && me.mid ? String(me.mid) : undefined
+      } catch { /* 读不到就留着 undefined */ }
+    }
+    const out = await executeBiliWrite(
+      action.kind,
+      { target: action.target, body: action.body },
+      { ...writeCtx, ...(selfMid ? { selfMid } : {}) },
+    )
     if (!out.ok) {
       return { ok: false, error: out.reason, status: out.httpStatus }
     }
     const rpid = out.meta?.rpid
-    return { ok: true, rpid: rpid ? String(rpid) : undefined }
+    const dynId = out.meta?.dynamicId
+    return {
+      ok: true,
+      ...(rpid ? { rpid: String(rpid) } : {}),
+      ...(dynId ? { dynId: String(dynId) } : {}),
+    }
   }
 
   const gate = new WriteGate({

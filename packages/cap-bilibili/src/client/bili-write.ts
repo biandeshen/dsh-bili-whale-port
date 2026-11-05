@@ -14,6 +14,9 @@ import path from 'node:path'
 import { loadCredentials as parseShared } from './bili-read.ts'
 import { plainOutbound } from '../platform/plain-outbound.mjs'
 import { guardedFetch as defaultFetch } from '../platform/traffic.mjs'
+// 动态与私信的执行体（协议形状不一样，另开一个文件）。
+// 循环引用是安全的：两边都只在**函数体里**用对方，模块顶层不互相取值。
+import { executeDynamic, executeEditDynamic, executeDmReply } from './bili-write-extra.ts'
 
 export const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
@@ -93,7 +96,8 @@ function cookieHeader(cred: BiliCredentials): string {
   return `SESSDATA=${cred.sessdata}; bili_jct=${cred.bili_jct}; buvid3=${cred.buvid3 ?? ''}`
 }
 
-function baseHeaders(cred: BiliCredentials): Record<string, string> {
+/** 写请求的公共头（UA / referer / cookie）。导出给动态与私信那两条链路复用。 */
+export function baseHeaders(cred: BiliCredentials): Record<string, string> {
   return { 'user-agent': UA, referer: 'https://www.bilibili.com/', cookie: cookieHeader(cred) }
 }
 
@@ -168,20 +172,44 @@ export function checkFavReason(reason: string): { ok: true } | { ok: false; code
   return { ok: true }
 }
 
-/** 私信判据：回信时效窗（默认 7 天，与现状一致）。 */
-export function checkDmReplyWindow(
+/**
+ * 私信判据：**必须互关**（B 站私信的硬要求）。
+ *
+ * 以前这里判的是"7 天回信时效窗"——那条规则**是凭空来的**：
+ * 旧 CLI（`tools/lib/dm-send-core.mjs`）从来没有这条判据，
+ * 它判的是①登录②不给自己发③**必须互关**（`/x/relation` 的 attribute=6）④分享额度。
+ * 而且 `lastDmReadAt` 这个字段**全仓没有任何地方写**——
+ * 于是判据永远读到 0，永远回「还没读过私信，没有回信时效的起点」，
+ * **她永远回不了私信**（一条永远为假的规则，等于把这条路焊死了）。
+ *
+ * 现在换成真判据：查关系接口，没互关就说没互关（并说清差哪一步）。
+ */
+export async function checkDmMutualFollow(
   ctx: BiliWriteContext,
-  now = Date.now(),
-  windowDays = 7,
-): { ok: true } | { ok: false; code: 'precondition'; reason: string } {
-  const last = Number(ctx.lastDmReadAt ?? 0)
-  if (!last) {
-    return { ok: false, code: 'precondition', reason: '还没读过私信，没有回信时效的起点' }
+  toMid: string,
+): Promise<{ ok: true } | { ok: false; code: 'precondition'; reason: string }> {
+  const to = String(toMid ?? '').trim()
+  if (!to) return { ok: false, code: 'precondition', reason: '没给收信人 mid' }
+  try {
+    const j = await (await fetcher(ctx)(`https://api.bilibili.com/x/relation?fid=${encodeURIComponent(to)}`, {
+      headers: baseHeaders(ctx.cred),
+    })).json()
+    if (j?.code !== 0) {
+      return { ok: false, code: 'precondition', reason: `关系接口查不了（code=${j?.code}）：${j?.message ?? '未知'}` }
+    }
+    const attribute = Number(j?.data?.attribute ?? -1)
+    if (attribute !== 6) {
+      return {
+        ok: false,
+        code: 'precondition',
+        reason: `还没互关（B 站私信要求双方互相关注，当前关系值 ${attribute}）：`
+          + '用她这个号关注一下对方，对方也关注她，才能发私信。',
+      }
+    }
+    return { ok: true }
+  } catch (e: any) {
+    return { ok: false, code: 'precondition', reason: `查关系失败：${String(e?.message ?? e)}` }
   }
-  if (now - last > windowDays * 86400_000) {
-    return { ok: false, code: 'precondition', reason: `最后一次读私信在 ${Math.floor((now - last) / 86400_000)} 天前，已过 ${windowDays} 天回信窗` }
-  }
-  return { ok: true }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -313,8 +341,8 @@ export async function executeDanmaku(
 
 /** 按 kind 分派到对应执行体。 */
 export async function executeBiliWrite(
-  kind: 'like' | 'fav' | 'comment' | 'danmaku',
-  action: { target: { bvid?: string; oid?: string; room?: string }; body: string },
+  kind: 'like' | 'fav' | 'comment' | 'danmaku' | 'dynamic' | 'edit-dynamic' | 'dm',
+  action: { target: { bvid?: string; oid?: string; room?: string; mid?: string; dynId?: string }; body: string },
   ctx: BiliWriteContext,
 ): Promise<WriteOutcome> {
   switch (kind) {
@@ -326,6 +354,14 @@ export async function executeBiliWrite(
       return await executeComment(action, ctx)
     case 'danmaku':
       return await executeDanmaku(action, ctx)
+    case 'dynamic':
+      // 动态与私信的执行体在另一个文件（协议形状不一样，见那里的说明）
+      return await executeDynamic(action, ctx)
+    case 'edit-dynamic':
+      // 改动态是**另一个接口**（/x/dynamic/feed/edit/dyn，还要带原图），不是发动态
+      return await executeEditDynamic(action, ctx)
+    case 'dm':
+      return await executeDmReply(action, ctx as BiliWriteContext & { selfMid?: string | number; devId?: string })
   }
 }
 

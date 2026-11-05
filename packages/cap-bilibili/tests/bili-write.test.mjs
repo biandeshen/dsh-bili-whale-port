@@ -19,7 +19,7 @@ function makeFetchStub(handler) {
   return fn
 }
 
-test('cap-bilibili/写链路：真实执行器与真实判据——30天去重/收藏理由/每日上限/回信窗 + 请求形状逐字一致', async () => {
+test('cap-bilibili/写链路：真实执行器与真实判据——30天去重/收藏理由/每日上限/私信互关 + 请求形状逐字一致', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cap-bili-write-'))
   const likeLog = { items: [{ bv: 'BV1xx411c7mD', at: new Date().toISOString() }] }
   const favLog = { items: [] }
@@ -112,20 +112,25 @@ test('cap-bilibili/写链路：真实执行器与真实判据——30天去重/�
   assert.equal(cmtBody.get('oid'), '777')
   assert.equal(cmtBody.get('csrf'), 'JCT')
 
-  // 5. 私信：回信窗过期 → 判据拒（precondition）
+  // 5. 私信：**没互关** → 判据拒（precondition）
+  //    这条以前判的是"7 天回信时效窗"——凭空来的规则，而且依赖一个全仓没人写的字段
+  //    （lastDmReadAt），于是她永远回不了私信。现在换成 B 站真正的硬要求：互关。
   const cap2 = createBilibiliCapability({
     dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'cap-bili-dm-')),
     writeContext: {
       cred: { sessdata: 'SESS', bili_jct: 'JCT', buvid3: 'B3' },
-      fetch: fetchStub,
-      lastDmReadAt: Date.now() - 9 * 86400_000, // 9 天前，超过 7 天窗
+      fetch: makeFetchStub((url) => {
+        if (url.includes('/x/relation')) return { json: { code: 0, data: { attribute: 2 } } }
+        if (url.includes('/x/web-interface/nav')) return { json: { code: 0, data: { isLogin: true, mid: 497080562 } } }
+        return { json: { code: 0 } }
+      }),
     },
   })
   const dmTool2 = cap2.tools().find((t) => t.name === 'bili_dm_reply')
   const dm = await dmTool2.execute({ mid: '1001', text: '好久不见' })
   assert.equal(dm.ok, false)
   assert.equal(dm.code, 'precondition')
-  assert.match(dm.reason, /回信窗/)
+  assert.match(dm.reason, /互关/)
 
   // 6. 平台失败：code≠0 → 可读原因 + 账上落 <kind>-failed
   const failFetch = makeFetchStub((url) => {
