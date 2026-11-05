@@ -43,9 +43,10 @@ test('bot 声明了 persona 配置组（宿主据此生成「配置」页签）'
   const def = createXiaoyuBotDefinition(tmp())
   const parts = def.build({ config: def.defaults(), memoryDir: tmp() })
   const groups = parts.webUi?.configGroups ?? []
-  assert.equal(groups.length, 1, `应当声明一组配置，实得 ${groups.length}`)
-  assert.equal(groups[0].id, 'xiaoyu')
-  assert.equal(groups[0].owner, 'persona')
+  // 2026-11-05 起是两组：上下文预算（这批）+ 心跳间隔（tick-config.test.mjs）
+  assert.equal(groups.length, 2, `应当声明两组配置，实得 ${groups.length}`)
+  assert.ok(groups.every((g) => g.owner === 'persona'), '都归 persona 所有')
+  assert.equal(groups[0].id, 'xiaoyu', '上下文这一组仍叫 xiaoyu（老键位不动）')
 })
 
 test('默认配置里带着上下文预算（不是只在页面上的空声明）', () => {

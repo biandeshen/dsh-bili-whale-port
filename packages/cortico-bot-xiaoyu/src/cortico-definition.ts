@@ -13,6 +13,7 @@ import { homedir } from 'node:os'
 import { CORE_DEFAULTS } from '../../persona-core/src/cortico-defaults.ts'
 import { XiaoYuPersona } from './cortico-persona.ts'
 import { contextStageConfigGroup, XIAOYU_CONTEXT_DEFAULTS } from './context-config.ts'
+import { tickConfigGroup, XIAOYU_TICK_DEFAULTS } from './tick-config.ts'
 
 export const XIAOYU_MEMORY_NAME = 'MEMORY.md'
 
@@ -47,6 +48,8 @@ export function createXiaoyuBotDefinition(homeDir: string) {
       rounds: { soft: 6, hard: 12 },
       // 上下文阶段预算：主人能在 WebUI 改，改完即生效（不必重启）。
       context: { ...CORE_DEFAULTS.context, ...XIAOYU_CONTEXT_DEFAULTS },
+      // 心跳间隔：同样能在 WebUI 改，`tickDelayMs` 每拍现读。
+      tick: { ...XIAOYU_TICK_DEFAULTS },
     }),
     build(loaded: { config: Record<string, unknown>; memoryDir: string; rootDir?: string }) {
       // 部署目录才是她的家（数据、记忆、日记都在里面）；拿不到时才退回包默认家。
@@ -79,7 +82,10 @@ export function createXiaoyuBotDefinition(homeDir: string) {
         webUi: {
           // 主人的「配置」页签从这儿来（宿主 src/bot.ts:940 收拢 persona 的 configGroups）。
           // 以前这里是空的——所以她的页面上连配置页签都没有，"上下文长度设不了"。
-          configGroups: [contextStageConfigGroup('xiaoyu')],
+          // 每组必须有**自己的 id**：宿主按 `body.group` 找组再按那一组的 schema 校验
+          // （server.ts 的 POST /api/config）。两组共用 'xiaoyu' 时，心跳那一发会被
+          // 当成上下文组校验 → 400「改不了」，2026-11-05 真浏览器点出来。
+          configGroups: [contextStageConfigGroup('xiaoyu'), tickConfigGroup('xiaoyu-tick')],
           // 阶段预算与软预警线：控制台页上下文圈的分母与黄线。
           status: () => {
             const c = context()
