@@ -354,7 +354,7 @@ export function describeState(s: PersonaState, limit = 5, opts: { queryText?: st
 export function describeStateWithTrace(
   s: PersonaState,
   limit = 5,
-  opts: { queryText?: string; seed?: string } = {},
+  opts: { queryText?: string; seed?: string; live?: boolean } = {},
 ): { text: string; recalledIds: string[] } {
   const f = s.fields
   const pct = (n: number) => Math.round(n * 100)
@@ -384,12 +384,27 @@ export function describeStateWithTrace(
       : r.content.slice(0, 40)
     return `- ${head}｜${who}：${shown}${r.flashbulb ? '（刻在心里）' : ''}`
   })
+  /**
+   * 场值那一行要不要带具体数字（`live` 开关）。
+   *
+   * 为什么要有这个开关（审计 §1.4，主人同屏看到「体力38」和「体力88」）：
+   *   · 会话级前缀（`contextSegments`）宿主**整场只建一次**（loop.ts:1020 新会话、
+   *     :1717 交接），于是长会话里前缀里的体力是**旧值**；
+   *   · 每事件级注入（`onMessageDelivery`）每次都重读，是**新值**；
+   *   · 两个都在同一次请求里，她就拿到了自相矛盾的身体状态（38 与 88 同时在场）。
+   *
+   * 所以：**会话级前缀不带数字**（只说"具体数值随每条消息一起到"），
+   * **每事件注入才带数字**——同一份数据、同一时刻，不会打架。
+   */
+  const stateLine = opts.live === false
+    ? '【状态】具体数值随每条消息一起到（体力/刺激/连接/社交/心情/好奇/创造）｜关系：' + rel
+    : `【状态】体力${pct(f.energy)} 刺激${pct(f.stimulation)} 连接${pct(f.connection)} 社交${pct(f.social)} `
+      + `心情${f.mood.toFixed(2)} 好奇${pct(f.curiosity)} 创造${pct(f.creativity)}｜关系：${rel}`
   return {
     text: [
       `【她现在的情绪】${m.primary}${secondary}（成因：${m.reason}）`,
       m.inner,
-      `【状态】体力${pct(f.energy)} 刺激${pct(f.stimulation)} 连接${pct(f.connection)} 社交${pct(f.social)} `
-        + `心情${f.mood.toFixed(2)} 好奇${pct(f.curiosity)} 创造${pct(f.creativity)}｜关系：${rel}`,
+      stateLine,
       recent.length ? '最近发生：\n' + recent.join('\n') : '最近没什么特别的。',
       mems.length ? '记得：\n' + mems.join('\n') : '',
     ].filter(Boolean).join('\n'),

@@ -40,16 +40,23 @@ export const journalBoardPanel = {
     const diaryBox2 = ui.h('div')
     diaryBox.append(ui.h('h3'), bookSeg.el, ui.field('日期', dateInput), diaryActs, diaryBox2)
 
-    async function loadDiary() {
+    /** 现在看第几页（0 起）。后端本来就支持分页，页面以前不传，所以永远停在第一页。 */
+    let diaryPage = 0
+
+    async function loadDiary(page?: number) {
+      if (typeof page === 'number') diaryPage = Math.max(0, page)
       const res = await call<any>(ctx, msg, 'getDiary', {
         book: (bookSeg as any).value ?? 'public',
         date: dateInput.value.trim() || undefined,
+        page: diaryPage,
       })
       if (!res) return
       diaryBox2.replaceChildren()
+      const totalPages = Math.max(1, Math.ceil((res.totalDays ?? 0) / 7))
       const meta = ui.h('div')
       meta.style.margin = '6px 0'
-      meta.textContent = `共 ${res.totalDays} 天 / ${res.totalChars} 字 · 本页：${(res.dates ?? []).join('、') || '（空）'}${res.hasMore ? '（还有更多，往前翻）' : ''}`
+      meta.textContent = `共 ${res.totalDays} 天 / ${res.totalChars} 字 · 第 ${(res.page ?? diaryPage) + 1} / ${totalPages} 页 · `
+        + `本页：${(res.dates ?? []).join('、') || '（空）'}`
       diaryBox2.append(meta)
 
       const view = ui.h('div')
@@ -59,22 +66,51 @@ export const journalBoardPanel = {
       view.textContent = res.body ?? ''
       diaryBox2.append(view)
 
-      const edit = ui.textarea({ value: res.body ?? '', rows: 8 })
-      const editActs = ui.actions()
-      const save = actionButton(ctx, ui, msg, '💾 保存并提交（按当前内容覆盖）', 'saveDiarySection', undefined, {
-        variant: 'primary',
-        argsFactory: () => [{
-          book: (bookSeg as any).value ?? 'public',
-          date: dateInput.value.trim() || (res.dates ?? [])[0],
-          markdown: edit.value,
-        }],
-        after: loadDiary,
+      // ── 翻页 ──
+      // 后端早就支持 page（paginateDiary），页面以前不传，等于永远只看第一页；
+      // 她的日记本子有几十天，主人只能看到最近 7 天，且按钮上写着"往前翻"却没得翻。
+      const pager = ui.actions()
+      const prev = ui.button('← 上一页', { onClick: async () => { await loadDiary(diaryPage - 1) } })
+      const next = ui.button('下一页 →', { onClick: async () => { await loadDiary(diaryPage + 1) } })
+      ;(prev as HTMLButtonElement).disabled = diaryPage <= 0
+      ;(next as HTMLButtonElement).disabled = !res.hasMore
+      pager.append(prev, next)
+      diaryBox2.append(pager)
+
+      // ── 只读 / 编辑分离 ──
+      // 以前只读视图和 textarea 并排摆着：主人进来先看到一个大文本框，
+      // 分不清哪块是"她的原文"、哪块是"我改的"，手一抖就整段覆盖。
+      // 现在默认只读，要改先点「✏️ 编辑这段」，编辑框和保存键才出现。
+      const editWrap = ui.h('div')
+      const startEdit = ui.button('✏️ 编辑这段', {
+        onClick: () => {
+          if (editWrap.children.length) return
+          const edit = ui.textarea({ value: res.body ?? '', rows: 8 })
+          const editActs = ui.actions()
+          const save = actionButton(ctx, ui, msg, '💾 保存并提交（按当前内容覆盖）', 'saveDiarySection', undefined, {
+            variant: 'primary',
+            argsFactory: () => [{
+              book: (bookSeg as any).value ?? 'public',
+              date: dateInput.value.trim() || (res.dates ?? [])[0],
+              markdown: edit.value,
+            }],
+            after: async () => {
+              // 存完回到只读态：编辑区收起来，免得"保存了还显示着编辑框"让人以为没存
+              editWrap.replaceChildren()
+              await loadDiary(diaryPage)
+            },
+          })
+          const cancel = ui.button('取消编辑', { onClick: () => editWrap.replaceChildren() })
+          editActs.append(save, cancel)
+          editWrap.append(ui.field('改这里会覆盖当天整段', edit), editActs)
+        },
       })
-      editActs.append(save)
-      diaryBox2.append(edit, editActs)
+      diaryBox2.append(startEdit, editWrap)
     }
 
-    const loadDiaryBtn = actionButton(ctx, ui, msg, '读取日记', 'getDiary', undefined, { after: loadDiary })
+    const loadDiaryBtn = actionButton(ctx, ui, msg, '读取日记', 'getDiary', undefined, {
+      after: async () => { diaryPage = 0; await loadDiary(0) },
+    })
     diaryActs.append(loadDiaryBtn)
 
     // ── 判断卡 ──

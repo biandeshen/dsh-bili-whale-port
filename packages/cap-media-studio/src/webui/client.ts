@@ -53,15 +53,22 @@ export const mediaStudioPanel = {
       const script = ui.textarea({ placeholder: '要念的台词（最多 5 行）', rows: 3 })
       const dur = ui.input({ value: '20', type: 'number', min: 3, max: 60 })
 
+      // 试听：一次点击只合成一次。
+      // 以前 after 里又调了一次 ctx.invoke('previewTts')，等于每点一下 TTS 跑两遍
+      // （白烧一次额度，还可能两份不同的音频）。after 拿到的就是第一次的结果。
       const ttsBtn = actionButton(ctx, ui, msg, '🔊 试听配音', 'previewTts', undefined, {
         argsFactory: () => [{ text: script.value.trim() }],
-        after: async () => {
-          const r = await ctx.invoke('previewTts', [{ text: script.value.trim() }]).catch(() => null)
-          const outFile = (r as any)?.outFile
-          if (!outFile) return
+        after: async (r: any) => {
+          const dataUrl = r?.dataUrl
+          if (!dataUrl) {
+            ui.msgline(r?.error ? String(r.error) : '试听音频没出来', Boolean(r?.error))?.remove?.()
+            return
+          }
           const audio = ui.h('audio')
           audio.controls = true
-          audio.src = `/api/files?path=${encodeURIComponent(outFile)}`
+          audio.src = dataUrl
+          // 每次试听换掉上一段（不然页面上摞一排 audio，主人不知道哪段是刚点的）
+          for (const old of [...box.querySelectorAll?.('audio') ?? []]) old.remove?.()
           box.append(audio)
         },
       })
@@ -95,6 +102,17 @@ export const mediaStudioPanel = {
         drafts.append(line)
       }
       box.append(drafts)
+
+      // 看片页 ↔ 看画面页：视觉那条线（cap-vision 的拼图与看片记录）在 persona 页，
+      // 这里补一条跳转，省得主人为了看"她当时看见了什么"再翻导航。
+      const links = ui.actions()
+      const toVision = ui.h('a', null, '→ 看画面（她看片时看见的）')
+      toVision.setAttribute('href', '#/provider/persona%3Axiaoyu/vision')
+      toVision.style.marginRight = '10px'
+      const toPrefs = ui.h('a', null, '→ 看片偏好与屏蔽词')
+      toPrefs.setAttribute('href', '#/provider/world%3Abili-account/preferences')
+      links.append(toVision, toPrefs)
+      box.append(links)
     }
     void refresh()
   },

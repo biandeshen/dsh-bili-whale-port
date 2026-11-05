@@ -39,6 +39,25 @@ export interface BiliPublishPolicy {
   danmaku: 'self' | 'review'
 }
 
+/**
+ * 「自动发布允许时段」的写法：`HH:MM-HH:MM`（支持跨零点，如 `23:00-07:00`）。
+ * 解析失败一律当**不限**（不许因为主人写错一个字就让她整晚不能发）。
+ */
+export function parseAutoWindow(window: string, now: number = Date.now()): { ok: boolean; inWindow: boolean; text: string } {
+  const text = String(window ?? '').trim()
+  const m = /^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})$/.exec(text)
+  if (!m) return { ok: false, inWindow: true, text }
+  const sh = Number(m[1]), sm = Number(m[2]), eh = Number(m[3]), em = Number(m[4])
+  if (sh > 23 || eh > 23 || sm > 59 || em > 59) return { ok: false, inWindow: true, text }
+  const d = new Date(now)
+  const cur = d.getHours() * 60 + d.getMinutes()
+  const start = sh * 60 + sm
+  const end = eh * 60 + em
+  if (start === end) return { ok: true, inWindow: true, text }
+  const inWindow = start < end ? (cur >= start && cur < end) : (cur >= start || cur < end)
+  return { ok: true, inWindow, text }
+}
+
 export const DEFAULT_PUBLISH_POLICY: BiliPublishPolicy = {
   draftMode: 'review',
   autoDailyCap: 0,
@@ -183,7 +202,7 @@ export class WriteGate {
     return this.readPolicy()
   }
 
-  readQuota(): { day: string; selfCap: number; shareCap: number; usedSelf: number; usedShare: number } {
+  readQuota(): { day: string; selfCap: number; shareCap: number; usedSelf: number; usedShare: number; autoPublished: number } {
     const today = dayKey(Date.now())
     try {
       const raw = JSON.parse(fs.readFileSync(this.quotaFile, 'utf8'))
@@ -194,9 +213,10 @@ export class WriteGate {
         shareCap: Number.isFinite(Number(raw.shareCap)) ? Number(raw.shareCap) : 3,
         usedSelf: sameDay ? Number(raw.usedSelf ?? 0) : 0,
         usedShare: sameDay ? Number(raw.usedShare ?? 0) : 0,
+        autoPublished: sameDay ? Number(raw.autoPublished ?? 0) : 0,
       }
     } catch {
-      return { day: today, selfCap: 12, shareCap: 3, usedSelf: 0, usedShare: 0 }
+      return { day: today, selfCap: 12, shareCap: 3, usedSelf: 0, usedShare: 0, autoPublished: 0 }
     }
   }
 
@@ -289,6 +309,43 @@ export class WriteGate {
       case 'fav':
         return policy.fav === 'review'
     }
+  }
+
+  /**
+   * 自动发布的两道安全档位（审计 §2.7「安全闸补 2 档位」）。
+   *
+   * `autoDailyCap` 与 `autoWindow` 以前**只是配置里的两个字段，没有任何代码读它们**
+   * ——主人以为设了"每天最多自动发 3 条"，其实她想发多少发多少。
+   * 空的旋钮比没有旋钮更坏，所以这里把它们变成真判据。
+   *
+   * 两条都**只管自动发布**（draftMode === 'auto'）这一路：
+   *   · 主人手动点「放行」不受影响（那是主人自己的决定）；
+   *   · 命中时不是拦下来不发，而是**降级进待放行队列**——她照样写，主人照看。
+   *
+   * 返回空字符串 = 不拦；返回非空 = 要降级的原因（直接写进回执给主人看）。
+   */
+  autoPublishBlocker(policy: BiliPublishPolicy, now: number = Date.now()): string {
+    if (policy.draftMode !== 'auto') return ''
+    const cap = Number(policy.autoDailyCap ?? 0)
+    if (cap > 0) {
+      const used = this.readQuota().autoPublished
+      if (used >= cap) {
+        return `今天已经自动发出去 ${used} 条（上限 ${cap} 条），这一条改走待放行队列，等主人看过再发`
+      }
+    }
+    const win = parseAutoWindow(policy.autoWindow, now)
+    if (win.ok && !win.inWindow) {
+      return `现在不在自动发布时段（${win.text}），这一条改走待放行队列`
+    }
+    return ''
+  }
+
+  /** 自动发布成功时记一笔（今天第几条自动发出去的）。 */
+  private bumpAutoPublished(): void {
+    const cur = this.readQuota()
+    const next = { ...cur, autoPublished: cur.autoPublished + 1 }
+    fs.mkdirSync(this.dataDir, { recursive: true })
+    fs.writeFileSync(this.quotaFile, JSON.stringify(next, null, 2), 'utf8')
   }
 
   enqueue(action: WriteAction): PendingQueueItem {
@@ -411,6 +468,30 @@ export class WriteGate {
       }
     }
 
+    // ②b 自动发布的两道安全档位：每日条数上限 + 允许时段。
+    //   只在"本来会自动发出去"这一路上生效（动态发布 + draftMode=auto）；
+    //   主人手动放行（bypassQueueWithToken）不受影响。
+    //   命中时**降级进队列**而不是拦下来不发：她照样写，主人照看。
+    if (
+      !rawInput.bypassQueueWithToken
+      && (action.kind === 'dynamic' || action.kind === 'edit-dynamic')
+      && policy.draftMode === 'auto'
+    ) {
+      const why = this.autoPublishBlocker(policy)
+      if (why) {
+        const queued = this.enqueue(action)
+        return {
+          ok: false,
+          exit: 2,
+          code: 'auto-downgraded',
+          stage: 'gate',
+          reason: `${why} (${queued.id})`,
+          pendingId: queued.id,
+          token: queued.token,
+        }
+      }
+    }
+
     // ③ 内容判据（独立判据函数）
     if (this.opts.contentCheck) {
       const c = this.opts.contentCheck(action)
@@ -496,6 +577,10 @@ export class WriteGate {
 
     // ⑦ 成功：扣减额度、更新防重发指纹、单点写 causal.jsonl
     this.bumpQuota(action.intent)
+    // 自动发布成功要记一笔（"今天已自动发 N 条"是每日上限那条档位的账）
+    if ((action.kind === 'dynamic' || action.kind === 'edit-dynamic') && policy.draftMode === 'auto') {
+      this.bumpAutoPublished()
+    }
     this.saveTraffic({
       lastWriteAt: now,
       seenFingerprints: [...traffic.seenFingerprints, fingerprint].slice(-500),

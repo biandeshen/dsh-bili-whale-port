@@ -50,7 +50,9 @@ export const memoryCenterPanel = {
     const createBox = ui.h('div')
     const histBox = ui.h('div')
     const recallBox = ui.h('div')
-    card.body.append(tierRow, ui.field('搜索', search), listBox, createBox, recallBox, histBox, msg)
+    // diff 单独一个容器：每次「看改动」只显示最新一份，不往历史区里叠
+    const diffBox = ui.h('div')
+    card.body.append(tierRow, ui.field('搜索', search), listBox, createBox, recallBox, histBox, diffBox, msg)
 
     let tier = 'all'
 
@@ -347,15 +349,26 @@ export const memoryCenterPanel = {
       histBox.append(table.el)
     }
 
+    /**
+     * 看一次改动，**只留最新的一份**。
+     *
+     * 以前每次点「看改动」都往页面里 append 一个 <pre>，连点几次就叠几份 diff，
+     * 越往下越旧、越难认——主人想找"上次那条改了什么"得在一堆 diff 里翻。
+     * 现在先把旧的清掉，只显示当前这一条；commit 行还在表里，想看哪条再点哪条。
+     */
     async function renderDiff(hash: string) {
       const res = await call<any>(ctx, msg, 'history', { diffOf: hash })
       if (!res) return
+      diffBox.replaceChildren()
+      const head = ui.h('div')
+      head.style.margin = '8px 0'
+      head.textContent = `改动详情：${hash}`
       const pre = ui.h('pre')
       pre.style.maxHeight = '320px'
       pre.style.overflow = 'auto'
       pre.style.whiteSpace = 'pre-wrap'
       pre.textContent = res.diff ?? ''
-      histBox.append(pre)
+      diffBox.append(head, pre)
     }
 
     const cp = actionButton(ctx, ui, msg, '打一个存档点（checkpoint）', 'checkpoint', undefined, {

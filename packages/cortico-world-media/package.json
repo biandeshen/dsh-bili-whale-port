@@ -1,6 +1,6 @@
 {
   "name": "cortico-world-media",
-  "version": "0.1.e7cc0197",
+  "version": "0.1.bcd6a429",
   "type": "module",
   "description": "小鱼的音视频创作工作室薄转接头（包装 @xiaoyu/cap-media-studio，对接 Cortico world api:6）。",
   "keywords": [

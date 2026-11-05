@@ -115,7 +115,17 @@ export interface StateRhythmCapabilityOptions {
   timezone?: string
 }
 
+/**
+ * 读她的作息账；**顺手把过了期的强制模式收回 auto 并落盘**。
+ *
+ * 为什么在读的地方收，而不是等谁想起来改：
+ *   · 强制模式是**临时**的（主人戳一下"醒着"），到期就该自动失效；
+ *   · 以前只落盘不回收，于是她被叫醒之后**再也睡不着**——除非主人手动改回去；
+ *   · 收在这里而不是收在某条业务路径上，是因为读账的地方最全：
+ *     状态面板、作息对账、健康检查、戳醒都会经过它，不会漏。
+ */
 function loadLifeFile(file: string): LifeMemoryView {
+  let life: LifeMemoryView
   try {
     const raw = JSON.parse(fs.readFileSync(file, 'utf8'))
     // sleepWindow 要区分"没设过"（undefined → 用默认时段）与"主人明确关掉"（null → 不按时段判睡）：
@@ -125,13 +135,14 @@ function loadLifeFile(file: string): LifeMemoryView {
       : (raw.sleepWindow && /^\d{1,2}:\d{2}$/.test(String(raw.sleepWindow.start)) && /^\d{1,2}:\d{2}$/.test(String(raw.sleepWindow.end))
         ? { start: String(raw.sleepWindow.start), end: String(raw.sleepWindow.end) }
         : undefined)
-    return {
+    life = {
       day: String(raw.day ?? dayKey(Date.now())),
       actionsToday: Number(raw.actionsToday ?? 0),
       lastActionAt: Number(raw.lastActionAt ?? 0),
       lastCheckAt: Number(raw.lastCheckAt ?? 0),
       lastKind: raw.lastKind ?? null,
       mode: (raw.mode === 'force_sleep' || raw.mode === 'force_awake') ? raw.mode : 'auto',
+      modeExpiresAt: Number(raw.modeExpiresAt ?? 0) || undefined,
       nextCheckAt: Number(raw.nextCheckAt ?? 0),
       ...(win === undefined ? {} : { sleepWindow: win }),
     }
@@ -145,6 +156,14 @@ function loadLifeFile(file: string): LifeMemoryView {
       mode: 'auto',
     }
   }
+  // 到期就收回：mode 回 auto，并且**把到期时间也抹掉**（留着会让下一个人以为还有效）
+  const until = Number(life.modeExpiresAt ?? 0)
+  if (life.mode !== 'auto' && until > 0 && Date.now() >= until) {
+    const reverted: LifeMemoryView = { ...life, mode: 'auto', modeExpiresAt: undefined }
+    try { saveLifeFile(file, reverted) } catch { /* 落盘失败不影响这次读 */ }
+    return reverted
+  }
+  return life
 }
 
 function saveLifeFile(file: string, life: LifeMemoryView): void {
@@ -173,7 +192,9 @@ export function createStateRhythmCapability(
       ...life,
       lastCheckAt: nowMs,
       nextCheckAt: nowMs,
+      // 戳醒是把"强制休息"解除；强制清醒保持不变（但到期时间照旧，到点照样回 auto）
       mode: life.mode === 'force_sleep' ? 'auto' : (life.mode ?? 'auto'),
+      ...(life.mode === 'force_sleep' ? { modeExpiresAt: undefined } : {}),
     }
     saveLifeFile(opts.lifeFile, nextLife)
     const hint = typeof params?.hint === 'string' ? params.hint.trim() : ''
@@ -255,7 +276,10 @@ export function createStateRhythmCapability(
 
     async contextSegments(ctx: TurnContext): Promise<readonly PrefixBlock[]> {
       const state = loadState(opts.fieldsFile)
-      const { text, recalledIds } = describeStateWithTrace(state, 5, { seed: dayKey(ctx.now.getTime()) })
+      // live:false —— 会话级前缀**不带场值数字**（审计 §1.4）。
+      // 宿主整场只建一次前缀，长会话里这里会变成旧值；每事件注入才带真值。
+      // 两个都在同一次请求里，她就拿到"体力38 与体力88 同时在场"的自相矛盾状态。
+      const { text, recalledIds } = describeStateWithTrace(state, 5, { seed: dayKey(ctx.now.getTime()), live: false })
       if (recalledIds.length > 0) {
         saveState(opts.fieldsFile, applyRecall(state, recalledIds))
       }
@@ -271,9 +295,12 @@ export function createStateRhythmCapability(
     async onMessageDelivery(ctx: DeliveryContext): Promise<readonly string[]> {
       const queryText = ctx.events.map((e) => e.text).join(' ')
       const state = loadState(opts.fieldsFile)
+      // live:true（默认）—— **场值数字只在这一条路出现**，而且每次都重读，
+      // 所以同一次请求里只有一个真值（审计 §1.4）。
       const { text } = describeStateWithTrace(state, 3, {
         queryText,
         seed: dayKey(ctx.now.getTime()),
+        live: true,
       })
       return [text]
     },
@@ -378,6 +405,7 @@ export function createStateRhythmCapability(
                   asleep: rest === 'asleep',
                   resting: rest === 'resting',
                   mode: life.mode ?? 'auto',
+                  modeExpiresAt: Number(life.modeExpiresAt ?? 0) || null,
                   sleepWindow: life.sleepWindow === undefined ? DEFAULT_SLEEP_WINDOW : life.sleepWindow,
                   mood: readMood(state),
                   fields: state.fields,
@@ -435,6 +463,7 @@ export function createStateRhythmCapability(
                   resting: rest === 'resting',
                   sleepWindow: life.sleepWindow === undefined ? DEFAULT_SLEEP_WINDOW : life.sleepWindow,
                   mode: life.mode ?? 'auto',
+                  modeExpiresAt: Number(life.modeExpiresAt ?? 0) || null,
                   life,
                   recentChain: [...state.chain].reverse().slice(0, 20),
                   described: describeState(state),
@@ -479,21 +508,28 @@ export function createStateRhythmCapability(
             setMode: {
               name: 'setMode',
               verb: 'POST',
-              summary: '切换作息模式（auto / force_sleep / force_awake）',
+              summary: '切换作息模式（auto / force_sleep / force_awake）；force_* 可带 expiresInMinutes，到点自动回 auto',
               writable: true,
-              invoke(params: { mode: RhythmMode }) {
+              invoke(params: { mode: RhythmMode; expiresInMinutes?: number }) {
                 const mode = params?.mode
                 if (mode !== 'auto' && mode !== 'force_sleep' && mode !== 'force_awake') {
                   return { ok: false, error: 'mode 必须是 auto / force_sleep / force_awake' }
                 }
+                // 到期时间：只在强制模式上给，auto 一律清掉（auto 本身就是"没有到期"）
+                const mins = Number(params?.expiresInMinutes ?? 0)
+                let modeExpiresAt: number | undefined
+                if (mode !== 'auto' && Number.isFinite(mins) && mins > 0) {
+                  modeExpiresAt = Date.now() + Math.round(mins * 60_000)
+                }
                 const life = loadLifeFile(opts.lifeFile)
-                const nextLife: LifeMemoryView = { ...life, mode }
+                const nextLife: LifeMemoryView = { ...life, mode, modeExpiresAt }
                 saveLifeFile(opts.lifeFile, nextLife)
                 const state = loadState(opts.fieldsFile)
                 const rest = restState(nextLife, state.fields, Date.now(), opts.timezone)
                 return {
                   ok: true,
                   mode,
+                  modeExpiresAt: modeExpiresAt ?? null,
                   rest,
                   asleep: rest === 'asleep',
                 }

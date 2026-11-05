@@ -16,6 +16,14 @@ export type LifeMemoryView = LifeMemory & {
   lastSilentDay?: string
   nextCheckAt?: number
   mode?: RhythmMode
+  /**
+   * 强制模式的到期时间（毫秒时间戳）。过了这个点，`force_awake` / `force_sleep` 自动回 `auto`。
+   *
+   * 为什么要有：主人戳一下"醒着"是**临时**的意思；以前这个模式一旦落盘就永远生效，
+   * 于是她夜里三點被叫醒之后**再也睡不着**（除非手动改回去）——这不是主人的意思，
+   * 是我们把"临时"实现成了"永久"。到期后自动回 auto，她才能按作息自己困自己睡。
+   */
+  modeExpiresAt?: number
   /** 睡眠时段（主人可改可关）；null = 关掉时段判据，只按"闲了多久" */
   sleepWindow?: SleepWindow
 }
@@ -58,8 +66,24 @@ export function inSleepWindow(now: number, window: SleepWindow = DEFAULT_SLEEP_W
 }
 
 /**
+ * 此刻真正生效的模式：强制模式过了到期点就当没有（回 auto）。
+ *
+ * 纯函数、只读、不落盘——落盘那一半由 `expireModeIfNeeded` 负责（要在写回时顺手改掉）。
+ */
+export function effectiveMode(
+  mem: { mode?: RhythmMode; modeExpiresAt?: number },
+  now: number = Date.now(),
+): RhythmMode {
+  const mode = mem?.mode ?? 'auto'
+  if (mode === 'auto') return 'auto'
+  const until = Number(mem?.modeExpiresAt ?? 0)
+  if (until > 0 && now >= until) return 'auto'
+  return mode
+}
+
+/**
  * 三态判据（**这是这次改动的正主**）：
- *   force_sleep → 睡着；force_awake → 醒着；
+ *   force_sleep → 睡着；force_awake → 醒着（**到点自动失效**，见 effectiveMode）；
  *   在睡眠时段内 → 睡着；
  *   距上次行动 ≥6h 且确实有过行动 → 睡着（熬夜加班也算睡了，只是没到点）；
  *   体力 < 0.35 → 歇着；
@@ -67,13 +91,14 @@ export function inSleepWindow(now: number, window: SleepWindow = DEFAULT_SLEEP_W
  * 注意 `lastActionAt<=0`（刚搬家/刚清账）**不再算睡着**：那叫没历史，不叫睡了 6 小时。
  */
 export function restState(
-  mem: { lastActionAt?: number; mode?: RhythmMode; sleepWindow?: SleepWindow },
+  mem: { lastActionAt?: number; mode?: RhythmMode; sleepWindow?: SleepWindow; modeExpiresAt?: number },
   fields: { energy?: number } | null | undefined,
   now: number = Date.now(),
   tz?: string,
 ): 'asleep' | 'resting' | 'awake' {
-  if (mem.mode === 'force_sleep') return 'asleep'
-  if (mem.mode === 'force_awake') return 'awake'
+  const mode = effectiveMode(mem, now)
+  if (mode === 'force_sleep') return 'asleep'
+  if (mode === 'force_awake') return 'awake'
   const win = mem.sleepWindow === undefined ? DEFAULT_SLEEP_WINDOW : mem.sleepWindow
   if (inSleepWindow(now, win, tz)) return 'asleep'
   const last = Number(mem.lastActionAt ?? 0)

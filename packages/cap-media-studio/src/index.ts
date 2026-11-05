@@ -126,17 +126,31 @@ export function createMediaStudioCapability(
     if (!cleanText) return { ok: false as const, error: '台词文本不能为空' }
     fs.mkdirSync(opts.outputDir, { recursive: true })
     const outFile = path.join(opts.outputDir, `tts-preview-${Date.now().toString(36)}.mp3`)
+    let res: any
     if (opts.ttsPreview) {
-      return await opts.ttsPreview({ text: cleanText, voice: params.voice, outFile })
+      res = await opts.ttsPreview({ text: cleanText, voice: params.voice, outFile })
+    } else {
+      const { ffprobe } = ffmpegAvailable(opts.binDir)
+      res = await previewTtsAudio({
+        text: cleanText,
+        voice: params.voice,
+        outFile,
+        toolsBinDir: opts.toolsBinDir,
+        ffprobePath: ffprobe ?? undefined,
+      })
     }
-    const { ffprobe } = ffmpegAvailable(opts.binDir)
-    return await previewTtsAudio({
-      text: cleanText,
-      voice: params.voice,
-      outFile,
-      toolsBinDir: opts.toolsBinDir,
-      ffprobePath: ffprobe ?? undefined,
-    })
+    // 试听要能**真在页面里播**：宿主没有 `/api/files?path=`（按任意路径取文件的路由不存在，
+    // 2026-11-04 实测一律 404 裂图；宿主只有 `/api/blob?handle=`），
+    // 所以音频由本包自己出成 data URL，跟 cap-vision 的缩略图一个路子。
+    if (res?.ok === false) return res
+    const out = String(res?.outFile ?? outFile)
+    try {
+      const bytes = fs.readFileSync(out)
+      return { ...res, ok: true, outFile: out, dataUrl: `data:audio/mpeg;base64,${bytes.toString('base64')}`, bytes: bytes.length }
+    } catch (e: any) {
+      // 出不来音频就照实说（别给一个播不动的空 src）
+      return { ...res, ok: false, error: `试听音频生成不出来：${String(e?.message ?? e)}`, outFile: out }
+    }
   }
 
   async function runBuildVideoDraft(params: {

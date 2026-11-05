@@ -198,11 +198,23 @@ export const tankPanel = {
         { value: String(snap.mode ?? 'auto') },
       )
       modeRow.append(ui.field('作息模式', seg.el))
+      // 强制模式要能"到点自己回来"：主人戳一下"保持清醒"是临时意思，
+      // 不是让她从此再不睡（以前 mode 一落盘就永久生效，她夜里被叫醒就再也睡不着）。
+      const expiryIn = ui.input({ type: 'number', min: 0, step: 5, placeholder: '分钟（0 = 不限时）' })
+      const modeExpiresAt = Number(snap.modeExpiresAt ?? 0)
+      expiryIn.value = modeExpiresAt > 0 ? String(Math.max(1, Math.round((modeExpiresAt - Date.now()) / 60_000))) : '0'
+      modeRow.append(ui.field('强制多久后自动回到自然节律', expiryIn))
       const applyMode = actionButton(ctx, ui, msg, '切换作息模式', 'setMode', undefined, {
-        argsFactory: () => [{ mode: seg.value }],
+        argsFactory: () => [{ mode: seg.value, expiresInMinutes: Number(expiryIn.value) || 0 }],
         after: refresh,
       })
       actions.append(modeRow, applyMode)
+      if (modeExpiresAt > 0) {
+        const exp = ui.h('div')
+        exp.style.margin = '4px 0'
+        exp.textContent = `当前强制模式到 ${new Date(modeExpiresAt).toLocaleString()} 为止，到点自动回到自然节律。`
+        actions.append(exp)
+      }
 
       // 睡着时段：累了歇着 ≠ 睡着了，两件事分开给主人控
       const sleepRow = ui.h('div')

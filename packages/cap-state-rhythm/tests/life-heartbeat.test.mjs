@@ -45,15 +45,20 @@ test('quietLine：不足一分钟按秒说，别显示"0 分钟"', () => {
 
 test('nextFireAt 交出的是**下一拍**的真时间（账与事实要对得上）', async () => {
   const seen = []
+  const firedAt = []
   const hb = new LifeHeartbeat({
     baseline: () => 20,
-    onFire: () => { seen.push(hb.nextFireAt()) },
+    onFire: () => { firedAt.push(Date.now()); seen.push(hb.nextFireAt()) },
   })
   hb.start()
   await wait(45)
   assert.ok(seen.length >= 1, '应已投递一拍')
-  // 投递那一刻拿到的必须是**下一拍**的时间，且在将来
-  assert.ok(seen[0] > Date.now(), `nextFireAt 必须是将来的时间，实得 ${seen[0]}`)
+  // 下一拍的时间必须**晚于这一拍**。
+  // 以前这条断言写的是 `seen[0] > Date.now()`——那是拿"断言跑到哪儿"当标准：
+  // 机器一忙，等待多拖了十几毫秒，"下一拍"就已经过去了，测试变红；
+  // 可它跟心跳对不对没关系（2026-11-05 全量门禁在跑 esbuild 时就是这么红过一次）。
+  // 真正要守的是不变量：**下一拍比这一拍晚**。
+  assert.ok(seen[0] > firedAt[0], `下一拍必须晚于这一拍：${seen[0]} vs ${firedAt[0]}`)
   // 空拍退避后，下一拍应更远（倍率翻倍）
   await wait(120)
   assert.ok(seen.length >= 2, `应已投递多拍，实得 ${seen.length}`)

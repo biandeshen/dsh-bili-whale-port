@@ -118,8 +118,12 @@ export const inboxPanel = {
       listBox.replaceChildren(seg.el)
       const head = ui.h('div')
       head.style.margin = '8px 0'
-      head.textContent = `未读 ${res.unreadCount ?? 0} 条 · 共 ${(res.items ?? []).length} 条${(res.blockedUids ?? []).length ? ` · 已拉黑 ${res.blockedUids.length} 个号` : ''}`
+      head.textContent = `未读 ${res.unreadCount ?? 0} 条 · 共 ${(res.items ?? []).length} 条${(res.blockedUids ?? []).length ? ` · 已拉黑 ${(res.blockedUids as string[]).length} 个号` : ''}`
       listBox.append(head)
+
+      // 每条一个"行"，行内记着能就地改的部件。动作完成后只改这一行，
+      // 不整列表重取——整块重建会把主人正在打的"叮嘱"抹掉（这是 story-1 的遗留项）。
+      const rows = new Map<string, { box: any; desc: HTMLElement; acts: HTMLElement }>()
 
       for (const it of res.items ?? []) {
         const box = ui.sheet({
@@ -130,14 +134,18 @@ export const inboxPanel = {
         const hint = ui.input({ placeholder: '可选：给她的叮嘱' })
         guard.watch(hint, () => '')
 
+        const desc = box.desc ?? ui.h('div')
+        const row = { box, desc, acts }
+        rows.set(String(it.key), row)
+
         const reply = actionButton(ctx, ui, msg, '👉 让她回这条', 'assignAction', undefined, {
           variant: 'primary',
           argsFactory: () => [{ itemKey: it.key, action: 'ask_her_reply', ownerHint: hint.value }],
-          after: refresh,
+          after: (r: any) => applyItem(r, row, it),
         })
         const ignore = actionButton(ctx, ui, msg, '✓ 忽略已读', 'assignAction', undefined, {
           argsFactory: () => [{ itemKey: it.key, action: 'ignore' }],
-          after: refresh,
+          after: (r: any) => applyItem(r, row, it),
         })
         // 拉黑改的是她真实的人际账，而且当场生效在平台侧——先确认，且后端也要 confirm:true
         const block = actionButton(ctx, ui, msg, '🚫 拉黑此人', 'assignAction', undefined, {
@@ -150,11 +158,36 @@ export const inboxPanel = {
             danger: true,
             ok: '确认拉黑',
           },
-          after: refresh,
+          after: (r: any) => applyItem(r, row, it),
         })
         acts.append(reply, ignore, block)
         box.body.append(hint, acts)
         listBox.append(box.el)
+      }
+
+      /**
+       * 按 id 局部更新：只把这行的描述与按钮换成新的状态，不重取整列表。
+       *
+       * 以前三个动作的 after 都是 refresh()（整块重建）：
+       *   · 主人正在别的行里打"叮嘱"，一下就没了；
+       *   · 列表位置整体重排，滚动位置也跳；
+       *   · 拉黑之后这条其实**不该再留在列表里**（她已屏蔽此人），整表刷新才顺带去掉。
+       * 现在：就地改这一行；只有"这条该消失"（拉黑）才把这一行摘掉。
+       */
+      function applyItem(r: any, row: { desc: HTMLElement; acts: HTMLElement }, it: any) {
+        const updated = r?.item ?? null
+        if (!updated) {
+          // 后端没回单条就退回整表刷新（不能什么都不做，让主人以为没生效）
+          void refresh()
+          return
+        }
+        if (updated.assignedAction === 'block_user' || updated.blocked === true) {
+          row.box.el.remove?.()
+          return
+        }
+        row.desc.textContent = `${updated.kind} · ${new Date(updated.atMs).toLocaleString()}`
+          + `${updated.read ? ' · 已读' : ' · 未读'}`
+          + `${updated.assignedAction ? ` · 已指派：${updated.assignedAction}` : ''}`
       }
     }
     void refresh()
@@ -503,6 +536,7 @@ export const gatePolicyPanel = {
       const stats = ui.statgrid([
         { k: '今日自主', v: `${quota.usedSelf ?? 0}/${quota.selfCap ?? 0}` },
         { k: '今日分享', v: `${quota.usedShare ?? 0}/${quota.shareCap ?? 0}` },
+        { k: '今日自动发', v: `${quota.autoPublished ?? 0}/${policy.autoDailyCap ? policy.autoDailyCap : '不限'}` },
         { k: '写冷却', v: `${traffic.writeGapSec ?? 0}s` },
         { k: '412 熔断', v: paused ? `剩 ${remainMin} 分钟` : '未触发' },
       ])
@@ -556,6 +590,55 @@ export const gatePolicyPanel = {
         row.append(ui.field(f.label, sel), save)
         box.append(row)
       }
+
+      // ── 自动发布的两道安全档位 ──
+      // 这两个字段以前只在配置里躺着，**没有任何代码读它们**（2026-11-05 实测：
+      // 全仓只有配置声明那一处出现过 autoDailyCap / autoWindow）。
+      // 现在它们是真判据了（write-gate.autoPublishBlocker），所以页面上要给控件，
+      // 而且要说清"命中了会怎样"：降级进待放行队列，不是拦下来不发。
+      const autoCap = ui.input({ value: String(policy.autoDailyCap ?? 0), type: 'number', min: 0 })
+      const autoWin = ui.input({ value: String(policy.autoWindow ?? '00:00-24:00'), placeholder: 'HH:MM-HH:MM' })
+      const autoBase = { cap: autoCap.value, win: autoWin.value }
+      const unwatchAuto = [
+        guard.watch(autoCap, () => autoBase.cap),
+        guard.watch(autoWin, () => autoBase.win),
+      ]
+      const saveAuto = actionButton(ctx, ui, msg, '保存自动发布档位', 'set', undefined, {
+        argsFactory: () => [{
+          policy: {
+            autoDailyCap: Math.max(0, Math.floor(Number(autoCap.value) || 0)),
+            autoWindow: autoWin.value.trim() || '00:00-24:00',
+          },
+        }],
+        preRun: () => {
+          const cap = Number(autoCap.value)
+          if (!Number.isFinite(cap) || cap < 0) return '每日上限得是个不小于 0 的条数'
+          const win = autoWin.value.trim()
+          if (win && !/^\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}$/.test(win)) return '时段要写成 HH:MM-HH:MM（如 23:00-07:00）'
+          return null
+        },
+        after: (r) => {
+          if (!r || (r as any).ok === false) return
+          for (const u of unwatchAuto) u()
+          return refresh()
+        },
+      })
+      const autoRow = ui.h('div')
+      autoRow.style.margin = '10px 0'
+      autoRow.append(
+        ui.h('h3'),
+        ui.field('每天最多自动发几条（0 = 不限）', autoCap),
+        ui.field('允许自动发的时段', autoWin),
+        saveAuto,
+      )
+      const autoNote = ui.h('div')
+      autoNote.style.margin = '4px 0'
+      autoNote.style.opacity = '0.8'
+      autoNote.textContent = `今天已经自动发出去 ${quota.autoPublished ?? 0} 条。`
+        + '这两道档位只在「动态草稿发布 = 自动发布」这一路上生效；'
+        + '撞上上限或不在时段里，她写好的稿子会改走待放行队列等你放行（不是不发）。'
+      autoRow.append(autoNote)
+      box.append(autoRow)
 
       const selfCap = ui.input({ value: String(quota.selfCap ?? 12), type: 'number', min: 0 })
       const shareCap = ui.input({ value: String(quota.shareCap ?? 3), type: 'number', min: 0 })
