@@ -58,6 +58,21 @@ function mkPersona(dir, tickDelayMs = () => 60_000, context) {
   })
 }
 
+/**
+ * 等心跳**真的排进来**至少 min 拍。
+ *
+ * 以前这几条测试是"睡 200ms 再说"，可心跳基线就是 100ms：
+ *   · 机器一忙 → 200ms 内落两拍 → "该动时实得 2 !== 1"（2026-11-05 全量门禁就是这么红的，
+ *     当时同批次还在跑 esbuild，机器被占着）；
+ *   · 反过来慢一点 → 一拍都没落 → "不该动时一条都不注入"变成**假绿**。
+ * 门禁不可信比门禁松更糟，所以改成等事实（队列里真的有东西），不等时钟。
+ */
+async function waitForTick(st, min = 1, timeoutMs = 5000) {
+  const t0 = Date.now()
+  while (st.deferred.length < min && Date.now() - t0 < timeoutMs) await wait(20)
+  return st.deferred.length
+}
+
 test('F1：概率门说"这拍别动" → 一个字都不注入，模型一次都不唤', async () => {
   const dir = tmp()
   const p = mkPersona(dir, () => 100)
@@ -73,12 +88,11 @@ test('F1：概率门说"这拍别动" → 一个字都不注入，模型一次�
       const t = real(next)
       return { ...t, shouldAct: false, reason: 'content' }
     }
-    await wait(200)
+    await waitForTick(core, 1)
     const produced = flushDeferred(core)
     assert.equal(produced.length, 0,
       `不该动时不该有任何正文进投递，实得 ${produced.length} 条：${JSON.stringify(produced).slice(0, 200)}`)
-    assert.equal(core.injected.length, 0, '也不该走 injectInternal 旁路')
-  } finally {
+    assert.equal(core.injected.length, 0, '也不该走 injectInternal 旁路')  } finally {
     await p.stop()
   }
 })
@@ -96,10 +110,11 @@ test('F1：该动的时候照旧注入（别把唤醒修没了）', async () => 
       const t = real(next)
       return { ...t, shouldAct: true, reason: '有点无聊，想找点新鲜的看', kind: 'explore', urge: 0.7 }
     }
-    await wait(200)
+    const queued = await waitForTick(core, 1)
+    assert.ok(queued >= 1, '心跳要真的排进来至少一拍（否则下面的断言是假绿）')
     const produced = flushDeferred(core)
-    assert.equal(produced.length, 1, `该动时必须有正文，实得 ${produced.length}`)
-    assert.ok(/作息对账/.test(produced[0]), '正文里要带上她这一拍的账')
+    assert.ok(produced.length >= 1, `该动时必须有正文，实得 ${produced.length}`)
+    for (const body of produced) assert.ok(/作息对账/.test(body), '正文里要带上她这一拍的账')
   } finally {
     await p.stop()
   }
@@ -116,7 +131,7 @@ test('F1 的账不能停：不该动也照样记一拍（actionsToday / lastChec
     const real = rhythm.lifeTick.bind(rhythm)
     let calls = 0
     rhythm.lifeTick = (next) => { calls += 1; return { ...real(next), shouldAct: false, reason: 'content' } }
-    await wait(200)
+    await waitForTick(core, 1)
     flushDeferred(core)
     assert.ok(calls >= 1, `不该动时账还是要记，实得 lifeTick 调用 ${calls} 次`)
     const life = JSON.parse(fs.readFileSync(path.join(dir, 'data', 'persona', 'life.json'), 'utf8'))

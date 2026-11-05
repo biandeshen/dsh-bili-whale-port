@@ -6,6 +6,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { freePort } from '../helpers/free-port.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 
@@ -20,7 +21,8 @@ async function boot(t) {
   const drafts = path.join(home, 'm1a-drafts')
   fs.mkdirSync(drafts, { recursive: true })
   fs.writeFileSync(path.join(drafts, '2026-10-30.json'), JSON.stringify({ id: 'dyn-m1a-x', date: '2026-10-30', status: 'pending', text: '面板要看的稿', image: 'x.png', textHash: 't' }))
-  const port = 18441 + Math.floor(Math.random() * 900)
+  // 端口要"当下真空着"的那个：随机区间会盖住常驻 OFM 代理的 18910，撞上就是千分之几的随机红。
+  const port = await freePort({ base: 18441, span: 900 })
   const srv = spawn(process.execPath, [path.join(ROOT, 'panel', 'server.js'), '--port', String(port)], {
     env: { ...process.env, WHALE_HOME: wh, BILI_WHALE_CONFIG: path.join(wh, 'bili-whale.config.json'), USERPROFILE: home, HOME: home, ProgramFiles: 'C:\\nonexistent', WHALE_DRAFTS: drafts },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -29,16 +31,22 @@ async function boot(t) {
   // stderr 必须有人读：全量门禁里 76 个文件并发跑，管道满了会把子进程卡住，
   // 表现出来就是"panel.token 未生成"这种和根因没关系的报错（2026-11-02 就是这么红一次）。
   let errBuf = ''
+  let exited = null
   srv.stderr.on('data', (d) => { errBuf = (errBuf + d).slice(-4000) })
-  srv.on('exit', (code) => { if (code !== 0 && code !== null) errBuf += `\n[server exit ${code}]` })
+  srv.on('exit', (code) => { exited = code; if (code !== 0 && code !== null) errBuf += `\n[server exit ${code}]` })
   const token = await (async () => {
   const tf = path.join(wh, 'panel.token')
-  for (let k = 0; k < 120; k++) { try { const v = fs.readFileSync(tf, 'utf8').trim(); if (v) return v } catch {}; await new Promise(r => setTimeout(r, 200)) }
+  for (let k = 0; k < 120; k++) { try { const v = fs.readFileSync(tf, 'utf8').trim(); if (v) return v } catch {}
+    if (exited !== null) break
+    await new Promise(r => setTimeout(r, 200)) }
+  if (exited !== null) throw new Error(`面板进程已退出（code ${exited}，端口 ${port}），不等 24s：\nstderr:\n${errBuf || '(空)'}`)
   throw new Error(`panel.token 未生成（端口 ${port} 等 24s）\nstderr:\n${errBuf || '(空)'}`)
 })()
   let ready = false
-  for (let k = 0; k < 120; k++) { try { const r = await fetch(`http://127.0.0.1:${port}/api/vitals`); if (r.status === 503 || r.status === 200) { ready = true; break } } catch {}; await new Promise(r => setTimeout(r, 150)) }
-  if (!ready) throw new Error(`面板 API 未就绪（端口 ${port} 等 18s）\nstderr:\n${errBuf || '(空)'}`)
+  for (let k = 0; k < 120; k++) { try { const r = await fetch(`http://127.0.0.1:${port}/api/vitals`); if (r.status === 503 || r.status === 200) { ready = true; break } } catch {}
+    if (exited !== null) break
+    await new Promise(r => setTimeout(r, 150)) }
+  if (!ready) throw new Error(`面板 API 未就绪（端口 ${port}${exited !== null ? `，进程已退出 code ${exited}` : ' 等 18s'}）\nstderr:\n${errBuf || '(空)'}`)
   return { base: `http://127.0.0.1:${port}`, token, home, wh, port }
 }
 const get = (base, p, token) => fetch(base + p, { headers: token ? { authorization: 'Bearer ' + token } : {} })

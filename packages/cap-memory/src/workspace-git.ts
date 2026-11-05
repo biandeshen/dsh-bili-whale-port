@@ -59,7 +59,14 @@ export interface GitStatus {
   dirty: boolean;
   head: string | null;
   lastCommit: CommitInfo | null;
-  tags: string[];
+  /**
+   * 可回滚的存档点（annotated tag），带说明与时间。
+   *
+   * 这里以前是 `tags: string[]`（只有名字）。回滚 UI 要把「哪个存档点 · 什么时候 · 存的是什么」
+   * 摆在按钮旁边，只有名字就不敢让人点；真浏览器点验时那行渲染成了 `undefined`，
+   * 按钮还会把 `name: undefined` 发给后端——**类型是文档，Node 24 不拦，只有真数据能暴露**。
+   */
+  checkpoints: CheckpointInfo[];
   initError: string | null;
   commitError: string | null;
 }
@@ -416,12 +423,12 @@ export class WorkspaceGit {
     const available = this.available();
     const repo = available && this.isRepo();
     if (!repo) {
-      return { available, repo: false, dirty: false, head: null, lastCommit: null, tags: [], initError: this.initError, commitError: this.commitError };
+      return { available, repo: false, dirty: false, head: null, lastCommit: null, checkpoints: [], initError: this.initError, commitError: this.commitError };
     }
     let head: string | null = null;
     try { head = this.run(['rev-parse', '--short', 'HEAD']).trim(); } catch { /* 无提交 */ }
     const last = this.log({ limit: 1 })[0] ?? null;
-    const tags = this.listTags().map((t) => t.name);
-    return { available, repo: true, dirty: this.dirty(), head, lastCommit: last, tags, initError: this.initError, commitError: this.commitError };
+    const checkpoints = this.listTags();
+    return { available, repo: true, dirty: this.dirty(), head, lastCommit: last, checkpoints, initError: this.initError, commitError: this.commitError };
   }
 }

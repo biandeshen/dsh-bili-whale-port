@@ -355,7 +355,7 @@ export function createMemoryCapability(
                 if (!workspace) return { ok: false, error: '未接 workspace（没有 git 版本历史）' }
                 try {
                   workspace.git.tag(String(params?.name ?? ''), String(params?.message ?? ''))
-                  return { ok: true, tags: workspace.git.listTags().map((t) => t.name) }
+                  return { ok: true, checkpoints: workspace.git.listTags() }
                 } catch (e: any) {
                   return { ok: false, error: String(e?.message ?? e) }
                 }
@@ -371,9 +371,12 @@ export function createMemoryCapability(
                 if (params?.confirm !== true) {
                   return { ok: false, error: '回滚会丢弃该 checkpoint 之后的所有记忆与日记改动，需显式传 confirm: true' }
                 }
+                // 名字为空要当场说清，不能让它走到 checkoutTag 报「没有这个 checkpoint:」（看不出是没选到）
+                const name = String(params?.name ?? '').trim()
+                if (!name) return { ok: false, error: '没选到存档点：请在「存档点与回滚」那一行点回滚' }
                 try {
-                  workspace.git.checkoutTag(String(params?.name ?? ''))
-                  return { ok: true, rolledBackTo: params.name }
+                  workspace.git.checkoutTag(name)
+                  return { ok: true, rolledBackTo: name, checkpoints: workspace.git.listTags() }
                 } catch (e: any) {
                   return { ok: false, error: String(e?.message ?? e) }
                 }

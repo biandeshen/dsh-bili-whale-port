@@ -6,6 +6,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { freePort } from '../helpers/free-port.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 const LAUNCH = path.join(ROOT, 'scripts', 'launch-panel.mjs')
@@ -15,7 +16,9 @@ test('面板已在跑时，启动器复用并正常退出（不 ReferenceError�
   const wh = path.join(home, 'whale')
   fs.mkdirSync(wh, { recursive: true }); fs.mkdirSync(path.join(home, '.bili-ai'))
   fs.writeFileSync(path.join(wh, 'bili-whale.config.json'), '{}')
-  const port = 18600 + Math.floor(Math.random() * 300)
+  // 区间要与 panel.test 的 18441–19340 错开，并且躲开常驻 OFM 代理的 18910：
+  // 原来 `18600 + random(300)` 落在 panel.test 的区间里，两个文件并发跑会互相抢端口（2026-11-05 随机红）。
+  const port = await freePort({ base: 19500, span: 200 })
   const env = { ...process.env, WHALE_HOME: wh, BILI_WHALE_CONFIG: path.join(wh, 'bili-whale.config.json'), USERPROFILE: home, HOME: home, PANEL_PORT: String(port), WHALE_NO_BROWSER: '1' }
   const first = spawn(process.execPath, [LAUNCH], { env, stdio: 'ignore' })
   try {

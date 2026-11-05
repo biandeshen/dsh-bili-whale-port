@@ -203,13 +203,63 @@ export const memoryCenterPanel = {
       histBox.replaceChildren(histActs)
       const head = ui.h('div')
       head.style.margin = '8px 0'
-      head.textContent = `工作区版本历史：${res.status?.repo ? '已建仓' : '未建仓'}${res.status?.head ? ` · HEAD ${res.status.head}` : ''}${res.status?.dirty ? ' · 有未提交改动' : ''}`
+      const dirty = Boolean(res.status?.dirty)
+      head.textContent = `工作区版本历史：${res.status?.repo ? '已建仓' : '未建仓'}${res.status?.head ? ` · HEAD ${res.status.head}` : ''}${dirty ? ' · 有未提交改动' : ''}`
       histBox.append(head)
+
+      /**
+       * 存档点（annotated tag）才是能回滚到的地方——commit 不是，
+       * 因为回滚走的是 `reset --hard <tag>` + `clean -fd`（后端 checkoutTag 的既有语义）。
+       * 这一块以前没有：面板写着"可回退"，页面上却没有那颗键（设计走查 story-7 的"承诺过不能用"）。
+       */
+      const checkpoints: Array<{ name: string; message?: string; hash?: string; date?: string }> = res.status?.checkpoints ?? []
+      const tagBox = ui.h('div')
+      tagBox.style.margin = '8px 0'
+      tagBox.append(ui.section('存档点与回滚', checkpoints.length
+        ? `${checkpoints.length} 个存档点。回滚会丢掉它之后的记忆与日记改动，并把未跟踪的文件一并清掉。`
+        : '还没有存档点。先点「打一个存档点」再谈回滚——没有存档点的"回滚"是不存在的承诺。'))
+      for (const t of checkpoints) {
+        const row = ui.h('div')
+        row.style.display = 'flex'
+        row.style.gap = '8px'
+        row.style.alignItems = 'center'
+        row.style.margin = '4px 0'
+        const label = ui.h('span')
+        label.textContent = `${t.name || '（无名存档点）'}${t.date ? ` · ${new Date(t.date).toLocaleString()}` : ''}${t.message && t.message !== t.name ? ` · ${t.message}` : ''}`
+        // 名字拿不到就不给按钮：宁缺毋滥——按钮发一个 undefined 的存档点名，只会让她看到一句看不懂的报错。
+        const back = t.name ? actionButton(ctx, ui, msg, '⏮ 回滚到这里', 'rollback', undefined, {
+          variant: 'danger',
+          argsFactory: () => [{ name: t.name, confirm: true }],
+          confirm: {
+            title: `确认回滚到存档点「${t.name}」？`,
+            body: () => `这会把她整个工作区（记忆 + 日记）重置到这个存档点的样子：\n`
+              + `· ${t.name} 之后的所有改动丢掉\n`
+              + `· 未跟踪的文件也会被清掉\n`
+              + (dirty ? '· 现在工作区还有未提交的改动，也会一并丢掉\n' : '')
+              + `\n因果账、待放行队列、她的会话记录不在这个目录里，不会被动到。`,
+            warn: '这是丢数据的操作。想留后路就先点「打一个存档点」再回滚。',
+            danger: true,
+            ok: '确认回滚',
+          },
+          after: async (r: any) => {
+            if (r && r.ok !== false) {
+              await refresh()
+              await renderHist()
+            }
+          },
+        }) : null
+        row.append(label, ...(back ? [back] : []))
+        tagBox.append(row)
+      }
+      histBox.append(tagBox)
+
       const table = ui.table({ head: ['提交', '作者', '说明', '操作'] })
       for (const c of res.log ?? []) {
         const diff = actionButton(ctx, ui, msg, '看改动', 'history', undefined, {
           argsFactory: () => [{ diffOf: c.hash }],
-          after: async () => { await renderDiff(c.hash) },
+          after: async (r: any) => {
+            if (r && r.ok !== false) await renderDiff(c.hash)
+          },
         })
         table.addRow([c.hash, c.author, c.message?.slice(0, 40) ?? '', diff])
       }
