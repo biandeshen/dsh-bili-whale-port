@@ -176,23 +176,34 @@ export function restRecovery(
   return 0
 }
 
-/** ④ 决定：这一轮动不动（尊重主人设定的 mode）。 */
+/**
+ * ④ 决定：这一轮动不动（尊重主人设定的 mode 与夜间时段）。
+ *
+ * 2026-11-06 补的两处：
+ *   · 用 `effectiveMode` 而不是裸 `mode`——强制模式过了到期点就该当没有；
+ *   · **夜间时段内不叫醒她**。以前她在 01:00–07:00 照样收到"她想动"，
+ *     线上会话里留下一句"想动——睡着时段，不撞门，忍着"：那是白花的模型调用，
+ *     还让她在"睡着"和"想动"两句自相矛盾的话之间解释自己。
+ *     `force_awake` 不受影响（主人明确叫醒就是要她醒）。
+ *     只按时段判，不按"闲够 6 小时"那个 asleep——后者是做梦的判据，不是宵禁。
+ */
 export function decideStage(opts: {
   fields: any
   relation: NPCStateName
   now: number
   mem: LifeMemoryView
   rng: () => number
+  /** 她所在的时区（睡眠时段按它算） */
+  tz?: string
 }): { decision: ActionDecision; costApplied: false } {
-  if (opts.mem?.mode === 'force_sleep') {
-    return {
-      decision: {
-        act: false,
-        kind: 'rest',
-        reason: '主人设定了强制休息模式（force_sleep）',
-        scores: { explore: 0, create: 0, connect: 0, rest: 1 },
-      },
-      costApplied: false,
+  const mode = effectiveMode(opts.mem, opts.now)
+  if (mode === 'force_sleep') {
+    return { decision: { act: false, reason: 'forced', urge: 0 }, costApplied: false }
+  }
+  if (mode === 'auto') {
+    const win = opts.mem.sleepWindow === undefined ? DEFAULT_SLEEP_WINDOW : opts.mem.sleepWindow
+    if (inSleepWindow(opts.now, win, opts.tz)) {
+      return { decision: { act: false, reason: 'asleep', urge: 0 }, costApplied: false }
     }
   }
   return { decision: decideAction(opts), costApplied: false }

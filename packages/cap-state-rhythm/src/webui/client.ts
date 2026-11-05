@@ -460,15 +460,32 @@ export const dayPanel = {
       // 宿主给的是 `/api/webui/providers/<页>/panels/<面板>/<方法>`（GET 用 ?args= 传参）。
       void loadPortrait(s, today)
 
+      // 今天的行动回执：这是"她真做过什么"的凭据（只追加的行动账），
+      // 与下面的因果账不是同一件事——因果账记的是场值变化，这里记的是她自己认下的行动。
+      const actions = Array.isArray(s.recentActions) ? s.recentActions : []
+      const actBox = ui.section(
+        '今天做过的小事',
+        Number(today.actionsToday ?? 0) > 0
+          ? `今天记下 ${Number(today.actionsToday)} 件${actions.length < Number(today.actionsToday) ? `，这里显示最近 ${actions.length} 条` : ''}（新→旧）。`
+          : '还没有。她真的做过一件小事、并用 life_do 记下来时，这里会出现一条。',
+      )
+      const actTable = ui.table({ head: ['时间', '做了什么', '她补的一句'] })
+      actTable.clear(actions.length ? undefined : '今天还没有记过一笔。空着不丢人——账上的假数比空着更坏。')
+      for (const a of actions) {
+        actTable.addRow([ago(a.at), String(a.label || a.activity || ''), String(a.note || '—')])
+      }
+      actBox.append(actTable.el)
+
       const events = Array.isArray(s.events) ? s.events : []
-      flowBox.replaceChildren(ui.section('今天发生过什么', `因果账里属于今天的 ${events.length} 条（新→旧）。`))
+      const evBox = ui.section('今天发生过什么', `因果账里属于今天的 ${events.length} 条（新→旧）。`)
+      flowBox.replaceChildren(actBox, evBox)
       const flow = ui.table({ head: ['时间', '发生了什么', '来源'] })
       // 空态只在真的没有时铺话；带数据的刷新不许留下占位行（浏览器实测踩过）
       flow.clear(events.length ? undefined : (Number(today.actionsToday ?? 0) > 0
         ? '账上没有流水条目，但她今天动过——这一条值得去「鱼缸」核对因果账。'
         : '今天还没有记录。她没动，也没人调过她。'))
       for (const c of events) flow.addRow([when(c), what(c), sourceCn(c.source)])
-      flowBox.append(flow.el)
+      evBox.append(flow.el)
       await loadWords()
     }
 

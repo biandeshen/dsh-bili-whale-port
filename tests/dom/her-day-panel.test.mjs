@@ -42,6 +42,7 @@ function snapshot(over = {}) {
     ],
     eventCountToday: (over.events ?? [1, 2]).length,
     eventCountAll: 5,
+    recentActions: over.recentActions ?? [],
   }
 }
 
@@ -121,6 +122,29 @@ test('三态各有说法：睡着 / 歇着 / 醒着不是一句话糊过去', as
     await done()
     assert.match(h.root.textContent, expect, `${rest} 应当说成对应那句人话`)
   }
+})
+
+test('今天做过的小事：她记下的行动按时间列出来（不只是一句"3 件"）', async () => {
+  const { h, done } = mountDay(snapshot({
+    actionsToday: 2,
+    recentActions: [
+      { at: now - 10 * 60_000, activity: 'exercise', label: '动一动', note: '原地跑了一小会儿' },
+      { at: now - 2 * 3_600_000, activity: 'reflect', label: '想想事' },
+    ],
+  }))
+  await done()
+  const text = h.root.textContent
+  assert.match(text, /今天做过的小事/)
+  assert.match(text, /动一动/)
+  assert.match(text, /原地跑了一小会儿/)
+  assert.match(text, /10 分钟前/)
+  assert.doesNotMatch(text, /今天还没有记过一笔/, '有行动回执时不许再铺空态')
+})
+
+test('没有行动回执时把话说清：空着不丢人，假数更坏', async () => {
+  const { h, done } = mountDay(snapshot({ actionsToday: 0, recentActions: [] }))
+  await done()
+  assert.match(h.root.textContent, /今天还没有记过一笔/)
 })
 
 test('有流水时不出现空态文案（回归：空态行与数据行并存）', async () => {

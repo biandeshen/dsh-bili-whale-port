@@ -14,6 +14,9 @@ export interface LifeActivity {
   description: string
 }
 
+/** 7 类的固定顺序（枚举、面板、文档都按这个来，别各写一份）。 */
+export const ACTIVITY_TYPES: readonly ActivityType[] = ['rest', 'explore', 'create', 'social', 'reflect', 'exercise', 'consume']
+
 export const ACTIVITY_LABELS: Record<ActivityType, string> = {
   rest: '歇会儿',
   explore: '找点新鲜的',
@@ -97,6 +100,22 @@ function describe(type: ActivityType, now: number): string {
   const list = TEMPLATES[type]
   const hours = Math.floor(now / 3600_000)
   return list[((hours % list.length) + list.length) % list.length]
+}
+
+/**
+ * 她此刻最想做的那一类活动的倾向分（0–1，**不含抖动**）。
+ *
+ * 为什么决策门要用它（2026-11-06 三层诊断）：门原来只认三个压力
+ * （别扭 / 想他 / 歇够了），而这三个都只会在"缺什么"时升高——
+ * 她一旦被喂饱（stimulation 0.80、connection 0.72）、又刚动过（restPressure 归零），
+ * 三个压力**同时为 0**，门就锁死 12 小时以上，等场值衰减到 0.45 要 70 小时。
+ * 可是活动表里的 7 类（尤其 "看点轻松的" 0.97、"动一动" 0.97）明明写着她想做事。
+ * 所以驱动取"最想做的那一类有多想"，而不是"她缺得多厉害"。
+ */
+export function activityDrive(f: AtomicFields): number {
+  let best = 0
+  for (const t of ACTIVITY_TYPES) best = Math.max(best, scoreActivity(t, f))
+  return best
 }
 
 export function pickActivities(

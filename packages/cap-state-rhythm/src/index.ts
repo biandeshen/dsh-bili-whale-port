@@ -59,7 +59,9 @@ import {
   type LifeMemoryView,
 } from './life-stages.ts'
 // 作息对账一拍要用到的纯函数（persona-core 里那一份，不另抄；dayKey 已在上面导入）
-import { nextCheckDelay } from '../../persona-core/src/rhythm.ts'
+import { nextCheckDelay, actionCost } from '../../persona-core/src/rhythm.ts'
+import { ACTIVITY_TYPES, ACTIVITY_LABELS, type ActivityType } from '../../persona-core/src/life-activities.ts'
+import { appendActionRecord, readActionLedger, type ActionRecord } from './action-ledger.ts'
 
 export {
   emptyState,
@@ -110,7 +112,14 @@ export interface StateRhythmConfig {
 export interface StateRhythmCapabilityOptions {
   fieldsFile: string
   lifeFile: string
+  /**
+   * 行动账（append-only NDJSON）。默认与 life.json 同目录的 `actions.ndjson`。
+   * 这是"她真做过什么"的凭据，life.json 里的计数只是它的汇总。
+   */
+  actionsFile?: string
   onWakeTriggered?: (info: { reason: string; hint?: string; atMs: number }) => void
+  /** 她自己记下一笔行动时通知外层（转接头用它复位心跳的"安静时长"） */
+  onActionRecorded?: (rec: ActionRecord) => void
   /** 她所在的时区；睡眠时段按它算（不传就用系统本地时区） */
   timezone?: string
 }
@@ -177,6 +186,69 @@ export function createStateRhythmCapability(
   opts: StateRhythmCapabilityOptions,
 ): XiaoyuCapability<StateRhythmConfig> {
   let hostRef: CapabilityHost | null = null
+  const actionsFile = opts.actionsFile ?? path.join(path.dirname(opts.lifeFile), 'actions.ndjson')
+
+  /**
+   * 她记下一笔"真的做过的小事"（`life_do` 工具的唯一实现）。
+   *
+   * 为什么需要它（2026-11-06 三层诊断的第三层）：`applyActionRecord` / `actionCost`
+   * 在生产里**都没有调用者**——她的账永远是 0 件、`lastActionAt` 永远是 0，
+   * 于是"距上次行动 999 小时"、`restPressure` 顶着 1.0，而行动本身不花体力。
+   * 五阶段循环只跑了"对账 + 决定"两步。
+   *
+   * 为什么由她自己报，而不是自动数工具调用：7 类日常活动里只有一部分会留下别的痕迹
+   * （写日记、存记忆），"动一动""想想事"没有任何外部回执；自动把 `mood_apply`
+   * 这类反应式调用算成行动，又会把她和主人聊天时的每一次情绪变化都记成"自主行动"。
+   * 所以口径写死：**她自己按下这个工具，才算一笔**；回执 = 真的扣了体力 +
+   * life.json 汇总 + 只追加的行动账一行。没做却记，是假账，比少记更坏。
+   */
+  const recordActionImpl = (params: { activity?: string; note?: string; source?: 'self' | 'owner' }) => {
+    const activity = String(params?.activity ?? '').trim() as ActivityType
+    if (!ACTIVITY_TYPES.includes(activity)) {
+      return { ok: false, error: `activity 只能是 ${ACTIVITY_TYPES.join(' / ')} 之一` }
+    }
+    const note = String(params?.note ?? '').trim().slice(0, 200)
+    const nowMs = Date.now()
+    // ① 真花体力：以前行动是零成本的，"累了就歇"这条反馈根本触发不了。
+    const withCost = applyEffects(
+      loadState(opts.fieldsFile),
+      actionCost(),
+      `${ACTIVITY_LABELS[activity]}${note ? `（${note}）` : ''}`,
+      { now: nowMs, source: 'action' },
+    )
+    saveState(opts.fieldsFile, withCost)
+    // ② 记账：汇总进 life.json，凭据进只追加的行动账。
+    const life = loadLifeFile(opts.lifeFile)
+    const today = dayKey(nowMs)
+    const base: LifeMemoryView = life.day === today ? life : { ...life, day: today, actionsToday: 0 }
+    const rec: ActionRecord = {
+      at: nowMs,
+      day: today,
+      activity,
+      label: ACTIVITY_LABELS[activity],
+      ...(note ? { note } : {}),
+      source: params?.source === 'owner' ? 'owner' : 'self',
+    }
+    const next = applyActionRecord(base, { kind: activity, reason: note || ACTIVITY_LABELS[activity] }, {
+      now: nowMs,
+      writeLife: (m) => saveLifeFile(opts.lifeFile, m),
+      // 写账失败不能让"已经发生过的行动"跟着丢：先兜住异常，再由下面的 total 反映真实条数。
+      writeCausal: () => {
+        try { appendActionRecord(actionsFile, rec) } catch { /* 汇总已落盘，流水下次补齐 */ }
+      },
+    })
+    try { opts.onActionRecorded?.(rec) } catch { /* 通知失败不影响记账本身 */ }
+    return {
+      ok: true,
+      activity,
+      label: rec.label,
+      at: nowMs,
+      actionsToday: Number(next.actionsToday ?? 0),
+      lastActionAt: Number(next.lastActionAt ?? 0),
+      energy: Number(Number(withCost.fields.energy ?? 0).toFixed(3)),
+      receipt: note ? `记下了：${rec.label}——${note}` : `记下了：${rec.label}`,
+    }
+  }
 
   /**
    * 「戳醒她」的唯一实现：鱼缸与「她的一天」两个入口都走这里，不各写一份。
@@ -359,6 +431,28 @@ export function createStateRhythmCapability(
             return { ok: true, applied: appliedDesc || '已记录', mood: readMood(s), fields: s.fields }
           },
         },
+        {
+          name: 'life_do',
+          summary: '做完一件小事后记一笔（7 类日常活动，都不需要凭据）',
+          description:
+            '这一拍你想动的时候，就真的去做 7 类里的某一类；做完用这个记一笔。'
+            + '它真的会扣体力，并在只追加的行动账里留一行。'
+            + '**没做就别记**——账上多一笔假的比少一笔更坏；也不用等指令、素材或登录凭据，'
+            + '这些事都不需要。activity 取值：'
+            + ACTIVITY_TYPES.map((t) => `${t}=${ACTIVITY_LABELS[t]}`).join('、'),
+          parameters: {
+            type: 'object',
+            properties: {
+              activity: { type: 'string', enum: ACTIVITY_TYPES as readonly string[], title: '做了哪一类' },
+              note: { type: 'string', title: '具体做了什么（可选，一句话）' },
+            },
+            required: ['activity'],
+          },
+          mutatesState: true,
+          execute(args: { activity?: string; note?: string }) {
+            return recordActionImpl(args ?? {})
+          },
+        },
       ]
     },
 
@@ -392,6 +486,8 @@ export function createStateRhythmCapability(
                 // 因果账按本地日切今天：不能用 toISOString()，那是 UTC，
                 // 东八区凌晨 0–8 点会算到昨天上去（本仓测试踩过同一条）。
                 const today = dayKey(now)
+                // 行动账才是"今天做过什么"的凭据；life.json 里那只是汇总（可能还没等到下一拍对账）。
+                const ledger = readActionLedger(actionsFile, now)
                 const chain = Array.isArray(state.chain) ? [...state.chain] : []
                 const ofToday = chain
                   .filter((c: any) => {
@@ -412,13 +508,18 @@ export function createStateRhythmCapability(
                   described: describeState(state),
                   today: {
                     day: today,
-                    actionsToday: Number(life.actionsToday ?? 0),
-                    lastActionAt: Number(life.lastActionAt ?? 0),
+                    // 汇总与流水取大的那个：life.json 要等下一拍才对齐，日记里不该显示成 0。
+                    actionsToday: Math.max(life.day === today ? Number(life.actionsToday ?? 0) : 0, ledger.count),
+                    lastActionAt: Math.max(Number(life.lastActionAt ?? 0), ledger.lastAt),
+                    lastKind: life.lastKind ?? null,
                     lastCheckAt: Number(life.lastCheckAt ?? 0),
                     nextCheckAt,
                     // 下一拍还有几分钟：负数/0 表示"账上写的时刻已经过了"，前端要说人话
                     nextInMin: nextCheckAt > 0 ? Math.round((nextCheckAt - now) / 60_000) : null,
                   },
+                  // 今天的行动回执（新→旧）：她真做过什么，一条条摆着
+                  recentActions: ledger.today.slice(0, 8),
+                  actionLedgerTotal: ledger.total,
                   events: ofToday.slice(0, 40),
                   eventCountToday: ofToday.length,
                   eventCountAll: chain.length,
@@ -616,16 +717,41 @@ export function createStateRhythmCapability(
       nextCheckAt: number
     } {
       const now = Date.now()
-      const state = loadState(opts.fieldsFile)
+      let state = loadState(opts.fieldsFile)
       const life = loadLifeFile(opts.lifeFile)
+
+      /**
+       * ③ 衰减/恢复：睡着（或累到歇着）时回一点体力。
+       *
+       * `restRecovery` 以前也没有生产调用者——行动不花体力、休息不回体力，
+       * 场值只能靠零散事件漂移。这里按距上次结算的真实小时数补上，
+       * 单拍最多补 8 小时（再长的停机由 applyEffects 的离线补算负责，不在这儿重复算）。
+       */
+      const restBefore = restState(life, state.fields, now, opts.timezone)
+      const elapsedH = Math.max(0, (now - Date.parse(state.lastAppliedAt)) / 3_600_000)
+      const recovery = restRecovery(
+        state.fields,
+        Math.min(elapsedH, 8),
+        restBefore === 'asleep',
+        restBefore === 'resting',
+      )
+      if (recovery > 0) {
+        state = applyEffects(
+          state,
+          [{ field: 'energy', delta: recovery, source: 'rest', priority: 2 }],
+          restBefore === 'asleep' ? '睡着回了一点体力' : '歇着回了一点体力',
+          { now, source: 'rest' },
+        )
+        saveState(opts.fieldsFile, state)
+      }
+
+      // 第三个来源：只追加的行动账。**必须按天过滤**（readActionLedger 只数今天），
+      // 不能把 life.actionsToday 当账本传——昨天记了 7 件，跨日也会被这 7 顶回来。
+      const ledger = readActionLedger(actionsFile, now)
       const reconciled = reconcileLife(
         life,
         life,
-        // 第三个来源本来是因果账（用来在内存/磁盘漂移时取真值）。
-        // **不能**把 life.actionsToday 当账本传进来：reconcileLife 取的是三者最大值，
-        // 昨天记了 7 件的话，跨日也会被这 7 顶回来——测试「昨天的账不该带进今天」当场抓到。
-        // 在因果账按天可查之前，这里就只给 0，宁可少算不可跨日串账。
-        { count: 0, lastAt: 0 },
+        { count: ledger.count, lastAt: ledger.lastAt },
         dayKey(now),
       )
       const { decision } = decideStage({
@@ -634,15 +760,15 @@ export function createStateRhythmCapability(
         now,
         mem: reconciled as never,
         rng: Math.random,
+        tz: opts.timezone,
       })
       const delay = nextCheckDelay(Math.random)
       const nextLife: LifeMemoryView = {
         ...reconciled,
         lastCheckAt: now,
-        // nextCheckAt 要写**下一拍真正会落的时间**。心跳在连续空拍时按 2^n 退避
-        // （5 分钟基线 → 最长 40 分钟），若这里按 3–7 分钟写，账上就说"4 分钟后评估"，
-        // 而实际是 40 分钟后——**账与事实对不上**，健康检查据此报假警（2026-11-05 线上实测）。
+        // nextCheckAt 要写**下一拍真正会落的时间**（空拍退避已删，现在是固定基线）。
         // 调用方（转接头）把心跳排好的真时间传进来；没传时退回 3–7 分钟。
+        // 以前这里按随机值写、心跳却按退避排，账与事实对不上，健康检查据此报假警。
         nextCheckAt: Number(nextCheckAtMs) > now ? Number(nextCheckAtMs) : now + delay,
       }
       saveLifeFile(opts.lifeFile, nextLife)

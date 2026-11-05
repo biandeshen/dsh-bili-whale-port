@@ -27,18 +27,24 @@ function mk(dir, over = {}) {
     budget: { day: today, spent: {} },
     emotionHistory: [],
     lastAppliedAt: new Date().toISOString(),
-    // 因果账：默认今天三条（含一条改了场值）、昨天两条。昨天的不该出现在"她的一天"里。
-    // 传 chain 就整本换掉（"账上什么都没有"那种情形要能真的清空）。
-    chain: Array.isArray(over.chain) ? over.chain : [
-      { atMs: now - 6 * 3600_000, type: 'watch', description: '看了一条雨声的片子', source: 'self', fieldChanges: [] },
-      { atMs: now - 40 * 60_000, type: 'diary', description: '写了今天的公开日记', source: 'self', fieldChanges: [] },
-      {
-        atMs: now - 5 * 60_000, type: 'owner_adjust', description: '主人拉了体力',
-        source: 'owner', fieldChanges: [{ field: 'energy', from: 0.6, to: 0.8 }],
-      },
-      { atMs: now - 30 * 3600_000, type: 'watch', description: '昨天看的一条', source: 'self', fieldChanges: [] },
-      { atMs: now - 31 * 3600_000, type: 'reply', description: '昨天回的一条私信', source: 'self', fieldChanges: [] },
-    ],
+    // 因果账：今天三条（含一条改了场值）、昨天两条。昨天的不该出现在"她的一天"里。
+    // **时间点按本地午夜算，不按"现在减几小时"**：凌晨 00:00–06:00 跑测试时，
+    // "现在减 6 小时"已经是昨天了，这条测试会假红（2026-11-06 00:30 实测踩到）。
+    chain: Array.isArray(over.chain) ? over.chain : (() => {
+      const start = new Date(now)
+      start.setHours(0, 0, 0, 0)
+      const t0 = start.getTime()
+      return [
+        { atMs: t0 + 1 * 3600_000, type: 'watch', description: '看了一条雨声的片子', source: 'self', fieldChanges: [] },
+        { atMs: t0 + 2 * 3600_000, type: 'diary', description: '写了今天的公开日记', source: 'self', fieldChanges: [] },
+        {
+          atMs: t0 + 3 * 3600_000, type: 'owner_adjust', description: '主人拉了体力',
+          source: 'owner', fieldChanges: [{ field: 'energy', from: 0.6, to: 0.8 }],
+        },
+        { atMs: t0 - 6 * 3600_000, type: 'watch', description: '昨天看的一条', source: 'self', fieldChanges: [] },
+        { atMs: t0 - 7 * 3600_000, type: 'reply', description: '昨天回的一条私信', source: 'self', fieldChanges: [] },
+      ]
+    })(),
   }))
   fs.writeFileSync(lifeFile, JSON.stringify({
     day: today,

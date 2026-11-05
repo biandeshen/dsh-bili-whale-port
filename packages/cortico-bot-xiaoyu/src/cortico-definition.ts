@@ -22,6 +22,7 @@ export const XIAOYU_MEMORY_NAME = 'MEMORY.md'
 const TOOL_SUMMARIES: Record<string, string> = {
   mood_read: '读她当前的场值、情绪与成因',
   mood_apply: '记下事件引起的场值与心情变化（看完一条可给 keep/drop/unclear）',
+  life_do: '做完一件小事后记一笔（7 类日常活动，都不需要凭据）',
   memory_remember: '记下一条新的记忆卡片',
   memory_recall: '按话题检索她的记忆库',
   memory_void: '作废一条记错的记忆（原文留痕，退出召回）',

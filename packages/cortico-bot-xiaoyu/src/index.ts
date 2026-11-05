@@ -31,6 +31,8 @@ import { createVisionCapability, type OfflineOptions } from '../../cap-vision/sr
 export interface XiaoyuBotHubOptions {
   homeDir: string
   onWakeTriggered?: (info: { reason: string; hint?: string; atMs: number }) => void
+  /** 她自己记下一笔行动时通知外层（转接头用它复位"安静时长"） */
+  onActionRecorded?: (rec: { at: number; activity: string; label: string }) => void
   onRuleConverted?: (rule: { kind: 'dislike' | 'keyword' | 'exemptUp'; value: string }) => void
   /** 看画面：注入管道替身（测试）或指定 ffmpeg（宿主已有那份） */
   vision?: { analyze?: (file: string, opts: OfflineOptions) => Promise<unknown>; ffmpegPath?: string }
@@ -78,6 +80,7 @@ export function createXiaoyuBotHub(opts: XiaoyuBotHubOptions): XiaoyuBotHub {
     fieldsFile,
     lifeFile,
     onWakeTriggered: opts.onWakeTriggered,
+    ...(opts.onActionRecorded ? { onActionRecorded: opts.onActionRecorded } : {}),
   })
 
   const memoryCap = createMemoryCapability({

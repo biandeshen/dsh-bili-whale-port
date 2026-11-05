@@ -104,7 +104,16 @@ export class XiaoYuPersona implements CorticoPersonaShape {
   private pressureWarned = false
 
   constructor(opts: XiaoYuPersonaOptions) {
-    this.hub = createXiaoyuBotHub(opts)
+    this.hub = createXiaoyuBotHub({
+      ...opts,
+      // 她自己做过事 = 不是"安静"：安静时长从她这一笔重新算。
+      // （空拍退避已删，但 quietLine 还在用这个数；不接的话她做了一整晚的事，
+      // 下一拍的开场白还是"已安静 5 小时"。）
+      onActionRecorded: (rec) => {
+        this.heartbeat?.noteActivity()
+        opts.onActionRecorded?.(rec)
+      },
+    })
     this.memoryDir = opts.homeDir
     this.rounds = opts.rounds ?? { soft: 6, hard: 12 }
     this.contextPolicy = opts.context ?? ((): ContextStagePolicy => XIAOYU_CONTEXT_DEFAULTS)
@@ -196,17 +205,30 @@ export class XiaoYuPersona implements CorticoPersonaShape {
         cap: '今天的事做满了上限，这一拍先不动',
         tired: '体力不够，这一拍先不动',
         content: '没什么想动的理由，这一拍就待着',
+        asleep: '夜里这个点她在睡着，这一拍不叫她',
+        forced: '主人设定了强制休息，这一拍不叫她',
       }
-      return `${head}${why[String(tick.reason)] ?? `这一拍不动（理由：${tick.reason || '未知'}）`}——`
-        + '不动也是账上的一笔，别为了"看起来忙"硬找事做。'
+      // 这一支现在不会投递（shouldAct=false 时 make() 直接返回 null），
+      // 留作直接调用 lifeTick / 日志排查时的可读文本。
+      return `${head}${why[String(tick.reason)] ?? `这一拍不动（理由：${tick.reason || '未知'}）`}。`
     }
     // 要动的时候，persona-core 那边已经写好了人话理由（"有点无聊，想找点新鲜的看"等），
     // 不要在这儿再编一套——两套说法迟早对不上账。
     // 括号里写**活动名**（找点新鲜的 / 想想事 / 动一动…），不再打英文 kind——
     // 她自己的账是给人看的，不是给日志看的。
     const what = String((tick as any).activityLabel ?? '') || String(tick.kind ?? '')
+    const activity = String((tick as any).activityType ?? '')
+    /**
+     * 2026-11-06：线上她连着两次说"想动，但这会儿没有凭据可动——主人睡了，没指令、没新素材"。
+     * **7 类日常活动一条凭据都不需要**（只有往 B 站发东西才要登录态与复核）。
+     * 这个误解是文本没写清造成的，所以在这儿写死两句：
+     *   ① 这一类不需要凭据；
+     *   ② 做完用 life_do 记一笔，没做就别记（真实活动只认实际执行回执）。
+     */
     return `${head}她想动（${what}）：${tick.reason}；冲动强度 ${Number(tick.urge).toFixed(2)}。`
-      + '这一拍该做点什么，做过的事必须对得上账：没做的不写，写了的要有凭据。'
+      + `就去做这一类${activity ? `（${activity}）` : ''}——这些日常小事不需要任何凭据，`
+      + '不用等指令、新素材或登录；真做完了用 life_do 记一笔（附一句具体做了什么），'
+      + '没做就别记：账上的假数比空着更坏。'
   }
 
   /** 框架在 declareSessions 之前把 CoreApi 交过来；这里留作能力包注入 CoreApi 的通道。 */
@@ -408,11 +430,10 @@ export class XiaoYuPersona implements CorticoPersonaShape {
   /**
    * 这一批里有没有**真的**有人叫她。
    *
-   * 为什么要有这个判断（2026-11-05 线上实测）：心跳的空拍退避（`base × 2^n`，封顶 8×，
-   * 5 分钟基线最长该拉到 40 分钟）**从来没生效过一次**——会话里连续两条 tick 都写
-   * "已安静 5 分钟"。原因是 `onDelivery` 第一行无条件 `noteActivity()`，
-   * 而**心跳自己注入的 tick 也是走投递进来的**，于是每拍都把退避清零：
-   * 她越闲，叫她越勤，正好反过来。
+   * 用途：只认真事件来推进"安静时长"（`quietSeconds` 的开场白按它算）。
+   * 空拍退避已在 2026-11-06 删掉（shouldAct=false 不投递、不花调用），
+   * 所以这里不再承担"给退避清零"的职责——但仍要区分"主人来找她"与"她自己叫自己"，
+   * 否则她每 5 分钟给自己发一句 tick，开场白会永远是"已安静 5 分钟"。
    *
    * 宿主的标记是确定的，不用猜：
    *   · `injectInternal` / `injectDeferred` → `origin: 'internal'`、`source: 'persona'`
@@ -436,16 +457,12 @@ export class XiaoYuPersona implements CorticoPersonaShape {
    */
   async onDelivery(ctx: { now?: Date; timezone?: string; events: ReadonlyArray<{ type: string; source: string; text?: string; atMs?: number; meta?: Record<string, unknown> }> }): Promise<void> {
     /**
-     * 有外部事件到达 = 她被人叫过：心跳的空拍退避清零（否则安静久了会越来越稀）。
+     * 有外部事件到达 = 她被人叫过：重置"安静时长"的起点。
      *
-     * **但心跳自己注入的 tick 不算**（2026-11-05 线上实测：退避一次都没生效过）。
-     * 心跳投递的文本也是走 onDelivery 进来的，而且它在**每一拍**都来——
-     * 于是每拍都把 `lastActivity` 推到 `lastFire` 之后，`idleTicks` 永远归零，
-     * 5 分钟基线永远不涨到 40 分钟。线上会话里连续两条 tick 都写"已安静 5 分钟"，
-     * 就是退避从来没生效的证据。
-     *
-     * 判据：**只认真事件**——主人发的消息、World 投递的外部事件。
-     * 心跳的 tick 是我们自己叫自己，不算"有人叫她"。
+     * **心跳自己注入的 tick 不算**：它每 5 分钟来一次，算了的话开场白永远是
+     * "已安静 5 分钟"（2026-11-05 线上实测）。
+     * 判据：**只认真事件**——主人发的消息、World 投递的外部事件；
+     * 她自己记下一笔行动（life_do）也由能力包回调重置。
      */
     if (this.isRealActivity(ctx.events)) this.heartbeat?.noteActivity()
     // 投递路径的纪律：这里抛任何错，宿主只给一行无详情的 WARN（实测），注入全部丢失。

@@ -21,6 +21,37 @@
       "tags": []
     },
     {
+      "name": "life_do",
+      "summary": "做完一件小事后记一笔（7 类日常活动，都不需要凭据）",
+      "description": "这一拍你想动的时候，就真的去做 7 类里的某一类；做完用这个记一笔。它真的会扣体力，并在只追加的行动账里留一行。没做就别记。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "activity": {
+            "type": "string",
+            "enum": [
+              "rest",
+              "explore",
+              "create",
+              "social",
+              "reflect",
+              "exercise",
+              "consume"
+            ],
+            "title": "做了哪一类"
+          },
+          "note": {
+            "type": "string",
+            "title": "具体做了什么（可选，一句话）"
+          }
+        },
+        "required": [
+          "activity"
+        ]
+      },
+      "tags": []
+    },
+    {
       "name": "memory_remember",
       "summary": "记下一条新的记忆卡片",
       "description": "记下一条新的记忆卡片",

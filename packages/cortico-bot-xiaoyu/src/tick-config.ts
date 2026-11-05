@@ -9,8 +9,8 @@
  *
  * 只做代码里真存在的旋钮：
  *   · `tick.intervalMinutes` —— 有实现（`LifeHeartbeat` 的 baseline 每拍读它）。
- *   · 空拍退避倍率（封顶 8×）不做成旋钮：它是 `life-heartbeat.ts` 里的常量，
- *     没有配置读取路径，挂上去就是个改了没用的假旋钮。
+ *   · 空拍退避**已经整条删掉**（2026-11-06）：shouldAct=false 的那一拍一个字都不投、
+ *     不花模型调用，退避只是在把采样间隔偷偷拉长 8 倍。所以这里没有"退避倍率"这个旋钮。
  *   · 睡眠时段也不放这儿：它已经有一条真能用的路（鱼缸面板设完写进 `life.json`），
  *     再开一个 config 键就是两个真相。
  */
@@ -40,7 +40,8 @@ export function tickConfigGroup(id: string): XiaoyuTickConfigGroup {
       type: 'object',
       title: '心跳与作息',
       description:
-        '这一拍决定她多久自己醒一次。连续空拍会自动拉长间隔（最长 8 倍），有人来叫她立刻复位。改完立刻生效，不用重启。',
+        '这一拍决定她多久自己醒一次。醒着的每一拍只是对账，不动就不投递、不花模型调用；'
+        + '只有真的想动的那一拍才会叫醒她。改完立刻生效，不用重启。',
       properties: {
         'tick.intervalMinutes': {
           type: 'integer',

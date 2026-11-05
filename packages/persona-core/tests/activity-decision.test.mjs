@@ -108,6 +108,26 @@ test('同一类活动不同时辰说法不同（表里按时钟轮换文案）',
   assert.ok(descs.size > 1 || a.activity.type !== b.activity.type, '同一类活动在不同时辰该换说法')
 })
 
+/**
+ * 回归：动过一次之后不能锁死（2026-11-06 三层诊断的第一层）。
+ *
+ * 线上她的场值是 energy 0.88 / stimulation 0.80 / connection 0.72：
+ * 三个"缺什么"的压力全是 0；只要她刚动过（restPressure 也归零），
+ * 旧公式 `max(explore, connect, restPressure)` 就是 **0**——
+ * 概率门 × 0 = 永远不动，要等 stimulation 衰减到 0.45（约 70 小时）才解冻。
+ * 现在驱动取 7 类活动分，喂养得再好，"看点什么 / 动一动"仍然成立。
+ */
+test('刚动过、场值都喂饱了：驱动仍然来自 7 类活动分，不会锁死 12 小时', () => {
+  const now = Date.parse('2026-11-05T10:00:00+08:00')
+  const saturated = fields({ energy: 0.88, stimulation: 0.8, connection: 0.72 })
+  const mem1h = mem({ lastActionAt: now - 3600_000 })
+  const quiet = decideAction({ fields: saturated, relation: 'normal', now, mem: mem1h, rng: () => 0.5 })
+  assert.equal(quiet.act, false, 'rng 不进概率门，这一拍仍然可以不动')
+  assert.ok(quiet.urge > 0.5, `场值饱和 + 刚动过时驱动不该归零，实得 urge=${quiet.urge}`)
+  const act = decideAction({ fields: saturated, relation: 'normal', now, mem: mem1h, rng: alwaysAct })
+  assert.equal(act.act, true, '同样的状态，门放行时她应该能动（旧公式在这里是 0 概率）')
+})
+
 test('不动的时候不带活动（不许给她编一件没做的事）', () => {
   const d = decideAction({
     fields: fields({ energy: 0.05 }),  // 太累 → tired

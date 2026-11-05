@@ -65,7 +65,8 @@ test('rhy：冷战时不主动找他，但自己待烦了照样会醒', () => {
 })
 
 test('rhy：睡着时体力按小时恢复，满了不溢出', () => {
-  assert.ok(Math.abs(restRecoveryDelta(F({ energy: 0.5 }), 5) - 0.025) < 1e-9)
+  // 0.008/h（2026-11-06 从 0.005 调上来：一天 4–6 轮小事，恢复要跟得上开销）
+  assert.ok(Math.abs(restRecoveryDelta(F({ energy: 0.5 }), 5) - 0.04) < 1e-9)
   assert.equal(restRecoveryDelta(F({ energy: 1 }), 24), 0)
   assert.equal(restRecoveryDelta(F({ energy: 0.5 }), 0), 0)
 })
@@ -82,13 +83,16 @@ test('rhy：等不到人的次数会随时间回落（不会永远不再找他�
     fields: F({ stimulation: 0.7, connection: 0, energy: 0.7 }), relation: 'normal', now: T0,
     mem: mem(baseMem), rng: () => 0,
   })
-  // misses 4 - 5×0.5 = 1.5 → connect urge = 1/(1+3) = 0.25
-  assert.ok(Math.abs(stale.urge - 0.25) < 1e-9, 'urge=' + stale.urge)
+  // misses 4 - 5×0.5 = 1.5 → connect 压力 = 1/(1+3) = 0.25
+  // 这条测的是"等不到人的次数会回落"，所以看的是 connect 这一路的分；
+  // urge 是四路里最高的那一路（可能被"看点什么"顶上去），不是这条要守的东西。
+  assert.ok(Math.abs(stale.scores.connect - 0.25) < 1e-9, 'connect=' + stale.scores.connect)
   const fresh = decideAction({
     fields: F({ stimulation: 0.7, connection: 0, energy: 0.7 }), relation: 'normal', now: T0,
     mem: mem({ ...baseMem, lastMissAt: T0 }), rng: () => 0,
   })
-  assert.ok(fresh.urge < stale.urge)
+  assert.ok(fresh.scores.connect < stale.scores.connect, 'misses 没回落时 connect 应该更低')
+  assert.ok(fresh.scores.connect <= 0.25 + 1e-9)
 })
 
 test('10 天模拟：醒几次、几点醒由状态+抖动决定，不跟随固定时间表', () => {

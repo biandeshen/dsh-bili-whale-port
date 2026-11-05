@@ -8,22 +8,22 @@
  * actionsToday=0、nextCheckAt 停在启动那一刻），只有主人戳一下或来消息才会醒。
  * **一个不会自己醒的人格，不是人格，是聊天窗口。**
  *
- * 语义照内建 bot 那份（Cortico 是 MIT，但这是 bots/cormini 的内部件，不 import 它——
- * 能力包不能反向依赖某个具体底座的内置 bot）：
+ * 语义：
  *   ① 基线间隔**每拍重读**（WebUI 改了立刻生效，不等重启）；
- *   ② 连续空拍（两拍之间没有任何外部活动）按 2^n 退避，封顶 8×，来事件即复位；
- *   ③ 基线给 null（主人关了心跳）时不投事件，但每 30 分钟回来重读一次策略，
+ *   ② 基线给 null（主人关了心跳）时不投事件，但每 30 分钟回来重读一次策略，
  *      否则"关了再开"要重启才生效。
+ *
+ * **空拍退避已经删掉（2026-11-06）**：退避原本是为了"别每拍都花一次模型调用"，
+ * 但那一拍现在在 `shouldAct=false` 时**一个字都不投**、模型根本不会被唤醒——
+ * 退避买不到任何东西，只把采样间隔从 5 分钟拉到 40 分钟，让概率门实际变稀 8 倍。
+ * 三层诊断里这就是"双重抽稀"的那一层：门 5% × 退避 1/8 = 每 40 分钟 0.6%。
+ * 现在空拍照常评估，只有真该动的那一拍才投递。
  *
  * 投递动作本身由调用方给（onFire），本文件不碰宿主 API：能力包保持宿主无关。
  */
 
 /** 基线为 null 时，隔这么久回来重读一次策略 */
 const POLICY_RECHECK_MS = 30 * 60_000
-/** 连续空拍的退避倍率上限 */
-const IDLE_BACKOFF_MAX = 8
-/** 空拍数封顶在倍率到顶那一拍：再数下去只是让 2^n 溢出 */
-const IDLE_TICKS_MAX = Math.ceil(Math.log2(IDLE_BACKOFF_MAX))
 
 export interface LifeHeartbeatOptions {
   /** 基准间隔（毫秒）；返回 null = 此刻不心跳 */
@@ -37,8 +37,6 @@ export class LifeHeartbeat {
   private timer: ReturnType<typeof setTimeout> | null = null
   private running = false
   private lastActivity: number
-  private idleTicks = 0
-  private lastFire = 0
   /** 下一拍真正会落的时间（毫秒时间戳）；没排上时为 0 */
   private nextFireAtMs = 0
   private readonly now: () => number
@@ -63,10 +61,9 @@ export class LifeHeartbeat {
     return this.nextFireAtMs
   }
 
-  /** 任何外部事件（消息、World 投递、主人戳醒）都算"她被人叫过"，退避清零。 */
+  /** 任何外部事件（消息、World 投递、主人戳醒）都算"她被人叫过"。 */
   noteActivity(): void {
     this.lastActivity = this.now()
-    this.idleTicks = 0
   }
 
   /** 安静了多久（秒）——投进上下文的那句话要按当前安静时长生成。 */
@@ -88,11 +85,11 @@ export class LifeHeartbeat {
     }
   }
 
-  /** 下一拍的间隔：基线按空拍数退避。null = 此刻不心跳。 */
+  /** 下一拍的间隔：就是基线（每拍重读）。null = 此刻不心跳。 */
   nextDelay(now: Date = new Date()): number | null {
     const base = this.opts.baseline(now)
     if (base === null || !Number.isFinite(base) || base <= 0) return null
-    return base * Math.min(2 ** this.idleTicks, IDLE_BACKOFF_MAX)
+    return base
   }
 
   private armNext(): void {
@@ -114,15 +111,12 @@ export class LifeHeartbeat {
   private fire(): void {
     if (!this.running) return
     // 定时等待期间主人可能关了心跳：投递前重新求值一次策略
-    if (this.nextDelay() !== null) {
-      // 空拍计数在投递前结算：上一拍到这一拍之间没有任何外部活动即记一拍空转
-      if (this.lastActivity > this.lastFire) this.idleTicks = 0
-      else this.idleTicks = Math.min(this.idleTicks + 1, IDLE_TICKS_MAX)
-      this.lastFire = this.now()
+    const delay = this.nextDelay()
+    if (delay !== null) {
+      const firedAt = this.now()
       // **下一拍的真时间先算好再投递**：投递方（作息账）要拿它写 nextCheckAt，
       // 拿到的必须是**下一拍**的时间，不是刚刚这一拍（否则账上写的是过去）。
-      // 空拍计数已经结算过了，所以这里的间隔是**退避后**的那一拍。
-      this.nextFireAtMs = this.lastFire + this.nextDelay()!
+      this.nextFireAtMs = firedAt + delay
       this.opts.onFire()
     }
     this.armNext()

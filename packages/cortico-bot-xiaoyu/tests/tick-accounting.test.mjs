@@ -9,8 +9,9 @@ import { XiaoYuPersona } from '../src/cortico-persona.ts'
  * 作息账的 nextCheckAt 必须等于**心跳下一拍真正会落的时间**。
  *
  * 2026-11-05 线上实测踩到的：账上写"3 分钟后评估"（nextCheckDelay 的 3–7 分钟随机值），
- * 心跳实际在 10 分钟后（5 分钟基线 × 空拍退避 2×）——**账与事实对不上**，
+ * 心跳实际在 10 分钟后（当时还有空拍退避）——**账与事实对不上**，
  * 健康检查据此报假警，还让人以为她断了线。
+ * 空拍退避已在 2026-11-06 删掉，现在间隔就是基线本身。
  *
  * 根因链：lifeTick 的 nextCheckAt 守卫是「传进来的时间 > 账上的 now」，
  * 而心跳的下一拍时间若在**投递时刻**才去问（injectDeferred 的 render 是延迟调的），
@@ -35,7 +36,7 @@ function coreStub() {
 test('作息账的 nextCheckAt = 心跳下一拍的真时间（不是 3–7 分钟随机值）', async () => {
   const dir = tmp()
   const core = coreStub()
-  // 基线 100ms：第一拍落在 100ms；空拍退避后下一拍在 200ms。
+  // 基线 100ms、不退避：账上的下一拍就该是 now + 100ms。
   // 若账上写的是 nextCheckDelay 的随机值（180–420s），断言会当场抓到。
   const p = new XiaoYuPersona({
     homeDir: dir,
@@ -52,8 +53,8 @@ test('作息账的 nextCheckAt = 心跳下一拍的真时间（不是 3–7 分�
     assert.ok(life.lastCheckAt > 0, '账上要有一拍记录')
     const delta = life.nextCheckAt - life.lastCheckAt
     assert.ok(
-      delta >= 150 && delta <= 260,
-      `nextCheckAt 必须是心跳退避后的真间隔（约 200ms），实得 ${Math.round(delta)}ms`,
+      delta >= 60 && delta <= 160,
+      `nextCheckAt 必须等于心跳的真间隔（基线 100ms），实得 ${Math.round(delta)}ms`,
     )
   } finally {
     await p.stop()

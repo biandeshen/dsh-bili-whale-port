@@ -4,20 +4,21 @@ import { LifeHeartbeat, quietLine } from '../src/life-heartbeat.ts'
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 
-test('心跳：基线到点就投递，空拍按 2^n 退避且封顶 8×', async () => {
-  let now = 0
+test('心跳：空拍不再退避——每一拍都按基线来（退避只买到更安静的她）', async () => {
   let fired = 0
   const hb = new LifeHeartbeat({
-    now: () => now,
-    baseline: () => 20,
+    baseline: () => 50,
     onFire: () => { fired += 1 },
   })
   hb.start()
-  await wait(45)
-  assert.equal(fired, 1, '第一拍应在基线间隔到点')
-  // 空拍退避：倍率 2 → 40ms；再空一拍 4 → 80ms
-  await wait(60)
-  assert.equal(fired, 2, `退避后的第二拍（约 40ms）应到点，实得 ${fired}`)
+  // Windows 定时器粒度约 15ms：基线给 50ms、等 130ms，稳拿两拍。
+  // 旧实现在这一拍之后会翻倍到 100ms，再下一拍 200ms——这里能直接抓到它变稀。
+  await wait(130)
+  assert.ok(fired >= 2, `固定基线该连着投，实得 ${fired} 拍`)
+  // 再等一段：仍然按基线来，不该因为"连续空拍"越来越稀
+  const at = fired
+  await wait(130)
+  assert.ok(fired - at >= 2, `空拍也该照着基线来，实得 ${fired - at} 拍`)
   hb.stop()
 })
 
@@ -59,10 +60,9 @@ test('nextFireAt 交出的是**下一拍**的真时间（账与事实要对得�
   // 可它跟心跳对不对没关系（2026-11-05 全量门禁在跑 esbuild 时就是这么红过一次）。
   // 真正要守的是不变量：**下一拍比这一拍晚**。
   assert.ok(seen[0] > firedAt[0], `下一拍必须晚于这一拍：${seen[0]} vs ${firedAt[0]}`)
-  // 空拍退避后，下一拍应更远（倍率翻倍）
   await wait(120)
   assert.ok(seen.length >= 2, `应已投递多拍，实得 ${seen.length}`)
-  assert.ok(seen[1] > seen[0], `退避后下一拍应更远：${seen[0]} → ${seen[1]}`)
+  assert.ok(seen[1] > seen[0], `下一拍应在上一拍之后：${seen[0]} → ${seen[1]}`)
   hb.stop()
 })
 
