@@ -49,7 +49,8 @@ export const memoryCenterPanel = {
     const listBox = ui.h('div')
     const createBox = ui.h('div')
     const histBox = ui.h('div')
-    card.body.append(tierRow, ui.field('搜索', search), listBox, createBox, histBox, msg)
+    const recallBox = ui.h('div')
+    card.body.append(tierRow, ui.field('搜索', search), listBox, createBox, recallBox, histBox, msg)
 
     let tier = 'all'
 
@@ -190,6 +191,86 @@ export const memoryCenterPanel = {
     })
     newActs.append(addBtn)
     createBox.append(ui.h('h3'), ui.field('正文', newContent), ui.field('标签', newTags), newCore.el, newActs)
+
+    // ── 召回解释：她为什么想起这条（四因子摊开给人看）──
+    recallBox.append(ui.section('召回解释', '写一句当时的情境，我照着她那套打分算一遍：哪条会被想起、'
+      + '是被关键词、鲜活度、情绪还是新鲜度拽出来的，各占多少分。'))
+    const recallInput = ui.input({ placeholder: '当时在想什么？（例如：雨声 助眠 白噪音）' })
+    const recallOut = ui.h('div')
+    const recallBtn = actionButton(ctx, ui, msg, '🧮 算一算', 'recallExplain', undefined, {
+      variant: 'primary',
+      argsFactory: () => [{ text: recallInput.value.trim(), limit: 10 }],
+      after: async (r: any) => { if (r && r.ok !== false) renderRecall(r) },
+    })
+    const recallActs = ui.actions()
+    recallActs.append(recallBtn)
+    recallBox.append(ui.field('情境', recallInput), recallActs, recallOut)
+
+    /** 一个因子画成一条：标签 + 占比条 + 贡献分。 */
+    function factorBar(label: string, raw: number, weight: number, contribution: number): HTMLElement {
+      const row = ui.h('div')
+      row.style.display = 'flex'
+      row.style.alignItems = 'center'
+      row.style.gap = '6px'
+      row.style.margin = '2px 0'
+      const name = ui.h('span')
+      name.textContent = label
+      name.style.width = '72px'
+      name.style.flex = 'none'
+      const track = ui.h('div')
+      track.style.flex = '1'
+      track.style.height = '8px'
+      track.style.background = 'rgba(127,127,127,0.18)'
+      track.style.borderRadius = '4px'
+      track.style.overflow = 'hidden'
+      const fill = ui.h('div')
+      fill.style.height = '100%'
+      // 条的长度按"贡献分占总分权重上限的比例"画，这样四根条能横向比
+      fill.style.width = `${Math.max(0, Math.min(100, Math.round((contribution / Math.max(weight, 0.0001)) * 100)))}%`
+      fill.style.background = 'var(--accent, #6aa9ff)'
+      track.append(fill)
+      const val = ui.h('span')
+      val.textContent = `原值 ${pct(raw)} · 贡献 ${contribution.toFixed(3)}`
+      val.style.width = '160px'
+      val.style.flex = 'none'
+      val.style.textAlign = 'right'
+      row.append(name, track, val)
+      return row
+    }
+
+    function renderRecall(res: any) {
+      const items: any[] = res?.items ?? []
+      const weights = res?.weights ?? {}
+      recallOut.replaceChildren()
+      const head = ui.h('div')
+      head.style.margin = '8px 0'
+      head.textContent = `候选池 ${res?.poolSize ?? 0} 条 · 排出 ${items.length} 条 · `
+        + `权重：关键词 ${weights.keyword ?? '—'} / 鲜活 ${weights.vivid ?? '—'} / 情绪 ${weights.mood ?? '—'} / 新鲜 ${weights.recency ?? '—'}`
+      recallOut.append(head)
+      if (!items.length) {
+        recallOut.append(ui.placeholder('没有匹配上的记忆。换几个词试试，或者去「塞一条记忆给她」。'))
+        return
+      }
+      for (const it of items) {
+        const box = ui.h('div')
+        box.style.margin = '8px 0'
+        box.style.padding = '8px'
+        box.style.border = '1px solid rgba(127,127,127,0.25)'
+        box.style.borderRadius = '6px'
+        const title = ui.h('div')
+        title.textContent = `${it.content?.slice(0, 60) ?? it.id}　总分 ${Number(it.score ?? 0).toFixed(3)}`
+        const why = ui.h('div')
+        why.style.margin = '4px 0'
+        why.textContent = (it.why ?? []).join(' · ')
+        const f = it.factors ?? {}
+        box.append(title, why)
+        box.append(factorBar('关键词', f.keyword, weights.keyword ?? 0.4, f.contributions?.keyword ?? 0))
+        box.append(factorBar('鲜活度', f.vivid, weights.vivid ?? 0.3, f.contributions?.vivid ?? 0))
+        box.append(factorBar('情绪', f.mood, weights.mood ?? 0.15, f.contributions?.mood ?? 0))
+        box.append(factorBar('新鲜度', f.recency, weights.recency ?? 0.15, f.contributions?.recency ?? 0))
+        recallOut.append(box)
+      }
+    }
 
     // ── 版本历史与回滚 ──
     const histActs = ui.actions()

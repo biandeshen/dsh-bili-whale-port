@@ -44,8 +44,40 @@ export interface RecalledMemory {
   score: number
   slot: 'core' | 'surprise'
   why: string[]
+  /**
+   * 四个因子的原始值与实际贡献分——「她为什么想起这条」的可解释底账。
+   *
+   * 以前这些数只在 `recallMemories` 的局部变量里，打完分就扔了；
+   * 面板上只能看到一句「和眼下的事有关（80%）」，看不到它是怎么凑出来的。
+   * 现在随结果一起返回：**分数 = 四个因子各乘权重后相加**，
+   * 面板照着画四根条，主人就能自己判断"关键词那一项是不是虚高"。
+   */
+  factors: RecallFactors
   /** 元记忆：这条已淡到「只剩轮廓」。表达时应说「记不太清了，但当时的感觉还在」。 */
   faded?: boolean
+}
+
+/** 召回四因子的权重（分数就是这四项加权相加，见 `recallMemories`）。 */
+export const RECALL_WEIGHTS = {
+  keyword: 0.40,
+  vivid: 0.30,
+  mood: 0.15,
+  recency: 0.15,
+} as const
+
+export interface RecallFactors {
+  /** 关键词相关（0~1，集合内 idf 归一） */
+  keyword: number
+  /** 鲜活度（0~1） */
+  vivid: number
+  /** 情绪相近（0~1） */
+  mood: number
+  /** 新鲜度（0~1，30 天线性归零） */
+  recency: number
+  /** 各因子实际贡献的分（权重 × 原值） */
+  contributions: { keyword: number; vivid: number; mood: number; recency: number }
+  /** 权重（写出来才看得见"分数是怎么凑的"） */
+  weights: { keyword: number; vivid: number; mood: number; recency: number }
 }
 
 /** 鲜活度低于此线即为「淡忘」：元记忆话术的阈值（记忆观：遗忘必须被说出）。 */
@@ -147,8 +179,9 @@ export function recallMemories(memories: Memory[], opts: RecallOptions = {}): Re
       for (const tok of querySet) if (tokenSets[i].has(tok)) hit += idf(tok)
       kw = Math.min(1, hit / maxIdf)
     }
-    const score = 0.40 * kw + 0.30 * vivid + 0.15 * emo + 0.15 * recency
-    return { m, days, vivid, emo, kw, score, accessCount: Number(m.accessCount ?? 0) }
+    const score = RECALL_WEIGHTS.keyword * kw + RECALL_WEIGHTS.vivid * vivid
+      + RECALL_WEIGHTS.mood * emo + RECALL_WEIGHTS.recency * recency
+    return { m, days, vivid, emo, kw, recency, score, accessCount: Number(m.accessCount ?? 0) }
   })
 
   // 4) 常规槽：分数降序，同分按 id 升序（稳定）
@@ -175,11 +208,24 @@ export function recallMemories(memories: Memory[], opts: RecallOptions = {}): Re
 }
 
 function toRecalled(
-  s: { m: Memory; score: number },
+  s: { m: Memory; score: number; kw: number; vivid: number; emo: number; recency: number },
   slot: 'core' | 'surprise',
   why: string[],
 ): RecalledMemory {
   const vivid = Number(s.m.vividness ?? 1)
+  const factors: RecallFactors = {
+    keyword: round(s.kw),
+    vivid: round(s.vivid),
+    mood: round(s.emo),
+    recency: round(s.recency),
+    contributions: {
+      keyword: round(RECALL_WEIGHTS.keyword * s.kw),
+      vivid: round(RECALL_WEIGHTS.vivid * s.vivid),
+      mood: round(RECALL_WEIGHTS.mood * s.emo),
+      recency: round(RECALL_WEIGHTS.recency * s.recency),
+    },
+    weights: { ...RECALL_WEIGHTS },
+  }
   return {
     id: s.m.id,
     content: String(s.m.content ?? ''),
@@ -190,6 +236,7 @@ function toRecalled(
     score: round(s.score),
     slot,
     why: vivid < FADED_VIVIDNESS ? [...why, '已经淡了，只剩个轮廓'] : why,
+    factors,
     faded: vivid < FADED_VIVIDNESS,
   }
 }

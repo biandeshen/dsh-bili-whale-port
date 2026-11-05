@@ -23,6 +23,7 @@ import {
   type MemoryCard,
 } from './card-store.ts'
 import { GitWorkspaceMemory } from './workspace.ts'
+import { recallMemories, RECALL_WEIGHTS } from '../../persona-core/src/retrieval.ts'
 
 export {
   MemoryCardStore,
@@ -248,6 +249,56 @@ export function createMemoryCapability(
                     voided: all.filter((c) => c.tier === 'voided').length,
                   },
                   items,
+                }
+              },
+            },
+            /**
+             * 召回解释：把「她为什么想起这条」摊开给人看（F11 · 审计 §2.2 深挖项）。
+             *
+             * 以前面板只有一句「和眼下的事有关（80%）」，看不到分数是怎么凑出来的；
+             * 检索那四个因子（关键词 / 鲜活 / 情绪 / 新鲜）就在 `retrieval.ts` 里，
+             * 打分完就扔了。现在把它们连同权重与实际贡献分一起返回。
+             *
+             * **只读**：这一条路径绝不能改她的账（`applyBoost` 为假、
+             * 不碰 accessCount / vividness）——面板是给人看的，看一眼不该让记忆变旧。
+             */
+            recallExplain: {
+              name: 'recallExplain',
+              verb: 'GET',
+              summary: '按情境词打分她的记忆，返回四因子（关键词/鲜活/情绪/新鲜）的原值、权重与贡献分',
+              writable: false,
+              invoke(params: { text?: string; mood?: number; limit?: number; seed?: string }) {
+                const text = String(params?.text ?? '').trim()
+                if (!text) return { ok: false, error: '先写一句「当时在想什么」，我才好照着算' }
+                const now = Date.now()
+                const pool = [
+                  ...store.readAll({ tier: 'core' }),
+                  ...store.readAll({ tier: 'active' }),
+                  ...store.readAll({ tier: 'archived' }),
+                ]
+                const scored = recallMemories(pool, {
+                  now,
+                  k: Math.min(200, Math.max(1, Number(params?.limit ?? 20))),
+                  surprises: 0,
+                  text,
+                  mood: Number.isFinite(params?.mood) ? Number(params!.mood) : 0,
+                  seed: params?.seed,
+                })
+                return {
+                  ok: true,
+                  query: text,
+                  weights: { ...RECALL_WEIGHTS },
+                  poolSize: pool.length,
+                  items: scored.map((r) => ({
+                    id: r.id,
+                    content: r.content,
+                    score: r.score,
+                    slot: r.slot,
+                    why: r.why,
+                    factors: r.factors,
+                    faded: Boolean(r.faded),
+                    createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
+                  })),
                 }
               },
             },

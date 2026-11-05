@@ -111,3 +111,48 @@ test('watchedFromMemories：近 7 天的 BV 与 UP，过期的不算', () => {
   assert.deepEqual(r.bvs, ['BV1aaBBccDD1'])
   assert.deepEqual(r.ups, ['雨声实验室'])
 })
+
+/**
+ * 四因子底账（F11 · 审计 §2.2：面板要能看见"她为什么想起这条"）。
+ *
+ * 以前这四个数只在 recallMemories 的局部变量里，打完分就扔了——
+ * 面板上只能看到一句「和眼下的事有关（80%）」，看不到分数是怎么凑出来的。
+ * 现在它们随结果返回，所以要钉住：
+ *   · 四项都在、都落在 0~1；
+ *   · **分数 = 四项贡献分相加**（不是"差不多"，是精确等于）；
+ *   · 权重就写在那儿，改权重分数要跟着变。
+ */
+test('retrieval：四个因子的原值、权重与贡献分都要摊开，且分数就是贡献分之和', () => {
+  const ms = [
+    mem('rain', '看过《雨声》', { vividness: 0.5 }),
+    mem('cat', '看过《猫咪日常》', { vividness: 0.95 }),
+  ]
+  const r = recallMemories(ms, { now, k: 2, text: '今天又在下雨，雨声很好听', seed: 'd1', mood: 0.2 })
+  const hit = r[0]
+  assert.equal(hit.id, 'rain')
+  const f = hit.factors
+  assert.ok(f, '每条召回都要带 factors')
+  for (const k of ['keyword', 'vivid', 'mood', 'recency']) {
+    assert.ok(Number.isFinite(f[k]), `${k} 要是数字`)
+    assert.ok(f[k] >= 0 && f[k] <= 1, `${k} 要落在 0~1，实得 ${f[k]}`)
+  }
+  assert.deepEqual(f.weights, { keyword: 0.40, vivid: 0.30, mood: 0.15, recency: 0.15 })
+  const sum = f.contributions.keyword + f.contributions.vivid + f.contributions.mood + f.contributions.recency
+  assert.ok(Math.abs(sum - hit.score) < 0.002, `分数要等于四个贡献分之和：${sum} vs ${hit.score}`)
+  // 关键词那项要真的吃到了权重（这条就是被"雨声"拽上来的）
+  assert.ok(f.contributions.keyword > 0, '关键词命中就该有贡献分')
+  assert.ok(f.contributions.keyword >= f.contributions.vivid, '这条比的就是关键词压过鲜活度')
+})
+
+test('retrieval：意外槽也带 factors（不能只有主槽有解释）', () => {
+  const old = new Date(now - 20 * DAY)
+  const ms = [
+    mem('new', '刚看过的那条', { accessCount: 0 }),
+    mem('old', '很久以前的那条', { accessCount: 0, createdAt: old, vividness: 0.6 }),
+  ]
+  const r = recallMemories(ms, { now, k: 1, surprises: 1, seed: 's1' })
+  const surprise = r.find((x) => x.slot === 'surprise')
+  assert.ok(surprise, '要有意外槽')
+  assert.ok(surprise.factors, '意外槽也要有四因子底账')
+  assert.ok(Number.isFinite(surprise.factors.recency))
+})

@@ -285,7 +285,10 @@ export const preferencesPanel = {
     root.appendChild(card.el)
     const msg = ui.msgline()
     const box = ui.h('div')
-    card.body.append(box, msg)
+    // 命中统计单独一个容器，放在 box 外面：refresh() 会清空 box（重建词表），
+    // 统计那块要能活下来，不然每次改词表统计就闪没了。
+    const hitsBox = ui.h('div')
+    card.body.append(box, hitsBox, msg)
     const guard = createDirtyGuard(ui)
 
     async function refresh() {
@@ -363,6 +366,76 @@ export const preferencesPanel = {
         after: refresh,
       })
       box.append(ui.field('短于多少秒的片子直接跳过', dur), saveDur)
+
+      await renderHits()
+    }
+
+    /**
+     * 规则命中统计（审计 §2.6 缺失项）。
+     *
+     * 这一块存在的理由很实在：10-31 她连报三次"词表未生效"，而"dislike 拦下 N 条"
+     * 以前只打在 CLI 的 stdout 里——面板上看不见规则有没有生效，你就没法判断
+     * 是词写窄了还是匹配没跑到。现在每个词各拦下几条、时长阈值跳过几条、
+     * 一共扫过多少条都摆在页面上，还留几条命中样本用来核对**是不是误伤**。
+     *
+     * 单独一个容器：刷新统计时只换它的内容，不会摞出第二份。
+     */
+    async function renderHits() {
+      const res = await call<any>(ctx, msg, 'hits', {})
+      if (!res || res.ok === false) return
+      const h = res.hits ?? {}
+      const words: Array<{ word: string; count: number; inUse: boolean }> = Array.isArray(h.words) ? h.words : []
+      const samples: Array<{ at: string; kind: string; word: string; title: string }> = Array.isArray(h.samples) ? h.samples : []
+
+      hitsBox.replaceChildren()
+      const sec = ui.h('div')
+      sec.style.margin = '12px 0'
+      sec.append(ui.section('规则命中统计', '规则真的拦下过什么。她报"词表未生效"时，先来这里看数字。'))
+
+      const stat = ui.statgrid([
+        { k: '扫过内容', v: `${h.scanned ?? 0} 条` },
+        { k: '屏蔽词命中', v: `${Object.values(h.dislike ?? {}).reduce((a, b) => a + Number(b || 0), 0)} 条` },
+        { k: '太短跳过', v: `${h.tooShort ?? 0} 条` },
+        { k: '最近统计', v: h.updatedAt ? String(h.updatedAt).replace('T', ' ').slice(0, 16) : '还没有' },
+      ])
+      sec.append(stat)
+
+      if (!h.everScanned) {
+        sec.append(ui.placeholder('还没有扫过任何内容，统计是空的。等她实际看过片，这里才会有数字——'
+          + '现在显示 0 不等于"规则没生效"，只等于"还没跑过"。'))
+      }
+
+      if (words.length) {
+        const table = ui.table({ head: ['屏蔽词', '拦下几条', '还在用？'] })
+        for (const w of words) {
+          table.addRow([w.word, String(w.count ?? 0), w.inUse ? '是' : '已删（历史命中）'])
+        }
+        sec.append(table.el)
+      }
+
+      if (samples.length) {
+        const t2 = ui.table({ head: ['时间', '哪条规则', '被拦下的内容'] })
+        for (const s of samples) {
+          t2.addRow([String(s.at ?? '').replace('T', ' ').slice(5, 16), s.word, s.title ?? ''])
+        }
+        sec.append(t2.el)
+      }
+
+      const acts = ui.actions()
+      const reload = actionButton(ctx, ui, msg, '刷新统计', 'hits', undefined, { after: renderHits })
+      const reset = actionButton(ctx, ui, msg, '清零统计', 'resetHits', undefined, {
+        variant: 'danger',
+        confirm: {
+          title: '确认把命中统计清零？',
+          body: '清掉的是"每个屏蔽词拦下过几条"这些计数，不是词表本身，也不影响她现在的过滤行为。'
+            + '清零后要等下一次真的扫内容才有新数字。',
+          ok: '确认清零',
+        },
+        after: renderHits,
+      })
+      acts.append(reload, reset)
+      sec.append(acts)
+      hitsBox.append(sec)
     }
     void refresh()
   },

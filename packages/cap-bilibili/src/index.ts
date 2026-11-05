@@ -407,13 +407,24 @@ export function createBilibiliCapability(
             if (!r.ok) return { ok: false, error: r.error, prefs }
             // 套用看片偏好标注（与旧 annotateFeed 同口径：时长阈值 / 屏蔽词高亮）
             const min = prefs.minDurationSec
+            // 命中统计：这一条真的被规则拦下了，就记一笔（审计 §2.6 缺失项——
+            // 以前只有 CLI 打印"dislike 拦下 N 条"，面板看不到规则有没有生效）
+            const hits: Array<{ kind: 'dislike' | 'tooShort'; word: string; title: string }> = []
             for (const it of r.items) {
               const marks: string[] = []
-              if (min > 0 && it.durationSec > 0 && it.durationSec < min) marks.push(`短于${Math.round(min / 60)}分钟：跳过`)
-              if (prefs.dislike.some((w) => it.title.includes(w))) marks.push('命中屏蔽词')
+              if (min > 0 && it.durationSec > 0 && it.durationSec < min) {
+                marks.push(`短于${Math.round(min / 60)}分钟：跳过`)
+                hits.push({ kind: 'tooShort', word: `短于${Math.round(min / 60)}分钟`, title: it.title })
+              }
+              const hitWord = prefs.dislike.find((w) => w && it.title.includes(w))
+              if (hitWord) {
+                marks.push('命中屏蔽词')
+                hits.push({ kind: 'dislike', word: hitWord, title: it.title })
+              }
               if (marks.length) it.title = `${it.title}  [${marks.join('；')}]`
             }
-            return { ok: true, source: r.source, prefs, items: r.items }
+            const hitStats = store.recordFeedScan(hits, r.items.length)
+            return { ok: true, source: r.source, prefs, items: r.items, hits: hitStats }
           },
         },
         {
@@ -927,6 +938,55 @@ export function createBilibiliCapability(
               writable: true,
               invoke(params: Partial<WatchPreferences>) {
                 return { ok: true, prefs: store.savePrefs(params ?? {}) }
+              },
+            },
+            /**
+             * 规则命中统计（审计 §2.6 缺失项）。
+             *
+             * 读的是"真的被规则拦下过"的实况：每个屏蔽词各拦下几条、
+             * 时长阈值跳过几条、一共扫过多少条，外加最近几条命中样本
+             *（样本是给你核对规则是不是误伤的——10-31 她报"词表未生效"，
+             * 就是因为这个数字在面板上根本看不见）。
+             */
+            hits: {
+              name: 'hits',
+              verb: 'GET',
+              summary: '看片偏好规则的命中统计：每个屏蔽词拦下几条、时长阈值跳过几条、最近命中样本',
+              writable: false,
+              invoke() {
+                const prefs = store.readPrefs()
+                const raw = store.readPrefHits()
+                // 当前词表里**没在用**的屏蔽词也要列出来：一条都没命中过，
+                // 说明词写窄了或者这条规则根本没跑到——这正是要让人看见的事。
+                const words = [...new Set([...prefs.dislike, ...Object.keys(raw.dislike)])].map((word) => ({
+                  word,
+                  count: raw.dislike[word] ?? 0,
+                  inUse: prefs.dislike.includes(word),
+                }))
+                // 计数表也补齐在用但没命中的词（0 条）——调用方不该分不清"0"和"没这个键"
+                const dislike: Record<string, number> = {}
+                for (const w of words) dislike[w.word] = w.count
+                return {
+                  ok: true,
+                  hits: {
+                    ...raw,
+                    dislike,
+                    words,
+                    tooShort: raw.tooShort,
+                    minDurationSec: prefs.minDurationSec,
+                    /** 一条都没扫过 = 统计还没有意义，页面上要说明白 */
+                    everScanned: raw.scanned > 0,
+                  },
+                }
+              },
+            },
+            resetHits: {
+              name: 'resetHits',
+              verb: 'POST',
+              summary: '清零命中统计（改完词表想从零再看一次效果时用）',
+              writable: true,
+              invoke() {
+                return { ok: true, hits: store.resetPrefHits() }
               },
             },
           },

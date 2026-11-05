@@ -28,6 +28,37 @@ export interface WatchPreferences {
   minDurationSec: number
 }
 
+/**
+ * 偏好规则命中统计（审计 §2.6 缺失项）。
+ *
+ * 为什么要有：10-31 她连报三次"词表未生效"，而"dislike 拦下 N 条"只打在 CLI 的 stdout 里，
+ * 面板看不到——**你不知道规则有没有生效**，就没法判断是规则没写对还是匹配没跑到。
+ * 于是这个文件把每一次真实拦下都记下来，还留几条样本标题（能看出规则是不是误伤）。
+ *
+ * 计数只在**真的看到一条内容并判定它命中**时 +1，不在"保存词表"时 +1——
+ * 否则数字越大越好看，越好看越不真。
+ */
+export interface PrefHitCounters {
+  /** 每个屏蔽词各拦下几条 */
+  dislike: Record<string, number>
+  /** 因时长阈值跳过几条 */
+  tooShort: number
+  /** 一共扫过多少条内容 */
+  scanned: number
+  /** 最近一次统计时间（ISO） */
+  updatedAt: string
+  /** 最近命中的样本（最多 8 条，用来核对规则是不是误伤） */
+  samples: Array<{ at: string; kind: 'dislike' | 'tooShort'; word: string; title: string }>
+}
+
+export const EMPTY_PREF_HITS: PrefHitCounters = {
+  dislike: {},
+  tooShort: 0,
+  scanned: 0,
+  updatedAt: '',
+  samples: [],
+}
+
 export const DEFAULT_WATCH_PREFS: WatchPreferences = {
   like: ['传统艺术与手艺', '自然与动物', '历史与人文', '长纪录片', '声音采样'],
   dislike: ['引导冥想', '睡眠瑜伽', '跟练打卡', '吃播', '开箱'],
@@ -41,12 +72,14 @@ export class BiliInboxAndPrefsStore {
   private readonly inboxFile: string
   private readonly blockedUidsFile: string
   private readonly prefsFile: string
+  private readonly prefHitsFile: string
 
   constructor(dataDir: string) {
     this.dataDir = dataDir
     this.inboxFile = path.join(dataDir, 'inbox-items.json')
     this.blockedUidsFile = path.join(dataDir, 'blocked-uids.json')
     this.prefsFile = path.join(dataDir, 'watch-prefs.json')
+    this.prefHitsFile = path.join(dataDir, 'pref-hits.json')
   }
 
   readBlockedUids(): string[] {
@@ -187,5 +220,65 @@ export class BiliInboxAndPrefsStore {
     fs.mkdirSync(this.dataDir, { recursive: true })
     fs.writeFileSync(this.prefsFile, JSON.stringify(next, null, 2), 'utf8')
     return next
+  }
+
+  /** 读命中统计（读不出来就当还没有，别把面板整块打不开）。 */
+  readPrefHits(): PrefHitCounters {
+    try {
+      const raw = JSON.parse(fs.readFileSync(this.prefHitsFile, 'utf8'))
+      return {
+        dislike: raw?.dislike && typeof raw.dislike === 'object' ? raw.dislike : {},
+        tooShort: Number(raw?.tooShort ?? 0),
+        scanned: Number(raw?.scanned ?? 0),
+        updatedAt: String(raw?.updatedAt ?? ''),
+        samples: Array.isArray(raw?.samples) ? raw.samples.slice(0, 8) : [],
+      }
+    } catch {
+      return { ...EMPTY_PREF_HITS, dislike: {}, samples: [] }
+    }
+  }
+
+  /**
+   * 记一次"扫过 feed"的实况：看了几条、谁命中了、拦下几条。
+   *
+   * 只在**真的看过内容**时调用；每条内容按它实际命中的规则计数
+   * （一条内容可能同时命中屏蔽词和时长阈值，那就两个都记）。
+   */
+  recordFeedScan(hits: Array<{ kind: 'dislike' | 'tooShort'; word: string; title: string }>, scanned = 0): PrefHitCounters {
+    const cur = this.readPrefHits()
+    const next: PrefHitCounters = {
+      dislike: { ...cur.dislike },
+      tooShort: cur.tooShort,
+      scanned: cur.scanned + Math.max(0, scanned),
+      updatedAt: new Date().toISOString(),
+      samples: [...cur.samples],
+    }
+    const at = next.updatedAt
+    for (const h of hits) {
+      if (h.kind === 'dislike') {
+        next.dislike[h.word] = (next.dislike[h.word] ?? 0) + 1
+      } else {
+        next.tooShort += 1
+      }
+      next.samples.unshift({ at, kind: h.kind, word: h.word, title: String(h.title ?? '').slice(0, 80) })
+    }
+    next.samples = next.samples.slice(0, 8)
+    try {
+      fs.mkdirSync(this.dataDir, { recursive: true })
+      fs.writeFileSync(this.prefHitsFile, JSON.stringify(next, null, 2), 'utf8')
+    } catch {
+      // 统计写不进去不该把取数带崩（面板还要出内容）
+    }
+    return next
+  }
+
+  /** 清空命中统计（改词表后想从零开始看效果时用）。 */
+  resetPrefHits(): PrefHitCounters {
+    const empty = { ...EMPTY_PREF_HITS, dislike: {}, samples: [], updatedAt: new Date().toISOString() }
+    try {
+      fs.mkdirSync(this.dataDir, { recursive: true })
+      fs.writeFileSync(this.prefHitsFile, JSON.stringify(empty, null, 2), 'utf8')
+    } catch { /* 忽略 */ }
+    return empty
   }
 }
