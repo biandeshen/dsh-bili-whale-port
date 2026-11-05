@@ -15,9 +15,9 @@
  *     再开一个 config 键就是两个真相。
  */
 
-/** 心跳间隔的默认值：5 分钟一拍（与线上 config.json 当前值一致）。 */
+/** 心跳间隔的默认值：0.5 分钟 = 30 秒一评估（主人 2026-11-06 拍板不限次，评估贴着"她想动"走）。 */
 export const XIAOYU_TICK_DEFAULTS = {
-  intervalMinutes: 5,
+  intervalMinutes: 0.5,
 }
 
 /** 宿主 ConfigGroup 的最小形状（同 context-config.ts，不 import 宿主）。 */
@@ -44,14 +44,16 @@ export function tickConfigGroup(id: string): XiaoyuTickConfigGroup {
         + '只有真的想动的那一拍才会叫醒她。改完立刻生效，不用重启。',
       properties: {
         'tick.intervalMinutes': {
-          type: 'integer',
+          type: 'number',
           title: '醒来的间隔',
           minimum: 0,
           maximum: 180,
-          'x-suffix': '分钟',
+          'x-suffix': '分钟（可小数，0.5 = 30 秒）',
           'x-hot': true,
           description:
-            '她每隔这么久自己醒一次，看看有没有该做的事。\n'
+            '她每隔这么久自己评估一次"想不想动"。**不限活动次数**（主人 2026-11-06 拍板）：'
+            + '该不该动由冲动强度与体力自己收敛，累了自然歇，唯一的节流阀是体力。'
+            + '不动的那一拍不投递、不花模型调用。\n'
             + '0 = 关掉这一拍：她只在有人戳她或来消息时才醒——那她就退回成聊天窗口了。',
         },
       },

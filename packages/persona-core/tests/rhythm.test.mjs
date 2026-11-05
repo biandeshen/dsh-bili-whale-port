@@ -65,16 +65,17 @@ test('rhy：冷战时不主动找他，但自己待烦了照样会醒', () => {
 })
 
 test('rhy：睡着时体力按小时恢复，满了不溢出', () => {
-  // 0.008/h（2026-11-06 从 0.005 调上来：一天 4–6 轮小事，恢复要跟得上开销）
-  assert.ok(Math.abs(restRecoveryDelta(F({ energy: 0.5 }), 5) - 0.04) < 1e-9)
+  // 0.02/h（2026-11-06 从 0.008 调上来：主人拍板不限次后，恢复要跟得上高活动日的开销，
+  // 否则"累了自然歇"会饿成"每天只能动一两次"的变相配额）
+  assert.ok(Math.abs(restRecoveryDelta(F({ energy: 0.5 }), 5) - 0.1) < 1e-9)
   assert.equal(restRecoveryDelta(F({ energy: 1 }), 24), 0)
   assert.equal(restRecoveryDelta(F({ energy: 0.5 }), 0), 0)
 })
 
-test('rhy：评估间隔带抖动，不是整点', () => {
+test('rhy：评估间隔带抖动，不是整点（2026-11-06 收紧到 30–90 秒）', () => {
   const a = nextCheckDelay(() => 0)
   const b = nextCheckDelay(() => 0.999)
-  assert.ok(a >= 3 * 60_000 && b <= 7 * 60_000 && b > a)
+  assert.ok(a >= 30 * 1000 && b <= 90 * 1000 && b > a)
 })
 
 test('rhy：等不到人的次数会随时间回落（不会永远不再找他）', () => {
@@ -117,8 +118,9 @@ test('10 天模拟：醒几次、几点醒由状态+抖动决定，不跟随固�
   assert.ok(wakes.length >= 4, '10 天只醒了 ' + wakes.length + ' 次')
   const byDay = new Map()
   for (const w of wakes) byDay.set(dayKey(w.at), (byDay.get(dayKey(w.at)) ?? 0) + 1)
-  // 2026-10-30 主人裁决：不设每日上限；但体力是自然的节流阀，单日不应失控（>15 次说明体力门失效）
-  assert.ok([...byDay.values()].every((n) => n <= 15), '单日失控：' + JSON.stringify([...byDay]))
+  // 2026-10-30 主人裁决：不设每日上限；2026-11-06 二次拍板不限 token。
+  // 单日 >60 次才说明体力门真的失效（那是一天醒着 16h 里平均 3 分钟一次还不停）。
+  assert.ok([...byDay.values()].every((n) => n <= 60), '单日失控：' + JSON.stringify([...byDay]))
   const hours = new Set(wakes.map((w) => new Date(w.at).getHours()))
   assert.ok(hours.size >= 3, '醒来时刻只有这几种：' + [...hours].join(','))
   assert.ok(wakes.some((w) => { const h = new Date(w.at).getHours(); return h < 20 || h > 23 }), '全都在 20–23 点，等于固定作息')

@@ -99,9 +99,11 @@ export function createXiaoyuBotDefinition(homeDir: string) {
         }),
         tickDelayMs: () => {
           const m = tickCfg?.intervalMinutes
+          // 分钟粒度太粗（主人 2026-11-06 拍板不限次后，评估节拍收紧到 30–90 秒级）。
+          // 兼容小数：0.5 = 30 秒。0/null 仍表示关掉心跳。
           return m === null || m === undefined || !Number.isFinite(Number(m)) || Number(m) <= 0
             ? null
-            : Number(m) * 60_000
+            : Math.max(20_000, Number(m) * 60_000)
         },
       })
       return {

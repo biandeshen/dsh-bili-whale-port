@@ -25,9 +25,28 @@ test('心跳配置组形状对（宿主 isConfigGroup 会挑掉形状不对的�
   const keys = Object.keys(g.schema.properties)
   assert.deepEqual(keys, ['tick.intervalMinutes'], '只声明代码里真读的键，别挂改了没反应的旋钮')
   const p = g.schema.properties['tick.intervalMinutes']
-  assert.equal(p.type, 'integer')
+  // 2026-11-06 主人拍板不限次：间隔支持小数（0.5 = 30 秒），不再是整数分钟
+  assert.equal(p.type, 'number')
   assert.ok(p.title, '缺 title 页面上只剩键名')
   assert.equal(p['x-hot'], true, '热改：改完不该等重启')
+})
+
+test('默认间隔是 0.5 分钟（30 秒一评估），小数间隔被真实换算', async () => {
+  assert.equal(XIAOYU_TICK_DEFAULTS.intervalMinutes, 0.5)
+  // 走真实链路：起一次 persona（0.5 分钟），看心跳 30 秒内真的投了一拍作息账
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tick-frac-'))
+  const def = createXiaoyuBotDefinition(dir)
+  const parts = def.build({ config: { ...def.defaults(), tick: { intervalMinutes: 0.02 } }, memoryDir: dir })
+  const coreStub = { log: { info: () => {}, warn: () => {}, error: () => {} }, injectInternal: () => {}, injectDeferred: () => {}, pushEvent: () => {} }
+  parts.persona.attach(coreStub)
+  await parts.onStart()
+  try {
+    await new Promise((r) => setTimeout(r, 120))
+    const lifeFile = path.join(dir, 'data', 'persona', 'life.json')
+    assert.ok(fs.existsSync(lifeFile), '30 秒级基线（0.02 分钟 ≈ 1.2s）应已在 120ms 内落下一拍账')
+  } finally {
+    await parts.onStop()
+  }
 })
 
 test('默认配置带着心跳间隔（不是只在页面上的空声明）', () => {
