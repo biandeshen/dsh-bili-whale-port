@@ -70,6 +70,29 @@ test('反思：默认配置本身也是关的', () => {
   assert.equal(DREAM_REFLECTION_DEFAULTS.enabled, false, '默认关——要花模型钱得主人显式点头')
 })
 
+/**
+ * 回归（2026-11-06 01:04 线上）：宿主的 core.log 是 Logger **对象**（info/warn/error），
+ * 不是 (level,msg) 函数。睡着时段"今晚不反思"那行 `core?.log?.('info',...)` 抛 TypeError，
+ * 整条反思路径炸掉（账本文件都没建出来）。
+ * 钉住：log 是对象形状、甚至 log 本身会抛，runDreamReflection 都必须正常返回。
+ */
+test('反思：core.log 是 Logger 对象/会抛错时，不许把反思路径带崩', async () => {
+  // Logger 对象形状（真宿主的形状）
+  const { core: objCore } = fakeCore({ core: { log: { info: () => {}, warn: () => {}, error: () => {} } } })
+  const outObj = await runDreamReflection(baseDeps({ core: objCore, sleptHours: () => 0.5 }))
+  assert.equal(outObj.reflected, false, '睡不够就不跑（这里只关心别抛）')
+  assert.match(outObj.reason, /睡/)
+  // log 一调用就抛：也不许炸出去
+  const { core: boomCore } = fakeCore({ core: { log: () => { throw new Error('log boom') } } })
+  const outBoom = await runDreamReflection(baseDeps({ core: boomCore, sleptHours: () => 0.5 }))
+  assert.equal(outBoom.reflected, false)
+  assert.match(outBoom.reason, /睡/)
+  // 真正跑起来的路径上（fork 成功）也不许因 log 炸掉
+  const { core: runCore } = fakeCore({ core: { log: { info: () => { throw new Error('info boom') }, warn: () => {} } } })
+  const outRun = await runDreamReflection(baseDeps({ core: runCore }))
+  assert.equal(outRun.reflected, true, 'fork 已成功，日志坏不能让它白跑')
+})
+
 test('反思：睡不够就不跑', async () => {
   const { core, calls } = fakeCore()
   const deps = baseDeps({ core, sleptHours: () => 0.5 })

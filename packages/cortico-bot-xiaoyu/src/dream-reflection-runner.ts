@@ -92,6 +92,24 @@ export interface ReflectionOutcome {
  * **返回"没想"也是一种结果**——原因要写清楚，主人能查"她为什么今晚没想"，
  * 而不是"她好像什么都没干"。
  */
+/**
+ * 反思自己的日志通道。**为什么不能直接 `core?.log?.(...)`**：
+ * 宿主的 `core.log` 是 Logger 对象（`info/warn/error(msg, data)`，Cortico src/core/types.ts:1181），
+ * 不是 `(level, msg)` 函数——`?.` 挡不住"属性存在但不是函数"。
+ * 2026-11-06 01:04 线上实测：睡着时段决定"今晚不反思"，第 106 行抛 TypeError，
+ * 被 try/catch 接住后 catch 里再调 log 又抛一次，最终整条反思路径炸掉。
+ * 与 cortico-persona.ts 的 `hostLog` 是同一个坑的第二处：认对象形状优先，函数形状兜底，任何情况不抛。
+ */
+function safeLog(core: ReflectionRunnerDeps['core'], level: 'info' | 'warn', msg: string): void {
+  try {
+    const log: any = (core as any)?.log
+    if (!log) return
+    if (typeof log === 'function') { log(level, msg); return }
+    const fn = typeof log[level] === 'function' ? log[level] : log.warn
+    if (typeof fn === 'function') fn.call(log, msg)
+  } catch { /* 日志写不出去不能把反思路径带崩 */ }
+}
+
 export async function runDreamReflection(deps: ReflectionRunnerDeps): Promise<ReflectionOutcome> {
   const now = deps.now?.() ?? Date.now()
   const config: DreamReflectionConfig = { ...DREAM_REFLECTION_DEFAULTS, ...(deps.getConfig?.() ?? {}) }
@@ -103,14 +121,14 @@ export async function runDreamReflection(deps: ReflectionRunnerDeps): Promise<Re
     config,
   })
   if (!decision.shouldReflect) {
-    deps.core?.log?.('info', `今晚不反思：${decision.reason}`)
+    safeLog(deps.core, 'info', `今晚不反思：${decision.reason}`)
     return { reflected: false, reason: decision.reason }
   }
 
   const core = deps.core
   if (!core || typeof core.spawnFork !== 'function') {
     const reason = '拿不到宿主的 spawnFork（框架还没把 CoreApi 交过来），这一晚跳过'
-    deps.core?.log?.('warn', `睡前反思跳过：${reason}`)
+    safeLog(deps.core, 'warn', `睡前反思跳过：${reason}`)
     return { reflected: false, reason }
   }
 
@@ -134,11 +152,11 @@ export async function runDreamReflection(deps: ReflectionRunnerDeps): Promise<Re
     if (surfaced && surfaced !== '(nothing)') {
       core.injectInternal?.(`[睡眠] 昨晚我想了这件事：${surfaced.slice(0, 400)}`, 'dream')
     }
-    deps.core?.log?.('info', `睡前反思完成（${surfaced ? '有话' : '没写什么'}）`)
+    safeLog(deps.core, 'info', `睡前反思完成（${surfaced ? '有话' : '没写什么'}）`)
     return { reflected: true, reason: '想了一遍', ...(surfaced ? { surfaced } : {}) }
   } catch (e: any) {
     const reason = `反思没跑成：${String(e?.message ?? e)}`
-    deps.core?.log?.('warn', `睡前反思失败（不影响做梦）：${reason}`)
+    safeLog(deps.core, 'warn', `睡前反思失败（不影响做梦）：${reason}`)
     return { reflected: false, reason }
   }
 }
