@@ -8,6 +8,7 @@
  * - 四大主人可写操作台（inbox / drafts-queue / preferences / gate-policy）
  */
 import path from 'node:path'
+import fs from 'node:fs'
 import type {
   XiaoyuCapability,
   CapabilityHost,
@@ -43,6 +44,10 @@ import {
   searchVideos,
   checkLogin,
   loadCredentials as loadReadCredentials,
+  parseCredentials,
+  liveCredentials,
+  describeCredentials,
+  saveCredentials,
   type BiliReadContext,
 } from './client/bili-read.ts'
 import {
@@ -127,10 +132,67 @@ export interface BilibiliCapabilityOptions {
   /** 凭据文件路径；配合 writeContext.cred 缺省时从这里读 */
   credentialsFile?: string
   /**
+   * 读侧 fetch 替身（测试与离线验收用）。
+   * 单独开这个口是为了**不换掉凭据来源**：以前只能整个 `readContext` 替掉，
+   * 一替就把"活的凭据"也替成了快照，测试绿的、线上是坏的。
+   */
+  fetch?: (input: string, init?: Record<string, unknown>) => Promise<Response>
+  /**
    * 看画面（V-Now 第⑥路）：目录与管道注入。
    * 缺省落在 dataDir 下自己的子目录（A2 踩过的坑：dataDir 是部署级共享的，必须再下一层）。
    */
   watch?: Partial<Pick<WatchContext, 'videoDir' | 'sheetDir' | 'analyze' | 'keepVideo'>>
+}
+
+/**
+ * 「上一次绑的是谁」这一笔账（`<dataDir>/bili-connection.json`）。
+ *
+ * 只记身份与指纹，**不记凭据值**：换号这件事要能被追溯（"她今天怎么像变了个人"），
+ * 但这份文件是明文放在部署目录里的，写 cookie 进去等于把凭据再复制一份。
+ */
+interface ConnectionRecord {
+  mid: string
+  uname: string
+  boundAt: string
+  fp: string
+  verified: boolean
+}
+
+function connectionFile(dataDir: string): string {
+  return path.join(dataDir, 'bili-connection.json')
+}
+
+function readConnectionRecord(dataDir: string): ConnectionRecord | null {
+  try {
+    const raw = JSON.parse(fs.readFileSync(connectionFile(dataDir), 'utf8'))
+    return {
+      mid: String(raw.mid ?? ''),
+      uname: String(raw.uname ?? ''),
+      boundAt: String(raw.boundAt ?? ''),
+      fp: String(raw.fp ?? ''),
+      verified: raw.verified === true,
+    }
+  } catch {
+    return null
+  }
+}
+
+function writeConnectionRecord(
+  dataDir: string,
+  rec: ConnectionRecord,
+  warn?: (msg: string) => void,
+): boolean {
+  try {
+    fs.mkdirSync(dataDir, { recursive: true })
+    fs.writeFileSync(connectionFile(dataDir), JSON.stringify(rec, null, 2), 'utf8')
+    return true
+  } catch (e) {
+    // 记不上这一笔不影响绑定本身（凭据已经落盘），不许把成功的绑定报成失败——
+    // 但**必须让调用方知道没记上**：这里曾经是一个空 catch，把一句 ReferenceError
+    // 静默吞掉了整整一轮（写不进去还没人知道）。吞掉的写失败比失败的写更坏。
+    warn?.(`连接记录写不进 ${connectionFile(dataDir)}：${String((e as Error)?.message ?? e)}`)
+    return false
+  }
 }
 
 export function createBilibiliCapability(
@@ -143,11 +205,18 @@ export function createBilibiliCapability(
   const store = new BiliInboxAndPrefsStore(opts.dataDir)
 
   // 真实写上下文：凭据 + 本地账读法（点赞/收藏账）。
+  // 没显式给 writeContext 时用**活的**凭据视图：每次取都现读文件（env 优先），
+  // 所以「连接」页换完 cookie 下一拍就是新的，不需要重启进程。
   const writeCtx: BiliWriteContext = opts.writeContext ?? {
-    cred: opts.credentialsFile ? loadCredentials(opts.credentialsFile) : { sessdata: '', bili_jct: '', buvid3: '' },
+    cred: opts.credentialsFile
+      ? liveCredentials(opts.credentialsFile)
+      : { sessdata: '', bili_jct: '', buvid3: '' },
   }
-  // 真实读上下文：与写共用凭据；fetch 可独立注入
-  const readCtx = opts.readContext ?? { cred: writeCtx.cred, fetch: undefined as any }
+  // 真实读上下文：与写共用同一份**活的**凭据；fetch 可独立注入（替身不换成快照凭据）
+  const readCtx: BiliReadContext = opts.readContext ?? {
+    cred: writeCtx.cred,
+    ...(opts.fetch ? { fetch: opts.fetch as never } : {}),
+  } as BiliReadContext
 
   // 看画面上下文：目录在 dataDir 下再下一层，管道可注入替身
   const watchCtx: WatchContext = {
@@ -923,6 +992,137 @@ export function createBilibiliCapability(
                   policy: gate.readPolicy(),
                   quota: gate.readQuota(),
                   traffic: gate.readTraffic(),
+                }
+              },
+            },
+          },
+        },
+        // ── 面板 5：连接与凭据（story-4 的「连接页」；旧 /api/cookie 的能力复位到这里） ──
+        {
+          id: 'connection',
+          title: '连接与凭据',
+          description:
+            '看她登录到哪个号上：粘贴 cookie 先向 B 站校验身份、通过了才落盘；解绑也是显式动作。凭据值不回显、不进日志',
+          methods: {
+            get: {
+              name: 'get',
+              verb: 'GET',
+              summary: '登录态体检：凭据齐不齐（只给指纹）、当前登录到哪个号、上次绑定是谁',
+              writable: false,
+              async invoke() {
+                const file = opts.credentialsFile ?? ''
+                const creds = file ? loadReadCredentials(file) : { sessdata: '', bili_jct: '', buvid3: '' }
+                const bound = readConnectionRecord(opts.dataDir)
+                let whoami: { ok: boolean; isLogin: boolean; mid?: string | number; uname?: string; error?: string }
+                try {
+                  whoami = await checkLogin(readCtx)
+                } catch (e) {
+                  whoami = { ok: false, isLogin: false, error: String((e as Error)?.message ?? e) }
+                }
+                return {
+                  ok: true,
+                  // 只给文件名：绝对路径里带着主人的用户名，没必要显示在页面上
+                  credentialsFile: file ? path.basename(file) : '',
+                  present: describeCredentials(creds),
+                  live: whoami,
+                  // 探不动时不空着：上一次是谁、什么时候绑的，主人看得见
+                  lastKnown: bound,
+                  stale: !whoami.ok || !whoami.isLogin,
+                }
+              },
+            },
+            bindCookie: {
+              name: 'bindCookie',
+              verb: 'POST',
+              summary: '粘贴 cookie：先向 B 站校验身份，通过了才写进凭据文件（要 confirm:true）',
+              writable: true,
+              async invoke(params: {
+                cookie?: string
+                sessdata?: string
+                bili_jct?: string
+                buvid3?: string
+                confirm?: boolean
+                allowUnverified?: boolean
+              }) {
+                if (params?.confirm !== true) {
+                  return { ok: false, error: '要 confirm:true 才动手（这是换她的登录身份）' }
+                }
+                const file = opts.credentialsFile ?? ''
+                if (!file) return { ok: false, error: '没配 credentialsFile，不知道往哪儿写' }
+                const pasted = typeof params?.cookie === 'string'
+                  ? params.cookie
+                  : [
+                      params?.sessdata ? `SESSDATA=${params.sessdata}` : '',
+                      params?.bili_jct ? `bili_jct=${params.bili_jct}` : '',
+                      params?.buvid3 ? `buvid3=${params.buvid3}` : '',
+                    ].filter(Boolean).join('; ')
+                const merged = parseCredentials(pasted)
+                if (!merged.sessdata) {
+                  return { ok: false, error: '没解析出 SESSDATA：粘贴的内容里找不到这个键（浏览器里复制整段 Cookie 头即可）' }
+                }
+                /**
+                 * **先验后写**：拿新凭据问一次 nav。验不过就一个字节都不落。
+                 * 写了坏凭据的下场是——她下次以匿名身份撞墙，而页面看起来像"被风控了"，
+                 * 不像"凭据错了"（这一串误诊本仓 2026-11-05 刚踩过一次）。
+                 * 网络不通也走这一条；主人确认要照存就明写 allowUnverified。
+                 */
+                let whoami: { ok: boolean; isLogin: boolean; mid?: string | number; uname?: string; error?: string } | null = null
+                let verifyError = ''
+                try {
+                  whoami = await checkLogin({ ...readCtx, cred: merged })
+                } catch (e) {
+                  verifyError = String((e as Error)?.message ?? e)
+                }
+                const verified = Boolean(whoami?.ok && whoami?.isLogin)
+                if (!verified && params?.allowUnverified !== true) {
+                  return {
+                    ok: false,
+                    error: `校验没通过（${whoami?.error || verifyError || 'B 站说没登录'}），什么都没写。`
+                      + '确认要照存就再勾「没验通也保存」。',
+                  }
+                }
+                const wrote = saveCredentials(file, merged)
+                if (!wrote.ok) return { ok: false, error: wrote.error }
+                const mid = whoami?.mid != null ? String(whoami.mid) : ''
+                const prev = readConnectionRecord(opts.dataDir)
+                const changed = Boolean(prev?.mid && mid && prev.mid !== mid)
+                const recorded = writeConnectionRecord(opts.dataDir, {
+                  mid,
+                  uname: whoami?.uname ?? '',
+                  boundAt: new Date().toISOString(),
+                  fp: describeCredentials(merged).sessdata.fp,
+                  verified,
+                }, (m) => hostRef?.log('warn', m))
+                return {
+                  ok: true,
+                  identity: { mid, uname: whoami?.uname ?? '' },
+                  wrote: wrote.written,
+                  removed: wrote.removed,
+                  verified,
+                  recorded,
+                  // 换号是"她突然不像她自己了"最常见的原因，页面上要主动提一句
+                  changedAccount: changed,
+                  previous: prev ? { mid: prev.mid, uname: prev.uname, boundAt: prev.boundAt } : null,
+                }
+              },
+            },
+            unbindCookie: {
+              name: 'unbindCookie',
+              verb: 'POST',
+              summary: '解绑：从凭据文件里去掉这三项（其他键不动），要 confirm:true',
+              writable: true,
+              invoke(params: { confirm?: boolean }) {
+                if (params?.confirm !== true) {
+                  return { ok: false, error: '要 confirm:true 才动手（解绑后她将退回匿名身份）' }
+                }
+                const file = opts.credentialsFile ?? ''
+                if (!file) return { ok: false, error: '没配 credentialsFile，不知道往哪儿写' }
+                const r = saveCredentials(file, { sessdata: '', bili_jct: '', buvid3: '' })
+                if (!r.ok) return { ok: false, error: r.error }
+                return {
+                  ok: true,
+                  removed: ['BILI_SESSDATA', 'BILI_JCT', 'BILI_BUVID3'],
+                  note: '文件里其他键没动；她自己发东西会退回未登录并被写闸挡下。',
                 }
               },
             },

@@ -20,8 +20,11 @@ test('cap-bilibili & cortico-world-bilibili：四路收件箱指派、统一待�
 
   assert.equal(world.id, 'bili-account')
   assert.equal(world.api, 6)
-  assert.equal(world.panels().length, 4)
-  assert.equal(world.panels().length, 4)
+  // 五块操作台（2026-11-05 加「连接与凭据」）。列 id 而不是只数个数：
+  // 原来这里连着写了两遍同一句 `length === 4`，数对了也看不出是哪几块。
+  assert.deepEqual(world.panels().map((p) => p.id), [
+    'inbox', 'drafts-queue', 'preferences', 'gate-policy', 'connection',
+  ])
   assert.equal(world.tools().length, 17, '加/减工具时这里必须一起改，并同步 ORIENTATION.md 的工具清单')
   assert.ok(world.tools().some((t) => t.name === 'bili_watch'), 'V-Now：看画面入口在包内，不再是 CLI')
 

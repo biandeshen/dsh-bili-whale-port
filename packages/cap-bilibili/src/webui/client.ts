@@ -516,11 +516,115 @@ export const gatePolicyPanel = {
   },
 }
 
+/**
+ * 连接与凭据：粘贴 cookie → 先向 B 站校验身份 → 通过了才落盘。
+ *
+ * 三条规矩写死在这里：
+ *   ① 页面上**永不回显凭据值**（体检只给有无 + 指纹）；
+ *   ② 粘进去的内容用完就清掉，不留在输入框里等下次刷新；
+ *   ③ 绑定与解绑都要确认——换号等于换了她对外说话的那张嘴。
+ */
+export const connectionPanel = {
+  mount(ctx: PanelCtx) {
+    const { ui, root } = ctx
+    const card = ui.sheet({
+      title: '连接与凭据',
+      en: 'connection & credentials',
+      desc: '她登录在哪个号上、凭据齐不齐；换号就粘贴新的，校验通过才写盘。',
+    })
+    root.appendChild(card.el)
+    const msg = ui.msgline()
+    const box = ui.h('div')
+    card.body.append(box, msg)
+    const guard = createDirtyGuard(ui)
+
+    async function refresh() {
+      if (!(await guard.guard())) return
+      const res = await call<any>(ctx, msg, 'get', {})
+      if (!res) return
+      box.replaceChildren()
+
+      const live = res.live ?? {}
+      const state = ui.h('div')
+      state.style.margin = '8px 0'
+      const who = live.isLogin
+        ? ui.pill(`已登录：${live.uname ?? '（没名字）'} · mid ${live.mid ?? '?'}`, 'on')
+        : ui.pill(`未登录：${live.error ?? 'B 站说没登录'}`, 'off')
+      state.append(who)
+      box.append(state)
+
+      const keys = ui.h('div')
+      keys.style.margin = '6px 0'
+      const pres = res.present ?? {}
+      const cell = (label: string, k: any) =>
+        `${label} ${k?.present ? `已填（${k.fp}）` : '缺'}`
+      keys.textContent = `凭据：${cell('SESSDATA', pres.sessdata)}　${cell('bili_jct', pres.bili_jct)}　${cell('buvid3', pres.buvid3)}`
+        + (res.credentialsFile ? `　文件：${res.credentialsFile}` : '')
+      box.append(keys)
+
+      const last = res.lastKnown
+      if (last?.boundAt) {
+        const l = ui.h('div')
+        l.style.margin = '6px 0'
+        l.textContent = `上次绑定：${last.uname || '（无名）'} · mid ${last.mid || '?'} · ${new Date(last.boundAt).toLocaleString()}`
+          + (last.verified ? '' : ' · 当时没验通过')
+          + (res.stale && last.mid && String(live.mid ?? '') !== String(last.mid) ? '　⚠ 现在探到的号与上次不一样' : '')
+        box.append(l)
+      }
+
+      const paste = ui.textarea({ placeholder: '从浏览器 DevTools 复制整段 Cookie 粘这里（含 SESSDATA / bili_jct / buvid3）', rows: 4 })
+      guard.watch(paste, () => '')
+      const allowBad = ui.checkbox('没验通也保存（网络不通时才用，会写明未校验）', { checked: false })
+      const acts = ui.actions()
+
+      const bind = actionButton(ctx, ui, msg, '🔌 校验并绑定这个号', 'bindCookie', undefined, {
+        variant: 'primary',
+        argsFactory: () => [{ cookie: paste.value, confirm: true, allowUnverified: allowBad.checked }],
+        confirm: {
+          title: '换成这个号？',
+          body: '我们会先拿这段 cookie 问一次 B 站「这是谁」，验不过就一个字节都不写。\n通过后她的登录身份会换掉，文件里其他键不动，旧值会留一份带时间戳的备份。',
+          warn: '换号会让她的对外发言看起来"像变了个人"；历史记忆与日记不会跟着搬过来。',
+          ok: '校验并替换',
+        },
+        // 用完就清：粘贴过的 cookie 不该继续躺在输入框里
+        after: (r: any) => {
+          paste.value = ''
+          allowBad.setChecked(false)
+          if (r && r.ok !== false) {
+            const id = r.identity ?? {}
+            msg.textContent = `已绑定：${id.uname || '（无名）'} · mid ${id.mid || '?'}${r.changedAccount ? '（换了号）' : ''}${r.verified ? '' : '（未校验）'}`
+          }
+          return refresh()
+        },
+      })
+      const unbind = actionButton(ctx, ui, msg, '🔓 解绑（退回未登录）', 'unbindCookie', undefined, {
+        variant: 'danger',
+        argsFactory: () => [{ confirm: true }],
+        confirm: {
+          title: '确认解绑？',
+          body: '她会退回未登录身份：读侧受限，写侧被闸门挡下，直到你重新绑定。',
+          warn: '这一步不删文件里的其他键，只去掉那三项。',
+          danger: true,
+          ok: '确认解绑',
+        },
+        after: refresh,
+      })
+      acts.append(bind, unbind)
+      box.append(ui.field('新 cookie', paste), allowBad.el, acts)
+    }
+
+    const reload = actionButton(ctx, ui, msg, '↻ 重新体检', 'get', undefined, { after: refresh })
+    box.append(reload)
+    void refresh()
+  },
+}
+
 export default {
   panels: {
     inbox: inboxPanel,
     'drafts-queue': draftsQueuePanel,
     preferences: preferencesPanel,
     'gate-policy': gatePolicyPanel,
+    connection: connectionPanel,
   },
 }

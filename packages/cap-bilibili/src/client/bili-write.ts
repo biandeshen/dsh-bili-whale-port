@@ -10,6 +10,8 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
+// 与读侧同一个凭据解析（两边都只在函数体里用对方，模块顶层不互相取值，循环引用是安全的）。
+import { loadCredentials as parseShared } from './bili-read.ts'
 import { plainOutbound } from '../platform/plain-outbound.mjs'
 import { guardedFetch as defaultFetch } from '../platform/traffic.mjs'
 
@@ -95,17 +97,16 @@ function baseHeaders(cred: BiliCredentials): Record<string, string> {
   return { 'user-agent': UA, referer: 'https://www.bilibili.com/', cookie: cookieHeader(cred) }
 }
 
+/**
+ * 写侧凭据：**与读侧同一个解析**（原来这里是 JSON-only 的第二份实现）。
+ *
+ * 为什么必须一份：同一个 `.env` 文件喂着读与写两条路。读侧上一批修成两种格式都认之后，
+ * 写侧还只认 JSON，于是部署家那份 `NAME=value` 的 .env 在写侧读出来是三个空串——
+ * 她带着空 cookie 去发评论，平台回 -101/412，页面看起来像"被风控了"。
+ * 一个文件两套解析，就是留给未来的第二个 bug；这里只留一条。
+ */
 export function loadCredentials(credentialsFile: string): BiliCredentials {
-  try {
-    const raw = JSON.parse(fs.readFileSync(credentialsFile, 'utf8'))
-    return {
-      sessdata: String(raw.sessdata ?? ''),
-      bili_jct: String(raw.bili_jct ?? ''),
-      buvid3: String(raw.buvid3 ?? ''),
-    }
-  } catch {
-    return { sessdata: '', bili_jct: '', buvid3: '' }
-  }
+  return parseShared(credentialsFile)
 }
 
 /** 取视频信息（aid / 标题 / UP）——点赞与收藏都要用。 */

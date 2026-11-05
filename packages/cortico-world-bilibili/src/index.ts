@@ -104,17 +104,16 @@ const definition = {
   label: '小鱼 · B站账号',
   defaults: () => ({ enabled: true }),
   create(ctx: { botDir?: string; dataDir?: string; secret?: (n: string) => string }) {
-    // 部署目录才是她的家；凭据从部署的 .env 取（ctx.secret）。
+    // 部署目录才是她的家；凭据文件就是 `<botDir>/.env`。
+    // **不再在这里取一次快照塞进 writeContext**：那样 `bili_jct`/`buvid3` 被写死成空串，
+    // 而且主人换完 cookie 必须重启才生效——评论/点赞/收藏这类写会带着不完整的旧凭据出去。
+    // 现在交给能力包用 liveCredentials 现读（env 优先，与宿主 secretReader 同一条优先级）。
     const botDir = ctx.botDir ?? defaultHomeDir()
-    const cred = ctx.secret ? safeSecret(ctx, 'BILI_SESSDATA') : ''
     const w = createBiliWorld({
       homeDir: botDir,
       // 宿主给的是部署级 data/（多个扩展共用）；本包在自己的子目录里，不跟别人抢文件。
       dataDir: path.join(ctx.dataDir ?? path.join(botDir, 'data'), 'bilibili'),
       credentialsFile: path.join(botDir, '.env'),
-      writeContext: {
-        cred: { sessdata: cred, bili_jct: '', buvid3: '' },
-      },
       assetsDir: path.join(botDir, 'data', 'media', 'assets'),
       bgmDir: path.join(botDir, 'data', 'media', 'bgm'),
     } as never)
