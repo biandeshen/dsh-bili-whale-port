@@ -161,7 +161,7 @@ test('cap-state-rhythm：契约校验通过，鱼缸面板 setFields / wakeNow /
     log: () => {},
   })
 
-  const tankPanel = cap.panels()[0]
+  const tankPanel = cap.panels().find((p) => p.id === 'tank')
   assert.equal(tankPanel.id, 'tank')
 
   // 1. setFields：主人在面板直接拉滑块改场值（不受 0.15 预算限制，且自动 clamp）

@@ -84,7 +84,8 @@ test('能力包：快照给三态，setSleepWindow 可改可关，关掉这件�
   }))
   fs.writeFileSync(lifeFile, JSON.stringify({ day: '2026-11-04', actionsToday: 0, lastActionAt: Date.now(), mode: 'auto' }))
   const cap = createStateRhythmCapability({ fieldsFile, lifeFile })
-  const panel = cap.panels()[0]
+  // 按 id 找，不按位置：新增一个面板就会把位置挪掉（「她的一天」排在鱼缸前面）
+  const panel = cap.panels().find((p) => p.id === 'tank')
 
   const snap = panel.methods.getSnapshot.invoke()
   assert.ok(['awake', 'resting', 'asleep'].includes(snap.rest), `快照要给三态，实得 ${JSON.stringify(snap.rest)}`)

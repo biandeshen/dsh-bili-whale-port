@@ -245,7 +245,17 @@ export function mountPanel(handlers = {}, opts = {}) {
         }
         return el
       },
-      stat: (item) => ui.h('div', 'stat', `${item.k}: ${item.v}`),
+      // 宿主形状（data.ts 的 stat）：.stat 里是 .k 与 .v 两个子节点，中间没有冒号。
+      // 早先这里写成 `${k}: ${v}`，测试就会去匹配一个页面上根本不存在的分隔符。
+      stat: (item) => {
+        const el = ui.h('div', item.accent ? 'stat accent' : 'stat')
+        el.append(ui.h('div', 'k', String(item.k)))
+        const v = ui.h('div', 'v')
+        if (item.v && typeof item.v === 'object') v.append(item.v)
+        else v.textContent = String(item.v ?? '')
+        el.append(v)
+        return el
+      },
       statgrid: (items) => {
         const el = ui.h('div', 'statgrid')
         for (const i of items ?? []) el.append(ui.stat(i))
@@ -328,13 +338,20 @@ export function mountPanel(handlers = {}, opts = {}) {
     return walk(root)
   }
   harness.msgLine = () => {
-    const walk = (el) => {
-      if (el.className && String(el.className).startsWith('msgline')) return el
-      for (const c of el.children) { const hit = walk(c); if (hit) return hit }
-      return null
-    }
-    return walk(root)
+    const all = harness.msgLines()
+    return all.length ? all[all.length - 1] : null
   }
+  /** 一个面板里可能有多条消息行（面板自己的 msg + 嵌在区块里的提示），全给出去自己挑。 */
+  harness.msgLines = () => {
+    const out = []
+    const walk = (el) => {
+      if (el.className && String(el.className).split(' ').includes('msgline')) out.push(el)
+      for (const c of el.children) walk(c)
+    }
+    walk(root)
+    return out
+  }
+  harness.msgText = () => harness.msgLines().map((m) => m.textContent).join('\n')
   harness.textareas = () => {
     const out = []
     const walk = (el) => { if (el.tagName === 'TEXTAREA') out.push(el); for (const c of el.children) walk(c) }

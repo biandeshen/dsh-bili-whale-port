@@ -159,6 +159,52 @@ export function createStateRhythmCapability(
 ): XiaoyuCapability<StateRhythmConfig> {
   let hostRef: CapabilityHost | null = null
 
+  /**
+   * 「戳醒她」的唯一实现：鱼缸与「她的一天」两个入口都走这里，不各写一份。
+   *
+   * 回执（story-1 欠的那条）：主人戳完必须看得见**做了什么、还没看到什么**，
+   * 而不是一个含糊的"已发送"。「她这一轮会说什么」不在这里承诺——那是下一拍的事，
+   * 承诺了就是编。
+   */
+  const wakeNowImpl = (params: { hint?: string }) => {
+    const nowMs = Date.now()
+    const life = loadLifeFile(opts.lifeFile)
+    const nextLife: LifeMemoryView = {
+      ...life,
+      lastCheckAt: nowMs,
+      nextCheckAt: nowMs,
+      mode: life.mode === 'force_sleep' ? 'auto' : (life.mode ?? 'auto'),
+    }
+    saveLifeFile(opts.lifeFile, nextLife)
+    const hint = typeof params?.hint === 'string' ? params.hint.trim() : ''
+    const delivered = Boolean(hostRef)
+    if (hostRef) {
+      hostRef.pushEvent({
+        type: 'persona.wake_now',
+        source: 'owner-panel',
+        text: hint ? `主人戳了戳你让你醒来：「${hint}」` : '主人戳了戳你，让你现在醒来活动一轮。',
+        atMs: nowMs,
+        meta: { hint },
+      })
+    }
+    opts.onWakeTriggered?.({ reason: 'owner_wake_now', hint, atMs: nowMs })
+    return {
+      ok: true,
+      triggeredAt: nowMs,
+      hint,
+      mode: nextLife.mode,
+      delivered,
+      receipt: {
+        did: [
+          '把作息账的「下一拍」拨到了现在',
+          delivered ? '叫她的话已经投进她的收件队列' : '没接上宿主：只改了账，这一拍她不会被叫醒',
+          hint ? `带上了你的叮嘱：「${hint}」` : '没带叮嘱',
+        ],
+        notYet: '她这一轮具体做了什么，要等下一拍落进因果账；刷新这一页就看得见。',
+      },
+    }
+  }
+
   return {
     id: 'state-rhythm',
     title: '状态与作息',
@@ -292,6 +338,79 @@ export function createStateRhythmCapability(
     panels() {
       return [
         {
+          /**
+           * 「她的一天」——主人打开控制台第一眼要看的那页（2026-11-05 设计交接 story-5）。
+           *
+           * 它回答三个问题：**她现在在干什么、今天干过什么、这一页之外我还该知道什么**。
+           * 数据全从既有的作息账与因果账来，不新建存储，也不在这里做控制：
+           * 拉滑块、戳醒、改睡眠时段都在「鱼缸」，改节奏在「配置」——
+           * 同一件事有两个入口就是两个真相。因此这一页是**只读**的，
+           * 我们不为了满足"每页都得有个写按钮"而挂一个假的写。
+           */
+          id: 'day',
+          title: '她的一天',
+          description: '她现在在干什么、今天做过什么、下一拍什么时候。要动手去「鱼缸」，改节奏去「配置」',
+          methods: {
+            get: {
+              name: 'get',
+              verb: 'GET',
+              summary: '读取她当前状态三态、今天做过的件数、下一拍时间，以及今天的因果账流水',
+              writable: false,
+              invoke() {
+                const now = Date.now()
+                const state = loadState(opts.fieldsFile)
+                const life = loadLifeFile(opts.lifeFile)
+                const rest = restState(life, state.fields, now, opts.timezone)
+                const nextCheckAt = Number(life.nextCheckAt ?? 0)
+                // 因果账按本地日切今天：不能用 toISOString()，那是 UTC，
+                // 东八区凌晨 0–8 点会算到昨天上去（本仓测试踩过同一条）。
+                const today = dayKey(now)
+                const chain = Array.isArray(state.chain) ? [...state.chain] : []
+                const ofToday = chain
+                  .filter((c: any) => {
+                    const ms = Number(c.atMs ?? Date.parse(String(c.timestamp ?? '')))
+                    return Number.isFinite(ms) && dayKey(ms) === today
+                  })
+                  .reverse()
+                return {
+                  ok: true,
+                  rest,
+                  asleep: rest === 'asleep',
+                  resting: rest === 'resting',
+                  mode: life.mode ?? 'auto',
+                  sleepWindow: life.sleepWindow === undefined ? DEFAULT_SLEEP_WINDOW : life.sleepWindow,
+                  mood: readMood(state),
+                  fields: state.fields,
+                  described: describeState(state),
+                  today: {
+                    day: today,
+                    actionsToday: Number(life.actionsToday ?? 0),
+                    lastActionAt: Number(life.lastActionAt ?? 0),
+                    lastCheckAt: Number(life.lastCheckAt ?? 0),
+                    nextCheckAt,
+                    // 下一拍还有几分钟：负数/0 表示"账上写的时刻已经过了"，前端要说人话
+                    nextInMin: nextCheckAt > 0 ? Math.round((nextCheckAt - now) / 60_000) : null,
+                  },
+                  events: ofToday.slice(0, 40),
+                  eventCountToday: ofToday.length,
+                  eventCountAll: chain.length,
+                }
+              },
+            },
+            wakeNow: {
+              name: 'wakeNow',
+              verb: 'POST',
+              summary: '立即戳醒她马上跑一轮，并回一份"这一拍做了什么/还没看到什么"的回执',
+              writable: true,
+              invoke(params: { hint?: string }) {
+                // 与鱼缸那一颗是同一个实现；这一页有个写入口也是宿主合同的要求
+                //（能力包合同校验会拒掉纯只读面板）。
+                return wakeNowImpl(params)
+              },
+            },
+          },
+        },
+        {
           id: 'tank',
           title: '鱼缸与作息遥控台',
           description: '查看与直接滑块调节 6 条场值、心情、一键戳醒立即跑一轮、切换作息模式',
@@ -353,27 +472,8 @@ export function createStateRhythmCapability(
               summary: '立即戳醒她马上跑一轮（可附带主人叮嘱）',
               writable: true,
               invoke(params: { hint?: string }) {
-                const nowMs = Date.now()
-                const life = loadLifeFile(opts.lifeFile)
-                const nextLife: LifeMemoryView = {
-                  ...life,
-                  lastCheckAt: nowMs,
-                  nextCheckAt: nowMs,
-                  mode: life.mode === 'force_sleep' ? 'auto' : (life.mode ?? 'auto'),
-                }
-                saveLifeFile(opts.lifeFile, nextLife)
-                const hint = typeof params?.hint === 'string' ? params.hint.trim() : ''
-                if (hostRef) {
-                  hostRef.pushEvent({
-                    type: 'persona.wake_now',
-                    source: 'owner-panel',
-                    text: hint ? `主人戳了戳你让你醒来：「${hint}」` : '主人戳了戳你，让你现在醒来活动一轮。',
-                    atMs: nowMs,
-                    meta: { hint },
-                  })
-                }
-                opts.onWakeTriggered?.({ reason: 'owner_wake_now', hint, atMs: nowMs })
-                return { ok: true, triggeredAt: nowMs, hint, mode: nextLife.mode }
+                // 「她的一天」也有这一颗按钮：两处入口，**一份实现**（下面 wakeNowImpl）。
+                return wakeNowImpl(params)
               },
             },
             setMode: {
