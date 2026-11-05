@@ -20,6 +20,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
+// 她的工作区仓库就是记忆与日记共用的那份历史；搬走测试卡要在这份历史里留一笔，
+// 所以复用能力包里那套 git（自己拼 git 命令等于第二套真相）。
+import { WorkspaceGit, AUTHOR_OPERATOR } from '../packages/cap-memory/src/workspace-git.ts'
 
 const GO = process.argv.includes('--go')
 const HOME = path.join(process.env.USERPROFILE || os.homedir(), '.xiaoyu-home', 'xiaoyu')
@@ -94,11 +97,83 @@ function purgeDiary(name, rel) {
   } else report.push([name, `将摘掉 ${removed} 个小节`, removed])
 }
 
+/**
+ * 搬走「已作废」层里那些验收标记的测试卡（2026-11-05 主人点头：「测试卡搬走吧」）。
+ *
+ * 为什么 F5 清了还要再动一次：那轮是按"作废留痕"处理的，卡片还在账上——
+ * 主人每次开记忆面板选「全部」就看见「验收标记-acc…」这种字样，我们的脚印赖在她家里。
+ *
+ * 两条硬边界：
+ *   · **只动 `memo/voided/`**。active / core / archived 里如果出现匹配标记，只报警不搬——
+ *     那说明这条还在她的日常里，是不是要搬得逐条看，不由脚本替她决定。
+ *   · 搬 = 移到 `data/quarantine/acceptance-memo-<时间戳>/` 并写 manifest，
+ *     然后在同一份 workspace git 里留一次提交。**能搬回来，也能查搬走了什么**。
+ */
+function quarantineMemoCards() {
+  /**
+   * 记忆卡专用的一层额外识别：**联调 / 浏览器直发**那两条塞入验证。
+   *
+   * 它们不含"验收标记"字样，所以 MARK 抓不到，第一轮搬完还剩在 voided 里。
+   * 锚在正文开头（`^` + /m）而不是全文搜：她有一条真实反思写着
+   * 「记忆大扫除第二轮：又清了 2 条联调/浏览器直发测试塞入的假记忆」——
+   * 那句话里也出现这两个词，但她那条是**她记的事**，不能跟着一起搬走。
+   */
+  const MEMO_MARK = (text) => MARK.test(text) || /^(?:联调验证\d*|浏览器直发验证|直发验证\d*)[：:]/m.test(text)
+  const memoRoot = path.join(HOME, 'workspace', 'memo')
+  const qdir = path.join(HOME, 'data', 'quarantine', `acceptance-memo-${STAMP}`)
+  const moved = []
+  const outside = []
+  for (const tier of ['core', 'active', 'archived', 'voided']) {
+    const dir = path.join(memoRoot, tier)
+    if (!fs.existsSync(dir)) continue
+    for (const f of fs.readdirSync(dir)) {
+      if (!f.endsWith('.md')) continue
+      const p = path.join(dir, f)
+      let text = ''
+      try { text = fs.readFileSync(p, 'utf8') } catch { continue }
+      if (!MEMO_MARK(text)) continue
+      if (tier !== 'voided') { outside.push(`${tier}/${f}`); continue }
+      moved.push({ p, f, text })
+    }
+  }
+
+  if (outside.length) {
+    report.push(['记忆·警报', `${outside.length} 条匹配标记但不在已作废层：${outside.slice(0, 3).join('、')}${outside.length > 3 ? ' …' : ''} —— 不搬，需要逐条看`, 0])
+  }
+  if (!moved.length) {
+    report.push(['记忆·测试卡', GO ? '已作废层里没有匹配标记的卡（上一轮已搬走）' : '已作废层里没有匹配标记的卡', 0])
+    return
+  }
+  if (!GO) { report.push(['记忆·测试卡', `将搬走 ${moved.length} 条（只动 voided）`, moved.length]); return }
+
+  fs.mkdirSync(qdir, { recursive: true })
+  const manifest = []
+  for (const { p, f, text } of moved) {
+    const to = path.join(qdir, f)
+    fs.copyFileSync(p, to)
+    fs.rmSync(p)
+    manifest.push({ file: f, bytes: Buffer.byteLength(text, 'utf8'), quarantinePath: path.relative(HOME, to), at: new Date().toISOString() })
+  }
+  fs.writeFileSync(path.join(qdir, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf8')
+
+  // 在同一份工作区仓库留一次提交：日记与记忆共享历史，搬走这件事也得在历史里看得见
+  let committed = '未接 git（文件已搬走）'
+  try {
+    const git = new WorkspaceGit(path.join(HOME, 'workspace'))
+    const sha = git.commitAll(`memory: 搬走 ${moved.length} 条验收标记的测试卡（备份 data/quarantine/acceptance-memo-${STAMP}）`, AUTHOR_OPERATOR)
+    committed = sha ? `已提交 ${String(sha).slice(0, 8)}` : '无改动可提交'
+  } catch (e) {
+    committed = `提交失败（文件已搬走，可手动补提交）：${String(e && e.message ? e.message : e).slice(0, 80)}`
+  }
+  report.push(['记忆·测试卡', `搬走 ${moved.length} 条 → data/quarantine/acceptance-memo-${STAMP}；${committed}`, moved.length])
+}
+
 purgeChain()
 purgeJsonl('判断卡', 'data/persona/judgment.jsonl')
 purgeJsonl('意见箱', 'data/persona/feedback.jsonl')
 purgeDiary('公开日记', 'workspace/diary/public.md')
 purgeDiary('私人日记', 'workspace/diary/private.md')
+quarantineMemoCards()
 
 let total = 0
 for (const [what, how, n] of report) {
