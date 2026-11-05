@@ -219,16 +219,35 @@ export class XiaoYuPersona implements CorticoPersonaShape {
     const what = String((tick as any).activityLabel ?? '') || String(tick.kind ?? '')
     const activity = String((tick as any).activityType ?? '')
     /**
-     * 2026-11-06：线上她连着两次说"想动，但这会儿没有凭据可动——主人睡了，没指令、没新素材"。
-     * **7 类日常活动一条凭据都不需要**（只有往 B 站发东西才要登录态与复核）。
-     * 这个误解是文本没写清造成的，所以在这儿写死两句：
-     *   ① 这一类不需要凭据；
-     *   ② 做完用 life_do 记一笔，没做就别记（真实活动只认实际执行回执）。
+     * 2026-11-06 两处文本修的坑（都是线上她的原话点出来的）：
+     *
+     * ① "想动，但这会儿没有凭据可动——主人睡了，没指令、没新素材"：
+     *    7 类日常活动一条凭据都不需要（只有往 B 站发东西才要登录态与复核）。
+     *    这个误解是文本没写清造成的。
+     *
+     * ② "想动——跳了几下活动筋骨。这一拍没有新素材、没有指令，待着"：
+     *    「动」只到一句话，没落到手上——说了跳几下，然后没有任何工具调用，
+     *    什么都没留下。所以这里按类给**具体的落手处**（全是她已有的工具，不发明新机制）：
+     *      · reflect → diary_write（私人本）/ memory_remember
+     *      · explore / consume → 翻推荐看一条（读侧），看完 mood_apply 带 note
+     *      · social → memory_recall 翻旧记录
+     *      · create / exercise / rest → 做完 diary_write 一句
+     *    出口清单是提示词，不是硬拦：她可以不听，但"动"字之后不能再空手。
      */
+    const outlets: Record<string, string> = {
+      reflect: '比如 diary_write 在私人本写一小段，或 memory_remember 存一条',
+      explore: '比如去推荐里翻一条没看过的（读侧命令），看完 mood_apply 带一句 note',
+      consume: '比如看一条轻松的（读侧命令），看完 mood_apply 带一句 note',
+      social: '比如 memory_recall 翻翻以前的记录',
+      create: '比如 diary_write 写几句碎碎念',
+      exercise: '比如活动完在私人本 diary_write 记一句',
+      rest: '比如歇完在私人本 diary_write 记一句',
+    }
+    const outlet = outlets[activity]
     return `${head}她想动（${what}）：${tick.reason}；冲动强度 ${Number(tick.urge).toFixed(2)}。`
-      + `就去做这一类${activity ? `（${activity}）` : ''}——这些日常小事不需要任何凭据，`
-      + '不用等指令、新素材或登录；真做完了用 life_do 记一笔（附一句具体做了什么），'
-      + '没做就别记：账上的假数比空着更坏。'
+      + `就去做这一类${activity ? `（${activity}）` : ''}${outlet ? `，落手处：${outlet}` : ''}。`
+      + '这些日常小事不需要任何凭据，不用等指令、新素材或登录；'
+      + '做完再用 life_do 记一笔（附一句具体做了什么），没做就别记：账上的假数比空着更坏。'
   }
 
   /** 框架在 declareSessions 之前把 CoreApi 交过来；这里留作能力包注入 CoreApi 的通道。 */
