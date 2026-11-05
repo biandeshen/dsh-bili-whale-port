@@ -127,8 +127,7 @@ export interface PipelineStats {
 
 export interface AnalyzeResult {
   ok: boolean
-  source: { file: string; durationSec: number | null }
-  /** 生效的管道参数（回执里带出来，方便对账"为什么只出了 3 张"） */
+  source: { file: string; durationSec: number | null }  /** 生效的管道参数（回执里带出来，方便对账"为什么只出了 3 张"） */
   tuning: {
     width: number
     height: number
@@ -142,6 +141,11 @@ export interface AnalyzeResult {
   }
   stats: PipelineStats
   sheets: SheetOut[]
+  /**
+   * SUBS 字幕条版（同一批帧，只留底部字幕带竖着拼的一条）。
+   * 出不来时是 undefined——它是锦上添花，不该让整趟分析失败。
+   */
+  subtitleStrip?: { file?: string; times: number[]; w: number; h: number; bytes: number }
   dropped: number
   truncated: boolean
   /** 截断原因：timeout / maxSheets / ffmpeg-exit / 解码错误 */

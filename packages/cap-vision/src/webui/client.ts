@@ -69,7 +69,7 @@ export const visionPanel = {
       // ── 最近看过什么
       const runsHead = ui.section('最近看过什么', '只记她真正跑过的：成没成、几张图、多久、为什么截断。'
         + '画面统计那一列是"为什么只留这几帧"——变化弱、太重复、切得少，都看得出来。')
-      const table = ui.table({ head: ['什么时候', '看的什么', '结果', '摊成', '画面统计', '重跑'] })
+      const table = ui.table({ head: ['什么时候', '看的什么', '结果', '摊成', '画面统计', '字幕条', '重跑'] })
       for (const r of (res.runs ?? []).slice(0, 10)) {
         const when = new Date(r.at).toLocaleString()
         const what = String(r.file ?? '').split(/[\\/]/).pop() ?? ''
@@ -79,6 +79,8 @@ export const visionPanel = {
         const statText = st
           ? `切 ${st.cuts} · 重复丢 ${st.dupSkipped} · 最强 ${st.scoreMax} · 每秒 ${st.motionPerSec}`
           : '（这遍没记）'
+        // SUBS 字幕条版：同一批帧的另一张拼法（讲解型视频信息全在字幕里）
+        const stripText = r.subtitleStrip ? `字幕条 ${r.subtitleStrip.rows} 条` : '（无字幕条）'
         // 重跑：调完预算立刻用同一条片子再跑一遍（本地文件，不联网）
         const rerun = actionButton(ctx, ui, msg, '↻ 重跑', 'rerun', undefined, {
           argsFactory: () => [{ file: r.file, confirm: true }],
@@ -90,9 +92,9 @@ export const visionPanel = {
           },
           after: refresh,
         })
-        table.addRow([when, what, result, `${r.sheets} 张 / 留 ${r.kept} 帧`, statText, rerun])
+        table.addRow([when, what, result, `${r.sheets} 张 / 留 ${r.kept} 帧`, statText, stripText, rerun])
       }
-      if (!(res.runs ?? []).length) table.addRow(['—', '她还没用眼睛看过片子', '—', '—', '—', '—'])
+      if (!(res.runs ?? []).length) table.addRow(['—', '她还没用眼睛看过片子', '—', '—', '—', '—', '—'])
       runsHead.append(table.el)
       box.append(runsHead)
 

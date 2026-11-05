@@ -22,6 +22,7 @@ import type {
 } from '../../persona-core/src/capability.ts'
 import { analyzeVideo, tuneForDuration, type AnalyzeResult, type OfflineOptions } from './frame-pipeline.ts'
 import { resolveFfmpeg, type FfmpegResolved } from './ffmpeg.ts'
+import { buildSubtitleStrip } from './subtitle-strip.ts'
 
 export { analyzeVideo, tuneForDuration, resolveFfmpeg }
 export type { AnalyzeResult, OfflineOptions, FfmpegResolved }
@@ -132,6 +133,8 @@ export function createVisionCapability(opts: VisionCapabilityOptions): XiaoyuCap
   const configFile = path.join(root, 'config.json')
   const runsFile = path.join(root, 'runs.json')
   const now = opts.now ?? (() => new Date())
+  /** 宿主句柄（start 时交来）；字幕条那一步要记日志时用。 */
+  let hostRef: CapabilityHost | null = null
 
   function readConfig(): VisionConfig {
     try {
@@ -245,6 +248,10 @@ export function createVisionCapability(opts: VisionCapabilityOptions): XiaoyuCap
           marks: r.stats.marks ?? 0,
           floors: r.stats.floors ?? 0,
         },
+        // SUBS 字幕条版出没出（同一批帧的另一张拼法）
+        ...((r as any).subtitleStrip
+          ? { subtitleStrip: { file: (r as any).subtitleStrip.file ?? '', rows: (r as any).subtitleStrip.times?.length ?? 0 } }
+          : {}),
       })
       return r
     }
@@ -271,6 +278,43 @@ export function createVisionCapability(opts: VisionCapabilityOptions): XiaoyuCap
       timeoutMs: Math.round((input.timeoutSec ?? cfg.timeoutSec) * 1000),
       outDir: sheetsDir,
     })
+
+    /**
+     * SUBS 字幕条版：用**同一批帧**再拼一条"只留底部字幕带"的长图。
+     *
+     * 为什么值得多花一趟：她看的素材里有一大类是讲解型视频——信息全在字幕里，
+     * 全画幅九宫格会把字幕压到看不清（2026-10-14 实测：只留字幕带，9 条字幕能全读清）。
+     * 帧不重抽（重抽要多解一遍码，那是最贵的一步）。
+     *
+     * **出不来就算了**：画面版还在，不因为它把整趟分析带崩。
+     */
+    if (r.ok && r.sheets.length) {
+      try {
+        const times = r.sheets.flatMap((s) => (s.frames ?? []).map((f) => f.t)).slice(0, 9)
+        const strip = await buildSubtitleStrip({
+          file,
+          times,
+          ffmpegPath: ff.path,
+          outDir: sheetsDir,
+          nameHint: path.basename(file, path.extname(file)),
+        })
+        if (strip.ok && strip.png) {
+          ;(r as any).subtitleStrip = {
+            ...(strip.file ? { file: strip.file } : {}),
+            times: strip.times,
+            w: 1280,
+            h: 0,
+            bytes: strip.png.length,
+          }
+        } else {
+          // 出不来也要**留痕**：否则"字幕条一直没出现"这件事没人知道原因
+          hostRef?.log('warn', `字幕条版没生成：${strip.error ?? '未知原因'}`)
+        }
+      } catch (e: any) {
+        // 字幕条失败不许影响画面版（它是可选的一张图）
+        hostRef?.log('warn', `字幕条版生成失败（不影响画面版）：${String(e?.message ?? e)}`)
+      }
+    }
     return record(r)
   }
 
@@ -301,6 +345,10 @@ export function createVisionCapability(opts: VisionCapabilityOptions): XiaoyuCap
         return {
           ok: true,
           images: r.sheets.map((s) => ({ file: s.file, fromSec: s.fromSec, toSec: s.toSec, why: s.why, frames: s.frames })),
+          // SUBS 字幕条版（同一批帧的另一张拼法）：讲解型视频信息全在字幕里
+          ...((r as any).subtitleStrip
+            ? { subtitleStrip: { file: (r as any).subtitleStrip.file ?? '', rows: (r as any).subtitleStrip.times?.length ?? 0 } }
+            : {}),
           stats: r.stats,
           tuning: r.tuning,
           truncated: r.truncated,
@@ -403,6 +451,10 @@ export function createVisionCapability(opts: VisionCapabilityOptions): XiaoyuCap
         return {
           ok: true,
           sheets: r.sheets.map((s) => ({ file: s.file, fromSec: s.fromSec, toSec: s.toSec, why: s.why, frames: s.frames })),
+          // SUBS 字幕条版也一起重跑了（同一批帧的另一张拼法）
+          ...((r as any).subtitleStrip
+            ? { subtitleStrip: { file: (r as any).subtitleStrip.file ?? '', rows: (r as any).subtitleStrip.times?.length ?? 0 } }
+            : {}),
           stats: r.stats,
           truncated: r.truncated,
           ...(r.truncatedBy ? { truncatedBy: r.truncatedBy } : {}),
@@ -456,6 +508,7 @@ export function createVisionCapability(opts: VisionCapabilityOptions): XiaoyuCap
     tools: () => tools,
     panels: () => panels,
     async start(host: CapabilityHost) {
+      hostRef = host
       fs.mkdirSync(sheetsDir, { recursive: true })
       const ff = ffmpeg()
       host.log(
