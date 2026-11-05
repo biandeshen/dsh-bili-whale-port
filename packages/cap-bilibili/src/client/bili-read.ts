@@ -239,6 +239,8 @@ export interface FeedResult {
   source: 'popular' | 'ranking' | 'dynamic' | 'none'
   items: FeedVideoItem[]
   error?: string
+  /** 失效源的账（f-340915）：有源挂了才带，全好时不占字段 */
+  sourceFails?: Array<{ source: string; why: string }>
 }
 
 /**
@@ -254,10 +256,19 @@ export async function fetchFeed(ctx: BiliReadContext, opts: { count?: number } =
     { source: 'ranking', url: 'https://api.bilibili.com/x/web-interface/ranking/v2?rid=0&type=all', pick: (j) => j.data?.list ?? [] },
     { source: 'dynamic', url: 'https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/all?type=video&page=1', pick: (j) => (j.data?.items ?? []).map((x: any) => x.modules?.module_dynamic?.major?.archive).filter(Boolean) },
   ]
+  /**
+   * 每个源的死活都要留在回执里（f-340915：2026-11-02 三源同时失效，候选池 140→31，
+   * 而降级只出现在 stdout 第一行——她差点把"池子突然变小"当成"今天就是这么少"，
+   * 为"是不是我太挑"自我怀疑了一整晚。**环境的病要当成环境报**，不许静默吞掉。
+   */
+  const sourceFails: Array<{ source: string; why: string }> = []
   for (const src of sources) {
     try {
       const j = await (await fetch(src.url, { headers: H })).json()
-      if (j.code !== 0) continue
+      if (j.code !== 0) {
+        sourceFails.push({ source: src.source, why: `code=${j.code} ${j.message ?? ''}`.trim() })
+        continue
+      }
       const raw = src.pick(j) ?? []
       const items: FeedVideoItem[] = raw.slice(0, count).map((it: any) => ({
         bvid: String(it.bvid ?? ''),
@@ -266,10 +277,20 @@ export async function fetchFeed(ctx: BiliReadContext, opts: { count?: number } =
         up: String(it.owner?.name ?? it.author?.name ?? ''),
         uri: it.uri,
       })).filter((x) => /^BV[0-9A-Za-z]{10}$/.test(x.bvid))
-      if (items.length) return { ok: true, source: src.source, items }
-    } catch { /* 本源失效，试下一个 */ }
+      if (items.length) return { ok: true, source: src.source, items, ...(sourceFails.length ? { sourceFails } : {}) }
+      sourceFails.push({ source: src.source, why: '取到了但 0 条（源本身没数据）' })
+    } catch (e: any) {
+      // 区分"网络层失败"（fetch failed ≈ 风控/代理/断网，该等）与"没数据"（该当它坏了）
+      sourceFails.push({ source: src.source, why: `fetch failed：${String(e?.message ?? e).slice(0, 80)}` })
+    }
   }
-  return { ok: false, source: 'none', items: [], error: '三个源都取不到（热门/排行/动态）' }
+  return {
+    ok: false,
+    source: 'none',
+    items: [],
+    error: `三个源都取不到（热门/排行/动态）：${sourceFails.map((f) => `${f.source}(${f.why})`).join('；')}`,
+    sourceFails,
+  }
 }
 
 export interface SearchResult {

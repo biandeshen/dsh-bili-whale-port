@@ -424,8 +424,10 @@ export function createBilibiliCapability(
         // ── 浏览与看片感知工具 ──
         {
           name: 'bili_feed',
-          summary: '刷 B 站首页推荐流（自动套用看片偏好与时长标注）',
-          description: '按统一看片偏好（like/dislike/keywords/minDurationSec）获取推荐视频候选。',
+          summary: '主动去池子里捞新东西：刷 B 站推荐流（只读，不发表任何内容）',
+          description: '这就是你"主动拉取候选池"的按钮——没有指令也可以自己调：拉回来的候选照常走你的判断流程，'
+            + '套用统一看片偏好（like/dislike/keywords/minDurationSec）。源失效时回执带 sourceFails（每源列原因），'
+            + '分得清"被风控拦"（code=N，该等）和"源真没数据"（0 条）。',
           parameters: {
             type: 'object',
             properties: {
@@ -458,7 +460,8 @@ export function createBilibiliCapability(
               if (marks.length) it.title = `${it.title}  [${marks.join('；')}]`
             }
             const hitStats = store.recordFeedScan(hits, r.items.length)
-            return { ok: true, source: r.source, prefs, items: r.items, hits: hitStats }
+            // 源死活必须留在回执里（f-340915）：她要能分清"我不喜欢"和"池子被环境砍了"
+            return { ok: true, source: r.source, prefs, items: r.items, hits: hitStats, ...(r.sourceFails?.length ? { sourceFails: r.sourceFails } : {}) }
           },
         },
         {
