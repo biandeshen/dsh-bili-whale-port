@@ -451,3 +451,87 @@ export function replyFeedbackByOwner(
   }
   return { ok: true, id: target, resolved: shouldResolve, ownerReply: ownerReply ?? null }
 }
+
+// ── 复盘式练习取题器（f-5ab4ec #2，2026-11-06 批复采纳）───────────────────────
+
+export interface RevisitCandidate {
+  id: string
+  /** 立卡时间与隔了多久（天）——隔得越久，越能说明尺子是不是还成立 */
+  at: string
+  ageDays: number
+  scope: string
+  stance: string
+  /** 原结论与原理由：重判时对着它看，不许凭印象改 */
+  verdict: string
+  reason: string
+  tokens: string[]
+  bvid: string
+  status: string
+  /** 为什么值得重判：unclear / 最早未裁决 / 同主题结论打架 */
+  why: string
+  /** 同主题打架时给出对面那张卡的 id 与结论（没有则为空数组） */
+  conflicts: Array<{ id: string; verdict: string }>
+}
+
+/**
+ * 取"值得重判"的题（只读；**不写任何账**——改判是她的日记里的一句"复盘改判"，
+ * 结案与否是主人在面板上的事，这里都不碰）。
+ *
+ * 优先级（f-5ab4ec 的原话："把历史判断卡翻出来假设性重判，看结论变没变"）：
+ *   ① 同主题结论打架（tokens 有交集且 verdict 不同）——尺子自相矛盾，最值得看；
+ *   ② 结论含糊（unclear）——当时没判下来，样本看得多了该能判了；
+ *   ③ 立卡最早还没被采纳/驳回的 proposed——挂得越久越像没校准过的尺子。
+ * 每类内部按"隔得最久"排，重判的意义就在于时间给了新证据。
+ */
+export function pickRevisitCandidates(
+  file: string,
+  opts: { count?: number; query?: string } = {},
+): { ok: true; count: number; items: RevisitCandidate[]; note: string } {
+  const all = listJudgments(file, { status: 'all', limit: Number.MAX_SAFE_INTEGER })
+    .items.filter((j) => j.status !== 'retired')
+  const query = String(opts?.query ?? '').trim()
+  const pool = query
+    ? all.filter((j) => String(j.reason).includes(query) || String(j.bvid ?? '') === query || (j.tokens ?? []).some((t) => String(t).includes(query)))
+    : all
+  const now = Date.now()
+  const ageOf = (j: { at: string }): number => {
+    const ms = Date.parse(String(j.at ?? ''))
+    return Number.isFinite(ms) ? Math.max(0, (now - ms) / 86400_000) : 0
+  }
+  const norm = (s: string): string => String(s ?? '').toLowerCase().trim()
+
+  // ① 同主题结论打架：tokens 交集非空且 verdict 不同（都还是活账）
+  const conflicts = new Map<string, RevisitCandidate['conflicts']>()
+  for (const a of pool) {
+    const hits: Array<{ id: string; verdict: string }> = []
+    for (const b of pool) {
+      if (a.id === b.id || a.verdict === b.verdict) continue
+      const overlap = (a.tokens ?? []).some((t) => (b.tokens ?? []).some((u) => norm(t) && norm(t) === norm(u)))
+      if (overlap) hits.push({ id: b.id, verdict: b.verdict })
+    }
+    if (hits.length) conflicts.set(a.id, hits)
+  }
+
+  const scored: Array<RevisitCandidate & { pri: number }> = pool.map((j) => {
+    const cf = conflicts.get(j.id) ?? []
+    const why = cf.length ? '同主题结论打架' : j.verdict === 'unclear' ? '当时没判下来（unclear）' : j.status === 'proposed' ? '立了卡还没被采纳或驳回' : ''
+    const pri = cf.length ? 0 : j.verdict === 'unclear' ? 1 : j.status === 'proposed' ? 2 : 3
+    return {
+      id: j.id, at: j.at, ageDays: Math.round(ageOf(j) * 10) / 10, scope: j.scope, stance: j.stance,
+      verdict: j.verdict, reason: j.reason, tokens: [...(j.tokens ?? [])], bvid: String(j.bvid ?? ''),
+      status: j.status, why, conflicts: cf, pri,
+    }
+  }).filter((x) => x.pri < 3)
+
+  const count = Math.max(1, Math.min(10, Number(opts?.count ?? 3)))
+  scored.sort((a, b) => a.pri - b.pri || b.ageDays - a.ageDays)
+  const items = scored.slice(0, count).map(({ pri, ...rest }) => rest)
+  return {
+    ok: true,
+    count: items.length,
+    items,
+    note: items.length
+      ? '重判不看分数看结论：过一遍四把尺子，结论变没变都要留痕（日记里写一句"复盘改判/复盘维持"）。本工具不动任何账。'
+      : '没有值得重判的题（没有 unclear、没有挂着的 proposed、没有同主题打架）。这是好状态：尺子在正常工作。',
+  }
+}

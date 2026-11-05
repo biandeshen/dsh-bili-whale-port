@@ -53,9 +53,9 @@ test('cortico-bot-xiaoyu：一拖三转接坞汇聚 3 个对内能力包 + 存�
   assert.equal(hub.panels().length, 6)
   assert.ok(hub.panels().some((p) => p.id === 'feedback-triage'), '意见箱要有独立的分诊台')
   assert.ok(hub.panels().some((p) => p.id === 'day'), '「她的一天」要挂上她的 persona 页')
-  // 工具数以 hub.tools() 实测为准，不在注释里写死（加一个 life_do 就过期了）。
-  // 现在 12 个：mood_read / mood_apply / life_do / 记忆 3 / 日记 4 / judgment 2 / 看画面 1。
-  assert.equal(hub.tools().length, 12)
+  // 工具数以 hub.tools() 实测为准，不在注释里写死（加一个 judgment_revisit 就过期了）。
+  // 现在 13 个：mood_read / mood_apply / life_do / 记忆 3 / 日记 4 / judgment 3 / 意见箱 1 / 看画面 1。
+  assert.equal(hub.tools().length, 13)
   assert.ok(hub.tools().some((t) => t.name === 'life_do'), '她做过的事要能自己记一笔（记账层原来是断的）')
   assert.ok(hub.tools().some((t) => t.name === 'see_video'), '看画面得真的挂在她这一轮能用的工具里')
   assert.ok(hub.panels().some((p) => p.id === 'vision'), '操作台也要有 vision 一块')

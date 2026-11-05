@@ -30,6 +30,7 @@ const TOOL_SUMMARIES: Record<string, string> = {
   diary_write: '向公开本或私人本写入一个小节',
   judgment_read: '读她的审美判断卡独立视图',
   judgment_write: '新增一张结构化判断卡',
+  judgment_revisit: '复盘式练习取题器：把旧判断卡翻出来假设性重判（只读，不写任何账）',
   feedback_submit: '向主人的意见箱提交一条反馈',
   see_video: '看一段本地视频：只留画面真的变了的几帧，拼成几张图',
 }

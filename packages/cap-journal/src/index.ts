@@ -42,6 +42,7 @@ import {
   listJudgments,
   appendJudgment,
   upsertJudgmentByOwner,
+  pickRevisitCandidates,
   listFeedback,
   appendFeedback,
   replyFeedbackByOwner,
@@ -396,6 +397,24 @@ export function createJournalCapability(
           },
           execute(args: { status?: string; verdict?: JudgmentVerdict; query?: string }) {
             return listJudgments(opts.judgmentFile, args)
+          },
+        },
+        {
+          name: 'judgment_revisit',
+          summary: '复盘式练习取题器：把旧判断卡翻出来假设性重判（只读，不写任何账）',
+          description:
+            '按"值得重判"的优先级取题：给结论含糊（unclear）的、立卡最早还没被主人采纳或驳回的、'
+            + '以及同主题出现两张以上结论打架的。每题带原结论/原理由/隔了多久——'
+            + '你重新过一遍四把尺子，看结论变没变；**变了就在日记里写一句"复盘改判"**，本工具不替你写。',
+          parameters: {
+            type: 'object',
+            properties: {
+              count: { type: 'integer', description: '取几题（默认 3，上限 10）' },
+              query: { type: 'string', description: '只看含该关键词或 BV 号的卡' },
+            },
+          },
+          execute(args: { count?: number; query?: string }) {
+            return pickRevisitCandidates(opts.judgmentFile, args)
           },
         },
         {

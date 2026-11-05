@@ -11,7 +11,8 @@ import {
   type CorticoToolDef,
   type CorticoPanelDecl,
 } from '../../cortico-adapter/src/index.ts'
-import { createBilibiliCapability, type BilibiliCapabilityOptions } from '../../cap-bilibili/src/index.ts'
+import { createBilibiliCapability, type BilibiliCapabilityOptions, type BilibiliReadHandlers } from '../../cap-bilibili/src/index.ts'
+import { listJudgments } from '../../cap-journal/src/judgments-feedback.ts'
 
 /** Cortico WorldHost 的最小形状（只用 pushEvent 与日志）。 */
 export interface CorticoWorldHost {
@@ -30,12 +31,35 @@ export interface BiliWorldOptions extends BilibiliCapabilityOptions {
   /** World id；默认 bili-account（沿用现有配置键，零迁移） */
   id?: string
   label?: string
+  /**
+   * 她的判断卡来源（只读，f-aa12d0 ③ 好奇心队列）。
+   * 转接头层允许认识 journal：bilibili 能力包不反向依赖 journal，
+   * 由这里把 `listJudgments` 适配成 tokens 供给 `bili_seek.fromJudgment`。
+   */
+  judgmentFile?: string
 }
 
 export function createBiliWorld(opts: BiliWorldOptions) {
   const id = opts.id ?? 'bili-account'
   const label = opts.label ?? '小鱼 · B站账号'
-  const cap = createBilibiliCapability(opts)
+  // 判断卡 → tokens 供给（f-aa12d0 ③）：只读适配。转接头层认识 journal 合法
+  // （bilibili 能力包本身不反向依赖 journal）。读不到就当没有——bili_seek 的
+  // fromJudgment 分支会自己说"没接上"，keyword 直捞不受影响。
+  let keptJudgmentTokens: BilibiliReadHandlers['keptJudgmentTokens'] | undefined
+  if (opts.judgmentFile) {
+    keptJudgmentTokens = () => {
+      try {
+        return listJudgments(opts.judgmentFile!, { verdict: 'keep', limit: 200 })
+          .items.map((j) => ({ tokens: [...(j.tokens ?? [])], status: j.status, verdict: j.verdict }))
+      } catch {
+        return []
+      }
+    }
+  }
+  const cap = createBilibiliCapability({
+    ...opts,
+    ...(keptJudgmentTokens ? { readHandlers: { ...(opts.readHandlers ?? {}), keptJudgmentTokens } } : {}),
+  })
 
   const world = {
     id,

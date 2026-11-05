@@ -67,6 +67,7 @@ const TOOL_SUMMARIES: Record<string, string> = {
   bili_watch: '看一条视频的画面：下载 + 变化分留帧 + 拼成几张图',
   bili_subtitles: '读取视频的 CC 或 AI 字幕全文',
   bili_search: '按关键词搜索 B 站视频',
+  bili_seek: '按她自己的口味定向捞片（只读）：keyword 直搜，或从判「收」的判断卡里取同类',
   bili_comments: '查看视频评论区与楼中楼',
   bili_whois: '查询 B 站用户与 UP 主信息',
   bili_dynamic_recent: '核对账号最近已发布的动态',
@@ -116,6 +117,9 @@ const definition = {
       credentialsFile: path.join(botDir, '.env'),
       assetsDir: path.join(botDir, 'data', 'media', 'assets'),
       bgmDir: path.join(botDir, 'data', 'media', 'bgm'),
+      // 她的判断卡（f-aa12d0 ③）：bili_seek.fromJudgment 按「收」过的 tokens 定向捞。
+      // 路径与 bot 转接头那份 judgmentFile 同一处账（<botDir>/data/persona/judgment.jsonl）。
+      judgmentFile: path.join(botDir, 'data', 'persona', 'judgment.jsonl'),
     } as never)
     return w.world
   },

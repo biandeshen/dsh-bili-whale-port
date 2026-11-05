@@ -71,6 +71,29 @@
       "tags": []
     },
     {
+      "name": "bili_seek",
+      "summary": "按她自己的口味定向捞片（只读）：keyword 直搜，或从判「收」的判断卡里取同类",
+      "description": "好奇心队列的取件口。fromJudgment=true 从判过「收」的判断卡 tokens 定向捞；结果套用与 feed 相同的偏好标注，不发表任何内容。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "keyword": {
+            "type": "string",
+            "title": "关键词"
+          },
+          "fromJudgment": {
+            "type": "boolean",
+            "title": "从判断卡取同类"
+          },
+          "count": {
+            "type": "integer",
+            "title": "取几条"
+          }
+        }
+      },
+      "tags": []
+    },
+    {
       "name": "bili_comments",
       "summary": "查看视频评论区与楼中楼",
       "description": "查看视频评论区与楼中楼",

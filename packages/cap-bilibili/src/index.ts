@@ -119,6 +119,12 @@ export interface BilibiliReadHandlers {
   thread?: (bvid: string, rootRpid: string) => Promise<unknown>
   whois?: (mid: string) => Promise<unknown>
   dynamicRecent?: (date?: string) => Promise<unknown>
+  /**
+   * 她的判断卡（只读注入，f-aa12d0 ③）：bili_seek 的 fromJudgment 要按「收」过的
+   * tokens 定向捞。判断卡是 journal 能力包的账，本包**不反向依赖 journal**——
+   * 由组装方（转接头）把 listJudgments 传进来；没传就不出现 fromJudgment 分支。
+   */
+  keptJudgmentTokens?: () => Array<{ tokens: string[]; status: string; verdict: string }>
 }
 
 export interface BilibiliCapabilityOptions {
@@ -462,6 +468,65 @@ export function createBilibiliCapability(
             const hitStats = store.recordFeedScan(hits, r.items.length)
             // 源死活必须留在回执里（f-340915）：她要能分清"我不喜欢"和"池子被环境砍了"
             return { ok: true, source: r.source, prefs, items: r.items, hits: hitStats, ...(r.sourceFails?.length ? { sourceFails: r.sourceFails } : {}) }
+          },
+        },
+        {
+          name: 'bili_seek',
+          summary: '按她自己的口味定向捞片（只读；好奇心队列的取件口）',
+          description:
+            '两种捞法：keyword 直接搜；fromJudgment=true 则从她自己判过「收」的判断卡里取主题词定向捞——'
+            + '"我上次收了钢琴曲，再给我来几个同类的"就是这条。结果套用与 bili_feed 相同的偏好标注'
+            + '（时长门槛 / 屏蔽词命中都标在标题上），不会发表任何内容。',
+          parameters: {
+            type: 'object',
+            properties: {
+              keyword: { type: 'string', description: '想看的类型或关键词（如 无人声 / 钢琴曲）' },
+              fromJudgment: { type: 'boolean', description: 'true=忽略 keyword，从判「收」的判断卡 tokens 里定向捞' },
+              count: { type: 'integer', description: '取几条（默认 10，上限 20）' },
+            },
+          },
+          async execute(args: { keyword?: string; fromJudgment?: boolean; count?: number }) {
+            const prefs = store.readPrefs()
+            const count = Math.max(1, Math.min(20, Number(args?.count ?? 10)))
+            // 定向捞：从她的判断卡取「收」过的 tokens（f-aa12d0 ③ 好奇心队列的取件口）
+            let keyword = String(args?.keyword ?? '').trim()
+            let seekedFrom: string[] = []
+            if (args?.fromJudgment === true) {
+              if (typeof opts.readHandlers?.keptJudgmentTokens !== 'function') {
+                return { ok: false, error: 'fromJudgment 需要判断卡来源（组装方没接 journal），请直接给 keyword' }
+              }
+              const keeps = opts.readHandlers.keptJudgmentTokens()
+                .filter((j) => j.verdict === 'keep' && (j.status === 'adopted' || j.status === 'proposed'))
+              const seen = new Set<string>()
+              for (const j of keeps) for (const t of j.tokens ?? []) {
+                const w = String(t).trim()
+                if (w.length >= 2 && w.length <= 12 && !seen.has(w)) { seen.add(w); seekedFrom.push(w) }
+              }
+              if (!seekedFrom.length) {
+                return { ok: false, error: '判断卡里还没有「收」过的主题词——先判几条，或者直接给 keyword 捞' }
+              }
+              keyword = seekedFrom[0]
+            }
+            if (!keyword) return { ok: false, error: '给 keyword，或传 fromJudgment:true 从你的判断卡里捞' }
+            const r = await searchVideos(readCtx, keyword)
+            if (!r.ok) return { ok: false, error: r.error, keyword, ...(seekedFrom.length ? { fromJudgmentTokens: seekedFrom } : {}) }
+            // 与 bili_feed 同口径的偏好标注：超标/命中都标出来，不静默塞进候选
+            const min = prefs.minDurationSec
+            const items = r.items.slice(0, count)
+            for (const it of items) {
+              const marks: string[] = []
+              if (min > 0 && it.durationSec > 0 && it.durationSec < min) marks.push(`短于${Math.round(min / 60)}分钟：跳过`)
+              const hitWord = prefs.dislike.find((w) => w && it.title.includes(w))
+              if (hitWord) marks.push(`命中屏蔽词「${hitWord}」`)
+              if (marks.length) it.title = `${it.title}  [${marks.join('；')}]`
+            }
+            return {
+              ok: true,
+              keyword,
+              ...(seekedFrom.length ? { fromJudgmentTokens: seekedFrom, note: `这次用的是「${seekedFrom[0]}」，想换别的同类就在 keyword 里直接写` } : {}),
+              prefs,
+              items,
+            }
           },
         },
         {

@@ -449,6 +449,71 @@ export function createMemoryCapability(
                 }
               },
             },
+            /**
+             * 活跃层自审（f-bb3847 #2「记忆只增不减」，2026-11-06 批复采纳）。
+             *
+             * 她的原话："活跃 45 条，核心里混着'看过什么视频''没让发什么草稿'，
+             * 过两周就不重要但还占检索位。建议每月翻一遍活跃记忆，过期的归档或作废。"
+             *
+             * 这一条是**只读建议器**（与 coreReview 同一立场）：指出活跃层里
+             *   1. 久未浮现的（accessCount=0 且过了 staleDays）；
+             *   2. 像流水账的（"看过 BV…" 这种一次性的经过，而不是提炼出的话）;
+             *   3. 与核心层同主题的（core 已经有一条讲同一件事，活跃这条是旧影子）。
+             * 处置（void / archive）是主人点、或她在批次 15 之后被明确允许时的动作；
+             * **本方法不自动动她的记忆**。
+             */
+            activeReview: {
+              name: 'activeReview',
+              verb: 'GET',
+              summary: '审阅活跃层：久未浮现 / 流水账 / 与核心同主题（只读建议，不动账）',
+              writable: false,
+              invoke(params: { staleDays?: number } = {}) {
+                const staleDays = Math.max(1, Number(params?.staleDays ?? 14))
+                const active = store.readAll({ tier: 'active' }).filter((c) => !c.voided)
+                const core = store.readAll({ tier: 'core' }).filter((c) => !c.voided)
+                const now = Date.now()
+                const topicOf = (c: any): string => {
+                  const bv = String(c.content ?? '').match(/BV[0-9A-Za-z]{10}/)?.[0]
+                  return bv ?? String(c.content ?? '').slice(0, 12).trim()
+                }
+                const coreTopics = new Set(core.map(topicOf).filter(Boolean))
+                const items = active.map((c) => {
+                  const created = Date.parse(String(c.createdAt ?? ''))
+                  const ageDays = Number.isFinite(created) ? Math.max(0, (now - created) / 86400_000) : 0
+                  const unused = Number(c.accessCount ?? 0) === 0
+                  const longUnused = unused && ageDays >= staleDays
+                  const looksLedger = /^看过|^收了|^看完|^dyn-|\d{4}-\d{2}-\d{2}/.test(String(c.content ?? '').trim())
+                  const topic = topicOf(c)
+                  const shadowOfCore = Boolean(topic) && coreTopics.has(topic)
+                  return {
+                    id: c.id,
+                    content: String(c.content ?? ''),
+                    accessCount: Number(c.accessCount ?? 0),
+                    ageDays: Math.round(ageDays * 10) / 10,
+                    longUnused,
+                    looksLedger,
+                    shadowOfCore,
+                    /** 建议动作：这页只给建议，动手走主人已有的 void / 移层控件 */
+                    suggest: longUnused && shadowOfCore ? '与核心同主题且久未浮现：候选退位（移 active→archive）'
+                      : shadowOfCore ? '与核心同主题：候选归档'
+                      : longUnused && looksLedger ? '流水账且久未浮现：候选作废（void，原文留痕）'
+                      : longUnused ? '久未浮现：先留着，下轮再看你会不会想起它'
+                      : '',
+                  }
+                })
+                return {
+                  ok: true,
+                  staleDays,
+                  total: items.length,
+                  counts: {
+                    longUnused: items.filter((i) => i.longUnused).length,
+                    looksLedger: items.filter((i) => i.looksLedger).length,
+                    shadowOfCore: items.filter((i) => i.shadowOfCore).length,
+                  },
+                  items,
+                }
+              },
+            },
             create: {
               name: 'create',
               verb: 'POST',

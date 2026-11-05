@@ -25,7 +25,8 @@ test('cap-bilibili & cortico-world-bilibili：四路收件箱指派、统一待�
   assert.deepEqual(world.panels().map((p) => p.id), [
     'inbox', 'drafts-queue', 'preferences', 'gate-policy', 'connection',
   ])
-  assert.equal(world.tools().length, 17, '加/减工具时这里必须一起改，并同步 ORIENTATION.md 的工具清单')
+  assert.equal(world.tools().length, 18, '加/减工具时这里必须一起改，并同步 ORIENTATION.md 的工具清单')
+  assert.ok(world.tools().some((t) => t.name === 'bili_seek'), '好奇心队列的取件口（f-aa12d0）要挂在工具面')
   assert.ok(world.tools().some((t) => t.name === 'bili_watch'), 'V-Now：看画面入口在包内，不再是 CLI')
 
   world.start({

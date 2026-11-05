@@ -112,6 +112,25 @@
       "tags": []
     },
     {
+      "name": "judgment_revisit",
+      "summary": "复盘式练习取题器：把旧判断卡翻出来假设性重判（只读，不写任何账）",
+      "description": "按值得重判的优先级取题：同主题结论打架 > 结论含糊 > 挂着的 proposed。每题带原结论/原理由/隔了多久；改判写进你自己的日记。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "取几题"
+          },
+          "query": {
+            "type": "string",
+            "title": "按关键词或 BV 过滤"
+          }
+        }
+      },
+      "tags": []
+    },
+    {
       "name": "judgment_write",
       "summary": "新增一张结构化判断卡",
       "description": "新增一张结构化判断卡",
