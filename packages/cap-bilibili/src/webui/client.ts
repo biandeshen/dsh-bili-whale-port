@@ -50,6 +50,24 @@ function agoText(iso: unknown): string {
   return `${Math.floor(s / 86400)} 天前`
 }
 
+/**
+ * 「还要等 12 分钟」/「到 07:00 恢复」。
+ *
+ * 配额满了只显示"已用满"等于让人干等：她要读什么、什么时候能再读，
+ * 主人得知道**等多久**。分钟级说分钟，跨小时说时钟点。
+ */
+function waitText(ms: unknown): string {
+  const n = Number(ms)
+  if (!Number.isFinite(n) || n <= 0) return '现在就能用'
+  if (n < 60_000) return `还要等 ${Math.max(1, Math.round(n / 1000))} 秒`
+  if (n < 3_600_000) return `还要等 ${Math.round(n / 60_000)} 分钟`
+  if (n < 86_400_000) {
+    const at = new Date(Date.now() + n).toTimeString().slice(0, 5)
+    return `到 ${at} 恢复（约 ${Math.round(n / 3_600_000)} 小时）`
+  }
+  return `约 ${Math.round(n / 86_400_000)} 天后恢复`
+}
+
 function queueDesc(it: any): string {
   return `#${it.id} · ${kindCn(it.kind)} · 写好 ${agoText(it.createdAt)} · 上次改动 ${agoText(it.updatedAt)} · 哈希 ${String(it.bodyHash).slice(0, 8)}`
 }
@@ -599,16 +617,17 @@ export const gatePolicyPanel = {
           ])
           rqHead.append(rqStat)
           if (rq.anyExhausted) {
-            rqHead.append(ui.pill('有账号已经用满读配额 —— 她读不到东西就是这个原因', 'on'))
+            rqHead.append(ui.pill(`有账号已经用满读配额 —— 她读不到东西就是这个原因；${waitText(rq.nextAvailableInMs)}`, 'on'))
           }
           if ((rq.accounts ?? []).length) {
-            const t = ui.table({ head: ['账号', '本小时已读', '今日已读', '今日余量'] })
+            const t = ui.table({ head: ['账号', '本小时已读', '今日已读', '今日余量', '恢复'] })
             for (const a of rq.accounts ?? []) {
               t.addRow([
                 String(a.account ?? '').slice(0, 12) + '…',
                 `${a.usedHour ?? 0}/${a.hourLimit ?? '—'}`,
                 `${a.usedDay ?? 0}/${a.dayLimit ?? '—'}`,
                 String(a.leftDay ?? 0),
+                a.exhausted ? waitText(a.resetsInMs) : '—',
               ])
             }
             rqHead.append(t.el)

@@ -48,6 +48,18 @@ export interface ReadQuotaAccount {
   leftDay: number
   /** 是否已经用满（用满就是"我读不到东西了"的原因） */
   exhausted: boolean
+  /**
+   * 什么时候恢复（毫秒时间戳；0 = 已经恢复或不适用）。
+   *
+   * 护栏的窗口口径：小时计数在 `now - hourAt >= 1h` 时清零，
+   * 日计数在跨日（sv-SE 日界）时清零。所以：
+   *   · 小时窗口满了 → hourAt + 1h 那一刻恢复；
+   *   · 日窗口满了 → 下一个本地日界的 00:00 恢复。
+   * 主人问"什么时候能读"时，答案就在这里——不给这个就等于让人干等。
+   */
+  resetsAt: number
+  /** 现在离恢复还有多久（毫秒；0 = 现在就能用） */
+  resetsInMs: number
 }
 
 export interface ReadQuotaReport {
@@ -60,6 +72,13 @@ export interface ReadQuotaReport {
   totalLeftDay: number
   /** 有没有任何账号用满了 */
   anyExhausted: boolean
+  /**
+   * 最早能读的时刻（毫秒；0 = 现在就能读）。
+   * 所有用满的账号里，**最早**恢复的那个——主人只要等这个点。
+   */
+  nextAvailableAt: number
+  /** 距那个点还有多久（毫秒；0 = 现在就能读） */
+  nextAvailableInMs: number
   /** 读不到护栏的账（没跑过 / 路径变了）——页面上要说清，别显示成"余量无限" */
   available: boolean
   note?: string
@@ -71,8 +90,15 @@ export function readGuardStateDir(env: NodeJS.ProcessEnv = process.env): string 
   return path.join(home, 'bili-ai')
 }
 
+/** 下一个本地日界（00:00）的时间戳——日窗口恢复点。 */
+function nextLocalMidnight(now: number): number {
+  const d = new Date(now)
+  d.setHours(24, 0, 0, 0)
+  return d.getTime()
+}
+
 /** 读护栏那份账（按账号分）。读不到就如实说读不到。 */
-export function readReadQuota(env: NodeJS.ProcessEnv = process.env): ReadQuotaReport {
+export function readReadQuota(env: NodeJS.ProcessEnv = process.env, now: number = Date.now()): ReadQuotaReport {
   const limits = { ...READ_QUOTA_DEFAULTS }
   const stateFile = path.join(readGuardStateDir(env), 'traffic-state.json')
 
@@ -94,6 +120,8 @@ export function readReadQuota(env: NodeJS.ProcessEnv = process.env): ReadQuotaRe
       totalDay: 0,
       totalLeftDay: limits.readDaily,
       anyExhausted: false,
+      nextAvailableAt: 0,
+      nextAvailableInMs: 0,
       available: false,
       note: `读不到读护栏的账（${stateFile}）：${String(e?.message ?? e)}`,
     }
@@ -108,6 +136,13 @@ export function readReadQuota(env: NodeJS.ProcessEnv = process.env): ReadQuotaRe
     const readDay = date === today ? Number(a?.readDay ?? 0) : 0
     const leftHour = Math.max(0, limits.readHourly - readHour)
     const leftDay = Math.max(0, limits.readDaily - readDay)
+    const hourFull = readHour >= limits.readHourly
+    const dayFull = readDay >= limits.readDaily
+    // 什么时候恢复：小时窗口在 hourAt+1h 清零；日窗口在下一个本地日界（00:00）清零。
+    // 两个都满了 → 取**更晚**的那个（真正能读要等两个窗口都过）。
+    const hourResetAt = hourFull ? Number(a?.hourAt ?? 0) + 3600_000 : 0
+    const dayResetAt = dayFull ? nextLocalMidnight(now) : 0
+    const resetsAt = dayResetAt && hourResetAt ? Math.max(hourResetAt, dayResetAt) : (hourResetAt || dayResetAt)
     accounts.push({
       account,
       date,
@@ -119,17 +154,24 @@ export function readReadQuota(env: NodeJS.ProcessEnv = process.env): ReadQuotaRe
       dayLimit: limits.readDaily,
       leftHour,
       leftDay,
-      exhausted: readHour >= limits.readHourly || readDay >= limits.readDaily,
+      exhausted: hourFull || dayFull,
+      resetsAt,
+      resetsInMs: resetsAt > now ? resetsAt - now : 0,
     })
   }
   accounts.sort((a, b) => a.usedDay - b.usedDay)
   const totalDay = accounts.reduce((n, a) => n + a.usedDay, 0)
+  // 最早能读：所有用满的账号里，恢复得最早的那个
+  const waiting = accounts.filter((a) => a.exhausted && a.resetsAt > 0)
+  const nextAvailableAt = waiting.length ? Math.min(...waiting.map((a) => a.resetsAt)) : 0
   return {
     limits,
     accounts,
     totalDay,
     totalLeftDay: Math.max(0, limits.readDaily - totalDay),
     anyExhausted: accounts.some((a) => a.exhausted),
+    nextAvailableAt,
+    nextAvailableInMs: nextAvailableAt > now ? nextAvailableAt - now : 0,
     available: true,
   }
 }

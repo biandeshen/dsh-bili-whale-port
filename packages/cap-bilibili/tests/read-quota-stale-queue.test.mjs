@@ -74,6 +74,61 @@ test('读侧余量：跨日的计数不算今天的（护栏跨日清零，口�
   assert.equal(old.usedHour, 0)
 })
 
+test('读侧余量：小时窗口用满 → 恢复时间 = hourAt + 1h（要等多久说清楚）', () => {
+  const today = new Date().toLocaleDateString('sv-SE')
+  const now = Date.now()
+  const hourAt = now - 10 * 60_000
+  const { env } = withGuardState({
+    hourly: { date: today, readHour: READ_QUOTA_DEFAULTS.readHourly, readDay: 10, hourAt },
+  })
+  const r = readReadQuota(env, now)
+  const a = r.accounts.find((x) => x.account === 'hourly')
+  assert.equal(a.exhausted, true)
+  assert.equal(a.resetsAt, hourAt + 3_600_000, '小时窗口从 hourAt 起算一小时')
+  assert.equal(a.resetsInMs, 50 * 60_000)
+  assert.equal(r.nextAvailableAt, a.resetsAt, '只有这一个账号用满，最早能读就是它')
+  assert.equal(r.nextAvailableInMs, 50 * 60_000)
+})
+
+test('读侧余量：日窗口用满 → 恢复时间 = 下一个本地日界 00:00', () => {
+  const today = new Date().toLocaleDateString('sv-SE')
+  const now = Date.now()
+  const d = new Date(now)
+  d.setHours(24, 0, 0, 0)
+  const { env } = withGuardState({
+    daily: { date: today, readHour: 1, readDay: READ_QUOTA_DEFAULTS.readDaily, hourAt: now },
+  })
+  const r = readReadQuota(env, now)
+  const a = r.accounts.find((x) => x.account === 'daily')
+  assert.equal(a.resetsAt, d.getTime())
+  assert.ok(a.resetsInMs > 0)
+  assert.equal(r.anyExhausted, true)
+})
+
+test('读侧余量：小时与日窗口都满 → 取更晚的那个（两个都过了才真能读）', () => {
+  const today = new Date().toLocaleDateString('sv-SE')
+  const now = Date.now()
+  const hourAt = now - 55 * 60_000 // 5 分钟后小时窗口就恢复
+  const d = new Date(now)
+  d.setHours(24, 0, 0, 0)
+  const { env } = withGuardState({
+    both: { date: today, readHour: READ_QUOTA_DEFAULTS.readHourly, readDay: READ_QUOTA_DEFAULTS.readDaily, hourAt },
+  })
+  const r = readReadQuota(env, now)
+  const a = r.accounts.find((x) => x.account === 'both')
+  assert.equal(a.resetsAt, Math.max(hourAt + 3_600_000, d.getTime()))
+  assert.equal(r.nextAvailableAt, a.resetsAt)
+})
+
+test('读侧余量：没人用满 → nextAvailableAt 是 0（现在就能读）', () => {
+  const today = new Date().toLocaleDateString('sv-SE')
+  const { env } = withGuardState({ ok: { date: today, readHour: 1, readDay: 2, hourAt: Date.now() } })
+  const r = readReadQuota(env, Date.now())
+  assert.equal(r.anyExhausted, false)
+  assert.equal(r.nextAvailableAt, 0)
+  assert.equal(r.nextAvailableInMs, 0)
+})
+
 test('读侧余量：读不到账要说读不到，不许显示成"余量无限"', () => {
   const home = tmp()
   const r = readReadQuota({ WHALE_HOME: home })
