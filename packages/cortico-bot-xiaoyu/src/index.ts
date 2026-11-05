@@ -33,6 +33,11 @@ export interface XiaoyuBotHubOptions {
   onRuleConverted?: (rule: { kind: 'dislike' | 'keyword' | 'exemptUp'; value: string }) => void
   /** 看画面：注入管道替身（测试）或指定 ffmpeg（宿主已有那份） */
   vision?: { analyze?: (file: string, opts: OfflineOptions) => Promise<unknown>; ffmpegPath?: string }
+  /**
+   * 记忆分层配置（现读，WebUI 改了立刻生效）。
+   * 以前这三个数只声明不生效——核心常驻上限是硬编码的 8。
+   */
+  memoryConfig?: () => { residentCap?: number; activeCap?: number; archiveThreshold?: number }
 }
 
 export interface XiaoyuBotHub {
@@ -73,6 +78,8 @@ export function createXiaoyuBotHub(opts: XiaoyuBotHubOptions): XiaoyuBotHub {
     memoRoot: path.join(workspaceDir, 'memo'),
     workspaceDir,
     getCurrentMood: () => loadState(fieldsFile).fields.mood,
+    // 记忆分层配置现读：主人在 WebUI 改完立刻生效，不用重启。
+    ...(opts.memoryConfig ? { getConfig: opts.memoryConfig } : {}),
   })
   const journalCap = createJournalCapability({
     publicDiaryFile: path.join(workspaceDir, 'diary', 'public.md'),

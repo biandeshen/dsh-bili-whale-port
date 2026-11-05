@@ -36,12 +36,12 @@ test('默认配置带着心跳间隔（不是只在页面上的空声明）', ()
   assert.equal(cfg.tick.intervalMinutes, XIAOYU_TICK_DEFAULTS.intervalMinutes)
 })
 
-test('bot 一次声明两组配置：上下文预算 + 心跳（宿主据此生成「配置」页签）', () => {
+test('bot 一次声明三组配置：上下文预算 + 心跳 + 记忆分层（宿主据此生成「配置」页签）', () => {
   const def = createXiaoyuBotDefinition(tmp())
   const parts = def.build({ config: def.defaults(), memoryDir: tmp() })
   const groups = parts.webUi?.configGroups ?? []
-  assert.equal(groups.length, 2, `应当声明两组，实得 ${groups.length}`)
-  assert.deepEqual(groups.map((g) => g.schema.title).sort(), ['上下文与交接', '心跳与作息'])
+  assert.equal(groups.length, 3, `应当声明三组，实得 ${groups.length}`)
+  assert.deepEqual(groups.map((g) => g.schema.title).sort(), ['上下文与交接', '心跳与作息', '记忆分层与遗忘'])
 })
 
 /**
@@ -52,12 +52,12 @@ test('bot 一次声明两组配置：上下文预算 + 心跳（宿主据此生�
  * 两组都用 'xiaoyu' 时，页面点开心跳的保存会被上下文组的 schema 拒掉 → 400，
  * 主人看到的是"这个旋钮改了没反应"。2026-11-05 真浏览器点出来的，不是推出来的。
  */
-test('两组配置各自有独立 id（撞车会串组校验，保存直接 400）', () => {
+test('各组配置各自有独立 id（撞车会串组校验，保存直接 400）', () => {
   const def = createXiaoyuBotDefinition(tmp())
   const parts = def.build({ config: def.defaults(), memoryDir: tmp() })
   const groups = parts.webUi?.configGroups ?? []
   const ids = groups.map((g) => g.id)
-  assert.deepEqual(ids, ['xiaoyu', 'xiaoyu-tick'])
+  assert.deepEqual(ids, ['xiaoyu', 'xiaoyu-tick', 'xiaoyu-memory'])
   assert.equal(new Set(ids).size, ids.length, `配置组 id 重复：${ids.join('、')}`)
   // 每组只管自己的键：跨组重名也说明会串
   const keys = groups.flatMap((g) => Object.keys(g.schema.properties))

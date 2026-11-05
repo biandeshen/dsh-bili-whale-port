@@ -659,6 +659,11 @@ export function createStateRhythmCapability(
         shouldAct: decision.act === true,
         reason: String(decision.reason ?? ''),
         kind: decision.act ? String(decision.kind ?? '') : null,
+        // 具体做的是哪一类活动（歇会儿 / 找点新鲜的 / 想想事…）与它的说法。
+        // 以前只有三个 kind，她日账里的理由读起来像机器人。
+        activityLabel: decision.act ? String((decision as any).activity?.label ?? '') : null,
+        activityType: decision.act ? String((decision as any).activity?.type ?? '') : null,
+        activityDesc: decision.act ? String((decision as any).activity?.description ?? '') : null,
         urge: Number(decision.urge ?? 0),
         actionsToday: Number(nextLife.actionsToday ?? 0),
         lastActionAt: Number(nextLife.lastActionAt ?? 0),

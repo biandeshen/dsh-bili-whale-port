@@ -14,6 +14,7 @@ import { CORE_DEFAULTS } from '../../persona-core/src/cortico-defaults.ts'
 import { XiaoYuPersona } from './cortico-persona.ts'
 import { contextStageConfigGroup, XIAOYU_CONTEXT_DEFAULTS } from './context-config.ts'
 import { tickConfigGroup, XIAOYU_TICK_DEFAULTS } from './tick-config.ts'
+import { memoryConfigGroup, XIAOYU_MEMORY_DEFAULTS } from './memory-config.ts'
 
 export const XIAOYU_MEMORY_NAME = 'MEMORY.md'
 
@@ -50,6 +51,8 @@ export function createXiaoyuBotDefinition(homeDir: string) {
       context: { ...CORE_DEFAULTS.context, ...XIAOYU_CONTEXT_DEFAULTS },
       // 心跳间隔：同样能在 WebUI 改，`tickDelayMs` 每拍现读。
       tick: { ...XIAOYU_TICK_DEFAULTS },
+      // 记忆分层：核心常驻上限 / 活跃容量 / 归档阈值（现读，改完即生效）。
+      memory: { ...XIAOYU_MEMORY_DEFAULTS },
     }),
     build(loaded: { config: Record<string, unknown>; memoryDir: string; rootDir?: string }) {
       // 部署目录才是她的家（数据、记忆、日记都在里面）；拿不到时才退回包默认家。
@@ -58,6 +61,8 @@ export function createXiaoyuBotDefinition(homeDir: string) {
       const tickCfg = loaded.config?.tick as { intervalMinutes?: number | null } | undefined
       // 上下文预算同理：每拍现读，WebUI 改完立刻生效。
       const ctxCfg = (loaded.config?.context ?? {}) as Partial<typeof XIAOYU_CONTEXT_DEFAULTS>
+      // 记忆分层配置：同样现读（核心常驻上限 / 活跃容量 / 归档阈值）。
+      const memCfg = (loaded.config?.memory ?? {}) as Partial<typeof XIAOYU_MEMORY_DEFAULTS>
       const context = () => ({
         maxTokens: Number(ctxCfg.maxTokens) > 0 ? Number(ctxCfg.maxTokens) : XIAOYU_CONTEXT_DEFAULTS.maxTokens,
         softRatio: Number(ctxCfg.softRatio) > 0 ? Number(ctxCfg.softRatio) : XIAOYU_CONTEXT_DEFAULTS.softRatio,
@@ -68,6 +73,14 @@ export function createXiaoyuBotDefinition(homeDir: string) {
         homeDir: home,
         rounds: { soft: 6, hard: 12 },
         context,
+        // 记忆分层配置现读：WebUI 改完立刻生效，不用重启。
+        memoryConfig: () => ({
+          residentCap: Number(memCfg.residentCap) > 0 ? Number(memCfg.residentCap) : XIAOYU_MEMORY_DEFAULTS.residentCap,
+          activeCap: Number(memCfg.activeCap) > 0 ? Number(memCfg.activeCap) : XIAOYU_MEMORY_DEFAULTS.activeCap,
+          archiveThreshold: Number(memCfg.archiveThreshold) > 0
+            ? Number(memCfg.archiveThreshold)
+            : XIAOYU_MEMORY_DEFAULTS.archiveThreshold,
+        }),
         tickDelayMs: () => {
           const m = tickCfg?.intervalMinutes
           return m === null || m === undefined || !Number.isFinite(Number(m)) || Number(m) <= 0
@@ -85,7 +98,11 @@ export function createXiaoyuBotDefinition(homeDir: string) {
           // 每组必须有**自己的 id**：宿主按 `body.group` 找组再按那一组的 schema 校验
           // （server.ts 的 POST /api/config）。两组共用 'xiaoyu' 时，心跳那一发会被
           // 当成上下文组校验 → 400「改不了」，2026-11-05 真浏览器点出来。
-          configGroups: [contextStageConfigGroup('xiaoyu'), tickConfigGroup('xiaoyu-tick')],
+          configGroups: [
+            contextStageConfigGroup('xiaoyu'),
+            tickConfigGroup('xiaoyu-tick'),
+            memoryConfigGroup('xiaoyu-memory'),
+          ],
           // 阶段预算与软预警线：控制台页上下文圈的分母与黄线。
           status: () => {
             const c = context()

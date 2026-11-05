@@ -45,6 +45,24 @@ export interface MemoryCapabilityOptions {
   getCurrentMood?: () => number
   /** 工作区根（memo 的上级，含 diary/）。给了就在这个根上建 git 仓：记忆与日记共享版本历史 */
   workspaceDir?: string
+  /**
+   * 现读记忆分层配置（核心常驻上限 / 活跃容量 / 归档阈值）。
+   *
+   * 为什么是"现读"而不是构造时传一次：主人在 WebUI「配置」页签改完要**立刻生效**，
+   * 不用重启（与心跳间隔同一条规矩）。
+   *
+   * 以前这三个数只在 `configSchema` 里**声明**过，**没有任何代码读它们**——
+   * 核心常驻上限是硬编码的 `slice(0, 8)`，归档阈值是函数默认参数 0.35。
+   * 空旋钮比没旋钮更坏：主人以为设了，其实改了没用。
+   */
+  getConfig?: () => Partial<MemoryCapabilityConfig>
+}
+
+/** 三个数的默认值（与 configSchema 里的 default 一致）。 */
+export const MEMORY_DEFAULTS: MemoryCapabilityConfig = {
+  residentCap: 8,
+  activeCap: 40,
+  archiveThreshold: 0.35,
 }
 
 export function createMemoryCapability(
@@ -52,6 +70,21 @@ export function createMemoryCapability(
 ): XiaoyuCapability<MemoryCapabilityConfig> & { readonly git: GitWorkspaceMemory['git'] | null; readonly store: MemoryCardStore } {
   const workspace = opts.workspaceDir ? new GitWorkspaceMemory({ memoryDir: opts.workspaceDir }) : null
   const store = new MemoryCardStore(opts.memoRoot, workspace?.git ?? undefined)
+
+  /** 现读配置（主人在 WebUI 改完立刻生效，不用重启）。 */
+  const cfg = (): MemoryCapabilityConfig => {
+    const raw = opts.getConfig?.() ?? {}
+    const num = (v: unknown, def: number, min: number, max: number) => {
+      const n = Number(v)
+      if (!Number.isFinite(n)) return def
+      return Math.max(min, Math.min(max, Math.round(n)))
+    }
+    return {
+      residentCap: num(raw.residentCap, MEMORY_DEFAULTS.residentCap, 1, 30),
+      activeCap: num(raw.activeCap, MEMORY_DEFAULTS.activeCap, 10, 200),
+      archiveThreshold: Math.max(0.05, Math.min(0.8, Number(raw.archiveThreshold ?? MEMORY_DEFAULTS.archiveThreshold) || MEMORY_DEFAULTS.archiveThreshold)),
+    }
+  }
 
   return {
     id: 'memory',
@@ -97,7 +130,11 @@ export function createMemoryCapability(
     },
 
     async contextSegments(ctx: TurnContext): Promise<readonly PrefixBlock[]> {
-      const coreCards = store.readAll({ tier: 'core' }).slice(0, 8)
+      // 核心常驻条数上限**真的生效**（以前是硬编码 slice(0, 8)，
+      // 配置里的 residentCap 改了也没人读——空旋钮比没旋钮更坏）。
+      const conf = cfg()
+      const allCore = store.readAll({ tier: 'core' })
+      const coreCards = allCore.slice(0, conf.residentCap)
       const activeCount = store.readAll({ tier: 'active' }).length
       const archivedCount = store.readAll({ tier: 'archived' }).length
       const coreLines = coreCards.map(
@@ -106,7 +143,11 @@ export function createMemoryCapability(
       const text = [
         coreLines.length ? `【核心常驻记忆（${coreLines.length} 条）】\n${coreLines.join('\n')}` : '【核心常驻记忆】（暂无）',
         `【记忆池规模】活跃 ${activeCount} 条 · 远期归档 ${archivedCount} 条（可用 memory_recall 主动翻阅）`,
-      ].join('\n')
+        // 超额的要说出来：主人能看见"她实际只带着 8 条，还有 14 条在 core 层躺着"
+        allCore.length > conf.residentCap
+          ? `【核心常驻超额】core 层共 ${allCore.length} 条，本轮只带前 ${conf.residentCap} 条（上限可在「配置」页改）；其余仍在常驻层，可手动退下来。`
+          : '',
+      ].filter(Boolean).join('\n')
       return [
         {
           title: '记忆摘要',
@@ -317,6 +358,18 @@ export function createMemoryCapability(
                 if (!params?.content || !String(params.content).trim()) {
                   return { ok: false, error: '记忆正文不能为空' }
                 }
+                // 直接放进核心常驻也要过上限（同一把尺子）
+                if ((params.tier ?? 'core') === 'core') {
+                  const conf = cfg()
+                  const coreCount = store.readAll({ tier: 'core' }).length
+                  if (coreCount >= conf.residentCap) {
+                    return {
+                      ok: false,
+                      error: `核心常驻已经有 ${coreCount} 条（上限 ${conf.residentCap} 条），`
+                        + '塞不进新的了。可以先进「近期活跃」，或者在「配置」页把上限调大。',
+                    }
+                  }
+                }
                 const card = store.create({
                   content: String(params.content).trim(),
                   tags: params.tags ?? [],
@@ -342,6 +395,20 @@ export function createMemoryCapability(
                 tier?: 'core' | 'active' | 'archived'
               }) {
                 if (!params?.id) return { ok: false, error: '缺少记忆 id' }
+                // 置进核心常驻要过上限：超了就说不许，别默默塞进去
+                // （core 层每轮都进她的上下文，多一条就是多一份注意力）。
+                if (params.tier === 'core') {
+                  const conf = cfg()
+                  const coreCount = store.readAll({ tier: 'core' }).length
+                  const already = store.findById(params.id)?.tier === 'core'
+                  if (!already && coreCount >= conf.residentCap) {
+                    return {
+                      ok: false,
+                      error: `核心常驻已经有 ${coreCount} 条（上限 ${conf.residentCap} 条），`
+                        + '要先退下来一条才放得进新的。上限可在「配置」页改。',
+                    }
+                  }
+                }
                 return store.update(params)
               },
             },

@@ -7,6 +7,7 @@
  */
 import type { AtomicFields } from './types.ts'
 import type { NPCStateName } from './npc-state-machine.ts'
+import { pickActivities, type LifeActivity } from './life-activities.ts'
 
 export interface LifeMemory {
   day: string            // 本地日期（sv-SE，跨天清零）
@@ -30,7 +31,7 @@ export type ActionKind = 'explore' | 'connect' | 'restless'
 
 export type ActionDecision =
   | { act: false; reason: 'tired' | 'gap' | 'cap' | 'content'; urge: number }
-  | { act: true; kind: ActionKind; reason: string; urge: number }
+  | { act: true; kind: ActionKind; reason: string; urge: number; activity?: LifeActivity }
 
 /** 两次行动之间的最小间隔。
  * 2026-10-30 主人裁决二：**事件驱动，不设人为间隔**。
@@ -107,13 +108,49 @@ export function decideAction(opts: {
   const urge = Math.max(explore, connect, restPressure) * (1 - tired)
   if (rng() >= urge * CHECK_PROB) return { act: false, reason: 'content', urge }
 
+  /**
+   * 动了，但**做的是什么**由 7 类生活活动表挑（`pickActivities`）。
+   *
+   * 为什么以前不接（审计 §"接上死代码"）：`life-activities.ts` 那张表
+   * （歇会儿 / 找点新鲜的 / 做点东西 / 想他 / 想想事 / 动一动 / 看点轻松的）
+   * 写得很细，却**从来没有生产调用者**——她每次动的理由只有三个词
+   * （explore / connect / restless），日账里读起来像机器人。
+   *
+   * 接法：**驱动决定大方向，活动表决定具体做什么**。
+   *   · 无聊（explore 高）→ 找点新鲜的 / 看点轻松的 / 做点东西 这一类里挑；
+   *   · 想他（connect 高）→ 想他 / 翻旧记录；
+   *   · 歇够了（restPressure 高）→ 动一动 / 歇会儿 / 想想事。
+   * 场值打分 + 抖动决定候选（同 `pickActivities` 的口径），**代码不替她决定做哪个**：
+   * 表里的 `description` 会随小时轮换，同一类活动不同时辰说法不同。
+   */
+  const candidates = pickActivities(f, { now, rng, k: 3 })
+  const byType = new Map(candidates.map((c) => [c.type, c]))
+  // 候选表没覆盖到的大方向，就退回该方向对应的那一类
+  const fallback: Record<'explore' | 'connect' | 'restless', LifeActivity['type']> = {
+    explore: 'explore',
+    connect: 'social',
+    restless: 'reflect',
+  }
+  const pick = (preferred: Array<LifeActivity['type']>, fb: LifeActivity['type']): LifeActivity => {
+    for (const t of preferred) {
+      const hit = byType.get(t)
+      if (hit) return hit
+    }
+    // 候选里没有就现算一个（描述照样按小时轮换）
+    const [fallbackPick] = pickActivities(f, { now, rng: () => 0, k: 7 }).filter((c) => c.type === fb)
+    return fallbackPick ?? { type: fb, label: fb, description: '' }
+  }
+
   if (explore >= connect && explore >= restPressure) {
-    return { act: true, kind: 'explore', reason: '有点无聊，想找点新鲜的看', urge }
+    const a = pick(['explore', 'consume', 'create'], fallback.explore)
+    return { act: true, kind: 'explore', reason: a.description || '有点无聊，想找点新鲜的看', urge, activity: a }
   }
   if (connect >= explore && connect >= restPressure) {
-    return { act: true, kind: 'connect', reason: '想他了，想知道他有没有来找过你', urge }
+    const a = pick(['social', 'reflect'], fallback.connect)
+    return { act: true, kind: 'connect', reason: a.description || '想他了，想知道他有没有来找过你', urge, activity: a }
   }
-  return { act: true, kind: 'restless', reason: '歇够了，想活动一下', urge }
+  const a = pick(['exercise', 'reflect', 'rest'], fallback.restless)
+  return { act: true, kind: 'restless', reason: a.description || '歇够了，想活动一下', urge, activity: a }
 }
 
 /** 行动会消耗的体力和带来的轻微兴奋（由 World 写进场值）。 */

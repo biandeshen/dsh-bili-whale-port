@@ -24,6 +24,13 @@ export interface DreamTickOptions {
   isAsleep: (lastActionAt: number | null | undefined, now: number, mode?: string, extra?: { sleepWindow?: { start: string; end: string } | null }) => boolean
   /** 结算执行者（MemoryCardStore.settle） */
   settle: (days?: number, archiveThreshold?: number) => unknown
+  /**
+   * 归档阈值（鲜活度低于它就沉入 archived）。默认 0.35。
+   *
+   * 以前这里是**写死的 0.35**，配置里的 `memory.archiveThreshold` 改了也没人读——
+   * 又一个空旋钮。现在由主人现读后传进来。
+   */
+  archiveThreshold?: number
   /** 结算→梦话翻译（MemoryCardStore.dreamDigest） */
   dreamDigest: (settleResult: unknown) => string | null
   /** 结算间隔毫秒（默认 30 分钟） */
@@ -100,7 +107,7 @@ export class DreamTick {
     }
     if (this.lastSettleDay === today) return { dreamed: false, digest: null }
 
-    const result = this.opts.settle(1, 0.35)
+    const result = this.opts.settle(1, this.opts.archiveThreshold ?? 0.35)
     this.lastSettleDay = today
     const archived = (result as any)?.archived?.length ?? 0
     const digest = this.opts.dreamDigest(result)

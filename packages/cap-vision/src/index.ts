@@ -89,6 +89,22 @@ export interface RunRecord {
   truncatedBy?: string
   error?: string
   files: string[]
+  /**
+   * 这一看的画面统计（以前只后端算、面板看不见）：
+   * 硬切点数、重复被丢掉的帧、最强/平均画面分、每秒画面变化量。
+   *
+   * 为什么要在面板上摊开：拼图"留几帧"是结果，
+   * **为什么只留这几帧**（变化弱？太重复？切得少？）才是主人调参数的依据。
+   */
+  stats?: {
+    cuts: number
+    dupSkipped: number
+    scoreMax: number
+    scoreAvg: number
+    motionPerSec: number
+    marks: number
+    floors: number
+  }
 }
 
 export interface VisionCapabilityOptions {
@@ -219,6 +235,16 @@ export function createVisionCapability(opts: VisionCapabilityOptions): XiaoyuCap
         ...(r.truncatedBy ? { truncatedBy: r.truncatedBy } : {}),
         ...(r.error ? { error: r.error } : {}),
         files: r.sheets.map((s) => s.file ?? '').filter(Boolean),
+        // 画面统计一并记下来（以前只后端算、面板看不见）
+        stats: {
+          cuts: r.stats.cuts ?? 0,
+          dupSkipped: r.stats.dupSkipped ?? 0,
+          scoreMax: r.stats.scoreMax ?? 0,
+          scoreAvg: r.stats.scoreAvg ?? 0,
+          motionPerSec: r.stats.motionPerSec ?? 0,
+          marks: r.stats.marks ?? 0,
+          floors: r.stats.floors ?? 0,
+        },
       })
       return r
     }
@@ -353,6 +379,34 @@ export function createVisionCapability(opts: VisionCapabilityOptions): XiaoyuCap
         const doomed = listSheetFiles().filter((s) => new Date(s.mtime).getTime() < cutoff)
         for (const s of doomed) { try { fs.rmSync(s.file) } catch { /* 正在被看就跳过 */ } }
         return { removed: doomed.length, keptDays: days, bytes: doomed.reduce((n, s) => n + s.bytes, 0) }
+      },
+    },
+    /**
+     * 重跑一遍某条片子（用当前的预算重新判帧出图）。
+     *
+     * 为什么要有：调完「留多少帧 / 多像算重复」之后，主人想立刻看到**同一条片子**
+     * 在新参数下变成什么样——以前只能等她自己再看一遍，或者手改文件重新跑。
+     * 现在点一下就行（走的是同一条 seeVideo 管道，不是另写一套）。
+     *
+     * 只重跑本地已有的视频文件，不碰网络。
+     */
+    rerun: {
+      name: 'rerun', verb: 'POST', writable: true,
+      summary: '用当前预算把某条片子重看一遍（本地文件，不联网）；跑完给新的拼图与画面统计',
+      invoke: async ({ file, confirm = false }: { file: string; confirm?: boolean } = {}) => {
+        if (!confirm) throw new Error('要 confirm:true 才动手（重跑会重新出图，占磁盘）')
+        const abs = String(file ?? '').trim()
+        if (!abs) return { ok: false, error: '没给要重跑的文件' }
+        if (!fs.existsSync(abs)) return { ok: false, error: `文件不在了：${abs}` }
+        const r = await seeVideo({ file: abs })
+        if (!r.ok) return { ok: false, error: r.error ?? '这一遍没跑成' }
+        return {
+          ok: true,
+          sheets: r.sheets.map((s) => ({ file: s.file, fromSec: s.fromSec, toSec: s.toSec, why: s.why, frames: s.frames })),
+          stats: r.stats,
+          truncated: r.truncated,
+          ...(r.truncatedBy ? { truncatedBy: r.truncatedBy } : {}),
+        }
       },
     },
   }

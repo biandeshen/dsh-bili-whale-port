@@ -43,8 +43,9 @@ test('bot 声明了 persona 配置组（宿主据此生成「配置」页签）'
   const def = createXiaoyuBotDefinition(tmp())
   const parts = def.build({ config: def.defaults(), memoryDir: tmp() })
   const groups = parts.webUi?.configGroups ?? []
-  // 2026-11-05 起是两组：上下文预算（这批）+ 心跳间隔（tick-config.test.mjs）
-  assert.equal(groups.length, 2, `应当声明两组配置，实得 ${groups.length}`)
+  // 2026-11-05 起是三组：上下文预算（这批）+ 心跳间隔（tick-config.test.mjs）
+  // + 记忆分层（memory-config.test.mjs）
+  assert.equal(groups.length, 3, `应当声明三组配置，实得 ${groups.length}`)
   assert.ok(groups.every((g) => g.owner === 'persona'), '都归 persona 所有')
   assert.equal(groups[0].id, 'xiaoyu', '上下文这一组仍叫 xiaoyu（老键位不动）')
 })

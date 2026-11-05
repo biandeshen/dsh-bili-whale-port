@@ -67,15 +67,32 @@ export const visionPanel = {
       box.append(head, save)
 
       // ── 最近看过什么
-      const runsHead = ui.section('最近看过什么', '只记她真正跑过的：成没成、几张图、多久、为什么截断。')
-      const table = ui.table({ head: ['什么时候', '看的什么', '结果', '摊成', '花了'] })
+      const runsHead = ui.section('最近看过什么', '只记她真正跑过的：成没成、几张图、多久、为什么截断。'
+        + '画面统计那一列是"为什么只留这几帧"——变化弱、太重复、切得少，都看得出来。')
+      const table = ui.table({ head: ['什么时候', '看的什么', '结果', '摊成', '画面统计', '重跑'] })
       for (const r of (res.runs ?? []).slice(0, 10)) {
         const when = new Date(r.at).toLocaleString()
         const what = String(r.file ?? '').split(/[\\/]/).pop() ?? ''
         const result = !r.ok ? `没成：${String(r.error ?? '').slice(0, 40)}` : r.truncated ? `看了 ${secs(r.ms)}（截断：${r.truncatedBy}）` : `看了 ${secs(r.ms)}`
-        table.addRow([when, what, result, `${r.sheets} 张 / 留 ${r.kept} 帧`, secs((r.ms ?? 0) / 1000)])
+        // 画面统计：切点 / 重复丢掉 / 最强帧分 / 每秒变化
+        const st = r.stats ?? null
+        const statText = st
+          ? `切 ${st.cuts} · 重复丢 ${st.dupSkipped} · 最强 ${st.scoreMax} · 每秒 ${st.motionPerSec}`
+          : '（这遍没记）'
+        // 重跑：调完预算立刻用同一条片子再跑一遍（本地文件，不联网）
+        const rerun = actionButton(ctx, ui, msg, '↻ 重跑', 'rerun', undefined, {
+          argsFactory: () => [{ file: r.file, confirm: true }],
+          confirm: {
+            title: '确认用当前预算重跑这一遍？',
+            body: `片子：${what}\n\n会用现在页面上这套预算（留多少帧、多像算重复）重新判一遍并出图。`
+              + '只动本地文件，不联网、不发任何东西。',
+            ok: '确认重跑',
+          },
+          after: refresh,
+        })
+        table.addRow([when, what, result, `${r.sheets} 张 / 留 ${r.kept} 帧`, statText, rerun])
       }
-      if (!(res.runs ?? []).length) table.addRow(['—', '她还没用眼睛看过片子', '—', '—', '—'])
+      if (!(res.runs ?? []).length) table.addRow(['—', '她还没用眼睛看过片子', '—', '—', '—', '—'])
       runsHead.append(table.el)
       box.append(runsHead)
 

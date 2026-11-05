@@ -70,6 +70,12 @@ export interface XiaoYuPersonaOptions extends XiaoyuBotHubOptions {
    * 不给就用 XIAOYU_CONTEXT_DEFAULTS。
    */
   context?: () => ContextStagePolicy
+  /**
+   * 记忆分层配置（核心常驻上限 / 活跃容量 / 归档阈值）。**现读**，
+   * 主人在 WebUI「配置」页签改完立刻生效，不用重启。
+   * 不给就用 cap-memory 的默认（8 / 40 / 0.35）。
+   */
+  memoryConfig?: () => { residentCap?: number; activeCap?: number; archiveThreshold?: number }
 }
 
 export class XiaoYuPersona implements CorticoPersonaShape {
@@ -83,6 +89,8 @@ export class XiaoYuPersona implements CorticoPersonaShape {
   private started = false
   /** 上下文阶段预算（现读，WebUI 改了即生效） */
   private readonly contextPolicy: () => ContextStagePolicy
+  /** 记忆分层配置（现读，WebUI 改了即生效）：核心常驻上限 / 活跃容量 / 归档阈值 */
+  private readonly memoryConfig?: () => { residentCap?: number; activeCap?: number; archiveThreshold?: number }
   /** 已经就上下文压力提醒过主人；交接后清零 */
   private pressureWarned = false
 
@@ -91,6 +99,7 @@ export class XiaoYuPersona implements CorticoPersonaShape {
     this.memoryDir = opts.homeDir
     this.rounds = opts.rounds ?? { soft: 6, hard: 12 }
     this.contextPolicy = opts.context ?? ((): ContextStagePolicy => XIAOYU_CONTEXT_DEFAULTS)
+    this.memoryConfig = opts.memoryConfig
     // blobs 走 workspace 的 mem: 句柄（与框架 Memory 同一套后端）
     this.blobs = {
       put: (nameHint, bytes, mime) => this.hub.blobs.put(nameHint, bytes, mime),
@@ -183,7 +192,10 @@ export class XiaoYuPersona implements CorticoPersonaShape {
     }
     // 要动的时候，persona-core 那边已经写好了人话理由（"有点无聊，想找点新鲜的看"等），
     // 不要在这儿再编一套——两套说法迟早对不上账。
-    return `${head}她想动（${tick.kind}）：${tick.reason}；冲动强度 ${Number(tick.urge).toFixed(2)}。`
+    // 括号里写**活动名**（找点新鲜的 / 想想事 / 动一动…），不再打英文 kind——
+    // 她自己的账是给人看的，不是给日志看的。
+    const what = String((tick as any).activityLabel ?? '') || String(tick.kind ?? '')
+    return `${head}她想动（${what}）：${tick.reason}；冲动强度 ${Number(tick.urge).toFixed(2)}。`
       + '这一拍该做点什么，做过的事必须对得上账：没做的不写，写了的要有凭据。'
   }
 
@@ -257,6 +269,8 @@ export class XiaoYuPersona implements CorticoPersonaShape {
           lifeFile: path.join(this.memoryDir, 'data', 'persona', 'life.json'),
           isAsleep: asleepOf,
           settle: (days, threshold) => store.settle(days, threshold),
+          // 归档阈值现读（配置里的 memory.archiveThreshold 真的生效）
+          archiveThreshold: this.memoryConfig?.().archiveThreshold,
           dreamDigest: (r) => store.dreamDigest(r),
           onDream: (digest, count) => {
             if (!digest) return null
