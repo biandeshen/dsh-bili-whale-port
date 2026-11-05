@@ -74,8 +74,14 @@ if (!proxyUp) {
 }
 
 // Cortico
+// 监听地址：主人 2026-11-06 拍板（自己房间、自己的 WiFi，不给别人用）——
+// 显式绑 0.0.0.0 让局域网里的自己的设备也能开控制台。宿主对这个组合有配套防护
+// （wildcard 监听时 Host/Origin 校验放行；Windows 防火墙这条端口只对"专用网络"
+// 配置档放行，连到外面的 WiFi 时公用档依然拦着——见 start-cortico-firewall.cmd）。
+// 注意 WebUI 本身**没有登录鉴权**：这个决定只在"局域网内都是自己的设备"的前提下成立。
+const BIND_HOST = process.env.CORTICO_BIND_HOST || '0.0.0.0'
 const fd = fs.openSync(LOG_FILE, 'a')
-const child = spawn(NODE, [...CA_FLAGS, path.join(CORTICO, 'bin', 'cortico.mjs'), BOT, '--port=7799'], {
+const child = spawn(NODE, [...CA_FLAGS, path.join(CORTICO, 'bin', 'cortico.mjs'), BOT, '--port=7799', `--host=${BIND_HOST}`], {
   cwd: CORTICO, detached: true, stdio: ['ignore', fd, fd],
   // 传给子进程：扩展安装走 pnpm（另一个 node 进程），它也要读系统证书库
   env: { ...process.env, CORTICO_HOME: DEPLOY_ROOT, NODE_OPTIONS: [process.env.NODE_OPTIONS, ...CA_FLAGS].filter(Boolean).join(' ').trim() },
@@ -90,4 +96,15 @@ for (let i = 0; i < 80; i++) {
 }
 if (!(await health())) { console.error('[start] 40 秒内未就绪，请查看日志：' + LOG_FILE); process.exit(1) }
 await resume()
-console.log('[start] 就绪：http://127.0.0.1:7799/（已发送继续）')
+// 就绪地址：绑 wildcard 时打内网 IP（本机开 127.0.0.1 一样通），让主人直接拷得用的那一个
+let lanUrl = ''
+if (listensOnAll(BIND_HOST)) {
+  const os = await import('node:os')
+  const ni = Object.values(os.networkInterfaces()).flat().find((x) => x && x.family === 'IPv4' && !x.internal)
+  if (ni) lanUrl = `http://${ni.address}:7799/`
+}
+console.log('[start] 就绪：http://127.0.0.1:7799/' + (lanUrl ? `（局域网：${lanUrl}）` : '') + '（已发送继续）')
+
+function listensOnAll(host) {
+  return host === '0.0.0.0' || host === '::'
+}
