@@ -14,6 +14,7 @@ import { listBgm, resolveBgm } from './vendor/bgm.mjs'
 import { MEDIA_DEFAULTS } from './vendor/media-config.mjs'
 import { ttsPlan, describeTts } from './vendor/tts.mjs'
 import { loadPromptLibrary, composeImagePrompt, PROMPT_DIR } from './image-prompt.ts'
+import { choosePortrait, alternatePortrait, SCENE_LABEL } from './portrait.ts'
 import {
   renderVideoSlice,
   previewTtsAudio,
@@ -119,6 +120,49 @@ export function createMediaStudioCapability(
     if (fs.existsSync(image)) return image
     const byName = path.join(opts.assetsDir, image)
     return fs.existsSync(byName) ? byName : null
+  }
+
+  /**
+   * 立绘缩略：原图 1024×1536 有 ~1.8MB，面板刷新一次扛不住。
+   *
+   * 缩到 **320 宽的 JPEG**：插画转 JPEG 掉得厉害（PNG 420 宽还有 420KB，
+   * JPEG 320 宽只要 ~25KB），面板每次刷新几十 KB，够用。
+   * 出 **data URL**：宿主没有按路径取文件的路由（`/api/files?path=` 实测 404 裂图），
+   * 所以像 cap-vision 的缩略图那样自己出图。
+   */
+  async function makePortraitThumb(file: string): Promise<{ dataUrl?: string; error?: string }> {
+    const mime = /\.png$/i.test(file) ? 'image/png' : 'image/jpeg'
+    const readAsDataUrl = (p: string, m: string): string | undefined => {
+      try { return `data:${m};base64,${fs.readFileSync(p).toString('base64')}` } catch { return undefined }
+    }
+    const bins = ffmpegAvailable(opts.binDir)
+    if (!bins.ffmpeg) {
+      const raw = readAsDataUrl(file, mime)
+      return raw ? { dataUrl: raw } : { error: '立读取不出来' }
+    }
+    const thumbDir = path.join(opts.outputDir, 'thumbs')
+    const out = path.join(thumbDir, path.basename(file).replace(/\.[^.]+$/, '') + '.320.jpg')
+    try {
+      if (!fs.existsSync(out) || fs.statSync(out).mtimeMs < fs.statSync(file).mtimeMs) {
+        fs.mkdirSync(thumbDir, { recursive: true })
+        const { spawn } = await import('node:child_process')
+        await new Promise<void>((resolve, reject) => {
+          const c = spawn(bins.ffmpeg as string, [
+            '-hide_banner', '-loglevel', 'error', '-y', '-i', file,
+            '-vf', 'scale=320:-2', '-q:v', '6', out,
+          ], { stdio: ['ignore', 'ignore', 'pipe'] })
+          let err = ''
+          c.stderr.on('data', (d) => { err += String(d) })
+          c.on('error', reject)
+          c.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(err.slice(-200) || `ffmpeg ${code}`))))
+        })
+      }
+      const url = readAsDataUrl(out, 'image/jpeg')
+      return url ? { dataUrl: url } : { error: '缩略图读不出来' }
+    } catch (e: any) {
+      const raw = readAsDataUrl(file, mime)
+      return raw ? { dataUrl: raw } : { error: String(e?.message ?? e) }
+    }
   }
 
   async function runPreviewTts(params: { text: string; voice?: string }) {
@@ -356,6 +400,45 @@ export function createMediaStudioCapability(
                   },
                   limits: VIDEO_SIZE_LIMITS,
                   drafts: readDraftRecords().reverse(),
+                }
+              },
+            },
+            /**
+             * 她的状态立绘：按此刻的状态挑一张现成的图（不生成新图）。
+             *
+             * 为什么要有：那 8 张 `daily-*.png` 本来只是视频底图，但每张画的场景都很明确
+             * （深夜窗边 / 雨夜听雨 / 闭眼戴耳机 / 缩在被窝里）——**天生就是"她现在的样子"**。
+             * 形态那一项里唯一有价值又不引新引擎的活儿，就是把它们按状态接上。
+             *
+             * 出 **data URL**：宿主没有按路径取文件的路由（`/api/files?path=` 实测 404），
+             * 所以像 cap-vision 的缩略图那样自己出图；原图 1024×1536 有 ~1.8MB，
+             * 面板刷新一次扛不住，先缩到 420 宽。
+             */
+            portrait: {
+              name: 'portrait',
+              verb: 'GET',
+              summary: '按她此刻的状态挑一张立绘（现成的图，不生成），顺带给一句人话',
+              writable: false,
+              invoke: async (params: { rest?: string; energy?: number; stimulation?: number; actionsToday?: number; pick?: 0 | 1 }) => {
+                const choice = choosePortrait({
+                  rest: params?.rest as 'asleep' | 'resting' | 'awake' | undefined,
+                  energy: Number(params?.energy ?? 0.5),
+                  stimulation: Number(params?.stimulation ?? 0.3),
+                  actionsToday: Number(params?.actionsToday ?? 0),
+                }, params?.pick === 1 ? 1 : 0)
+                const abs = path.join(opts.assetsDir, choice.file)
+                if (!fs.existsSync(abs)) {
+                  return { ok: false, error: `立绘不在了：${choice.file}`, scene: choice.scene, caption: choice.caption }
+                }
+                const thumb = await makePortraitThumb(abs)
+                return {
+                  ok: true,
+                  file: choice.file,
+                  scene: choice.scene,
+                  sceneLabel: SCENE_LABEL[choice.scene],
+                  caption: choice.caption,
+                  ...(thumb.dataUrl ? { dataUrl: thumb.dataUrl } : {}),
+                  ...(thumb.error ? { thumbError: thumb.error } : {}),
                 }
               },
             },

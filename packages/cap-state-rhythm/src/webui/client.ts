@@ -293,6 +293,8 @@ export const dayPanel = {
     const msg = ui.msgline()
     const nowBox = ui.h('div')
     nowBox.style.margin = '8px 0'
+    const portraitBox = ui.h('div')
+    portraitBox.style.margin = '8px 0'
     const statBox = ui.h('div')
     const pokeBox = ui.h('div')
     pokeBox.style.margin = '10px 0'
@@ -325,7 +327,7 @@ export const dayPanel = {
     const flowBox = ui.h('div')
     const wordsBox = ui.h('div')
     const links = ui.actions()
-    card.body.append(nowBox, statBox, pokeBox, flowBox, wordsBox, links, msg)
+    card.body.append(nowBox, portraitBox, statBox, pokeBox, flowBox, wordsBox, links, msg)
 
     const jump = (href: string, label: string) => {
       const a = ui.h('a', null, label)
@@ -381,6 +383,56 @@ export const dayPanel = {
       }
     }
 
+    /**
+     * 她的立绘：按此刻的状态，去音视频工作室那个 world 挑一张现成的图。
+     *
+     * 为什么走浏览器直取：`ctx.invoke` 只能调**本页**（persona 页）的面板方法，
+     * 而图在 world 页（cap-media-studio 持有 assets/daily）。
+     * 宿主给的路是 `/api/webui/providers/<页>/panels/<面板>/<方法>`，GET 用 `?args=<json>` 传参。
+     *
+     * 取不到就**不留空图框**：这一页没有她也不该是块白板。
+     */
+    async function loadPortrait(s: any, today: any) {
+      portraitBox.replaceChildren()
+      const fields = s?.fields ?? {}
+      const energy = (Number(fields.energy ?? 0) + Number(fields.stimulation ?? 0)) / 2
+      try {
+        const url = '/api/webui/providers/' + encodeURIComponent('world:media-studio')
+          + '/panels/media-studio/portrait?args=' + encodeURIComponent(JSON.stringify([{
+            rest: String(s?.rest ?? 'awake'),
+            energy,
+            stimulation: Number(fields.stimulation ?? 0),
+            actionsToday: Number(today?.actionsToday ?? 0),
+          }]))
+        const res = await fetch(url)
+        const j = await res.json()
+        if (!j || j.ok === false || !j.dataUrl) return
+        const wrap = ui.h('div')
+        wrap.style.display = 'flex'
+        wrap.style.gap = '10px'
+        wrap.style.alignItems = 'flex-start'
+        const img = ui.h('img')
+        img.src = String(j.dataUrl)
+        img.alt = String(j.caption ?? '')
+        img.style.width = '168px'
+        img.style.borderRadius = '8px'
+        img.style.border = '1px solid rgba(127,127,127,0.25)'
+        const cap = ui.h('div')
+        cap.style.margin = '0'
+        const title = ui.h('div')
+        title.textContent = `【${String(j.sceneLabel ?? '')}】${String(j.caption ?? '')}`
+        const note = ui.h('div')
+        note.style.opacity = '0.7'
+        note.style.fontSize = '12px'
+        note.textContent = '（按她此刻的状态，从现成的立绘里挑的一张）'
+        cap.append(title, note)
+        wrap.append(img, cap)
+        portraitBox.append(wrap)
+      } catch {
+        // 取不到就当没有：不该给主人一个裂图框
+      }
+    }
+
     async function refresh() {
       // 这一页不重建输入框（叮嘱框建一次），所以登记不重置：重置等于把保护摘了
       if (!(await guard.guard())) return
@@ -401,6 +453,12 @@ export const dayPanel = {
         { k: '下一拍', v: countdown(today.nextCheckAt) },
         { k: '心情强度', v: pct((s.mood ?? {}).intensity) },
       ]))
+
+      // 她的立绘：按此刻的状态挑一张现成的图。
+      // 图在音视频工作室那个 world 里（cap-media-studio 持有 assets/daily），
+      // 这一页拿不到别人的面板方法，所以**由浏览器直接取**：
+      // 宿主给的是 `/api/webui/providers/<页>/panels/<面板>/<方法>`（GET 用 ?args= 传参）。
+      void loadPortrait(s, today)
 
       const events = Array.isArray(s.events) ? s.events : []
       flowBox.replaceChildren(ui.section('今天发生过什么', `因果账里属于今天的 ${events.length} 条（新→旧）。`))
