@@ -5,3 +5,4 @@
 # vendor 目录的 SHA256SUMS 按字节校验，禁止 Git 做 CRLF 转换
 vendor/** -text
 assets/bgm/*.mp3 binary
+*.cmd -text
