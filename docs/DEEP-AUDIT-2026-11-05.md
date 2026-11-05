@@ -1136,3 +1136,59 @@ cap-vision 的画面记录在 persona 页，看片在 media-studio 的 world 页
 - 全量：**138 文件 / 767 测试，0 红**。
 - 真浏览器：三组配置页签都在、记忆那组改数能存（无 400、落进 config.json）、
   看画面表里「画面统计」「重跑」两列都在（老记录显示"（这遍没记）"，新记录才带数）。
+
+### 12.9 B13h：存储清单接进宿主 + 人设正本可在页面里编辑
+
+又是两件"声明了但没人往上带"。
+
+#### ① storageParts 是死的
+
+`cap-vision` 声明了三项存储（视觉配置 / 拼图产出 / 运行记录），
+但转接头的 `webUi()` **没带 `storage` 字段**——宿主 `src/bot.ts` 的 `webUiStorage`
+只收 `parts.persona.webUi?.(language)?.storage`，于是那三项在「数据清理」页里
+**根本不出现，清了也没人管**。而 cap-memory（72 条记忆卡）与 cap-journal（两本日记）
+**从没声明过**。
+
+现在：
+- `persona.webUi()` 带上 `storage`（由 hub 汇总各能力包的声明，去重不重名）；
+- 记忆四层各一项（core / active / archived / voided），日记四项
+  （公开本 / 私人本 / 审美判断卡 / 意见箱），各自报**条数与大小**；
+- 私人本日记标 `danger`（那是她写给自己的，删了不可恢复，宿主会要求额外确认）；
+- 记忆卡片**不提供删除**——她的账是她的历史，要清得走面板上的作废/归档动作。
+
+线上实测（「数据清理」页，真实规模）：
+```
+核心常驻记忆   workspace\memo\core      22 条 / 9 KB
+近期活跃记忆   workspace\memo\active    50 条 / 24 KB
+远期归档记忆   workspace\memo\archived   0 条 / 0 KB
+已作废记忆     workspace\memo\voided     0 条 / 0 KB
+公开本日记     diary\public.md          57.3 KB / 372 行
+私人本日记     diary\private.md         74.7 KB / 441 行
+审美判断卡 / 意见箱 / 视觉配置 / 拼图产出 / 运行记录
+```
+
+#### ② 人设正本只能手改文件 → 现在能在页面里编辑
+
+`CONSTITUTION.md` / `ORIENTATION.md` 以前**在 WebUI 的「系统提示词」页签里根本看不到**，
+只能手改文件（而且改的是代码包里的文件，升级就冲掉）。
+
+现在用宿主的 `promptDocs` 声明：
+- `path` —— 包内正本（读这一份）；
+- `deploymentPath` —— 部署覆盖（`~/.xiaoyu-home/xiaoyu/prompts/<name>`），
+  宿主保存时写这里，**不动代码包里的正本**。
+这与 `personaText()` 的读法完全一致（部署覆盖优先，否则用包内正本）。
+
+线上实测：两份正本出现在「提示词模板」页签里，各带说明与
+「已载入 bot 包覆盖；保存写入本部署覆盖文件」；
+**实存一次**确认：部署覆盖文件被改（534 → 552 字符）、
+**包内正本未动**（不包含验证行）——升级不会冲掉主人的微调。
+验证完已把部署覆盖**原样还原**（534 / 2315 字符，备份文件已删，无残留）。
+
+#### 验证
+
+- 新增测试：`packages/cortico-bot-xiaoyu/tests/storage-prompt-docs.test.mjs`（5）：
+  存储清单齐（11 项、键不重）、每项能报规模、私人本标 danger、
+  promptDocs 两份都在且 path/deploymentPath 各指其位、部署覆盖优先于包内正本。
+- 全量：**139 文件 / 772 测试，0 红**。
+- 真浏览器：「数据清理」页 11 项带真实规模、「提示词模板」页两份正本可编辑、
+  实存一次并确认只写部署覆盖（随后还原）。
