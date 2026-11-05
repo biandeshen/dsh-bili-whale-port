@@ -19,6 +19,7 @@ import type {
   StorageUnit,
 } from '../../persona-core/src/capability.ts'
 import { dayKey } from '../../persona-core/src/rhythm.ts'
+import { atomicWriteFile } from '../../persona-core/src/atomic-write.ts'
 import { WorkspaceGit, AUTHOR_SELF, AUTHOR_OPERATOR } from '../../cap-memory/src/workspace-git.ts'
 import {
   diaryDefaultHeader,
@@ -116,10 +117,7 @@ function readTextSafe(file: string, book: DiaryBook): string {
 }
 
 function writeTextAtomic(file: string, content: string): void {
-  fs.mkdirSync(path.dirname(file), { recursive: true })
-  const tmp = `${file}.${process.pid}.${Math.random().toString(36).slice(2, 7)}.tmp`
-  fs.writeFileSync(tmp, content, 'utf8')
-  fs.renameSync(tmp, file)
+  atomicWriteFile(file, content)
 }
 
 /** convertRule.kind 的真值集合：只这三个后端会真的落到规则上，面板不许发明第四种去向。 */

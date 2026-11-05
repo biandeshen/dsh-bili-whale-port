@@ -381,6 +381,74 @@ export function createMemoryCapability(
                 }
               },
             },
+            /**
+             * 核心常驻退位审阅台（审计 §2.2「核心常驻准入/退出规则」）。
+             *
+             * 缺口的原话：「8 条核心常驻里 3 条是同一主题的旧拒稿，把她的注意力钉死了」。
+             * 现状（2026-11-05 实测）：core 里 22 条，其中**同主题的旧拒稿只剩 1 条**，
+             * 原诊断已大幅缓解；但"core 该放什么"仍是政策问题，主人需要**看得见**才能定。
+             *
+             * 这一条只做三件事，**不自动动她的记忆**：
+             *   1. 指出**久未使用**的（从没被想起过 / 很久没被想起）；
+             *   2. 指出**同主题重复**的（同一个 BV、同一片源、同一句话）；
+             *   3. 指出**具体事件**（某一次的经过），而不是她提炼出的判断。
+             * 退位是主人点「退下来」的动作：移到 active，**不删**，git 里有历史，可回滚。
+             */
+            coreReview: {
+              name: 'coreReview',
+              verb: 'GET',
+              summary: '审阅核心常驻：哪些久未使用、哪些同主题重复、哪些只是某一次的具体事件',
+              writable: false,
+              invoke(params: { staleDays?: number } = {}) {
+                const staleDays = Math.max(1, Number(params?.staleDays ?? 14))
+                const core = store.readAll({ tier: 'core' })
+                const now = Date.now()
+                // 同主题判定：同一个 BV 号（看片记忆）或正文前 12 个字（她自己的话）
+                const byTopic = new Map<string, string[]>()
+                for (const c of core) {
+                  const bv = String(c.content ?? '').match(/BV[0-9A-Za-z]{10}/)?.[0]
+                  const topic = bv ?? String(c.content ?? '').slice(0, 12).trim()
+                  if (!topic) continue
+                  byTopic.set(topic, [...(byTopic.get(topic) ?? []), c.id])
+                }
+                const items = core.map((c) => {
+                  const created = Date.parse(String(c.createdAt ?? ''))
+                  const ageDays = Number.isFinite(created) ? Math.max(0, (now - created) / 86400_000) : 0
+                  const bv = String(c.content ?? '').match(/BV[0-9A-Za-z]{10}/)?.[0] ?? null
+                  const topic = bv ?? String(c.content ?? '').slice(0, 12).trim()
+                  const sameTopic = (byTopic.get(topic) ?? []).filter((id) => id !== c.id)
+                  const unused = Number(c.accessCount ?? 0) === 0
+                  const longUnused = unused && ageDays >= staleDays
+                  return {
+                    id: c.id,
+                    content: String(c.content ?? ''),
+                    accessCount: Number(c.accessCount ?? 0),
+                    ageDays: Math.round(ageDays * 10) / 10,
+                    tags: c.tags ?? [],
+                    /** 同一主题的其它条目（重复） */
+                    sameTopic: sameTopic,
+                    /** 从没被想起过 */
+                    unused,
+                    /** 从没被想起 + 已经过了这么多天 */
+                    longUnused,
+                    /** 看着像"某一次的具体经过"（有具体时间点/数字/单次结果），而不是提炼出的判断 */
+                    specificEvent: /\d+\s*(个|条|次|分钟|秒|点)|\d{4}-\d{2}-\d{2}|dyn-[0-9a-z-]+/.test(String(c.content ?? '')),
+                  }
+                })
+                return {
+                  ok: true,
+                  staleDays,
+                  total: items.length,
+                  counts: {
+                    unused: items.filter((i) => i.unused).length,
+                    longUnused: items.filter((i) => i.longUnused).length,
+                    duplicateTopic: items.filter((i) => i.sameTopic.length > 0).length,
+                    specificEvent: items.filter((i) => i.specificEvent).length,
+                  },
+                  items,
+                }
+              },
+            },
             create: {
               name: 'create',
               verb: 'POST',

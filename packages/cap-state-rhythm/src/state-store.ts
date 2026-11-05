@@ -5,6 +5,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { EffectBus } from '../../persona-core/src/effect-bus.ts'
+import { atomicWriteFile } from '../../persona-core/src/atomic-write.ts'
 import type { AtomicFields, CausalEvent, Memory } from '../../persona-core/src/types.ts'
 import { clamp, DEFAULT_ATOMIC_FIELDS } from '../../persona-core/src/types.ts'
 import { recordFieldChangeL0 } from '../../persona-core/src/causal-chain.ts'
@@ -202,10 +203,10 @@ export function saveState(file: string, s: PersonaState): void {
     emotionHistory: (s.emotionHistory ?? []).slice(-EMOTION_HISTORY_LIMIT),
     lastAppliedAt: s.lastAppliedAt,
   }
-  const tmp = file + '.' + process.pid + '.' + Math.random().toString(36).slice(2, 8) + '.tmp'
-  fs.writeFileSync(tmp, JSON.stringify(slim, null, 2))
   try { fs.copyFileSync(file, file + '.bak') } catch {}
-  fs.renameSync(tmp, file)
+  // 改名带重试（Windows 上目标文件正被杀毒/索引器打开时 rename 会 EPERM；
+  // 一次失败就意味着她的场值**停在旧值**没落地——那比报错更坏）。
+  atomicWriteFile(file, JSON.stringify(slim, null, 2))
 }
 
 export function applyEffects(

@@ -32,6 +32,27 @@ export function readHeaders(ctx: BiliReadContext, referer = 'https://www.bilibil
 }
 
 /**
+ * 改名带重试：Windows 上目标文件正被杀毒/索引器打开时 rename 会抛 EPERM。
+ * 凭据这种"写了但没落地"的失败最坑——她拿着旧 cookie 去发，看起来像"改了没用"。
+ */
+function renameWithRetry(from: string, to: string): void {
+  let lastErr: unknown = null
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      fs.renameSync(from, to)
+      return
+    } catch (e) {
+      lastErr = e
+      const code = (e as { code?: string })?.code
+      if (code !== 'EPERM' && code !== 'EACCES' && code !== 'EBUSY') break
+      const until = Date.now() + 25 * (attempt + 1)
+      while (Date.now() < until) { /* 忙等：写盘前的一瞬 */ }
+    }
+  }
+  throw lastErr
+}
+
+/**
  * 读凭据文件。
  *
  * **两种格式都收**（2026-11-05 线上事故）：
@@ -188,13 +209,15 @@ export function saveCredentials(
   const body = lines.join('\n').replace(/\n*$/, '\n')
   try {
     fs.mkdirSync(path.dirname(credentialsFile), { recursive: true })
-    const tmp = `${credentialsFile}.${process.pid}.tmp`
     // 0600：她是单用户部署，凭据文件不该被别人读到（Windows 会忽略这段位，不报错就算）
+    const tmp = `${credentialsFile}.${process.pid}.tmp`
     fs.writeFileSync(tmp, body, { encoding: 'utf8', mode: 0o600 })
     try {
       fs.copyFileSync(credentialsFile, `${credentialsFile}.pre-bind-${Date.now()}`)
     } catch { /* 首次绑定没有旧文件，不需要备份 */ }
-    fs.renameSync(tmp, credentialsFile)
+    // 改名带重试：Windows 上目标文件正被杀毒/索引器打开时 rename 会 EPERM，
+    // 一次失败 = **新凭据没落盘**（她还拿着旧 cookie 去发，看起来像"改了没用"）。
+    renameWithRetry(tmp, credentialsFile)
   } catch (e) {
     return { ok: false, error: `写不进凭据文件：${String((e as Error)?.message ?? e)}` }
   }

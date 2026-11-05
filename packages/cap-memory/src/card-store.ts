@@ -17,6 +17,7 @@ import {
   recallMemory,
 } from '../../persona-core/src/memory.ts'
 import { recallMemories, type RecalledMemory } from '../../persona-core/src/retrieval.ts'
+import { atomicWriteFile } from '../../persona-core/src/atomic-write.ts'
 import { WorkspaceGit, AUTHOR_SELF, AUTHOR_OPERATOR, type GitAuthor } from './workspace-git.ts'
 
 export { WorkspaceGit, AUTHOR_SELF, AUTHOR_OPERATOR }
@@ -145,9 +146,7 @@ export class MemoryCardStore {
     const dir = this.tierDir(card.tier)
     fs.mkdirSync(dir, { recursive: true })
     const file = this.cardPath(card.tier, card.id)
-    const tmp = `${file}.${process.pid}.${Math.random().toString(36).slice(2, 7)}.tmp`
-    fs.writeFileSync(tmp, serializeMemoryCard(card), 'utf8')
-    fs.renameSync(tmp, file)
+    atomicWriteFile(file, serializeMemoryCard(card))
   }
 
   readAll(opts: { tier?: MemoryTier | 'all'; query?: string; tag?: string } = {}): MemoryCard[] {

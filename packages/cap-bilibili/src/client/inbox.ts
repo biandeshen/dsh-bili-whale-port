@@ -4,6 +4,7 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
+import { atomicWriteFile } from '../../../persona-core/src/atomic-write.ts'
 
 export type InboxKind = 'dm' | 'reply' | 'mention' | 'like'
 
@@ -115,9 +116,7 @@ export class BiliInboxAndPrefsStore {
 
   saveAllInbox(items: InboxItem[]): void {
     fs.mkdirSync(this.dataDir, { recursive: true })
-    const tmp = `${this.inboxFile}.${process.pid}.tmp`
-    fs.writeFileSync(tmp, JSON.stringify(items, null, 2), 'utf8')
-    fs.renameSync(tmp, this.inboxFile)
+    atomicWriteFile(this.inboxFile, JSON.stringify(items, null, 2))
   }
 
   ingestItems(incoming: Array<Omit<InboxItem, 'read'>>): { added: InboxItem[] } {

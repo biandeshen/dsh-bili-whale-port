@@ -14,10 +14,35 @@ export function queueDir(whaleHome) {
   return path.join(whaleHome, 'bili-whale', 'control', 'pending')
 }
 
+/**
+ * 原子写：先写临时文件，再改名。
+ *
+ * **改名会重试**：Windows 上 rename 到一个正被别的进程（杀毒软件、索引器、
+ * 另一个 ack 进程）打开的目标文件会抛 EPERM/EACCES——一次性失败就让
+ * 「放行动态」整条路挂掉（2026-11-05 全量门禁就是这么红了一次：
+ * EPERM: rename '…ack-xxx.json.tmp' -> '…ack-xxx.json'）。
+ * 那是环境噪声，不是逻辑错误，所以重试几次而不是直接失败。
+ */
 function atomicWrite(file, data) {
   const tmp = file + '.' + process.pid + '.' + crypto.randomBytes(3).toString('hex') + '.tmp'
   fs.writeFileSync(tmp, data)
-  fs.renameSync(tmp, file)
+  let lastErr = null
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      fs.renameSync(tmp, file)
+      return
+    } catch (e) {
+      lastErr = e
+      // 只重试"文件被占"这类错误；别的（磁盘满、路径不对）重试也没用
+      const code = e?.code
+      if (code !== 'EPERM' && code !== 'EACCES' && code !== 'EBUSY') break
+      // 同步等一下（不占事件循环）
+      const until = Date.now() + 25 * (attempt + 1)
+      while (Date.now() < until) { /* 忙等：这里只在写盘前的一瞬发生 */ }
+    }
+  }
+  try { fs.unlinkSync(tmp) } catch { /* 临时文件清不掉就算了 */ }
+  throw lastErr
 }
 
 function tokenDigest(token) {

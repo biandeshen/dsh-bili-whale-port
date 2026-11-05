@@ -63,6 +63,69 @@ export const memoryCenterPanel = {
     )
     tierRow.append(tierSeg.el)
 
+    // ── 核心常驻审阅（只提示，不自动动她的记忆）──
+    const reviewBox = ui.h('div')
+    card.body.append(reviewBox)
+    const reviewBtn = actionButton(ctx, ui, msg, '🔍 审一下核心常驻', 'coreReview', undefined, {
+      after: (r: any) => { if (r && r.ok !== false) renderReview(r) },
+    })
+    reviewBox.append(reviewBtn)
+
+    /** 渲染审阅结果：每条一个提示 + 一颗「退下来」（移到 active，不删）。 */
+    function renderReview(res: any) {
+      const items: any[] = res?.items ?? []
+      const c = res?.counts ?? {}
+      reviewBox.replaceChildren(reviewBtn)
+      const head = ui.h('div')
+      head.style.margin = '8px 0'
+      head.textContent = `核心常驻共 ${res?.total ?? 0} 条 · `
+        + `从没被想起 ${c.unused ?? 0} 条（其中超过 ${res?.staleDays ?? 14} 天没被想起的 ${c.longUnused ?? 0} 条）· `
+        + `同主题重复 ${c.duplicateTopic ?? 0} 条 · 像某次具体经过的 ${c.specificEvent ?? 0} 条`
+      reviewBox.append(head)
+      const note = ui.h('div')
+      note.style.margin = '4px 0'
+      note.style.opacity = '0.8'
+      note.textContent = '这些只是提示，不会自动改她的记忆。退下来 = 移到「近期活跃」（不删，git 里有历史）。'
+      reviewBox.append(note)
+      if (!items.length) {
+        reviewBox.append(ui.placeholder('核心常驻是空的。'))
+        return
+      }
+      const table = ui.table({ head: ['这条', '想起', '活了', '提示', '操作'] })
+      for (const it of items) {
+        const hints: string[] = []
+        if (it.longUnused) hints.push(`从没被想起（${it.ageDays} 天）`)
+        else if (it.unused) hints.push('从没被想起')
+        if (it.sameTopic?.length) hints.push(`同主题还有 ${it.sameTopic.length} 条`)
+        if (it.specificEvent) hints.push('像某一次的具体经过')
+        const demote = actionButton(ctx, ui, msg, '退下来', 'update', undefined, {
+          variant: 'danger',
+          argsFactory: () => [{ id: it.id, tier: 'active' }],
+          confirm: {
+            title: '确认把这条从核心常驻退下来？',
+            body: `这条：${String(it.content ?? '').slice(0, 60)}\n\n退下来之后：她不再每一轮都带着它（要靠关键词撞上才会想起），`
+              + '原文还在「近期活跃」里，随时能放回去；git 里有历史。',
+            warn: '核心常驻是她每一轮都记得的那几条——退下来不是删，是不再每轮都带。',
+            ok: '确认退下来',
+          },
+          after: (r: any) => {
+            if (r && r.ok !== false) {
+              msg.textContent = '已退到「近期活跃」（没删，随时能放回去）'
+              void refresh()
+            }
+          },
+        })
+        table.addRow([
+          String(it.content ?? '').slice(0, 40),
+          `${it.accessCount ?? 0} 次`,
+          `${it.ageDays ?? 0} 天`,
+          hints.join('；') || '（没看出问题）',
+          hints.length ? demote : '—',
+        ])
+      }
+      reviewBox.append(table.el)
+    }
+
     async function refresh() {
       if (!(await guard.guard())) return
       const res = await call<any>(ctx, msg, 'list', { tier, query: search.value.trim() || undefined })

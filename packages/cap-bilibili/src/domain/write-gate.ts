@@ -14,6 +14,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { dayKey } from '../../../persona-core/src/rhythm.ts'
+import { atomicWriteFile } from '../../../persona-core/src/atomic-write.ts'
 import { plainOutbound } from '../platform/plain-outbound.mjs'
 
 export type WriteKind =
@@ -335,9 +336,7 @@ export class WriteGate {
 
   private saveQueueAll(items: PendingQueueItem[]): void {
     fs.mkdirSync(this.dataDir, { recursive: true })
-    const tmp = `${this.queueFile}.${process.pid}.tmp`
-    fs.writeFileSync(tmp, JSON.stringify(items, null, 2), 'utf8')
-    fs.renameSync(tmp, this.queueFile)
+    atomicWriteFile(this.queueFile, JSON.stringify(items, null, 2))
   }
 
   private needsApproval(kind: WriteKind, policy: BiliPublishPolicy): boolean {
