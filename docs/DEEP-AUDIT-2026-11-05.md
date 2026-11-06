@@ -1435,3 +1435,87 @@ B16 撕封条 + 统一待放行队列之后，G3b 的判据还指着**已经不�
 漂移门禁新增两条：**① 线上跑的是哪份 persona-core**（仓库那份 vs 宿主 `Cortico-up/persona-core/`
 那份是两条独立链，后者当前不参与她的行为）；**② 当日预算余额是否已用尽**（只看有上限的来源；
 action/rest 改成不限后，spent 里的旧值是历史残留，不再截断也不该报）。
+
+---
+
+### 12.15 B18：她的「耳朵」与迁移落下的那一环（2026-11-06 夜）
+
+**主人这句话是对的**：「原本的 B 站那些配置什么的全部都没迁移过来，还好意思说。」
+这一节把"没迁"具体到什么程度、当晚做了什么、还剩什么，全部落成账。
+
+#### ① 病因链（每条都是文件里查得到的，不是推测）
+
+| 现象 | 直接证据 | 断在哪 |
+|---|---|---|
+| 她 11-06 一整天 226 笔自主行动，0 次读收件箱 | `runs/.../toolcalls.jsonl` 里 `diary_read`/`life_do`/`mood_apply` 成环，`bili_inbox_read` 一次没有 | 没人告诉她"有人找她" |
+| 收件箱存储永远是空的 | `xiaoyu/data/bilibili/inbox-items.json` = `[]` | `BiliInboxAndPrefsStore.ingestItems()` 的**调用者全仓只剩一个测试** |
+| 事件声明了从没发过 | `describe.json` 里 `bili-account.inbox` 在，运行时一次没推 | 没有生产者 |
+| 旧实现有的定时器没搬过来 | 旧自述：`core/scheduler.js:310`「`listen.allDay` 只控制守多久 ✓，但**没人启动 listener** ✗」 | A2「消灭双仓与 spawn」搬了命令，没搬**节拍器** |
+
+也就是说：**她不是不想理人，是迁移时把"有人找她"这条感知通路整条留在了旧家。**
+
+#### ② 这一批补的东西
+
+| 文件 | 补的是哪一环 |
+|---|---|
+| `packages/cap-bilibili/src/client/bili-inbox.ts`（新） | 四路收件箱的**拉取层**：`x/msgfeed/reply|at|like` + `session_svr/get_sessions` + `svr_sync/fetch_session_msgs`；每路独立成败，坏的写进 `sourceFails` |
+| `packages/cap-bilibili/src/domain/inbox-listener.ts`（新） | 那个落下的**节拍器**：`DEFAULT_LISTEN`、首轮只建基线、窗口→暂停→间隔（顺序不能调）、连败倍增至 15 分钟封顶、她自己的私信不叫醒她自己 |
+| `packages/cortico-world-bilibili/src/legacy-identity.ts`（新） | `owner.mid`/`self.mid` 的**只读桥**（此前这两个键在新架构里无人读，我一开始还误标成"已改名"） |
+| `packages/cap-bilibili/src/index.ts` | `start()` 装配并起跑监听、真正 `pushEvent('bili-account.inbox')`；运维入口 `pollListenOnce / listenStatus / resetListenBackoff`；configSchema 补 7 个 `listen.*` 旋钮；**绑定成功后身份账跟着 cookie 走**（`bindCookie` 写 `selfMid`，`unbindCookie` 删） |
+| `packages/cortico-world-bilibili/src/index.ts` | 把 `identity`（新配置优先、桥接兜底）与 `listenConfig` 现读接进能力包 |
+
+#### ③ 真凭据实读（零 token：主人说"现在只做不花钱的活"之后补的）
+
+`scripts/verify-inbox-live.mjs` 用她自己的 cookie 实读一次（**不写盘、不进存储、不叫醒她**）：
+
+```
+nav   → mid 497080562「恐怖深海鱼」· isLogin=true
+reply → 2 条（item 里确实有 target_reply_content，"正文优先级"那条实测规矩成立）
+at    → 0 条（code=0 items=0：真没人 @ 她）
+dm    → 11 条（只认主人那一个会话）
+like  → 0 条 —— 而这一路原本是**解析没吃到**
+```
+
+like 是当晚唯一被实读推翻的实现：旧注释（`tools/commands/likes.mjs:43`）早就写明真实形状是
+`data.latest.items` + `data.total.items`，而我按 `data.items[].notices` 解——那样永远 0 条，
+而 0 条看起来跟"真没人赞她"一模一样。已按实测形状重写并补两条测试（⑬ 解对、⑭ 旧形状一律不吃）。
+
+探针第二轮把四个端点连着敲，B 站回 `-509 请求过于频繁`，`guardedFetch` **自己把请求暂停了**
+（`.dsh/bili-ai/traffic-state.json` 的 `until`）：熔断按设计生效，我没有绕它，也没有继续敲。
+
+#### ④ 迁移落下的"值"（不是"键"）
+
+对账脚本只能回答"这个键有没有等价物"，回答不了"她那几个月的实际取值进来没有"。
+新增 `scripts/import-legacy-config.mjs`（默认只报告，`--go` 才写，写前逐文件留 `.bak-legacy-*`），
+当晚已对部署落盘四项：
+
+| 迁进来的 | 旧值 | 之前部署里是 |
+|---|---|---|
+| 身份 `owner.mid` / `self.mid` / 显示名 | 233643544 / 497080562 / 鱼片·恐怖深海鱼 | 空（只靠隐形的旧文件兜着） |
+| `listen.*` 六项 | comment=false、dm=true、scope=both、间隔 60/150、allDay=false | 空（代码默认 comment=true / allDay=true，**方向不一样**） |
+| 写冷却 `writeGapSec` | 120 秒 | 10 秒（对外写的节奏被放大 12 倍，这是风控上最实在的一条） |
+| 看片偏好 `like/keywords/dislike` | 她真实的几组词表（dislike 13 条） | 我重写时编的默认词表 + 1 条人工词（已并集保留，一条不丢） |
+
+规则：**只填空位和"仍是代码默认"的位置**，面板上被人改过的一律不动；`--go` 第二遍幂等（不再写、不再留新备份）。
+
+#### ⑤ 验证
+
+- `packages/cap-bilibili/tests/inbox-listener.test.mjs`：14 条（基线 / 叫醒一次 / 不重复 / 自激防线 / 单路挂了 / 正文优先级 / 空信箱 null / 间隔与退避 / 窗口外 / 拉黑 / mid 补齐纪律 / 换 cookie 换身份 / like 实测形状 / 旧形状不吃），全替身、零网络、零 token。
+- `tests/import-legacy-config.test.mjs`：5 条（只报告不改盘 / `--go` 迁对且留可退备份 / 人改过的不覆盖 / 第二遍幂等 / 旧配置读不到就明说并非零退出），spawn 真子进程 + 真临时目录。
+- `packages/cap-bilibili/tests/bili-connection.test.mjs` 曾有 3 条红——是我新增的"启动补齐 mid"多敲了一次 nav。处理成两件事：**(a)** 补齐改成**没凭据就不敲 nav**（与「连接」页"缺 SESSDATA 不动手、也不去问 B 站"同口径）；**(b)** 这组测试跑面板方法时关掉后台耳朵（`listenAutoStart:false`），网络计数才只量它要量的东西。
+- 全量：`EXECUTED=151/151 · tests=862 pass=862 fail=0`；`.mjs` 语法门禁 326 个文件干净；`check-consumers`（全部有生产调用）、`check-hashes`（一致）、`check-live-drift`（**没有漂移**，18 个 bili 工具 / 13 个 bot 工具与源码一致）全绿。
+
+#### ⑥ 还欠的（诚实清单，别当已交付）
+
+1. **评论监听默认关**：旧值 `comment=false` 关掉的是"自动回评论"，而新监听只叫醒不代回——语义变了，
+   我照旧值写了 false，**要不要按新语义打开请主人点头**（面板 `listen.comment` 一键）。不点头她就只有私信这一只耳朵。
+2. **`allDay=false` 目前是空旋钮**：`inWindow` 在 bili-account 这侧还没接上作息（默认恒"醒着"），
+   所以它现在等价于全天守。要么接线，要么改回 true——不该留一个看着生效其实没生效的开关。
+3. **like 只验了形状，没验过"真有赞"**（当天 0 条）；`mention` 同理（0 条）。
+4. **端到端"她被叫醒 → 她回话"未验证**：账户欠费（402，当天 85 笔事故回执），live 已停在这条线上；
+   充值前任何"她能回评论了"的说法都只是设计，不是实测。
+5. `share.*`（自动分享/自动发评策略组）、`listen.live*`（直播挂机）、`notify.*`（旧值本就是 none）三组**没迁**，
+   对账里列在「不动」，要做得单独立项。
+6. `watch-prefs.minDurationSec=600`（短于 10 分钟不看）是**重写时我发明的**，旧配置里没有这一项，本次没动，请主人拍板。
+7. QQ 侧等主人装 NapCat：live 里 `worlds.qq.driver` 每 30 秒重连 `ws://127.0.0.1:3001`（ECONNREFUSED），
+   这是"没接上"的正确表现，不是坏了。

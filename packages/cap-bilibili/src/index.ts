@@ -29,6 +29,7 @@ import {
   type PendingQueueItem,
 } from './domain/write-gate.ts'
 import { readReadQuota } from './domain/read-quota.ts'
+import { BiliInboxListener, DEFAULT_LISTEN, type InboxListenConfig } from './domain/inbox-listener.ts'
 import {
   BiliInboxAndPrefsStore,
   DEFAULT_WATCH_PREFS,
@@ -149,6 +150,23 @@ export interface BilibiliCapabilityOptions {
    * 缺省落在 dataDir 下自己的子目录（A2 踩过的坑：dataDir 是部署级共享的，必须再下一层）。
    */
   watch?: Partial<Pick<WatchContext, 'videoDir' | 'sheetDir' | 'analyze' | 'keepVideo'>>
+  /**
+   * 主人的 mid（旧共享配置 `owner.mid`）。
+   * 监听器拿它决定"私信只看这一个会话"；不给就明说"缺身份"，不静默跳过。
+   */
+  ownerMid?: string | number
+  /** 她自己登录的 mid（不给就启动时现读一次 nav 拿）。 */
+  selfMidHint?: string | number
+  /** 监听开关与间隔的**现读**函数（主人在面板改了立刻生效，不用重启）。 */
+  listenConfig?: () => Partial<InboxListenConfig>
+  /** 她醒着的时段；`listen.allDay=false` 时监听只在这段时间跑。 */
+  inWindow?: () => boolean
+  /** 监听态文件（默认 `<dataDir>/listen-state.json`）。 */
+  listenStateFile?: string
+  /** 时间注入（测试与联调用：不传就走真实时钟）。 */
+  listenNow?: () => number
+  /** 关掉自动起跑（测试与"主人先装配、点一下才开听"的场景）。 */
+  listenAutoStart?: boolean
 }
 
 /**
@@ -210,6 +228,31 @@ export function createBilibiliCapability(
 } {
   let hostRef: CapabilityHost | null = null
   const store = new BiliInboxAndPrefsStore(opts.dataDir)
+  /**
+   * 收件箱监听器（2026-11-06 补的迁移欠账）。
+   *
+   * 旧架构有 `core/scheduler.js` 的定时器：每 `listen.commentIntervalSec` 秒看一眼
+   * 「回复我的 / @我的」、每 `dmIntervalSec` 秒看一眼主人私信，有新东西就把她叫醒。
+   * 能力包重写只搬了「存储 + 她自愿去调的读工具」，**没人往存储里写**——
+   * `ingestItems()` 的调用者全仓只剩一个测试，`bili-account.inbox` 事件在
+   * describe.json 里声明了却从没发出过。她于是整天又聋又哑。
+   */
+  let listener: BiliInboxListener | null = null
+
+  /**
+   * 身份账：`selfMid`（她自己是哪个号）+ `ownerMid`（主人是哪个号）。
+   *
+   * `selfMid` **必须先落到账上**才能碰私信——不知道她是谁，她自己的回信就会以
+   * "新私信"的身份再把她叫醒一次，她回信、又被叫……这是自激循环
+   * （旧架构为此留过一条回归测试：`lastSeen 不被自己消息推走`）。
+   * 所以取不到 selfMid 时私信这一路**明确跳过并说明原因**，不静默、不猜。
+   * 值优先由转接头从旧共享配置桥接来（`legacy-identity.ts`），没桥到才现读一次 nav；
+   * 「连接」页绑定成功后也会直接写上（见 `bindCookie`）——换号时这是同一笔账。
+   */
+  const identity: { selfMid?: string; ownerMid?: string } = {
+    ...(opts.selfMidHint ? { selfMid: String(opts.selfMidHint) } : {}),
+    ...(opts.ownerMid ? { ownerMid: String(opts.ownerMid) } : {}),
+  }
 
   // 真实写上下文：凭据 + 本地账读法（点赞/收藏账）。
   // 没显式给 writeContext 时用**活的**凭据视图：每次取都现读文件（env 优先），
@@ -353,6 +396,14 @@ export function createBilibiliCapability(
         selfDailyCap: { type: 'integer', title: '每日自主互动上限', default: 12, minimum: 0, 'x-hot': true },
         shareDailyCap: { type: 'integer', title: '每日分享@主人上限', default: 3, minimum: 0, 'x-hot': true },
         writeGapSec: { type: 'integer', title: '写操作最小冷却间隔（秒）', default: 10, minimum: 0, 'x-hot': true },
+        // ── 耳朵（监听）── 旧共享配置 listen.* 的那一块，迁移时落下，现在接回来 ──
+        'listen.comment': { type: 'boolean', title: '监听「回复我的 / @我的 / 收到的赞」', default: true, 'x-hot': true, description: '开着才会定时去 B 站看一眼，有人找她就把她叫醒。关掉＝只有她自己去读收件箱才看得见。旧配置这一个开关只管回复/@，赞那一路另有命令；现在三路归一处，别再分两头。' },
+        'listen.commentIntervalSec': { type: 'integer', title: '评论/@ 轮询间隔（秒）', default: 60, minimum: 60, 'x-hot': true, description: '下限 60 秒：B 站接口经不起更密地敲。连续失败会按 2 倍退避，最多 15 分钟。' },
+        'listen.dm': { type: 'boolean', title: '监听主人私信', default: true, 'x-hot': true, description: '只看主人那一个会话；系统通知与陌生人一律不进她眼前。' },
+        'listen.dmIntervalSec': { type: 'integer', title: '私信轮询间隔（秒）', default: 150, minimum: 60, 'x-hot': true },
+        'listen.scope': { type: 'string', title: '评论监听范围', enum: ['both', 'reply'], default: 'both', 'x-hot': true, description: 'both＝回复我的 + @我的；reply＝只看回复我的。' },
+        'listen.allDay': { type: 'boolean', title: '全天监听', default: true, 'x-hot': true, description: '关掉＝只在她醒着的时段守（省调用，也更像人作息）。窗口外不算失败、不占退避。' },
+        'listen.onlyOwner': { type: 'boolean', title: '只认主人一个人的消息', default: false, 'x-hot': true, description: '开了之后评论/@ 也只收主人发的；私信本来就只看主人。' },
       },
     },
     defaultConfig: {
@@ -360,14 +411,104 @@ export function createBilibiliCapability(
       selfDailyCap: 12,
       shareDailyCap: 3,
       writeGapSec: 10,
+      // 旧共享配置 listen.* 的等价物（迁移时对账脚本把它从"查无此物"改回"live"）
+      listen: { ...DEFAULT_LISTEN },
     },
 
     start(host: CapabilityHost) {
       hostRef = host
+      listener = new BiliInboxListener(opts.listenStateFile ?? path.join(opts.dataDir, 'listen-state.json'), {
+        readCtx: () => readCtx,
+        ids: () => identity,
+        config: () => opts.listenConfig?.() ?? {},
+        inWindow: () => opts.inWindow?.() ?? true,
+        // 风控熔断（412）或急刹期间不去敲门：读写是同一条会话，撞上去只会加重
+        paused: () => gate.readTraffic().pausedUntil > Date.now() || gate.isKillOn(),
+        ingest: (items) => {
+          const { added } = store.ingestItems(items.map((x) => ({
+            key: x.key,
+            kind: x.kind as InboxKind,
+            uid: x.uid,
+            who: x.who,
+            text: x.text,
+            atMs: x.atMs,
+            ...(x.ref ? { ref: x.ref } : {}),
+          })))
+          return added.map((a) => ({
+            key: a.key,
+            kind: a.kind as InboxKind,
+            uid: a.uid,
+            who: a.who,
+            text: a.text,
+            atMs: a.atMs,
+            ...(a.ref ? { ref: a.ref } : {}),
+          }))
+        },
+        notify: (fresh, sourceFails) => {
+          if (!hostRef) return
+          const byKind = (k: string) => fresh.filter((x) => x.kind === k)
+          const who = [...new Set(fresh.map((x) => x.who))].join('、')
+          // 这就是 describe.json 里那条「声明了却从没发出过」的 bili-account.inbox
+          hostRef.pushEvent({
+            type: 'bili-account.inbox',
+            source: 'bili-account',
+            text: [
+              `B 站有人找她：${fresh.length} 条（私信 ${byKind('dm').length} / 回复 ${byKind('reply').length} / @我 ${byKind('mention').length} / 赞 ${byKind('like').length}），来自 ${who}。`,
+              ...fresh.slice(-6).map((x) => `  · [${x.kind}] @${x.who}：${x.text}`),
+              ...(sourceFails.length ? [`  · 有路数没拉到：${sourceFails.map((f) => `${f.source}=${f.why}`).join('；')}`] : []),
+            ].join('\n'),
+            atMs: Date.now(),
+            meta: { count: fresh.length, items: fresh, sourceFails },
+          })
+        },
+        log: (level, msg, data) => host.log?.(level, msg, data),
+        ...(opts.listenNow ? { now: opts.listenNow } : {}),
+      })
+      if (opts.listenAutoStart !== false) listener.start()
+
+      // 桥接没给到 selfMid 时才现读 nav 补一次（不阻断启动，也不让定时器等着它）。
+      // **没凭据就不敲 nav**：这条规矩和「连接」页同口径（缺 SESSDATA 不动手、也不去问 B 站）——
+      // 否则一个没绑定的部署每次启动都有一次匿名请求，看起来还像"被风控"。
+      if (!identity.selfMid && opts.listenAutoStart !== false && String(readCtx.cred?.sessdata ?? '').trim()) {
+        void (async () => {
+          try {
+            const me = await checkLogin(readCtx)
+            if (me.ok && me.mid) {
+              identity.selfMid = String(me.mid)
+              host.log?.('info', '收件箱监听：已补齐她自己的 mid', { mid: identity.selfMid })
+            } else {
+              host.log?.('warn', '收件箱监听：nav 没给到 mid，私信这一路先跳过（评论/@我 不受影响）')
+            }
+          } catch (e: any) {
+            host.log?.('warn', '收件箱监听：补齐 mid 失败，私信这一路先跳过', { error: String(e?.message ?? e) })
+          }
+        })()
+      }
+      host.log?.('info', opts.listenAutoStart === false
+        ? '收件箱监听已装配（未自动起跑；跑一拍用 pollListenOnce）'
+        : '收件箱监听已启动（回复/@我/收到的赞 + 主人私信）')
     },
 
-    stop() {
+    async stop() {
+      await listener?.stop()
+      listener = null
       hostRef = null
+    },
+
+    /** 手动跑一拍监听（测试与运维 `--once` 的入口）。 */
+    async pollListenOnce() {
+      if (!listener) throw new Error('监听器还没装配（先 start(host)）')
+      return listener.tick()
+    },
+
+    /** 面板/测试要看监听实况（连败次数、上次拉取、基线时间）。 */
+    listenStatus() {
+      return listener ? listener.status() : null
+    },
+
+    /** 面板改了监听开关后调用：旧退避账不清，下一次最长白等 15 分钟。 */
+    resetListenBackoff() {
+      listener?.reset()
     },
 
     async contextSegments(_ctx: TurnContext): Promise<readonly PrefixBlock[]> {
@@ -1260,6 +1401,9 @@ export function createBilibiliCapability(
                 const wrote = saveCredentials(file, merged)
                 if (!wrote.ok) return { ok: false, error: wrote.error }
                 const mid = whoami?.mid != null ? String(whoami.mid) : ''
+                // 身份账要跟着 cookie 走：不写这一笔，换号后私信这一路要么一直不开
+                // （selfMid 空），要么拿着上一个号的 mid 过滤（把新号的自回当成别人的）。
+                if (mid) identity.selfMid = mid
                 const prev = readConnectionRecord(opts.dataDir)
                 const changed = Boolean(prev?.mid && mid && prev.mid !== mid)
                 const recorded = writeConnectionRecord(opts.dataDir, {
@@ -1295,6 +1439,8 @@ export function createBilibiliCapability(
                 if (!file) return { ok: false, error: '没配 credentialsFile，不知道往哪儿写' }
                 const r = saveCredentials(file, { sessdata: '', bili_jct: '', buvid3: '' })
                 if (!r.ok) return { ok: false, error: r.error }
+                // 解绑后拿着旧 mid 监听私信是危险的：那是"上一个号"的身份，剔除规则会认错人。
+                delete identity.selfMid
                 return {
                   ok: true,
                   removed: ['BILI_SESSDATA', 'BILI_JCT', 'BILI_BUVID3'],

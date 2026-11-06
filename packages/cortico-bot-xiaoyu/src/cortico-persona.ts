@@ -233,15 +233,23 @@ export class XiaoYuPersona implements CorticoPersonaShape {
      *      · social → memory_recall 翻旧记录
      *      · create / exercise / rest → 做完 diary_write 一句
      *    出口清单是提示词，不是硬拦：她可以不听，但"动"字之后不能再空手。
+     *
+     * ③ **必须点名工具**（2026-11-06 首夜 226 笔 life_do、零次 bili_* 调用）：
+     *    原来写「去推荐里翻一条没看过的（**读侧命令**）」——"读侧命令"是**我们的说法**，
+     *    不是工具名。她照字面理解成"读点东西"，于是把 explore 做成了**翻自己的记忆池**
+     *    （"翻记忆池找所有看过的视频，从10-25第一条雨声数到11-03…"同一句重复 10+ 次），
+     *    一次都没去 B 站。活动文案说的是"在推荐里翻到没见过的角落"，
+     *    落手处却说"读侧命令"——两边对不上，她就近选了记忆池（memory_recall 最熟）。
+     *    现在直接写工具名：她不需要猜"读侧命令"是哪个。
      */
     const outlets: Record<string, string> = {
       reflect: '比如 diary_write 在私人本写一小段，或 memory_remember 存一条',
-      explore: '比如去推荐里翻一条没看过的（读侧命令），看完 mood_apply 带一句 note',
-      consume: '比如看一条轻松的（读侧命令），看完 mood_apply 带一句 note',
-      social: '比如 memory_recall 翻翻以前的记录',
-      create: '比如 diary_write 写几句碎碎念',
-      exercise: '比如活动完在私人本 diary_write 记一句',
-      rest: '比如歇完在私人本 diary_write 记一句',
+      explore: '比如调 bili_feed 拿推荐里的候选，挑一条没看过的，再用 bili_debrief 深读（{"bvid":"<BV号>"}）',
+      consume: '比如调 bili_feed 拿推荐里的候选，挑一条轻松的深读看完，然后 mood_apply 带一句 note',
+      social: '比如调 memory_recall 翻翻以前的记录',
+      create: '比如调 diary_write 写几句碎碎念',
+      exercise: '比如活动完调 diary_write 在私人本记一句',
+      rest: '比如歇完调 diary_write 在私人本记一句',
     }
     const outlet = outlets[activity]
     return `${head}她想动（${what}）：${tick.reason}；冲动强度 ${Number(tick.urge).toFixed(2)}。`

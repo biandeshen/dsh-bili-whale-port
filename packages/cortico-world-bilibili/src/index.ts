@@ -14,6 +14,7 @@ import {
   type BilibiliCapabilityOptions,
 } from '../../cap-bilibili/src/index.ts'
 import { createBiliWorld, type BiliWorldOptions, type CorticoWorldHost } from './cortico-world.ts'
+import { readLegacyIdentity } from './legacy-identity.ts'
 
 export { createBiliWorld }
 export type { BiliWorldOptions, CorticoWorldHost }
@@ -104,12 +105,26 @@ const definition = {
   id: 'bili-account',
   label: '小鱼 · B站账号',
   defaults: () => ({ enabled: true }),
-  create(ctx: { botDir?: string; dataDir?: string; secret?: (n: string) => string }) {
+  create(ctx: {
+    botDir?: string
+    dataDir?: string
+    secret?: (n: string) => string
+    /** 活配置引用（宿主保证）：每次读都拿到最新值，主人在面板改了不用重启。 */
+    cfg?: Record<string, any>
+  }) {
     // 部署目录才是她的家；凭据文件就是 `<botDir>/.env`。
     // **不再在这里取一次快照塞进 writeContext**：那样 `bili_jct`/`buvid3` 被写死成空串，
     // 而且主人换完 cookie 必须重启才生效——评论/点赞/收藏这类写会带着不完整的旧凭据出去。
     // 现在交给能力包用 liveCredentials 现读（env 优先，与宿主 secretReader 同一条优先级）。
     const botDir = ctx.botDir ?? defaultHomeDir()
+    /**
+     * 身份（主人 mid / 她自己 mid）：新配置优先，没有就桥接旧共享配置。
+     * 监听器要靠这两条判断"是不是主人找她"以及"这条是不是她自己发的"。
+     */
+    const legacy = readLegacyIdentity()
+    const ident = (ctx.cfg?.identity ?? {}) as { ownerMid?: string; selfMid?: string }
+    const ownerMid = String(ident.ownerMid ?? legacy.ownerMid ?? '').trim()
+    const selfMidHint = String(ident.selfMid ?? legacy.selfMid ?? '').trim()
     const w = createBiliWorld({
       homeDir: botDir,
       // 宿主给的是部署级 data/（多个扩展共用）；本包在自己的子目录里，不跟别人抢文件。
@@ -120,6 +135,10 @@ const definition = {
       // 她的判断卡（f-aa12d0 ③）：bili_seek.fromJudgment 按「收」过的 tokens 定向捞。
       // 路径与 bot 转接头那份 judgmentFile 同一处账（<botDir>/data/persona/judgment.jsonl）。
       judgmentFile: path.join(botDir, 'data', 'persona', 'judgment.jsonl'),
+      ...(ownerMid ? { ownerMid } : {}),
+      ...(selfMidHint ? { selfMidHint } : {}),
+      // 监听开关**现读**：worlds.bili-account.listen.* 改了下一拍就生效
+      listenConfig: () => (ctx.cfg?.listen ?? {}) as Record<string, never>,
     } as never)
     return w.world
   },

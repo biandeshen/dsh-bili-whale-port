@@ -54,6 +54,10 @@ function setup(over = {}) {
     dataDir,
     credentialsFile: credFile,
     fetch: bili.fetch,
+    // 这一组钉的是「连接」页那几个方法的网络纪律（先验后写、值不回显、缺 SESSDATA 不动手），
+    // 所以把监听那条后台链路关掉：不然启动时的 mid 补齐会多敲一次 nav，
+    // 下面那些"一次都不该发请求"的计数就不知道在量谁了。耳朵的规矩另有测试（inbox-listener.test.mjs）。
+    listenAutoStart: false,
   })
   // 挂一个假宿主：能力包里的 warn 日志得有地方落，否则"写失败被吞掉"这类事在测试里看不见
   const logs = []
