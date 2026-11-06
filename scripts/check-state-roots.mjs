@@ -117,7 +117,10 @@ if (json) {
   console.log(`状态根门禁　state-roots`)
   console.log(`  新家：${fresh}`)
   console.log(`  旧家：${legacy}`)
-  console.log(`  表里声明 ${result.declared.length} 类；调用点用了 ${used.size} 类`)
+  console.log(`  表里声明 ${result.declared.length} 类；旧 CLI 调用点抓到 ${used.size} 类`)
+  console.log(`  ⚠ 口径：只扫 tools/core/panel/scripts 四个目录，正则只认 stateReadPath/writeStateText 两种写法；`)
+  console.log(`    packages/（能力包，她真正在跑的那一侧）**不经过这张表**，所以"12"不等于"只有 12 类有人用"。`)
+  console.log(`    要说"她实际在写哪份文件"，跑 scripts/audit-state-locations.mjs——那条盘上实况为准。`)
   for (const n of notes) console.log(`  · ${n}`)
   if (problems.length) {
     for (const p of problems) console.log(`  ✗ ${p}`)

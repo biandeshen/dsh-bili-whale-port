@@ -1547,3 +1547,38 @@ ffmpeg 不在 PATH、只躺在旧家 `bin/` 里，这条依赖本身也该收进
 JSDoc 里写了一个带通配符的路径，那个"星号+斜杠"把块注释提前关掉，文件直到被 `node` 执行才炸——
 "跑起来才知道"正是这个门禁该消灭的东西。于是加了第二遍：对每个 `.mjs` 跑 `node --check`
 （327 个文件约 25 秒）。用一份临时坏文件验过它确实会红（报出文件名与"星号+斜杠"这一成因），删掉后重新变绿。
+
+---
+
+### 12.16 零成本的账：状态文件到底在哪（2026-11-06 深夜）
+
+主人说"先零成本的账搞清楚"。挑了最容易被我自己糊弄过去的一条：**门禁里那句"表里声明 24 类；调用点用了 12 类"**。
+
+**这句话是口径错误。** `check-state-roots.mjs` 只扫 `tools/core/panel/scripts` 四个目录，
+正则只认 `stateReadPath('x.json')` / `writeStateText(...)` 两种写法。她真正在跑的 `packages/`
+**根本不在扫描范围内**（能力包不经过这张表）。所以"12"不是"只有 12 类有人用"，
+是"旧 CLI 里我的正则抓得到的有 12 类"。已经在门禁输出里把口径写明，并指向新的实况脚本，
+不让人再拿这个数当结论。
+
+新增 `scripts/audit-state-locations.mjs`（只读，以盘上事实为准：表里的 write 路径 + 她实际在写的目录 + 两侧调用点数），
+24 类的实况是这样：
+
+| 判定 | 数量 | 具体 |
+|---|---|---|
+| **表外真身在写**（表指 `.dsh/bili-ai/…`，她实际写在别处） | 5 | `quota`→部署/bilibili · `feedback`→部署/persona(.jsonl) · `fields`→部署/persona **和** whale/bili-whale · `causal`→两处 .jsonl 同尺寸同分钟 · `runs`→部署/data/runs（表指 whale/bili-whale/runs） |
+| **同一个键两处都有文件** | 1 | `traffic-state`：表里那份 845 B 是 **guardedFetch 的风控台账**（accounts/nextAt/until），部署那份 91 B 是 **WriteGate 的写冷却台账**（writeGapSec/pausedUntil）——同名不同义 |
+| 只剩旧 CLI 在用（退场清单） | 6 | `pending-replies`、`dm-quota`、`dm-await-state`、`favorites`、`feed-search-cache`、`selftest-passed` |
+| 表路径两处家里都没有 | 8 | `await-state`、`likes-sent`、`liked-videos`、`replied`、`commented-videos`、`once-debug`、`draft-result`、`dm-applied` |
+
+三条值得单独说的：
+
+1. **`fields.json` 今天两份都在被写**：`部署/persona/fields.json` 12:19Z（她自己的循环最后一次动它），
+   `whale/bili-whale/fields.json` 13:33Z——后者是 **day-watchdog** 每 5 分钟一次的快照
+   （`control/day-watchdog.log` 13:38/13:43/13:48Z `tick count=260/261/262` 对得上）。
+   也就是说"她现在的体力/情绪是多少"这个问题，**有两份答案、两个写者、两种语义**。
+   这正是回看与自评最容易读错的地方，也是 §12.14 那次"改了没生效"误判的土壤。
+2. **`drafts` 的表路径指向 `D:/AI/养鱼/drafts`，而这个目录仍然存在**（11-02，20 项）。
+   旧配置里 `home = D:/AI/养鱼` 那条我判成"该废"，但盘上事实是**草稿还在用那口旧井**。
+3. **单写者/没绕过表这两条保障只覆盖旧 CLI 那一侧**。要让门禁真的管住她的状态，
+   得把能力包侧路径接进 `KINDS` 表——那是**存储合同变更**，按仓库规矩要先出有界提案，不直接动手（下一步）。
+
