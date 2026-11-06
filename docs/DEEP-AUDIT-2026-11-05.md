@@ -1349,3 +1349,38 @@ activeReview 经面板 API 线上调用返回真实三类计数。
 **顺手修掉的前置**：意见箱 53 条曾 46 条结案但零批复正文——已逐条批复写回（open 52→0），
 fetchFeed 单源失效不再静默（sourceFails 逐源列死法）。另按主人拍板把控制台对局域网开放
 （`--host=0.0.0.0` + 防火墙仅专用网络档放行，start-cortico-firewall.cmd 带 --check/--remove）。
+
+### 12.13 B17：QQ 接入——复用宿主内置 QQ world（2026-11-06）
+
+**推翻原计划的一步**：B17 原本要按 cap-bilibili 形状从零造 cap-qq + cortico-world-qq。
+开工前盘现成件（主人规则：优先复用开源轮子），发现宿主 Cortico-up 自带完整
+`src/worlds/qq/`（world.ts 73KB）：OneBot v11 正向 WS（core 作 WS 客户端连 NapCat）、
+群/私聊监听名单（热改）、**起草-确认两步发送门**（draft 暂存→confirm 发出/作废，
+天然是发言安全门）、历史消息读取与 grep、图片下载 + 辅助视觉（OpenRouter）、
+语音转写事件、撤回/入退群事件、独立连接面板与名单面板、断线退避重连（1s→30s）。
+自造只能做出它的子集——停项，改为启用。
+
+**装配链核实**（全部读到宿主源码行号）：
+- `launcher.ts:171` `loadBuiltinWorlds()` 无参加载全部内置 world，进入
+  `withWorlds(definition, [...builtinWorlds, ...extensions.worlds])`；
+- `world.ts:128` 未被 bot `declares` 的 world 默认 `enabled:false`，部署 config.json
+  显式写 `enabled:true` 即挂载（`WorldAssembly` 只看 section.enabled，xiaoyu 的
+  `declares` 不含 qq 也没关系）；
+- 内置 `bilibili`（id=`bilibili`）与我们扩展 `bili-account` 是两个 id，不撞。
+
+**已落地**（2026-11-06 08:39）：
+- `~/.xiaoyu-home/xiaoyu/config.json` 加 `worlds.qq`（enabled=true，
+  wsUrl=ws://127.0.0.1:3001，token 空，groups/privates 空；改前备份 .bak-20261106-qq）；
+- 冷重启后 boot 日志确认：`World 已启动: qq`；驱动按预期 ECONNREFUSED 127.0.0.1:3001
+  退避重连（NapCat 未装时的正常空转，1s→2s→4s→8s→…→30s 封顶）；
+  `world:qq` 配置组出现在 /api/config。
+- 发送安全门：QQ world 自带 draft→confirm 两步，她起稿后还要显式 confirm 才真发；
+  名单外会话既不收也不发。
+
+**主人侧剩余两步**（协议端是消耗品，凭据不进仓库/配置库）：
+1. 装 NapCat（NapNeko/NapCatQQ Releases 的 Windows 一键包），用**QQ 小号**登录
+   （主号挂机器人有封号风险——多方提醒，强烈不推荐）；
+2. 7799 控制台 QQ 面板里：设 OneBot 连接（ws://127.0.0.1:3001 + access token），
+   把自己的大号加进私聊名单，然后她就能收发。
+**未验证项（诚实标注）**：真实 NapCat 收发、token 校验、图片/语音链路——等小号与
+NapCat 就位后联调；当前只有「world 挂载 + 驱动重连日志」这一层是真凭据。
