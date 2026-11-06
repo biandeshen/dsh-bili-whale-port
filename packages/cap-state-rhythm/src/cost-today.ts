@@ -63,7 +63,7 @@ export function readCostToday(opts: { dataDir: string; basis?: 'utc' | 'local'; 
 
   const today = dayKey(new Date(now).toISOString(), basis)
   let calls = 0, paid = 0, failed = 0, inputTokens = 0, outputTokens = 0, atCeiling = 0
-  let last402Ms = 0, lastErrMs = 0
+  let last402Ms = 0, lastErrMs = 0, lastPaidMs = 0
   const statusCounts: Record<string, number> = {}
 
   // 文件可能有半行（进程被杀），逐行 try-parse，不整块 require
@@ -91,11 +91,21 @@ export function readCostToday(opts: { dataDir: string; basis?: 'utc' | 'local'; 
     }
   }
 
-  // 最后一次失败距今多久：不到 15 分钟还在失败 = 通道是关着的，不是她不想说
+  /**
+   * 三种状态要能分开，这是 P2 的全部意义：
+   *   · 近 15 分钟还在失败 → 通道关着（402=没钱 / 其它=被限），**不是她不想说**
+   *   · 近 15 分钟有成功调用 → 通道开着、她确实在说话
+   *   · 两边都没有 → `quiet`（这一阵子谁都没动），不能报成 `ok` 让人读成"她选择沉默"
+   */
   const stalledMinutes = lastErrMs > 0 ? Math.max(0, Math.round((now - lastErrMs) / 60_000)) : null
-  const verdict: CostToday['verdict'] = stalledMinutes !== null && stalledMinutes <= 15
+  const freshMs = 15 * 60_000
+  const recentlyFailed = stalledMinutes !== null && now - lastErrMs <= freshMs
+  const recentlyPaid = lastPaidMs > 0 && now - lastPaidMs <= freshMs
+  const verdict: CostToday['verdict'] = recentlyFailed
     ? (last402Ms === lastErrMs ? 'stalled-auth' : 'throttled')
-    : paid > 0 ? 'ok' : 'quiet'
+    : recentlyPaid
+      ? 'ok'
+      : 'quiet'
 
   return {
     day: today, dayBasis: basis, calls, paid, failed, inputTokens, outputTokens,

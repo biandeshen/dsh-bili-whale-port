@@ -48,6 +48,19 @@ test('402 最近还在发生 → verdict=stalled-auth，不是"她很安静"', (
   assert.match(costSummary(c), /说不出口/, '要直说是额度把门关了')
 })
 
+test('近 15 分钟两边都没动静 → quiet，不是 ok（别让人读成"她选择沉默"）', (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cost-'))
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }))
+  write(dir, [
+    { attempt: { startedAt: `${day}T05:00:00.000Z`, outcome: 'success', status: 200, meters: { input: 1000 } } },
+    { attempt: { startedAt: `${day}T05:01:00.000Z`, outcome: 'failed', status: 402, meters: {} } },
+  ])
+  // 现在已是 06:00：成功与失败都远在 15 分钟之外
+  const c = readCostToday({ dataDir: dir, basis: 'utc', now: Date.parse(`${day}T06:00:00.000Z`) })
+  assert.equal(c.verdict, 'quiet', '既没成功也没失败＝这一阵谁都没动，不能报"通道开着她在沉默"')
+  assert.equal(c.paid, 1, '当日累计数还是要给，只是"当下状态"要判对')
+})
+
 test('半行（进程被杀）不炸；没有账的文件要说明白', (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cost-'))
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }))
