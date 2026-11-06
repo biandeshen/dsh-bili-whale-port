@@ -139,6 +139,39 @@ export const inboxPanel = {
       head.textContent = `未读 ${res.unreadCount ?? 0} 条 · 共 ${(res.items ?? []).length} 条${(res.blockedUids ?? []).length ? ` · 已拉黑 ${(res.blockedUids as string[]).length} 个号` : ''}`
       listBox.append(head)
 
+      /**
+       * 「已拉黑 N 个号」以前只是个**数字**：拉黑确认框里写着"可以在这里放回来"，
+       * 但这一页根本没有放回来的入口（只能改 `blocked-uids.json` 或用 CLI）。
+       * 2026-11-06 主人"逐个按钮检查"扫出来的 R6 —— 文案承诺的入口必须真的存在，
+       * 否则那句确认就是在骗人。现在每个被拉黑的 mid 一颗「放回来」。
+       */
+      const blocked: string[] = (res.blockedUids ?? []).map(String)
+      if (blocked.length) {
+        const bl = ui.h('div')
+        bl.style.margin = '4px 0 10px'
+        for (const uid of blocked) {
+          const row = ui.h('div')
+          row.style.display = 'flex'
+          row.style.gap = '8px'
+          row.style.alignItems = 'center'
+          const who = ui.h('span')
+          who.textContent = `mid ${uid}`
+          const back = actionButton(ctx, ui, msg, '↩ 放回来', 'unblockUser', undefined, {
+            argsFactory: () => [{ uid, confirm: true }],
+            confirm: () => ({
+              title: `确认把 mid ${uid} 从屏蔽名单放回来？`,
+              body: '放回来之后他又能给她留言、她也能再看见他。'
+                + '这条改的是她真实的人际账，所以两边都要确认（后端同样要 confirm:true）。',
+              ok: '确认放回',
+            }),
+            after: () => refresh(),
+          })
+          row.append(who, back)
+          bl.append(row)
+        }
+        listBox.append(bl)
+      }
+
       // 每条一个"行"，行内记着能就地改的部件。动作完成后只改这一行，
       // 不整列表重取——整块重建会把主人正在打的"叮嘱"抹掉（这是 story-1 的遗留项）。
       const rows = new Map<string, { box: any; desc: HTMLElement; acts: HTMLElement }>()

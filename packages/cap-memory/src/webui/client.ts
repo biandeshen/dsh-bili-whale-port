@@ -226,6 +226,19 @@ export const memoryCenterPanel = {
         acts.append(voidBtn)
       } else {
         const restore = actionButton(ctx, ui, msg, '↩ 恢复', 'restore', undefined, {
+          /**
+           * 恢复 = 把一条**被她或主人判过"记错了"并作废**的卡片放回检索池。
+           * 同页的「移出核心」「放进核心」「作废」都有确认，这一颗以前是裸的（2026-11-06
+           * 主人"逐个按钮检查"扫出来的 R2）：点一下就回来，而回来之后她会重新拿它当事实说话。
+           * 不写成"危险"腔，只把后果说清：回到哪一层、她会不会又想起来。
+           */
+          confirm: () => ({
+            title: '确认把这条作废的记忆恢复？',
+            body: `这条：${String(card0.content ?? '').slice(0, 60)}\n\n恢复之后它回到「近期活跃」，`
+              + '关键词撞上就会被她重新想起来；当初作废的理由如果还在，请先改正文再恢复。',
+            warn: '作废不是删除，恢复也不是覆盖——两条都会留痕。',
+            ok: '确认恢复',
+          }),
           argsFactory: () => [{ id: card0.id, targetTier: 'active' }],
           after: syncOrRefresh,
         })

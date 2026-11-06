@@ -3,9 +3,14 @@
  *
  * 浏览底图与 CC0 曲库、试听 TTS 语音、一键合成竖屏短视频与双封面，
  * 并可把成片送进 B 站待放行队列。
+ *
+ * 脏守卫（2026-11-06 主人"逐个按钮检查"扫出来的 R4）：这一页有台词框与时长输入，
+ * 而刷新是 `box.replaceChildren()` 整块重建——以前点「合成视频草稿」后 `after: refresh`
+ * 会把刚写的台词一起冲掉，主人辛苦打的字**静默丢失**。现在：脏了先问一句，
+ * 答应丢掉才重建，取消就保留原样。
  */
 import type { PanelCtx } from '../../../cortico-adapter/src/webui-helpers.ts'
-import { call, actionButton } from '../../../cortico-adapter/src/webui-helpers.ts'
+import { call, actionButton, createDirtyGuard } from '../../../cortico-adapter/src/webui-helpers.ts'
 
 export const mediaStudioPanel = {
   mount(ctx: PanelCtx) {
@@ -20,7 +25,13 @@ export const mediaStudioPanel = {
     const box = ui.h('div')
     card.body.append(box, msg)
 
+    const guard = createDirtyGuard(ui)
+    let mounted = false
+
     async function refresh() {
+      // 首次挂载没有脏可言；之后每次整块重建前都要问一句（点取消＝不刷新，保住字）
+      if (mounted && !(await guard.guard())) return
+      guard.reset()
       const res = await call<any>(ctx, msg, 'listAssets', {})
       if (!res) return
       const tc = res.toolchain ?? {}
@@ -52,6 +63,20 @@ export const mediaStudioPanel = {
       })
       const script = ui.textarea({ placeholder: '要念的台词（最多 5 行）', rows: 3 })
       const dur = ui.input({ value: '20', type: 'number', min: 3, max: 60 })
+      /**
+       * 登记脏值守卫：基线取"这一屏刚建好时的值"，不是空串——
+       * 底图/时长是下拉与默认值，主人只改了台词也会被算脏，这是对的（那是他打的字）。
+       */
+      const base = {
+        script: script.value,
+        dur: dur.value,
+        image: imageSel.value,
+        bgm: bgmSel.value,
+      }
+      guard.watch(script, () => base.script)
+      guard.watch(dur, () => base.dur)
+      guard.watch(imageSel, () => base.image)
+      guard.watch(bgmSel, () => base.bgm)
 
       // 试听：一次点击只合成一次。
       // 以前 after 里又调了一次 ctx.invoke('previewTts')，等于每点一下 TTS 跑两遍
@@ -81,7 +106,7 @@ export const mediaStudioPanel = {
           bgmId: bgmSel.value,
           durationSec: Number(dur.value),
         }],
-        after: refresh,
+        after: () => refresh(),
       })
 
       box.append(
@@ -113,6 +138,7 @@ export const mediaStudioPanel = {
       toPrefs.setAttribute('href', '#/provider/world%3Abili-account/preferences')
       links.append(toVision, toPrefs)
       box.append(links)
+      mounted = true
     }
     void refresh()
   },

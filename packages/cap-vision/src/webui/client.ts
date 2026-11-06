@@ -6,7 +6,7 @@
  * 都是她看片时的动作，不是运维指标。
  */
 import type { PanelCtx } from '../../../cortico-adapter/src/webui-helpers.ts'
-import { call, actionButton, sliderField } from '../../../cortico-adapter/src/webui-helpers.ts'
+import { call, actionButton, sliderField, createDirtyGuard } from '../../../cortico-adapter/src/webui-helpers.ts'
 
 const secs = (n: number) => (n >= 60 ? `${Math.floor(n / 60)} 分 ${Math.round(n % 60)} 秒` : `${Math.round(n)} 秒`)
 
@@ -23,7 +23,18 @@ export const visionPanel = {
     const box = ui.h('div')
     card.body.append(box, msg)
 
-    async function refresh() {
+    /**
+     * 脏守卫（2026-11-06 R4 修复）：这一页三个滑块是"改了还没保存"的状态，
+     * 而刷新是整块 `replaceChildren()`。主人拖完「一条片子留多少帧」去点「↻ 重跑」
+     * 或「删掉超期的」，滑块的未保存值会被静默打回服务端值——字面上的"我刚才调的没了"。
+     * 现在：未保存先问一句；点「保存」之后不ask（值已经落库，再问就是骚扰）。
+     */
+    const guard = createDirtyGuard(ui)
+    let mounted = false
+
+    async function refresh(force = false) {
+      if (mounted && !force && !(await guard.guard())) return
+      guard.reset()
       const res = await call<any>(ctx, msg, 'getSnapshot', {})
       if (!res) return
       box.replaceChildren()
@@ -55,10 +66,17 @@ export const visionPanel = {
       const frames = sliderField(ui, '一条片子留多少帧', Number(cfg.targetFrames ?? 48), { min: 8, max: 240, step: 4 })
       const dup = sliderField(ui, '多像算重复（去重地板）', Number(cfg.dupMin ?? 12), { min: 0, max: 60, step: 1 })
       const keep = sliderField(ui, '拼图留几天', Number(cfg.keepDays ?? 14), { min: 1, max: 120, step: 1 })
+      const baseTuning = { targetFrames: frames.get(), dupMin: dup.get(), keepDays: keep.get() }
+      for (const [key, ctl] of [['targetFrames', frames], ['dupMin', dup], ['keepDays', keep]] as const) {
+        // sliderField 交出的是 { el, get() }，不是原生 input：给它一个读数入口就行，
+        // 守卫只比较 `当前值 !== 建屏时的基线`。
+        guard.watch({ get value() { return String((ctl as any).get()) } }, () => String(baseTuning[key]))
+      }
       const save = actionButton(ctx, ui, msg, '保存', 'setTuning', undefined, {
         variant: 'primary',
         argsFactory: () => [{ targetFrames: frames.get(), dupMin: dup.get(), keepDays: keep.get() }],
-        after: refresh,
+        // 存完再刷：这时服务端值已经等于滑块值，不该再问"要丢掉吗"
+        after: async () => { await refresh(true) },
       })
       const hint = ui.h('div')
       hint.style.opacity = '0.7'
@@ -90,7 +108,7 @@ export const visionPanel = {
               + '只动本地文件，不联网、不发任何东西。',
             ok: '确认重跑',
           },
-          after: refresh,
+          after: () => refresh(),
         })
         table.addRow([when, what, result, `${r.sheets} 张 / 留 ${r.kept} 帧`, statText, stripText, rerun])
       }
@@ -161,10 +179,11 @@ export const visionPanel = {
       const confirm = ui.checkbox('我确认要删掉超期的拼图')
       const clean = actionButton(ctx, ui, msg, '删掉超期的', 'cleanupSheets', undefined, {
         argsFactory: () => [{ olderThanDays: Number(cfg.keepDays ?? 14), confirm: confirm.checked }],
-        after: refresh,
+        after: () => refresh(),
       })
       danger.append(confirm.el, clean)
       box.append(danger)
+      mounted = true
     }
 
     void refresh()

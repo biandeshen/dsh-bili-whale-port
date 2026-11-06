@@ -13,7 +13,14 @@ const ok=()=>new Response(JSON.stringify({code:0,data:{}}),{headers:{'content-ty
 function setup(t, override={}) {
  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'whale-traffic-'))
  t.after(()=>fs.rmSync(directory,{recursive:true,force:true}))
- let time=Date.now(),calls=0
+ /**
+  * 假时钟的起点钉在**当天正午**，不是 `Date.now()`。
+  * 2026-11-06 23:5x 实踩：`different writes still obey cooldown and daily caps` 只往前推 240 秒，
+  * 而日预算的日期串按本地日切（`new Date(timestamp).toLocaleDateString('sv-SE')`），
+  * 跨过午夜那一瞬 `writeDay` 归零 → 第三次写入不再被拦 → 测试红；00:00 后重跑又绿。
+  * 挂在墙钟上的测试＝每天响一次又自愈的假警报，钉住时刻才是真回归。
+  */
+ let time=(()=>{const d=new Date();d.setHours(12,0,0,0);return d.getTime()})(),calls=0
  const options={directory,settings:()=>({...RISK_DEFAULTS,...override}),now:()=>time,sleep:async ms=>{time+=ms},transport:async()=>{calls++;return ok()}}
  return {directory,options,guard:createTrafficGuard(options),advance:ms=>{time+=ms},calls:()=>calls,time:()=>time}
 }
