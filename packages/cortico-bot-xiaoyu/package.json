@@ -1,6 +1,6 @@
 {
   "name": "cortico-bot-xiaoyu",
-  "version": "0.1.cd21bd32",
+  "version": "0.1.6d450a71",
   "type": "module",
   "description": "小鱼的对内能力一拖三薄转接头（挂载 cap-state-rhythm / cap-memory / cap-journal，对接 Cortico bot api:7 或任意宿主）。",
   "keywords": [

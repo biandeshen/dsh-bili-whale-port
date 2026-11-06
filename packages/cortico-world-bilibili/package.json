@@ -1,6 +1,6 @@
 {
   "name": "cortico-world-bilibili",
-  "version": "0.1.7630b076",
+  "version": "0.1.3a2637f6",
   "type": "module",
   "description": "小鱼的 B 站整域能力薄转接头（包装 @xiaoyu/cap-bilibili，对接 Cortico world api:6，World ID: bili-account）。",
   "keywords": [
