@@ -69,7 +69,111 @@ function checkPrompts() {
   }
 }
 
-// ── 2) 源码工具清单 vs describe.json ───────────────────────────────────────
+// ── 2) 两份 persona-core：说清哪份是活的 ───────────────────────────────────
+/**
+ * **同名不同源的两份 persona-core**（2026-11-06 实锤）：
+ *   · **仓库这份（活的）**：`packages/persona-core/src/` —— 能力包（cap-state-rhythm 等）
+ *     用相对路径 import 的是它，**线上 live 跑的就是它**。B14 的节奏常量
+ *     （CHECK_PROB 0.35 / 30–90s / 恢复 0.02/h / 行动开销 0.015）改在这里才生效。
+ *   · **宿主那份（另一条链）**：`Cortico-up/persona-core/src/` —— 宿主自带 world 用的副本，
+ *     连 import 扩展名都不同（`.js`）。我们没挂那些 world，**当前不参与她的行为**。
+ *
+ * 这次就栽在"改错份"上：预算配额改在仓库那份时线上没生效（后来发现真正的原因另有一说，
+ * 但同名两份本身就是要防的坑）。所以门禁现在**明确指出哪份是活的**，并只在两份
+ * 都参与同一条链时才要求一致——否则只报差异、不报错（免得天天报一个不影响行为的差异）。
+ */
+function checkPersonaCore() {
+  const hostRoot = process.env.CORTICO_ROOT || path.join(REPO, '..', 'Cortico-up')
+  const mine = path.join(REPO, 'packages', 'persona-core')
+  const theirs = path.join(hostRoot, 'persona-core')
+  if (!fs.existsSync(theirs)) {
+    ok('宿主 persona-core 不存在', '只有一份，链路唯一')
+    return
+  }
+  // 宿主那份是否被我们的链引用（相对路径 import 到宿主树）——没有就是另一条链
+  let linked = false
+  const pkgDir = path.join(REPO, 'packages')
+  for (const name of fs.readdirSync(pkgDir)) {
+    const srcDir = path.join(pkgDir, name, 'src')
+    if (!fs.existsSync(srcDir)) continue
+    for (const f of fs.readdirSync(srcDir)) {
+      if (!f.endsWith('.ts')) continue
+      const text = fs.readFileSync(path.join(srcDir, f), 'utf8')
+      if (text.includes('Cortico-up') || text.includes('../Cortico-up')) { linked = true; break }
+    }
+    if (linked) break
+  }
+  if (!linked) {
+    ok('线上跑的是仓库那份 persona-core', `packages/persona-core（宿主那份是另一条链，当前不参与她的行为）`)
+    // 补一条当日预算余额的提醒：**改预算代码不会重置当日余额**。
+    // 2026-11-06 实锤：budget.ts 08:57 就改成不限了，但 12:47 重启后 energy 仍冻结在
+    // 0.807——当时 fields.json 里的 budget.spent['action|energy'] 当天已花满 0.2，
+    // 余额为 0 就不允许再生效（换日才清零）。看起来像"改了没生效"，其实是"余额没了"。
+    // 注意：**只看有上限的来源**——action/rest 改成不限后，spent 里的旧值是历史残留，
+    // 不再截断也不该报（否则天天报一个不成立的警报）。
+    const fields = path.join(DEPLOY, BOT, 'data', 'persona', 'fields.json')
+    try {
+      const st = JSON.parse(fs.readFileSync(fields, 'utf8'))
+      const spent = st?.budget?.spent ?? {}
+      const day = st?.budget?.day
+      const caps = readSourceCaps(path.join(REPO, 'packages', 'persona-core', 'src', 'budget.ts'))
+      const frozen = Object.entries(spent).filter(([k, v]) => {
+        const src = String(k).split('|')[0]
+        const cap = caps[src]
+        return cap !== undefined && Number.isFinite(cap) && Number(v) >= cap - 1e-9
+      })
+      if (frozen.length) {
+        warn(`当日预算余额已用尽（${day}）`, frozen.map(([k, v]) => `${k}=${Number(v).toFixed(2)}`).join(' ')
+          + '｜改预算代码不会重置它，要等换日（或手动清 ledger）')
+      } else {
+        const finite = Object.entries(spent).filter(([k]) => {
+          const src = String(k).split('|')[0]
+          const cap = caps[src]
+          return cap !== undefined && Number.isFinite(cap)
+        })
+        ok('当日预算余额未用尽', day
+          ? (finite.length ? finite.map(([k, v]) => `${k}=${Number(v).toFixed(2)}`).join(' ') : '无受限来源的支出')
+          : '无账')
+      }
+    } catch { /* 读不到就不报 */ }
+    return
+  }
+  // 一旦将来真把两份接进同一条链，就必须逐字对齐
+  const read = (p, re) => {
+    const out = []
+    for (const m of fs.readFileSync(p, 'utf8').matchAll(re)) out.push(`${m[1]}=${String(m[2]).trim()}`)
+    return out.sort()
+  }
+  for (const { file, re, label } of PERSONA_CORE_CONSTS) {
+    const a = path.join(mine, file)
+    const b = path.join(theirs, file)
+    if (!fs.existsSync(a) || !fs.existsSync(b)) continue
+    const av = read(a, re)
+    const bv = read(b, re)
+    if (av.join('|') === bv.join('|')) ok(`两份 persona-core 的${label}一致`, av.join(' '))
+    else bad(`两份 persona-core 的${label}不一致（同一条链，必须逐字对齐）`, `仓库：${av.join(' ')}｜宿主：${bv.join(' ')}`)
+  }
+}
+
+// ── 3) 源码工具清单 vs describe.json ───────────────────────────────────────
+const PERSONA_CORE_CONSTS = [
+  { file: 'src/budget.ts', re: /^\s*(rest|action|custom|watched):\s*([^,\n]+),/gm, label: '来源日预算' },
+  { file: 'src/rhythm.ts', re: /export const (CHECK_PROB|REST_RECOVERY_PER_HOUR|ACTION_COST_ENERGY|NEXT_CHECK_MIN_MS|NEXT_CHECK_MAX_MS)\s*=\s*([^;\n]+)/gm, label: '节奏常量' },
+]
+
+/** 读 budget.ts 里的来源上限（UNLIMITED 的返回 Infinity）。 */
+function readSourceCaps(file) {
+  const out = {}
+  try {
+    const text = fs.readFileSync(file, 'utf8')
+    for (const m of text.matchAll(/^\s*([A-Za-z-]+):\s*([^,\n]+),/gm)) {
+      const raw = m[2].trim()
+      out[m[1]] = raw === 'UNLIMITED' ? Number.POSITIVE_INFINITY : Number(raw)
+    }
+  } catch { /* 读不到就当没有上限 */ }
+  return out
+}
+
 function summarizeKeys(file) {
   const text = fs.readFileSync(file, 'utf8')
   const start = text.indexOf('const TOOL_SUMMARIES')
@@ -164,6 +268,7 @@ function checkBundles() {
 
 // ── 主流程 ────────────────────────────────────────────────────────────────
 checkPrompts()
+checkPersonaCore()
 checkDescribe()
 checkBundles()
 
