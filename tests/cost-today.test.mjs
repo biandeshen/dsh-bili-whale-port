@@ -32,7 +32,8 @@ test('付费与失败分开计，且能数出顶到上限的次数', (t) => {
   assert.equal(c.failed, 1)
   assert.equal(c.atCeiling, 1, '≥95% 上限的那次要数出来')
   assert.equal(c.statusCounts['402'], 1)
-  assert.match(costSummary(c), /说不出口|通道/, '摘要要给一句人话')
+  assert.match(costSummary(c), /近 15 分钟没有新调用/, 'quiet 的措辞要说"这一阵没动静"，不能说成"今天没调用"')
+  assert.match(costSummary(c), /今天 3 次调用/, '当日累计要一并给出来')
 })
 
 test('402 最近还在发生 → verdict=stalled-auth，不是"她很安静"', (t) => {

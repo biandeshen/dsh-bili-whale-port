@@ -127,6 +127,10 @@ export function costSummary(c: CostToday): string {
       ? `｜通道受限（429/其它），最后一次失败 ${c.stalledMinutes} 分钟前`
       : c.verdict === 'ok'
         ? '｜通道开着，她说的话都计费了'
-        : '｜今天没有失败，也没有调用（她没开口）'
+        // quiet 有两种，措辞必须分开：改判之后"近 15 分钟没动静"不等于"今天没调用"。
+        // 把今天有账的日子说成"她没开口"，就是我刚修掉的那类错读。
+        : c.calls > 0
+          ? `｜近 15 分钟没有新调用（今天累计 ${c.calls} 次，其中付费 ${c.paid} 次）`
+          : '｜今天一次都没调用（账上是空的）'
   return `${head}${tail}（日界口径：${c.dayBasis}）`
 }
