@@ -116,6 +116,7 @@ function splitPrefix(text) {
 const cats = {}
 const prefixBlocks = {}
 const toolOutputBytes = {}
+const injection = { n: [], chars: [] }
 const toolCallBytes = {}
 let items = 0
 let windowChars = 0
@@ -155,7 +156,18 @@ for (const d of runDirs) {
       chars = text.length
       cat = it.role === 'user' ? '既往 user 注入（每轮都重送）' : '既往 assistant 输出（每轮都重送）'
       bump(cats, cat, chars)
-      if (it.role === 'user') for (const b of splitPrefix(text)) bump(prefixBlocks, b.name, b.chars)
+      if (it.role === 'user') {
+        for (const b of splitPrefix(text)) bump(prefixBlocks, b.name, b.chars)
+        /**
+         * 「本轮关联记忆」每回合实际注入几条——这条必须自己量，别拿"core 存了 21 张"当"注入了 21 条"。
+         * 2026-11-06 实测：p50=3、max=4，所以把 core 压到 8 **省不了 token**（省的是存储语义账）。
+         */
+        const mem = text.match(/【本轮关联记忆】([\s\S]*?)(?=\n【|$)/)
+        if (mem && mem[1].trim()) {
+          injection.chars.push(mem[1].trim().length)
+          injection.n.push((mem[1].match(/^\s*(?:[-·]|\[[^\]]{1,20}\])\s/gm) || []).length)
+        }
+      }
     } else if (it.type === 'function_call') {
       chars = JSON.stringify(it).length
       cat = 'function_call（她的工具调用请求）'
@@ -237,6 +249,11 @@ if (asJson) {
     inputTokensPerWindowChar: Number(ratio.toFixed(3)),
     categories: Object.fromEntries(table), prefixBlocks: Object.fromEntries(prefixTable),
     topToolOutputs: Object.fromEntries(topOutputs), topToolCalls: Object.fromEntries(topCalls),
+    injectionPerTurn: {
+      turns: injection.n.length,
+      cards: { min: Math.min(...injection.n), p50: injection.n.sort((a, b) => a - b)[Math.floor(injection.n.length / 2)], max: Math.max(...injection.n) },
+      chars: { min: Math.min(...injection.chars), max: Math.max(...injection.chars), total: injection.chars.reduce((a, b) => a + b, 0) },
+    },
     biggestRuns: biggest.slice(0, 5),
   }, null, 2))
 } else {
@@ -273,6 +290,14 @@ if (asJson) {
   }
 
   console.log(`## ③ user 注入里各块多大（每轮都重送的那一段）`)
+  if (injection.n.length) {
+    const srt = [...injection.n].sort((a, b) => a - b)
+    const srtC = [...injection.chars].sort((a, b) => a - b)
+    console.log(`  「本轮关联记忆」每回合实注入条数：min ${srt[0]} · p50 ${srt[Math.floor(srt.length / 2)]} · max ${srt[srt.length - 1]}`
+      + `（${injection.n.length} 个带该块的回合）`)
+    console.log(`  该块字符：p50 ${srtC[Math.floor(srtC.length / 2)]} · max ${srtC[srtC.length - 1]}`
+      + ` —— **别把"core 存了 21 张"读成"注入了 21 条"，压 core 上限不省 token**\n`)
+  }
   for (const [k, v] of prefixTable) console.log(`  ${String(v).padStart(8)} 字符  ${k}`)
 
   console.log(`\n## ④ 工具结果回灌 top 10（这是"越读越大"的直接来源）`)
@@ -284,6 +309,8 @@ if (asJson) {
   for (const b of biggest.slice(0, 5)) console.log(`  ${String(b.chars).padStart(9)} 字符  ${b.run}`)
 
   console.log(`\n## 口径与限制（不写清就会被人拿去吹）`)
+  console.log('  · 块名按【】切，**正文自带的【】会被当成块**（当日③里"ASMR助眠""失眠不怕"就是这么来的）；')
+  console.log('    大类占比不受影响，个别小块的归属要人眼看过再下结论。')
   console.log('  · 占比是"当日全部被送 item 的构成"，不是某一次请求的精确重放：宿主没把每次请求体落盘，')
   console.log('    要精确重放必须加一条采样落盘（P1 之后再说，别现在改行为）。')
   console.log('  · transcript 里**没有任何图像 item**（实测 0 字节），所以"拼图/帧把上下文撑爆"这条今天不成立。')
