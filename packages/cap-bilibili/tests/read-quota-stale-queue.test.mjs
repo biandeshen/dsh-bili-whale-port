@@ -139,6 +139,9 @@ test('读侧余量：读不到账要说读不到，不许显示成"余量无限"
 
 test('待放行超时：过期的要标出来，但不删', async () => {
   const dir = tmp()
+  // 2026-11-06 默认档改成 auto（主人的授权开放），超时机制是 review 档的行为——
+  // 写一份 review 的 policy.json 进临时目录（与线上持久化方式一致，不再依赖默认档）
+  fs.writeFileSync(path.join(dir, 'policy.json'), JSON.stringify({ draftMode: 'review' }), 'utf8')
   const gate = new WriteGate({
     dataDir: dir,
     executor: async () => ({ ok: true, dynId: 'd1' }),
@@ -162,6 +165,7 @@ test('待放行超时：过期的要标出来，但不删', async () => {
 
 test('待放行超时：放行过期项要多确认一次（后端兜底，脚本也一样）', async () => {
   const dir = tmp()
+  fs.writeFileSync(path.join(dir, 'policy.json'), JSON.stringify({ draftMode: 'review' }), 'utf8')
   const gate = new WriteGate({
     dataDir: dir,
     executor: async () => ({ ok: true, dynId: 'd1' }),
@@ -188,6 +192,7 @@ test('待放行超时：放行过期项要多确认一次（后端兜底，脚�
 
 test('待放行超时：没过期的正常放行（别把正常稿子也拦了）', async () => {
   const dir = tmp()
+  fs.writeFileSync(path.join(dir, 'policy.json'), JSON.stringify({ draftMode: 'review' }), 'utf8')
   const gate = new WriteGate({
     dataDir: dir,
     executor: async () => ({ ok: true, dynId: 'd1' }),

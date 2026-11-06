@@ -59,15 +59,25 @@ export function parseAutoWindow(window: string, now: number = Date.now()): { ok:
   return { ok: true, inWindow, text }
 }
 
+/**
+ * 默认发布策略：**开**（主人 2026-11-06 拍板：「现在就可以放开私信，可以公开」、
+ * 「不限 token」——之前默认全 review 是把主人的授权又收回去了：嘴贴三道封条，
+ * 她的内心生活再活，外面一个字也看不见）。
+ * 安全边界照旧存在，只是不再默认锁死：
+ *   · 动态/评论/弹幕走 auto / self —— 写冷却（writeGapSec）+ 412 熔断 + 读配额是
+ *     平台风控的疼觉反射，那才是真正的限速器，不需要人肉审批再来一层；
+ *   · 待放行队列仍在（drafts-queue 面板），只是不再默认把她的稿子塞进去等主人点；
+ *   · kill 急刹开关照常一票否决。
+ */
 export const DEFAULT_PUBLISH_POLICY: BiliPublishPolicy = {
-  draftMode: 'review',
+  draftMode: 'auto',
   autoDailyCap: 0,
   autoWindow: '00:00-24:00',
   like: 'self',
   fav: 'self',
   dmReply: 'direct',
-  comment: 'review',
-  danmaku: 'review',
+  comment: 'self',
+  danmaku: 'self',
 }
 
 export interface WriteActionInput {

@@ -88,9 +88,19 @@ test('cap-bilibili/写链路：真实执行器与真实判据——30天去重/�
   assert.equal(favBody.get('type'), '2')
   assert.equal(favBody.get('csrf'), 'JCT')
 
-  // 4. 评论：默认档位 review → 进统一待放行队列（不直发）；主人放行后才真发。
-  //    正文的 ** 与未闭合书名号在构造时已被清洗（清洗发生在入队那一刻）。
-  const cmt = await commentTool.execute({ bvid: 'BV1zz411c7mD', rpid: '777', text: '**谢谢**《《雷雨声' })
+  // 4. 评论：**默认档位已是 self（主人 2026-11-06 授权开放）→ 直发**，请求形状与原命令一致。
+  //    入队路径（review 档）在下面单独验——那是"主人想审时"的档位，不再是默认。
+  const cmtDirect = await commentTool.execute({ bvid: 'BV1zz411c7mD', rpid: '777', text: '**谢谢**《《雷雨声' })
+  assert.equal(cmtDirect.ok, true, JSON.stringify(cmtDirect))
+  const directCall = fetchStub.calls.find((c) => c.url.includes('/x/v2/reply/add'))
+  assert.ok(directCall, 'self 档直发')
+  assert.equal(new URLSearchParams(directCall.init.body).get('message').includes('**'), false, '直发前正文已清洗')
+  assert.equal(new URLSearchParams(directCall.init.body).get('oid'), '777')
+  assert.equal(new URLSearchParams(directCall.init.body).get('csrf'), 'JCT')
+
+  // 4b. review 档：进统一待放行队列（不直发）；主人放行后才真发。
+  await cap.panels().find((p) => p.id === 'gate-policy').methods.set.invoke({ policy: { comment: 'review' } })
+  const cmt = await commentTool.execute({ bvid: 'BV1zz411c7mD', rpid: '888', text: '**排队**《《的一条' })
   assert.equal(cmt.ok, false)
   assert.equal(cmt.code, 'needs-approval')
   assert.ok(cmt.pendingId)
@@ -105,12 +115,14 @@ test('cap-bilibili/写链路：真实执行器与真实判据——30天去重/�
   await cap.panels().find((p) => p.id === 'gate-policy').methods.set.invoke({ policy: { comment: 'self' } })
   const released = await cap.panels().find((p) => p.id === 'drafts-queue').methods.release.invoke({ id: cmt.pendingId })
   assert.equal(released.ok, true, JSON.stringify(released))
-  const cmtCall = fetchStub.calls.find((c) => c.url.includes('/x/v2/reply/add'))
+  const cmtCall = fetchStub.calls.filter((c) => c.url.includes('/x/v2/reply/add')).pop()
   assert.ok(cmtCall)
   const cmtBody = new URLSearchParams(cmtCall.init.body)
   assert.equal(cmtBody.get('message').includes('**'), false)
-  assert.equal(cmtBody.get('oid'), '777')
+  assert.equal(cmtBody.get('oid'), '888', '放行的是 review 档排队的第二条')
   assert.equal(cmtBody.get('csrf'), 'JCT')
+  // 恢复默认档（self），别影响后面用例
+  await cap.panels().find((p) => p.id === 'gate-policy').methods.set.invoke({ policy: { comment: 'self' } })
 
   // 5. 私信：**没互关** → 判据拒（precondition）
   //    这条以前判的是"7 天回信时效窗"——凭空来的规则，而且依赖一个全仓没人写的字段

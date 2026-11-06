@@ -7,6 +7,10 @@ import { createBiliWorldAdapter } from '../../cortico-world-bilibili/src/index.t
 
 test('cap-bilibili & cortico-world-bilibili：四路收件箱指派、统一待放行在线改稿自动续签哈希、WriteGate 七步把关链全闭环', async () => {
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cap-bili-'))
+  // 2026-11-06 默认档改成 auto/self（主人的授权开放）；这条测试演的是"主人开审"的
+  // 完整剧情（入队→改稿→放行→驳回），写一份 review 的 policy.json（与线上持久化一致）
+  fs.mkdirSync(path.join(homeDir, 'data', 'bilibili'), { recursive: true })
+  fs.writeFileSync(path.join(homeDir, 'data', 'bilibili', 'policy.json'), JSON.stringify({ draftMode: 'review', comment: 'review', danmaku: 'review' }), 'utf8')
   const executedActions = []
   const pushedEvents = []
 
