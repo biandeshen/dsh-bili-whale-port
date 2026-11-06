@@ -1519,3 +1519,31 @@ like 是当晚唯一被实读推翻的实现：旧注释（`tools/commands/likes
 6. `watch-prefs.minDurationSec=600`（短于 10 分钟不看）是**重写时我发明的**，旧配置里没有这一项，本次没动，请主人拍板。
 7. QQ 侧等主人装 NapCat：live 里 `worlds.qq.driver` 每 30 秒重连 `ws://127.0.0.1:3001`（ECONNREFUSED），
    这是"没接上"的正确表现，不是坏了。
+
+#### ⑦ 音视频工作室：今晚第一次真的出一条片子（零成本）
+
+查遍部署里所有 `runs/<run>/toolcalls.jsonl`：**`media_video_build` 与 `media_tts_preview` 被她调用过 0 次**，
+`data/media` 里只有底图与 BGM，一个 mp4 都没有。所以"有没有用"这个问题不能拿"设计上有实现"来答。
+
+新增 `scripts/verify-media-pipeline.mjs`（默认 `tts=none`、输出到临时目录、**不写她的 `video-drafts.json`、不发送队列**），
+拿本机真 ffmpeg（`~/.dsh/bili-whale/bin`，由 `defaultMediaBinDir()` 解析）+ 她的底图 + CC0 BGM 实跑一次：
+
+```
+✓ 成片出来了（8.2 秒）
+     631 KB  pipeline-check.mp4      时长 6 秒 · BGM bedroom-window-outlands.mp3（音量 0.14）· 人声 none
+    1718 KB  pipeline-check-cover.png
+     659 KB  pipeline-check-cover-169.png
+```
+
+**这就是这一段的结论口径**：`图 + CC0 BGM + 本机 ffmpeg → 成片与双封面`成立（实测产物在
+`%TEMP%\xiaoyu-media-check\`）；仍未验证的两段是——人声（MiMo TTS，账户欠费）、
+以及她自己在面板上点合成写进台账并送队列（要 live 跑起来）。
+ffmpeg 不在 PATH、只躺在旧家 `bin/` 里，这条依赖本身也该收进"路径可配置"那一账
+（`defaultMediaBinDir()` 写死 `~/.dsh/bili-whale/bin`，`WHALE_HOME`/`CORTICO_HOME` 都管不到它）。
+
+#### ⑧ 门禁加固：`.mjs` 第二遍真解析
+
+`scripts/check-mjs-syntax.mjs` 原来只用正则抓"TS 语法混进 .mjs"。今晚自己踩了一个它抓不到的坑：
+JSDoc 里写了一个带通配符的路径，那个"星号+斜杠"把块注释提前关掉，文件直到被 `node` 执行才炸——
+"跑起来才知道"正是这个门禁该消灭的东西。于是加了第二遍：对每个 `.mjs` 跑 `node --check`
+（327 个文件约 25 秒）。用一份临时坏文件验过它确实会红（报出文件名与"星号+斜杠"这一成因），删掉后重新变绿。

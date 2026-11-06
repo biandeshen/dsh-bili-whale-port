@@ -1,0 +1,1226 @@
+{
+  "at": "2026-11-06T13:30:16.025Z",
+  "root": "E:\\WorkSpace_Qoder\\dsh-bili-whale",
+  "gitSha": "fcf347f628b6d74df17df7343f1319f1ce3c0d8a",
+  "node": "v24.16.0",
+  "exit": 0,
+  "discovered": 151,
+  "executed": 151,
+  "counts": {
+    "tests": 862,
+    "pass": 862,
+    "fail": 0
+  },
+  "mismatch": false,
+  "notRun": [],
+  "files": [
+    {
+      "file": "adapters\\opencode\\test\\contract.test.mjs",
+      "exit": 0,
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-bilibili\\tests\\auto-publish-tiers.test.mjs",
+      "exit": 0,
+      "tests": 7,
+      "pass": 7,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-bilibili\\tests\\b15-autonomous-tools.test.mjs",
+      "exit": 0,
+      "tests": 5,
+      "pass": 5,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-bilibili\\tests\\bili-connection.test.mjs",
+      "exit": 0,
+      "tests": 10,
+      "pass": 10,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-bilibili\\tests\\bili-credentials.test.mjs",
+      "exit": 0,
+      "tests": 5,
+      "pass": 5,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-bilibili\\tests\\bili-debrief.test.mjs",
+      "exit": 0,
+      "tests": 2,
+      "pass": 2,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-bilibili\\tests\\bili-profile.test.mjs",
+      "exit": 0,
+      "tests": 8,
+      "pass": 8,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-bilibili\\tests\\bili-read.test.mjs",
+      "exit": 0,
+      "tests": 1,
+      "pass": 1,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-bilibili\\tests\\bili-watch.test.mjs",
+      "exit": 0,
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-bilibili\\tests\\bili-write.test.mjs",
+      "exit": 0,
+      "tests": 1,
+      "pass": 1,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-bilibili\\tests\\bilibili-capability.test.mjs",
+      "exit": 0,
+      "tests": 1,
+      "pass": 1,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-bilibili\\tests\\feed-source-fails.test.mjs",
+      "exit": 0,
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-bilibili\\tests\\inbox-listener.test.mjs",
+      "exit": 0,
+      "tests": 14,
+      "pass": 14,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-bilibili\\tests\\pref-hits.test.mjs",
+      "exit": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-bilibili\\tests\\read-quota-stale-queue.test.mjs",
+      "exit": 0,
+      "tests": 11,
+      "pass": 11,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-bilibili\\tests\\write-dm-dynamic.test.mjs",
+      "exit": 0,
+      "tests": 13,
+      "pass": 13,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-journal\\tests\\journal.test.mjs",
+      "exit": 0,
+      "tests": 1,
+      "pass": 1,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-media-studio\\tests\\media-studio.test.mjs",
+      "exit": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-media-studio\\tests\\portrait.test.mjs",
+      "exit": 0,
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-media-studio\\tests\\preview-audio.test.mjs",
+      "exit": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-memory\\tests\\core-cap.test.mjs",
+      "exit": 0,
+      "tests": 6,
+      "pass": 6,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-memory\\tests\\core-review.test.mjs",
+      "exit": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-memory\\tests\\git-history.test.mjs",
+      "exit": 0,
+      "tests": 1,
+      "pass": 1,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-memory\\tests\\memory-view.test.mjs",
+      "exit": 0,
+      "tests": 1,
+      "pass": 1,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-memory\\tests\\memory.test.mjs",
+      "exit": 0,
+      "tests": 1,
+      "pass": 1,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-memory\\tests\\recall-explain.test.mjs",
+      "exit": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-state-rhythm\\tests\\day-panel.test.mjs",
+      "exit": 0,
+      "tests": 5,
+      "pass": 5,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-state-rhythm\\tests\\dream-tick.test.mjs",
+      "exit": 0,
+      "tests": 2,
+      "pass": 2,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-state-rhythm\\tests\\life-do.test.mjs",
+      "exit": 0,
+      "tests": 8,
+      "pass": 8,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-state-rhythm\\tests\\life-heartbeat.test.mjs",
+      "exit": 0,
+      "tests": 5,
+      "pass": 5,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-state-rhythm\\tests\\life-tick.test.mjs",
+      "exit": 0,
+      "tests": 5,
+      "pass": 5,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-state-rhythm\\tests\\mode-expiry.test.mjs",
+      "exit": 0,
+      "tests": 5,
+      "pass": 5,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-state-rhythm\\tests\\single-energy.test.mjs",
+      "exit": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-state-rhythm\\tests\\sleep-window.test.mjs",
+      "exit": 0,
+      "tests": 6,
+      "pass": 6,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-state-rhythm\\tests\\state-rhythm.test.mjs",
+      "exit": 0,
+      "tests": 13,
+      "pass": 13,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-vision\\tests\\capability.test.mjs",
+      "exit": 0,
+      "tests": 7,
+      "pass": 7,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-vision\\tests\\frame-pipeline.test.mjs",
+      "exit": 0,
+      "tests": 5,
+      "pass": 5,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-vision\\tests\\stats-rerun.test.mjs",
+      "exit": 0,
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cap-vision\\tests\\subtitle-strip.test.mjs",
+      "exit": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cortico-bot-xiaoyu\\tests\\bot-hub.test.mjs",
+      "exit": 0,
+      "tests": 1,
+      "pass": 1,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cortico-bot-xiaoyu\\tests\\context-config.test.mjs",
+      "exit": 0,
+      "tests": 7,
+      "pass": 7,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cortico-bot-xiaoyu\\tests\\dream-reflection.test.mjs",
+      "exit": 0,
+      "tests": 13,
+      "pass": 13,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cortico-bot-xiaoyu\\tests\\heartbeat-noise.test.mjs",
+      "exit": 0,
+      "tests": 9,
+      "pass": 9,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cortico-bot-xiaoyu\\tests\\host-contract.test.mjs",
+      "exit": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cortico-bot-xiaoyu\\tests\\host-log-shape.test.mjs",
+      "exit": 0,
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cortico-bot-xiaoyu\\tests\\memory-config.test.mjs",
+      "exit": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cortico-bot-xiaoyu\\tests\\rhythm-outlets.test.mjs",
+      "exit": 0,
+      "tests": 2,
+      "pass": 2,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cortico-bot-xiaoyu\\tests\\storage-prompt-docs.test.mjs",
+      "exit": 0,
+      "tests": 5,
+      "pass": 5,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cortico-bot-xiaoyu\\tests\\tick-accounting.test.mjs",
+      "exit": 0,
+      "tests": 1,
+      "pass": 1,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\cortico-bot-xiaoyu\\tests\\tick-config.test.mjs",
+      "exit": 0,
+      "tests": 6,
+      "pass": 6,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\persona-core\\tests\\activity-decision.test.mjs",
+      "exit": 0,
+      "tests": 6,
+      "pass": 6,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\persona-core\\tests\\budget.test.mjs",
+      "exit": 0,
+      "tests": 7,
+      "pass": 7,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\persona-core\\tests\\capability.test.mjs",
+      "exit": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\persona-core\\tests\\conversation-assessment.test.mjs",
+      "exit": 0,
+      "tests": 9,
+      "pass": 9,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\persona-core\\tests\\core.test.mjs",
+      "exit": 0,
+      "tests": 23,
+      "pass": 23,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\persona-core\\tests\\emotion.test.mjs",
+      "exit": 0,
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\persona-core\\tests\\life-activities.test.mjs",
+      "exit": 0,
+      "tests": 5,
+      "pass": 5,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\persona-core\\tests\\retrieval.test.mjs",
+      "exit": 0,
+      "tests": 11,
+      "pass": 11,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\persona-core\\tests\\rhythm.test.mjs",
+      "exit": 0,
+      "tests": 11,
+      "pass": 11,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\persona-core\\tests\\voice-brief.test.mjs",
+      "exit": 0,
+      "tests": 11,
+      "pass": 11,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\ai-share.test.mjs",
+      "exit": 0,
+      "tests": 6,
+      "pass": 6,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\approval-reason.test.mjs",
+      "exit": 0,
+      "tests": 6,
+      "pass": 6,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\c2-offline.test.mjs",
+      "exit": 0,
+      "tests": 1,
+      "pass": 1,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\comment-tier.test.mjs",
+      "exit": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\credentials.test.mjs",
+      "exit": 0,
+      "tests": 7,
+      "pass": 7,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\day-report.test.mjs",
+      "exit": 0,
+      "tests": 2,
+      "pass": 2,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\dm-approve.test.mjs",
+      "exit": 0,
+      "tests": 5,
+      "pass": 5,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\draft-approve-panel.test.mjs",
+      "exit": 0,
+      "tests": 5,
+      "pass": 5,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\draft-text.test.mjs",
+      "exit": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\feed-feedback.test.mjs",
+      "exit": 0,
+      "tests": 5,
+      "pass": 5,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\feed-quality.test.mjs",
+      "exit": 0,
+      "tests": 6,
+      "pass": 6,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\feedback-triage.test.mjs",
+      "exit": 0,
+      "tests": 9,
+      "pass": 9,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\feedback.test.mjs",
+      "exit": 0,
+      "tests": 2,
+      "pass": 2,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\g3b-check.test.mjs",
+      "exit": 0,
+      "tests": 5,
+      "pass": 5,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\go-gate.test.mjs",
+      "exit": 0,
+      "tests": 6,
+      "pass": 6,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\injection.test.mjs",
+      "exit": 0,
+      "tests": 2,
+      "pass": 2,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\judgment-loop.test.mjs",
+      "exit": 0,
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\judgment.test.mjs",
+      "exit": 0,
+      "tests": 8,
+      "pass": 8,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\kill-unified.test.mjs",
+      "exit": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\launcher.test.mjs",
+      "exit": 0,
+      "tests": 2,
+      "pass": 2,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\m1a-observability.test.mjs",
+      "exit": 0,
+      "tests": 5,
+      "pass": 5,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\m1e-approval.test.mjs",
+      "exit": 0,
+      "tests": 12,
+      "pass": 12,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\observation-status.test.mjs",
+      "exit": 0,
+      "tests": 6,
+      "pass": 6,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\outbound-plain.test.mjs",
+      "exit": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\panel.test.mjs",
+      "exit": 0,
+      "tests": 5,
+      "pass": 5,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\pending-queue.test.mjs",
+      "exit": 0,
+      "tests": 8,
+      "pass": 8,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\pick-image.test.mjs",
+      "exit": 0,
+      "tests": 1,
+      "pass": 1,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\plain-outbound.test.mjs",
+      "exit": 0,
+      "tests": 8,
+      "pass": 8,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\report.test.mjs",
+      "exit": 0,
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\routes.test.mjs",
+      "exit": 0,
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\state-home.test.mjs",
+      "exit": 0,
+      "tests": 11,
+      "pass": 11,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\state-roots.test.mjs",
+      "exit": 0,
+      "tests": 13,
+      "pass": 13,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\title-clip.test.mjs",
+      "exit": 0,
+      "tests": 9,
+      "pass": 9,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\token-env.test.mjs",
+      "exit": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\track-a.test.mjs",
+      "exit": 0,
+      "tests": 16,
+      "pass": 16,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\voice-state-coupling.test.mjs",
+      "exit": 0,
+      "tests": 12,
+      "pass": 12,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\voice.test.mjs",
+      "exit": 0,
+      "tests": 14,
+      "pass": 14,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\whale-home.test.mjs",
+      "exit": 0,
+      "tests": 6,
+      "pass": 6,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\wordlist-hit-check.test.mjs",
+      "exit": 0,
+      "tests": 8,
+      "pass": 8,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\contract\\write-refusal.test.mjs",
+      "exit": 0,
+      "tests": 6,
+      "pass": 6,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\day-close.test.mjs",
+      "exit": 0,
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\debrief-capability.test.mjs",
+      "exit": 0,
+      "tests": 6,
+      "pass": 6,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\debrief-sampling.test.mjs",
+      "exit": 0,
+      "tests": 2,
+      "pass": 2,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\dm-drafts.test.mjs",
+      "exit": 0,
+      "tests": 5,
+      "pass": 5,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\dm-exit-integration.test.mjs",
+      "exit": 0,
+      "tests": 1,
+      "pass": 1,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\dm-history.test.mjs",
+      "exit": 0,
+      "tests": 6,
+      "pass": 6,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\dm-out-causal.test.mjs",
+      "exit": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\dom\\action-button-guard.test.mjs",
+      "exit": 0,
+      "tests": 9,
+      "pass": 9,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\dom\\b13d-ui-fixes.test.mjs",
+      "exit": 0,
+      "tests": 7,
+      "pass": 7,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\dom\\drafts-release-carries-text.test.mjs",
+      "exit": 0,
+      "tests": 9,
+      "pass": 9,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\dom\\feedback-triage-panel.test.mjs",
+      "exit": 0,
+      "tests": 10,
+      "pass": 10,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\dom\\her-day-panel.test.mjs",
+      "exit": 0,
+      "tests": 10,
+      "pass": 10,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\dom\\memory-center-edits.test.mjs",
+      "exit": 0,
+      "tests": 7,
+      "pass": 7,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\dom\\memory-history-rollback.test.mjs",
+      "exit": 0,
+      "tests": 7,
+      "pass": 7,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\dom\\pref-hits-panel.test.mjs",
+      "exit": 0,
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\dom\\recall-explain-panel.test.mjs",
+      "exit": 0,
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\dom\\tank-smoke.test.mjs",
+      "exit": 0,
+      "tests": 2,
+      "pass": 2,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\draft-rework.test.mjs",
+      "exit": 0,
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\drafts-publisher.test.mjs",
+      "exit": 0,
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\dynamic-recent.test.mjs",
+      "exit": 0,
+      "tests": 6,
+      "pass": 6,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\edit-dynamic.test.mjs",
+      "exit": 0,
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\feed-dislike.test.mjs",
+      "exit": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\feed-seen.test.mjs",
+      "exit": 0,
+      "tests": 2,
+      "pass": 2,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\import-legacy-config.test.mjs",
+      "exit": 0,
+      "tests": 5,
+      "pass": 5,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\integration.test.mjs",
+      "exit": 0,
+      "tests": 19,
+      "pass": 19,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\issue27.test.mjs",
+      "exit": 0,
+      "tests": 8,
+      "pass": 8,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\listener-polling.test.mjs",
+      "exit": 0,
+      "tests": 1,
+      "pass": 1,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\live-code-anchor.test.mjs",
+      "exit": 0,
+      "tests": 6,
+      "pass": 6,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\live-drift.test.mjs",
+      "exit": 0,
+      "tests": 6,
+      "pass": 6,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\media-bgm.test.mjs",
+      "exit": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\media-studio.test.mjs",
+      "exit": 0,
+      "tests": 2,
+      "pass": 2,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\media-tts.test.mjs",
+      "exit": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\meta\\test-registry.test.mjs",
+      "exit": 0,
+      "tests": 1,
+      "pass": 1,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\observation-day.test.mjs",
+      "exit": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\offline-gap.test.mjs",
+      "exit": 0,
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\ops-backup.test.mjs",
+      "exit": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\ops-day.test.mjs",
+      "exit": 0,
+      "tests": 6,
+      "pass": 6,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\perm-tier-cli.test.mjs",
+      "exit": 0,
+      "tests": 2,
+      "pass": 2,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\perm-tier.test.mjs",
+      "exit": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\planner.test.mjs",
+      "exit": 0,
+      "tests": 14,
+      "pass": 14,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\publish-policy.test.mjs",
+      "exit": 0,
+      "tests": 5,
+      "pass": 5,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\repair-memory-source.test.mjs",
+      "exit": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\review.test.mjs",
+      "exit": 0,
+      "tests": 7,
+      "pass": 7,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\scheduler-snapshot.test.mjs",
+      "exit": 0,
+      "tests": 1,
+      "pass": 1,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\supplement.test.mjs",
+      "exit": 0,
+      "tests": 17,
+      "pass": 17,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\traffic-pause-expiry.test.mjs",
+      "exit": 0,
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\traffic.test.mjs",
+      "exit": 0,
+      "tests": 15,
+      "pass": 15,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\updates.test.mjs",
+      "exit": 0,
+      "tests": 13,
+      "pass": 13,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\vendor-autocut.test.mjs",
+      "exit": 0,
+      "tests": 2,
+      "pass": 2,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\vendor-video-studio.test.mjs",
+      "exit": 0,
+      "tests": 2,
+      "pass": 2,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\wake-audit.test.mjs",
+      "exit": 0,
+      "tests": 7,
+      "pass": 7,
+      "fail": 0,
+      "ran": true
+    }
+  ]
+}

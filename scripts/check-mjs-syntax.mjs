@@ -6,10 +6,12 @@
  * 前两次都是跑起来才发现，浪费一轮。这类"语言层不匹配"是纯静态可查的，没有理由靠人记住。
  *
  * 只查**只有 TS 才有、JS 里必然报错**的形状，不碰 `?.` / `??` / 私有字段这些合法语法。
+ * 第二遍不查规则、直接 `node --check` 每个文件（见文件末尾为什么要加这一遍）。
  * 用法：node scripts/check-mjs-syntax.mjs
  */
 import fs from 'node:fs'
 import path from 'node:path'
+import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -123,4 +125,28 @@ if (bad.length) {
   console.log('\n改法：删掉断言/标注（.mjs 是纯 JS），或把文件改成 .ts 由 --experimental-strip-types 跑。')
   process.exit(1)
 }
-console.log(`.mjs 语法门禁　${files.length} 个 .mjs 文件，无 TS 语法混入`)
+/**
+ * 第二遍：真解析（`node --check`）。
+ *
+ * 上面那套正则只抓"TS 语法混进 .mjs"，抓不到**纯 JS 但语法就错**的文件。
+ * 2026-11-06 就踩过一次：JSDoc 里写了一个带通配符的路径（星号紧跟斜杠），
+ * 那一下把块注释提前关掉，后面整段注释被当代码解析，直到真去 `node scripts/x.mjs` 才炸——
+ * 而"跑起来才知道"正是本门禁存在的理由要消灭的东西。
+ * 解析错误没法靠文本规则穷举，所以直接问 node 自己。
+ */
+const parseBad = []
+for (const file of files) {
+  const r = spawnSync(process.execPath, ['--check', file], { encoding: 'utf8' })
+  if (r.status === 0) continue
+  const first = String(r.stderr ?? '').split('\n').find((l) => l.trim()) ?? '解析失败'
+  parseBad.push(`${path.relative(ROOT, file)}  ${first.trim().slice(0, 160)}`)
+}
+
+if (parseBad.length) {
+  console.log(`.mjs 解析门禁　发现 ${parseBad.length} 个文件 node --check 过不去`)
+  for (const b of parseBad) console.log('  ✗ ' + b)
+  console.log('\n最常见成因：块注释里出现了"星号+斜杠"的组合（比如写带通配符的路径），把注释提前关掉。')
+  console.log('改法：注释里的通配路径写成 dir/<run>/file 这种形式。')
+  process.exit(1)
+}
+console.log(`.mjs 语法门禁　${files.length} 个 .mjs 文件，无 TS 语法混入，且逐个 node --check 通过`)
