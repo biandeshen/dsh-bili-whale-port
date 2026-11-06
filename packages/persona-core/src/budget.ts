@@ -28,9 +28,18 @@ export interface ClippedEffect {
 
 const UNLIMITED = Number.POSITIVE_INFINITY
 
-/** 每日来源上限（按场）。初值来自 ARCHITECTURE §12.2，action/silence/custom 为补的三源。 */
+/**
+ * 每日来源上限（按场）。初值来自 ARCHITECTURE §12.2，action/silence/custom 为补的三源。
+ *
+ * **rest 与 action 不设上限**（2026-11-06 主人二次拍板"不限 token，唯一节流阀是体力"）：
+ * 线上首夜实锤（42 笔 life_do 的收据）——action 预算 0.20 在第 13 笔花完后，
+ * 行动就不再扣体力，收据里的 energy 冻结在 0.8014。"累了就歇"这条反馈链
+ * 依赖体力真的会被扣干——预算一截断，体力永远耗不干，她永远不累。
+ * 这两个来源是**身体自身的收支**，不是模型可刷的外部输入，不存在"刷"。
+ * custom/watched 等模型可反复填 delta 的来源仍受预算约束（那是防刷的初衷）。
+ */
 export const SOURCE_DAILY_CAP: Record<string, number> = {
-  rest: 0.25,
+  rest: UNLIMITED,
   watched: 0.30,
   'master-reply': 0.20,
   inbound: 0.20,
@@ -38,7 +47,7 @@ export const SOURCE_DAILY_CAP: Record<string, number> = {
   'draft-ok': 0.10,
   'draft-no': 0.10,
   risk: 0.10,
-  action: 0.20,
+  action: UNLIMITED,
   custom: 0.15,
   decay: UNLIMITED,
 }

@@ -55,6 +55,118 @@ export const whalePath = (...parts) => path.join(whaleHome, ...parts)
 export const homePath = (...parts) => path.join(HOME, ...parts)
 
 /**
+ * ── 行动账（她"做过的事"的账本）────────────────────────────────────────────
+ *
+ * 2026-11-06 首夜实锤：行动有两本账，搬家前后各写一本：
+ *   · 旧账 `<whale home>/bili-whale/causal.jsonl` 的 `kind:'action'` 最后一笔停在 11-03；
+ *   · 新账 `<部署家>/<bot>/data/persona/actions.ndjson`（B14 接的只追加流水，每行带
+ *     `day`/`activity`/`at`）——搬家后 lifeTick 的行动写这里。
+ *
+ * 部署家从哪来：`CORTICO_HOME`（宿主部署根，如 `~/.xiaoyu-home`）+ `CORTICO_BOT`（默认 xiaoyu）。
+ *
+ * **为什么要跟 whale home 一起被隔离**：验收脚本与测试会把 `WHALE_HOME`/`DSH_HOME`
+ * 指到临时目录，期望"这个家没有行动 → 观测判 FAIL"。若部署家仍按默认落到真机器的
+ * `~/.xiaoyu-home`，脚本会读到**本机真账**——今天有行动 → 误判 PASS。
+ * 所以：显式设了 `CORTICO_HOME` 就用它；否则部署家取 **whale home 的同级目录**
+ * （`<whale home>/../.xiaoyu-home`），这样隔离家时部署家也跟着隔离。
+ * 这条解析只在这里实现，调用方一律走 `actionLedgerPaths()`。
+ */
+export function deployHome(env = process.env) {
+  if (env.CORTICO_HOME) return env.CORTICO_HOME
+  const whale = env.WHALE_HOME || env.DSH_HOME || whaleHome
+  return path.join(path.dirname(path.resolve(whale)), '.xiaoyu-home')
+}
+
+/** 行动账的两本路径：旧 causal（历史）与新 actions.ndjson（现在）。 */
+export function actionLedgerPaths(env = process.env) {
+  const bot = env.CORTICO_BOT || 'xiaoyu'
+  return {
+    legacy: path.join(resolveWhaleHome(env), 'bili-whale', 'causal.jsonl'),
+    current: path.join(deployHome(env), bot, 'data', 'persona', 'actions.ndjson'),
+  }
+}
+
+/**
+ * ── 当天对外凭据（新架构口径）──────────────────────────────────────────────
+ * 旧判据「当天必须有一个 daily draft.json 且 diaryHash 绑定当天日记」依赖的是
+ * 旧架构的 daily-draft 产物线。B16 撕封条（发布默认开）+ 统一待放行队列之后，
+ * 那条产物线**不再产生**（待放行队列常态为空、动态直发）。
+ * 但判据要守的东西没变：「她当天真的留下了对外的东西，而不是只在脑子里转」。
+ *
+ * 新架构下的等价证据（任一即算当天有对外凭据）：
+ *   ① 当天日记页有内容（公开本或私人本，`<部署家>/<bot>/workspace/diary/*.md` 里
+ *      出现该日期的小节且小节下有正文）；
+ *   ② 待放行队列里有当天的条目（`data/bilibili/pending-queue.json`）。
+ *
+ * **记忆卡不算**：凌晨的睡眠结算会批量重写 core/active 卡的 mtime（实测 11-04 00:43、
+ * 11-05 00:23 各有一批），那是结算副作用不是当天的主动行为——用它当证据会把
+ * "结算跑过"误判成"她当天干了事"。
+ *
+ * 旧 draft.json 若存在，仍然按「绑定当天日记哈希」算最硬的证据（旧口径更严，留着当加分项）。
+ */
+export function dayEvidencePaths(env = process.env) {
+  const bot = env.CORTICO_BOT || 'xiaoyu'
+  const root = path.join(deployHome(env), bot)
+  return {
+    workspace: path.join(root, 'workspace'),
+    diary: path.join(root, 'workspace', 'diary'),
+    memo: path.join(root, 'workspace', 'memo'),
+    pendingQueue: path.join(root, 'data', 'bilibili', 'pending-queue.json'),
+    runs: path.join(root, 'data', 'runs'),
+  }
+}
+
+/**
+ * ── 当天有没有自主行动（真实行为证据）──────────────────────────────────────
+ *
+ * 两本账：
+ *   ① `actions.ndjson` —— B14 加的 `life_do` 行动账，每笔带 day/activity/source。
+ *      这是**最硬的**证据（她自己按下"我做了这件事"这个按钮）。
+ *   ② 运行记录（data/runs 下每个 run 目录里的 toolcalls.jsonl）—— 每次工具调用都落一行（ts/tool）。
+ *      这是**兜底**：`life_do` 工具是 2026-11-06 才有的，在那之前她做了事
+ *      （11-05：55 次工具调用，feedback_submit 8 / memory_remember 5 / memory_void 10 /
+ *      diary_write 2——记忆大扫除与复盘式练习）却没有行动账可写。
+ *      只看 ① 会把"记账工具还不存在"误判成"她什么都没干"。
+ *
+ * ② 只认**自主类工具**：记忆写/删、判断读取、反馈提交、日记写、行动记账、心情标注。
+ * 读类工具（diary_read / mood_read / memory_recall）只是回忆，不算行动。
+ */
+export const AUTONOMY_TOOLS = new Set([
+  'life_do', 'memory_remember', 'memory_void', 'journal_judgment_write', 'judgment_read',
+  'judgment_adopt', 'feedback_submit', 'diary_write', 'mood_apply', 'bili_seek', 'bili_feed',
+  'bili_watch', 'bili_debrief', 'bili_comment', 'bili_dynamic_draft', 'bili_dm_reply',
+])
+
+/** 某一天有没有自主工具调用（读运行记录）。 */
+export function hasAutonomousCalls(day, env = process.env) {
+  const { runs } = dayEvidencePaths(env)
+  let dirs = []
+  try { dirs = fs.readdirSync(runs) } catch { return false }
+  for (const d of dirs) {
+    const tc = path.join(runs, d, 'toolcalls.jsonl')
+    if (!fs.existsSync(tc)) continue
+    let raw = ''
+    try { raw = fs.readFileSync(tc, 'utf8') } catch { continue }
+    for (const line of raw.split('\n')) {
+      if (!line.trim()) continue
+      let e = null
+      try { e = JSON.parse(line) } catch { continue }
+      const ts = String(e?.ts ?? '')
+      if (ts.slice(0, 10) !== day) continue
+      const tool = String(e?.tool ?? '')
+      if (!AUTONOMY_TOOLS.has(tool)) continue
+      // 心情标注只在真有事时才有 note，不把空标注算成行动
+      if (tool === 'mood_apply') {
+        const note = String(e?.args?.note ?? '').trim()
+        if (!note) continue
+      }
+      return true
+    }
+  }
+  return false
+}
+
+/**
  * ── 状态目录（"两个家"归一）───────────────────────────────────────────────
  * 人格状态/配置在 whale home，而 traffic 风控状态、待审队列、凭据、已看账本在
  * `<用户主目录>/.bili-ai` —— 同一个她两份家，备份/搬家/排错都要跑两处。

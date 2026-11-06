@@ -51,3 +51,24 @@ test('预算：decay 无上限', () => {
   assert.ok(Math.abs(a.effects[0].delta + 0.9) < 1e-9)
   assert.equal(a.clipped.length, 0)
 })
+
+test('预算：action/rest 不设上限——身体收支不是可刷的输入（2026-11-06 首夜实锤）', () => {
+  // 线上实锤：action 预算 0.20 在第 13 笔 life_do 花完后，收据里的 energy
+  // 冻结在 0.8014——"累了就歇"的反馈链断了（体力永远耗不干 = 变相配额）。
+  // 30 笔 × 0.015 = 0.45，全部必须生效。
+  let ledger = emptyBudget()
+  for (let i = 0; i < 30; i++) {
+    const r = applyBudgets([E('action', 'energy', -0.015)], ledger, T + i * 60_000)
+    assert.equal(r.effects.length, 1, `第 ${i + 1} 笔行动开销不得被预算截断`)
+    assert.ok(Math.abs(r.effects[0].delta + 0.015) < 1e-9)
+    assert.equal(r.clipped.length, 0)
+    ledger = r.ledger
+  }
+  // rest 同理：睡眠恢复是身体自己的进账，一天回多少都照算
+  const r2 = applyBudgets([E('rest', 'energy', 0.4)], emptyBudget(), T)
+  assert.ok(Math.abs(r2.effects[0].delta - 0.4) < 1e-9)
+  assert.equal(r2.clipped.length, 0)
+  // 防刷的初衷不放松：模型可反复填 delta 的来源仍然受限
+  const r3 = applyBudgets([E('custom', 'mood', 0.5)], emptyBudget(), T)
+  assert.equal(r3.clipped.length, 1)
+})

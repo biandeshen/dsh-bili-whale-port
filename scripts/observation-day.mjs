@@ -9,12 +9,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { whaleHome } from '../tools/lib/paths.mjs'
+import { whaleHome, actionLedgerPaths } from '../tools/lib/paths.mjs'
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..')
 const CONTROL = path.join(whaleHome, 'bili-whale', 'control')
 const DAYS = path.join(whaleHome, 'bili-whale', 'days')
-const CAUSAL = path.join(whaleHome, 'bili-whale', 'causal.jsonl')
 const CFG = path.join(CONTROL, 'observation.json')
 const argv = process.argv.slice(2)
 const arg = (k, d) => { const i = argv.indexOf('--' + k); return i >= 0 ? argv[i + 1] : d }
@@ -27,14 +26,30 @@ const runJson = (script, args) => {
   const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', script), ...args, '--json'], { encoding: 'utf8', timeout: 60000 })
   try { return { exit: r.status, json: JSON.parse(String(r.stdout ?? '')) } } catch { return { exit: r.status, json: null, stderr: String(r.stderr ?? '') } }
 }
+/**
+ * 今天的行动笔数：旧 causal（历史）与新 actions.ndjson（搬家后的真账）都数。
+ * 路径解析统一在 paths.mjs（`actionLedgerPaths`）——测试隔离 whale home 时部署家
+ * 跟着隔离，不会读到本机真账把 FAIL 误判成 PASS。
+ */
 function actionCount(d) {
   let n = 0
+  const { legacy, current } = actionLedgerPaths()
   try {
-    for (const line of fs.readFileSync(CAUSAL, 'utf8').split('\n')) {
+    for (const line of fs.readFileSync(legacy, 'utf8').split('\n')) {
       if (!line.trim()) continue
       try {
         const e = JSON.parse(line)
         if (e?.kind === 'action' && Number.isFinite(Number(e.atMs)) && logicalDay(Number(e.atMs)) === d) n += 1
+      } catch {}
+    }
+  } catch {}
+  try {
+    for (const line of fs.readFileSync(current, 'utf8').split('\n')) {
+      if (!line.trim()) continue
+      try {
+        const r = JSON.parse(line)
+        if (r?.day && r?.activity) { if (String(r.day) === d) n += 1 }
+        else if (Number.isFinite(Number(r?.at)) && logicalDay(Number(r.at)) === d) n += 1
       } catch {}
     }
   } catch {}

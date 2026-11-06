@@ -7,7 +7,7 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
-import { DSH_HOME as WHALE_HOME } from '../tools/lib/paths.mjs'
+import { DSH_HOME as WHALE_HOME, dayEvidencePaths } from '../tools/lib/paths.mjs'
 import { composeDraft } from './draft-dynamic.mjs'
 
 const CORTICO = process.env.CORTICO_ROOT || 'E:/WorkSpace_Qoder/Cortico'
@@ -42,7 +42,46 @@ function diffChars(a, b) {
 const day = arg('date', logicalDay())
 const dir = path.join(WHALE_HOME, 'bili-whale', 'days', day)
 const snapshot = readJson(path.join(dir, 'state.end.json')) || readJson(path.join(dir, 'state.start.json'))
-const diary = readText(path.join(WHALE_HOME, 'whale-diary.md'))
+/**
+ * 日记来源（2026-11-06 搬家后修正）。
+ *
+ * 旧架构：单一文件 `<whale home>/whale-diary.md`。
+ * 新架构：两本 `workspace/diary/public.md` 与 `private.md`（**这才是她现在写的地方**）。
+ *
+ * 以前只读旧的——而旧文件停在 2026-11-03 16:44，于是 11-04 之后的反事实报告
+ * 全都在拿一份**三天前的陈旧日记**出稿：11-05 与 11-06 两份 realText 一字不差，
+ * 测的其实不是当天。现在改成：优先读新架构的两本日记（公开本在前，私人本的
+ * 「想说」小节也算），没有再回落旧文件。
+ */
+function readDiary(day) {
+  const ev = dayEvidencePaths()
+  const parts = []
+  for (const book of ['public', 'private']) {
+    const raw = readText(path.join(ev.diary, book + '.md'))
+    if (!raw) continue
+    // 只取当天那一段（按 `## YYYY-MM-DD` 到下一个日期标题之间），避免旧内容混入
+    const re = new RegExp('^#{1,3}\\s*' + day + '\\s*$', 'm')
+    const m = re.exec(raw)
+    if (!m) continue
+    const rest = raw.slice(m.index)
+    const nextDay = /^#{1,3}\s*\d{4}-\d{2}-\d{2}\s*$/m.exec(rest.slice(m[0].length))
+    const block = nextDay ? rest.slice(0, m[0].length + nextDay.index) : rest
+    if (!block.trim()) continue
+    /**
+     * **只保留第一本的日期标题**：两本日记各有自己的 `## YYYY-MM-DD`，
+     * 拼起来会出现两个同名日期块——`dayBlocks` 取 `.pop()` 就是最后一块
+     * （私人本），而「想说」小节在公开本里，于是正文整段找不到 → 落回兜底句。
+     * 所以：第一个带日期标题，后面几本把日期标题去掉只留小节。
+     */
+    const body = parts.length === 0
+      ? block.trim()
+      : block.trim().replace(/^#{1,3}\s*\d{4}-\d{2}-\d{2}\s*\n?/, '')
+    if (body.trim()) parts.push(body.trim())
+  }
+  if (parts.length) return parts.join('\n\n')
+  return readText(path.join(WHALE_HOME, 'whale-diary.md'))
+}
+const diary = readDiary(day)
 
 if (!snapshot) {
   console.log(JSON.stringify({ ok: false, error: 'no-snapshot', day, dir }, null, 2))

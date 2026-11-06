@@ -138,9 +138,27 @@ export function buildText(diaryText, { max = 100, date } = {}) {
   const today = date && blocks.length
     ? blocks.filter((b) => b.date === date).pop()
     : (blocks.length ? blocks[blocks.length - 1] : { lines: String(diaryText || '').split(/\r?\n/) })
-  const sections = (today ? today.lines.join('\n') : '').split(/^## /m)
+  /**
+   * 小节切分：`## ` 与 `### ` 都算小节（2026-11-06 搬家后）。
+   *
+   * 新架构的日记里她把小节写成三级标题（`### 判断卡大扫除`）——只切 `## ` 的话，
+   * 整个当天块只算一段，`find('想说')` 永远找不到，正文整段落回兜底句。
+   * 切分保留标题层级（`###` 切出来的段首仍是 `### xxx`），取正文时再剥。
+   */
+  const sections = (today ? today.lines.join('\n') : '').split(/^#{2,3} /m)
   // 同一天可能因旧 bug 出现重复小节；取最后一个（最新写入），别拿 09:12 的旧段出稿
   const find = (name) => sections.filter((s) => s.startsWith(name)).pop() || ''
+  /**
+   * 找「想说」小节；没有就退回**当天块里任意小节的正文**（2026-11-06 搬家后）。
+   *
+   * 新架构的日记小节名是她自己起的——11-05 私人本是「### 判断卡大扫除」
+   * 「### 复盘式练习 · 尺子还在吗」，根本没有「想说」。以前找不到就整段落回
+   * 兜底句「今晚只听了会儿雨声」，于是反事实报告拿到的 realText 与 neutralText
+   * 都出自兜底句——测的不是当天日记，是同一句常量。
+   */
+  const saidSection = find('想说') || sections
+    .filter((s) => s.trim() && !/^\d{4}-\d{2}-\d{2}/.test(s.trim()))
+    .pop() || ''
   const rows = find('看过').split('\n').map((l) => l.trim()).filter(Boolean)
   // 真实日记表格首列是日期（旧格式也兼容）；优先取 date 当天那一行，其次取最后一行。
   const table = rows.filter((r) => r.startsWith('|')).map((r) => r.split('|').map((c) => c.trim()))
@@ -152,7 +170,7 @@ export function buildText(diaryText, { max = 100, date } = {}) {
   const titleText = titleMark(title, 24)
 
   // 「想说」可能有多个 bullet，后几条往往是真正的判断；全部保留，不再在第二条截断
-  const lines = find('想说').split('\n')
+  const lines = saidSection.split('\n')
   const bullets = []
   let cur = null
   for (const raw of lines) {
@@ -164,7 +182,23 @@ export function buildText(diaryText, { max = 100, date } = {}) {
     else if (!l.startsWith('#')) cur = l
   }
   if (cur) bullets.push(cur)
-  const said = bullets.join(' ').replace(/\s+/g, ' ').trim()
+  /**
+   * 新架构的「想说」是**散文段落**，不是 bullet（2026-11-06 搬家后）。
+   * 以前只认 `- ` 开头的行，于是散文段整段被丢掉 → bullets 空 → 出稿落到
+   * 兜底句「今晚只听了会儿雨声」——反事实报告拿到的 realText 与 neutralText
+   * 都出自兜底句，测的其实不是当天日记。
+   * 现在散文段也收（当且仅当一个 bullet 都没收到时才用散文，避免重复计入）。
+   */
+  let said = bullets.join(' ').replace(/\s+/g, ' ').trim()
+  if (!said) {
+    const prose = lines
+      .map((l) => l.trim())
+      .filter((l) => l && l !== '想说' && !l.startsWith('#') && !l.startsWith('|'))
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+    said = prose
+  }
   const line = [titleText ? `今晚看的是${titleText}。` : '', said].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim()
   const body = clip(line || '今晚只听了会儿雨声，没看到特别想说的。', max)
   return body
