@@ -395,6 +395,17 @@ export const dayPanel = {
     async function loadPortrait(s: any, today: any) {
       portraitBox.replaceChildren()
       const fields = s?.fields ?? {}
+      /**
+       * 成本与通道那一行（P2）。放最前面是因为它是唯一能回答"她今天怎么没动静"的东西：
+       * 只有"今天做过 N 件"的话，累、设计如此、没钱了三种情况看着一样。
+       * 数字来源是宿主计费账，口径跟数一起出（后端 cost.line 已经带好）。
+       */
+      if (s?.cost?.line) {
+        const costLine = ui.h('div')
+        costLine.style.cssText = 'margin:2px 0 8px;opacity:0.9;font-size:12.5px'
+        costLine.textContent = String(s.cost.line)
+        portraitBox.append(costLine)
+      }
       const energy = (Number(fields.energy ?? 0) + Number(fields.stimulation ?? 0)) / 2
       try {
         const url = '/api/webui/providers/' + encodeURIComponent('world:media-studio')

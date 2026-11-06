@@ -18,6 +18,7 @@ import type {
 } from '../../persona-core/src/capability.ts'
 import type { AtomicFields } from '../../persona-core/src/types.ts'
 import { dayKey } from '../../persona-core/src/rhythm.ts'
+import { readCostToday, costSummary } from './cost-today.ts'
 import {
   emptyState,
   loadState,
@@ -506,6 +507,23 @@ export function createStateRhythmCapability(
                   mood: readMood(state),
                   fields: state.fields,
                   described: describeState(state),
+                  /**
+                   * 当日成本与通道状态（P2 成本可见，只读宿主的计费账，不写任何东西）。
+                   *
+                   * 挂在这一页是有意的：主人看的就是「她的一天」，而这一页原先只有
+                   * "今天做了 226 件小事"和"她很安静"两种读法——**累、设计如此、没钱了**
+                   * 三件完全不同的事，在观察面上一模一样。读数口径（UTC/本地日界）
+                   * 跟数一起出去，免得又出现"我 814 次你 841 次"那种两个数都对、
+                   * 问的不是同一件事。
+                   */
+                  cost: (() => {
+                    try {
+                      const c = readCostToday({ dataDir: path.dirname(path.dirname(opts.lifeFile)) })
+                      return { ...c, line: costSummary(c) }
+                    } catch (e: any) {
+                      return { verdict: 'quiet', calls: 0, paid: 0, failed: 0, line: `成本读数取不到：${String(e?.message ?? e).slice(0, 80)}` }
+                    }
+                  })(),
                   today: {
                     day: today,
                     // 汇总与流水取大的那个：life.json 要等下一拍才对齐，日记里不该显示成 0。
