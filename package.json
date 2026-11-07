@@ -13,7 +13,7 @@
   "type": "module",
   "scripts": {
     "test": "node scripts/run-mjs-tests.mjs",
-    "gates": "node scripts/check-mjs-syntax.mjs && node scripts/run-mjs-tests.mjs --report docs/evidence/ && node scripts/run-mjs-tests.mjs --root ../Cortico-up --import tsx --report docs/evidence/ && node scripts/check-consumers.mjs && node scripts/check-hashes.mjs && node scripts/check-state-roots.mjs && node scripts/check-live-drift.mjs",
+    "gates": "node scripts/check-mjs-syntax.mjs && node scripts/run-mjs-tests.mjs --report docs/evidence/ && node scripts/run-mjs-tests.mjs --root ../Cortico-up --import tsx --report docs/evidence/ && node scripts/check-consumers.mjs && node scripts/check-hashes.mjs && node scripts/check-state-roots.mjs && node scripts/check-live-drift.mjs && node scripts/check-doc-hygiene.mjs",
     "mjs-syntax": "node scripts/check-mjs-syntax.mjs",
     "drift": "node scripts/check-live-drift.mjs",
     "hashes": "node scripts/check-hashes.mjs",

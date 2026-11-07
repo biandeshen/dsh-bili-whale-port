@@ -1,10 +1,13 @@
 /**
  * 状态根门禁：把"谁有权写哪份状态"从口头约定变成一条可复跑的命令。
  *
- * 查三件事，任何一条不满足就非零退出：
+ * 查四件事，任何一条不满足就非零退出：
  *   1. 表覆盖：实际在用的状态文件都在 `state-roots` 的 KINDS 表里（新增文件不许绕过）；
  *   2. 单写者：同一个文件不能既在 CLI 写清单里、又由宿主写；
- *   3. 旧家退场：兼容期内还有哪些文件只在旧家——列出来，退场日之前要清完。
+ *   3. 旧家退场：兼容期内还有哪些文件只在旧家——列出来，退场日之前要清完；
+ *   4. **两家分叉**（2026-11-07 加）：同一类在新旧两家都有、值却不一样，就是"读数分家"的直接症状。
+ *      以前这条只打印一句 `·` 就放行（EXIT=0），等于把已知问题藏在绿色里；
+ *      现在要么迁平，要么进 `SPLIT_ALLOWED` 带**到期日与负责人**，到期即红。
  *
  *   node scripts/check-state-roots.mjs [--json]
  *
@@ -48,14 +51,26 @@ function walk(dir, out = []) {
 }
 
 const used = new Set()
+/**
+ * 注释里的举例不是调用点。第一版把 `audit-state-locations.mjs` 头注释里那句
+ * `stateReadPath('x.json')` 数成了一个叫 `x` 的状态类，于是门禁因为**注释**变红——
+ * 假红比漏红更坏：下一个修的人会直接把这条正则放宽。
+ */
+const CODE_LINE = (line) => {
+  const t = line.trim()
+  return !(t.startsWith('*') || t.startsWith('/*') || t.startsWith('//') || t.startsWith('<!--'))
+}
 for (const dir of SRC) {
   for (const file of walk(path.join(ROOT, dir))) {
     const text = fs.readFileSync(file, 'utf8')
-    for (const m of text.matchAll(/state(?:ReadPath|Path|Exists)\(\s*['"]([a-z0-9-]+)\.(?:json|jsonl|log)['"]/gi)) {
-      used.add(m[1])
-    }
-    for (const m of text.matchAll(/writeStateText\([^)]*?['"]([a-z0-9-]+)\.(?:json|jsonl|log)['"]/gi)) {
-      used.add(m[1])
+    for (const line of text.split(/\r?\n/)) {
+      if (!CODE_LINE(line)) continue
+      for (const m of line.matchAll(/state(?:ReadPath|Path|Exists)\(\s*['"]([a-z0-9-]+)\.(?:json|jsonl|log)['"]/gi)) {
+        used.add(m[1])
+      }
+      for (const m of line.matchAll(/writeStateText\([^)]*?['"]([a-z0-9-]+)\.(?:json|jsonl|log)['"]/gi)) {
+        used.add(m[1])
+      }
     }
   }
 }
@@ -99,7 +114,33 @@ for (const kind of [...declared].sort()) {
     if (sa.size !== sb.size || Math.abs(sa.mtimeMs - sb.mtimeMs) > 60_000) split.push(kind)
   } catch { /* 读不到就不报 */ }
 }
-if (split.length) notes.push(`新旧两份已经分叉（读新家，但旧家仍是老值）：${split.join('、')}`)
+/**
+ * 分叉白名单（2026-11-07 主人拍板的口径：**要么升格为失败，要么加带到期日的白名单**）。
+ * 每条必须写清"为什么允许两份不一样"、负责人、到期日。到期即红；续期要在这里改日期，
+ * 并在 `docs/CURRENT.md` 留一行——不许悄悄续。（不许删旧家原件，这条规矩优先于"变绿"。）
+ */
+const SPLIT_ALLOWED = {
+  'api-cache': { until: '2026-12-01', owner: '批次负责人', why: '只是缓存，读新家即可；旧那份不参与任何判据' },
+  'feed-search-cache': { until: '2026-12-01', owner: '批次负责人', why: '同上：缓存分叉不改变她的行为，只可能多打一次网络' },
+  'traffic-state': { until: '2026-12-01', owner: '批次负责人（归 #58 状态落点收口）', why: '**同名不同物**：闸内那份记 writeGapSec/pausedUntil/lastWriteAt/seenFingerprints，传输层那份记 accounts/until/streak/riskEndpoint——收口的正确动作是改名，不是把值迁平（见 docs/specs/06-bili-write.md ⑤ 第 5 条）' },
+}
+const today = new Date().toISOString().slice(0, 10)
+if (split.length) notes.push(`本轮实测两家都存在且不一致的类：${split.join('、')}`)
+const unexplained = []
+const expired = []
+for (const kind of split) {
+  const allow = SPLIT_ALLOWED[kind]
+  if (!allow) { unexplained.push(kind); continue }
+  if (allow.until < today) expired.push(`${kind}（白名单到期日 ${allow.until}，负责人 ${allow.owner}）`)
+  else notes.push(`分叉已豁免到 ${allow.until}：${kind} —— ${allow.why}（负责人 ${allow.owner}）`)
+}
+if (unexplained.length) {
+  problems.push(`新旧两家读数分家且无解释：${unexplained.join('、')} —— 要么用 scripts/migrate-state-roots.mjs 迁平，要么写进 SPLIT_ALLOWED（带到期日与负责人），不许就这么放行`)
+}
+for (const e of expired) problems.push(`分叉白名单已过期：${e}`)
+// 白名单不许变化石：已经不分叉的豁免条目要撤掉，否则它会把将来真的分叉一起遮掉。
+const staleAllowed = Object.keys(SPLIT_ALLOWED).filter((k) => !split.includes(k))
+if (staleAllowed.length) notes.push(`白名单里这些类今天不分叉了，可以撤：${staleAllowed.join('、')}`)
 
 const result = {
   ok: problems.length === 0,

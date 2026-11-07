@@ -10,7 +10,7 @@
 ```bash
 cd <repo>
 git status -sb                 # 必须无未提交改动；默认分支 port/core-opencode-panel
-node scripts/run-mjs-tests.mjs # 全量回归；判据是 fail 0（本文 2026-11-01 复跑：321 pass / 0 fail / EXECUTED=60，条数随提交变化）
+node scripts/run-mjs-tests.mjs # 全量回归；判据只看两行：`fail=0` 且 `EXECUTED=n/n`。现在它还自报 `skipped/todo/cancelled`（2026-11-07 补）——`cancelled≠0` 直接算失败；条数不写进手册，写了就开始过期
 node scripts/preflight.mjs     # 期望无 ✗；OpenCode 部署加 OPENCODE_WANTED=1
 ```
 
@@ -89,6 +89,8 @@ git log -1 --oneline
 node scripts/run-mjs-tests.mjs | tail -3   # 看 pass/fail 与 EXECUTED 的文件数
 node scripts/check-hashes.mjs              # 验收脚本哈希：末行须是「一致」
 node scripts/check-consumers.mjs           # 生产调用：末行须是「全部有生产调用」
+node scripts/check-state-roots.mjs          # 状态根；2026-11-07 起「新旧两家读数分家」不再是提示而是红——要么用 migrate-state-roots.mjs 迁平，要么写进 SPLIT_ALLOWED（带到期日与负责人），不许沉默放行
+node scripts/check-doc-hygiene.mjs          # 文档卫生：案卷不新增 / 活文档引用都存在 / specs ② 的参数有读取点 / ⑤ 每条带可跑命令（入口见 docs/INDEX.md）
 node scripts/preflight.mjs --json
 node tools/bili.mjs traffic status
 node tools/commands/whale-night.mjs status

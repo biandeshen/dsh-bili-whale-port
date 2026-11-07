@@ -1,11 +1,13 @@
 {
-  "frozenAt": "2026-11-06T04:32:02.354Z",
+  "frozenAt": "2026-11-07T13:03:25.873Z",
+  "firstFrozenAt": "2026-11-06T04:32:02.354Z",
   "files": {
+    "scripts/check-hashes.mjs": "e218d84715bdd902132cd6c874c224b851cf0a096cea6fbcabe058ef639225c7",
     "scripts/day-report.mjs": "a74ac7fe9c78333f8525208cc4cf490920ffc37eaf08d55953cd05e581827701",
     "scripts/day-snapshot.mjs": "6daf4e09d067a9b4d84f276c350959fe7dac4509a57e879558b3a978e843a9c3",
     "scripts/day-watchdog.mjs": "cd495cb2bcdbdb4f903b6572d588ef26729f315e6a4043e3b91e07f5c8aa6ab9",
     "scripts/counterfactual.mjs": "60ad6e64dee058680476a3eb306436c99ea2ae2b8e6f4176ff32d24fcb3c4f87",
-    "scripts/run-mjs-tests.mjs": "54e8e653be8139b897ecd813c3a0ee4597aafe3687c8025cee396b1e5462a6f2",
+    "scripts/run-mjs-tests.mjs": "01cab65e490512502e9f3a8415665ca1e080aa8a6a3671e3a44176f646228037",
     "scripts/check-consumers.mjs": "629f454904919bb448df0ab2789cb0c1f8a44f50090c253207bd2ab64bf98133",
     "scripts/g3b-check.mjs": "a89df7331ecf687693e4b9e849254b7277921acb378946abd1c3a9b353df33d6",
     "scripts/observation-start.mjs": "6502a58661ae637b153eb1bd764417f11bdd3787ce43b1fe7e8dd81a67949f3c",
@@ -14,5 +16,21 @@
     "scripts/observation-status.mjs": "30350a84e1783fd28d9f4964d91c305bd4e676c5908c0355ba68f4c2fbc0a7ea",
     "tests/contract/voice.test.mjs": "305cfc090ea38f972eedb2d08c4aac4bbcebb83294f69ce23d742f96b3f22ec4"
   },
-  "missing": []
+  "missing": [],
+  "history": [
+    {
+      "at": "2026-11-07T13:01:26.450Z",
+      "file": "scripts/run-mjs-tests.mjs",
+      "from": "54e8e653be8139b897ecd813c3a0ee4597aafe3687c8025cee396b1e5462a6f2",
+      "to": "01cab65e490512502e9f3a8415665ca1e080aa8a6a3671e3a44176f646228037",
+      "reason": "主人 2026-11-07 文档体制改制批次的同批三洞之一：run-mjs-tests.mjs 现在自己报 skipped/todo/cancelled（cancelled 判失败），因为第三方评审问「860 里混进多少 skip」时答不上来；本轮实测 skipped=0 todo=0"
+    },
+    {
+      "at": "2026-11-07T13:03:25.873Z",
+      "file": "scripts/check-hashes.mjs",
+      "from": null,
+      "to": "e218d84715bdd902132cd6c874c224b851cf0a096cea6fbcabe058ef639225c7",
+      "reason": "同上一条（批次：文档体制改制 / 主人 2026-11-07 拍板的三个现成洞）。本轮把校验器自身也放进冻结名单，否则改弱这条防线只需改 check-hashes.mjs 本身而账上看不出来；--write 从此必须带 --note 或 FREEZE_NOTE，并在 history 里留下 from→to 与理由。"
+    }
+  ]
 }

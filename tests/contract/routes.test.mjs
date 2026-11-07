@@ -82,6 +82,11 @@ test('缺口①：deps 的 scheduler 一律来自 getSchedStatus 并源，非回
 })
 
 test('KNOWN 白名单与 BASELINE 文档逐字对账', () => {
-  const doc = fs.readFileSync(path.resolve(import.meta.dirname, '../../docs/BASELINE.md'), 'utf8')
+  /**
+   * 2026-11-07 文档体制改制后基线件按原日期进 attic（只搬不改写）。这条锁的是
+   * **已退役的 legacy HTTP 面**（8447/8448）的白名单与当年冻结的基线一致——specs 不接管退役面，
+   * 所以这里读的就是 attic 里那份原文件：当作对账凭证可以，当作施工依据不行（见 docs/INDEX.md）。
+   */
+  const doc = fs.readFileSync(path.resolve(import.meta.dirname, '../../docs/attic/2026-10/BASELINE.md'), 'utf8')
   for (const k of KNOWN_CONFIG_KEYS) assert.ok(doc.includes(k), `BASELINE.md 缺 ${k}`)
 })

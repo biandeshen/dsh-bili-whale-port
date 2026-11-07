@@ -49,10 +49,12 @@
 ## ⑤ 已知缺陷与验证方式
 
 1. **"实测 116–125 次/小时 vs 上界 42 次/小时 ⇒ 概率门没生效"这个结论不成立，是单位混用**，我复核并推翻过：投递回合实测（transcript 里 `[system] 已安静…` 开头）本地 08–19 时是 **27–52 次/小时、均值约 36**，与 `120 拍/小时 × 0.35 ≈ 42` 同量级；116–125 是**模型调用数**＝回合 × 每回合轮数（全天 1.97，停摆期 ≥3，因为 402 重试也在往同一回合加调用）。复现：`node scripts/token-anatomy.mjs --date=2026-11-06`，以及按 `[system] 已安静` 计数 transcript。
-2. **历史回执与代码漂**：交付曾写「`CHECK_PROB` 5%→2%」，被 `8c98859` 推翻，现值 `0.35`。凡引用本层数值，必须从 ② 的定义行读，不要从任何回执读。
+2. **历史回执与代码漂**：交付曾写「`CHECK_PROB` 5%→2%」，被 `8c98859` 推翻，现值 `0.35`。凡引用本层数值，必须从 ② 的定义行读，不要从任何回执读。复现：`grep -n "CHECK_PROB" packages/persona-core/src/rhythm.ts`。
 3. **`lastKind` 只写不读、候选无当日记忆**：`pickActivities(fields, { now, rng, k = 3 })`（`packages/persona-core/src/life-activities.ts:121`）的参数里没有 `lastKind`，决策路径不读它 → 同一类活动可被反复递上。
    实测后果：`diary_read` 172 次只有 17 种入参、`life_do` 226 笔只有 35 种、中位间隔 62.2 秒、最后两笔相隔 68 秒逐字相同。复现：`node scripts/token-anatomy.mjs --date=2026-11-06`（⑤ 与 ②c 两张表）。
 4. **自我重读循环与成本是同一个环**：225/226 笔行动的内容是重读她自己的本子，而 `diary_read` 的回灌占单次成本 **34.7%（≈22 万 token/次）**。已做的一刀是"同一入参不重送全文"（`packages/cortico-adapter/src/index.ts` 的读去重，测试 `tests/read-dedupe.test.mjs`），**没有做**的是候选去重——因为本层设计明写"代码不替她决定做哪个"。
+   复现（一条命令复现 226 / 35 种 / 225 笔这三个数）：`node -e "const fs=require('fs'),os=require('os'),p=require('path');const L=fs.readFileSync(p.join(os.homedir(),'.xiaoyu-home/xiaoyu/data/persona/actions.ndjson'),'utf8').trim().split(/\r?\n/).map(x=>JSON.parse(x));const read=L.filter(r=>/重读|翻|日记|记忆/.test(String(r.note||''))).length;console.log('总',L.length,'笔 · note 去重',new Set(L.map(r=>r.note)).size,'种 · 其中像在重读自己东西的',read,'笔 ·',Object.entries(L.reduce((a,r)=>{a[r.activity]=(a[r.activity]||0)+1;return a},{})).map(([k,v])=>k+'='+v).join(' '))"` ＋ `node scripts/token-anatomy.mjs --date=2026-11-06`（成本侧占比）＋ `node --test tests/read-dedupe.test.mjs`（已做那一刀的行为）。
 5. **死码与不存在的符号**：`expireModeIfNeeded` 不存在；`gapLeft` 与 gap/cap 分支在现路径里不可达。引用它们会写出无法执行的验收，复现：`grep -rn "expireModeIfNeeded\|gapLeft" packages/persona-core/src packages/cap-state-rhythm/src`。
 6. **"唯一节流阀是体力"这句已被证伪过一次**：2026-11-06 让她停下来的是外部额度（体力 0.531，远高于疲劳门 0.18）。复现：`node scripts/outward-evidence.mjs --date=2026-11-06` 与 `data/usage.jsonl` 的 status 分布。
 7. **待修（负责人：本任务；批次：#64）**：重启后成对报"单次 input p50/p90"与"交接次数"，验证 ② 的预算与去重是否净省；若她的活动分布被压窄即为做错方向。这是本份唯一保留的"待"字条目。
+   复现（现在就跑一次当基线，充值/重启后再跑一次成对比较）：`node scripts/token-anatomy.mjs --date=2026-11-07` —— 只看 ① 的"单次 input p50/p90/max"与"投递回合数"两行。

@@ -183,12 +183,21 @@ for (const s of specs) {
   if (heads.filter((h) => ['⑥', '⑦'].includes(h)).length) {
     problems.push({ rule: 'R4 不许加节', where: `docs/specs/${s}`, detail: '出现了 ⑥/⑦' })
   }
+  // ⑤ 按**条目**切块来查：命令常常写在下一行，逐行判要么漏（只查 `- ` 时十份全是编号列表，等于没查），
+  // 要么得把"命令"两个字当白名单放行——那是自欺。
   const sec5 = text.split(/^\s*##\s*⑤\s/m)[1] ?? ''
+  const items = []
+  let cur = null
   for (const line of sec5.split('\n')) {
-    if (/^\s*[-·]\s/.test(line) && !/node |npm |git |--date|scripts\/|\bbash\b|命令/.test(line)) {
-      problems.push({ rule: 'R4 ⑤ 条目没带可跑命令', where: `docs/specs/${s}`, detail: line.trim().slice(0, 70) })
+    if (/^\s*(?:[-·]|\d+\.)\s/.test(line)) { cur = { head: line.trim(), body: [] }; items.push(cur) }
+    else if (cur) cur.body.push(line)
+  }
+  for (const it of items) {
+    const block = [it.head, ...it.body].join('\n')
+    if (!/(node |npm |git |grep |sed |curl |du -|ls |command -v|--test|--json|--raw|--date|scripts\/|tools\/)/.test(block)) {
+      problems.push({ rule: 'R4 ⑤ 条目没带可跑命令', where: `docs/specs/${s}`, detail: it.head.slice(0, 70) })
     }
-    if (/待观察|后续再看/.test(line)) pending += 1
+    if (/待观察|后续再看/.test(block)) pending += 1
   }
 }
 if (pending > 3) problems.push({ rule: 'R4 「待观察」超限', where: 'docs/specs', detail: `${pending} 条（上限 3，且每条要注明负责人与批次）` })

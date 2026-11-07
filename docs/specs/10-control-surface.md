@@ -63,6 +63,7 @@ world/bot 包浏览器端注册表      packages/cortico-world-bilibili/src/webu
 **发布前置（硬性，不是建议）**：改过任何面板客户端源码（各包的 `packages/cap-*/src/webui/client.ts`）→ 必须 `node scripts/build-webui.mjs`（内容哈希写进版本 patch 位，`scripts/build-webui.mjs:79-84`）→ **重启宿主**（版本在启动期读进 `webUiAssets`，`Cortico-up/src/extensions.ts:313-322`）→ 浏览器拿到的是新 URL；
 漏掉任一步，`immutable` 缓存（`web/server.ts:2500-2511`）会让页面继续用旧 bundle，表现就是**面板空白或行为与源码不符**。
 这一条今天只能靠 `node scripts/check-live-drift.mjs` 手动跑（第 3 节 `:223-265` 比的是 import 闭包 mtime，`:264` 产物比源码旧即 bad）。
+`npm run gates` 从 2026-11-07 起末尾多了一条 `node scripts/check-doc-hygiene.mjs`（`package.json` 的 `gates`）——文档违规会直接把整批验收变红。
 **只有 CLI**：待放行队列批量放行（见 06 ⑤ 第 10 条）；`node scripts/audit-controls.mjs` 是控件普查入口，不是操作入口。
 
 ## ⑤ 已知缺陷与验证方式
@@ -94,7 +95,8 @@ world/bot 包浏览器端注册表      packages/cortico-world-bilibili/src/webu
 8. **审计工具的四条 R5 全是假阳性**：`setTuning`/`cleanupSheets`/`rerun` 真实存在于 `packages/cap-vision/src/index.ts:386/:420/:442`，
    `replyFeedback` 在 `packages/cap-journal/src/index.ts:187-188`。把它当缺陷清单用之前先复核（本轮已复核）。复现：`node scripts/audit-controls.mjs | grep R5`。
 9. **新队列逐条放行的设计是对的，但"批量"这个词在面板里不存在**：全仓 `releaseAll`/`批量` 只出现在注释里
-   （`packages/cap-bilibili/src/webui/client.ts:285`、`packages/cap-bilibili/src/domain/write-gate.ts:309`、`:465`——那两处防的是"主人随手全放"把过期稿放飞）。复现见 06 ⑤ 第 10 条。
+   （`packages/cap-bilibili/src/webui/client.ts:285`、`packages/cap-bilibili/src/domain/write-gate.ts:309`、`:465`——那两处防的是"主人随手全放"把过期稿放飞）。
+   复现：`grep -rn "releaseAll\|releaseMany" packages/cap-bilibili/src | wc -l` → 0；逐条放行的入口在 `packages/cap-bilibili/src/webui/client.ts:336`。
 10. **`call()` 无 busy**：只有 `actionButton` 有重入闸门（`webui-helpers.ts:127`、`:131-143`），`call()`（`:72-88`）没有——
     面板里所有"非按钮触发"的调用（下拉即改、翻页）连点会并发打服务端。复现：`sed -n '72,88p' packages/cortico-adapter/src/webui-helpers.ts`（看函数体内无 running 标志）。
 11. **旧面板体系与 Cortico 契约并行**：`panel/server.js`（8447/8448 已退役但目录活着）与 `panel/views/tank.html` 仍在仓内，测试 `tests/dom/tank-smoke.test.mjs:8` 还在跑它——属契约外的渲染面，别把它当面板现状引用。复现：`grep -n "tank.html" tests/dom/tank-smoke.test.mjs`。

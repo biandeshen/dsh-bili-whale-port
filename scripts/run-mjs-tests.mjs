@@ -11,6 +11,11 @@
  * 为什么执行数不写 `files.length`：那等于"我传了几个就执行了几个"，同义反复，
  * 防不住改名、进 SKIP 名单、零断言空文件。现在从 node --test 的汇总里读真实计数，
  * 跟发现数对不上就判失败。`--report` 把整份结果落盘，文档只引路径不抄数字。
+ *
+ * 为什么 `COUNTS` 里要单独报 `skipped/todo/cancelled`（2026-11-07 补）：只报 tests/pass/fail 时，
+ * "这一百来个文件里混进多少被 skip 的"这个问题无法回答——评审问过，答不上来就是门禁的洞。
+ * skip 与 todo 如实报数但不判失败（那是明写的"这台机器上不该跑"）；**cancelled 判失败**，
+ * 因为被取消的用例等于没跑完，把它算进 pass 是假绿。
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -94,18 +99,25 @@ for (const file of files) {
     file: rel,
     exit: r.status ?? 1,
     tests: pick('tests'), pass: pick('pass'), fail: pick('fail'),
+    // skip/todo/cancelled 必须自己报名额：以前只数 tests/pass/fail，
+    // "860 个用例里混进多少 skip"这个问题无法回答（2026-11-06 第三方评审点出来的洞）。
+    skipped: pick('skipped'), todo: pick('todo'), cancelled: pick('cancelled'),
     // 一个文件正常跑完必然至少有 tests 计数；没有就是它没被当成测试文件执行
     // （改名骗过发现、空文件、被 skip 名单挡住都会落到这里）。
     ran: pick('tests') !== null,
   }
   perFile.push(item)
+  const skipTag = item.skipped || item.todo ? ` skip=${item.skipped ?? 0} todo=${item.todo ?? 0}` : ''
   const mark = item.exit === 0 && item.ran ? '✔' : '✖'
-  console.log(`${mark} ${rel}  tests=${item.tests ?? '?'} fail=${item.fail ?? '?'}`)
+  console.log(`${mark} ${rel}  tests=${item.tests ?? '?'} fail=${item.fail ?? '?'}${skipTag}`)
   if (item.exit !== 0) process.stdout.write(text)
 }
 
 const sum = (k) => perFile.reduce((n, x) => n + (x[k] ?? 0), 0)
-const counts = { tests: sum('tests'), pass: sum('pass'), fail: sum('fail') }
+const counts = {
+  tests: sum('tests'), pass: sum('pass'), fail: sum('fail'),
+  skipped: sum('skipped'), todo: sum('todo'), cancelled: sum('cancelled'),
+}
 const executed = perFile.filter((x) => x.ran).length
 const notRun = perFile.filter((x) => !x.ran).map((x) => x.file)
 const failed = perFile.filter((x) => x.exit !== 0)
@@ -113,7 +125,7 @@ const code = failed.length ? 1 : 0
 
 console.log('')
 console.log(`EXECUTED=${executed}/${files.length}`)
-console.log(`COUNTS tests=${counts.tests} pass=${counts.pass} fail=${counts.fail}`)
+console.log(`COUNTS tests=${counts.tests} pass=${counts.pass} fail=${counts.fail} skipped=${counts.skipped} todo=${counts.todo} cancelled=${counts.cancelled}`)
 if (notRun.length) console.log(`NOT_RUN=${notRun.join(', ')}`)
 
 const mismatch = executed !== files.length || counts.tests === 0
@@ -143,5 +155,9 @@ if (code !== 0) {
 }
 if (mismatch) {
   console.error('FAILED：有文件没被当成测试跑起来（或一条断言都没有）——这类"绿"不算数。')
+  process.exit(1)
+}
+if (counts.cancelled) {
+  console.error(`FAILED：${counts.cancelled} 个用例被取消（cancelled）——没跑完的东西不许算通过。`)
   process.exit(1)
 }

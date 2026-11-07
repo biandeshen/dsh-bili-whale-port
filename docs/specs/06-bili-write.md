@@ -86,4 +86,6 @@ kill 急刹 → 熔断/冷却 → 档位判定（要不要进队）→ 指纹查
 11. **旧线的上限与时段是空转实现**：`tools/lib/publish-policy.mjs:48/58` 的 `capReached()`/`inWindow()` 生产零调用（只有 `tests/publish-policy.test.mjs:42-44`）。
     复现：`grep -rn "capReached\|inWindow" tools scripts packages | grep -v publish-policy.mjs | grep -v test` → 无生产调用者。
 12. **world 桥接层的日志形状会让写路日志二次抛错**（与 [03 第 8 条](./03-reflection-and-judgment.md) 同源，本轮纯文档不修）：
-    `packages/cortico-world-bilibili/src/cortico-world.ts:117` 的 `host.log?.(...)`。复现同 03 第 8 条。
+    `packages/cortico-world-bilibili/src/cortico-world.ts:117` 的 `host.log?.(...)`，而宿主给的是 Logger 对象（`E:/WorkSpace_Qoder/Cortico-up/src/core/types.ts:1181`）。
+    复现（三行，离线）：`node -e "const log={info(m){return m}};try{log?.('warn','x')}catch(e){console.log('抛错：'+e.message)}"`；
+    现存调用点清点：`grep -rn "host.log?.(" packages/cortico-world-bilibili/src packages/cortico-world-media/src packages/cap-bilibili/src | wc -l`。
