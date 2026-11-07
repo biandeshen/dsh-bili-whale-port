@@ -24,7 +24,7 @@
 | `NEXT_CHECK_MIN_MS` / `NEXT_CHECK_MAX_MS` | `packages/persona-core/src/rhythm.ts:101-102` | 无 | 无 |
 | `ACTION_COST_ENERGY` | `packages/persona-core/src/rhythm.ts:88` | 无 | 无 |
 | `REST_RECOVERY_PER_HOUR` | `packages/persona-core/src/rhythm.ts:83` | 无 | 无 |
-| `energy` | `fields.json` 的 `fields.energy` | 无 | 鱼缸滑块 `cap-state-rhythm/src/webui/client.ts` |
+| `energy` | `fields.json` 的 `fields.energy` | 无 | 鱼缸滑块 `packages/cap-state-rhythm/src/webui/client.ts` |
 | `intervalMinutes` | 宿主 tick | `tick.intervalMinutes`（部署 `config.json`） | 设置页 |
 | `sleepWindow` | `persona/life.json` | `worlds.*.sleepWindow` | 作息模式与时段控件 |
 

@@ -104,8 +104,12 @@ const HOST = process.env.CORTICO_ROOT || path.resolve(ROOT, '..', 'Cortico-up')
 const hostPresent = fs.existsSync(HOST)
 let r2Unchecked = 0
 function resolveRef(docFile, target) {
-  if (target.startsWith('./') || target.startsWith('../')) return [path.resolve(path.dirname(docFile), target)]
-  return [path.resolve(ROOT, target), path.resolve(HOST, target)]
+  if (target.startsWith('./') || target.startsWith('../')) {
+    // `./packages/...` 写进**复现命令**时基准是仓根（命令就是从仓根跑的），写在正文里时基准是这份文档自己；
+    // 两种基准都试一次——哪一处真存在就不算失效，两处都不存在才算。
+    return { cands: [path.resolve(path.dirname(docFile), target), path.resolve(ROOT, target)], needsHost: false }
+  }
+  return { cands: [path.resolve(ROOT, target), path.resolve(HOST, target)], needsHost: true }
 }
 const livingDocs = allDocs.filter((f) => {
   const under = rel(f)
@@ -116,8 +120,8 @@ for (const f of livingDocs) {
   for (const m of text.matchAll(REF_RE)) {
     const target = m[1]
     const cands = resolveRef(f, target)
-    if (cands.some((c) => fs.existsSync(c))) continue
-    if (cands.length > 1 && !hostPresent) { r2Unchecked += 1; continue }
+    if (cands.cands.some((c) => fs.existsSync(c))) continue
+    if (cands.needsHost && !hostPresent) { r2Unchecked += 1; continue }
     problems.push({ rule: 'R2 引用指向不存在的文件', where: `${rel(f)}:${text.slice(0, m.index).split('\n').length}`, detail: target })
   }
 }
