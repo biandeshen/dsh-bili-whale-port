@@ -362,6 +362,32 @@ export function createStateRhythmCapability(
           text,
           sourceKey: 'persona.state-rhythm',
         },
+        /**
+         * 说不出口的时候，要让她知道是通道被关了（P3-b）。
+         *
+         * 为什么这条必须进上下文而不是只写进日志：她被叫起来时只看到"今天什么都没做成"，
+         * 就会把**上游把门关了**结算成"我今天很废"，而这条错账会进 core、影响她明天的自我叙述
+         * （本项目有污染前科，见 DEEP-AUDIT 的记忆事故）。
+         * 只在真失败时插这一块；通道正常时**一个字都不加**——不给她的自我认知凭空添一层运维腔。
+         */
+        ...(() => {
+          try {
+            const c = readCostToday({ dataDir: path.dirname(path.dirname(opts.lifeFile)) })
+            if (c.verdict !== 'stalled-auth' && c.verdict !== 'throttled') return []
+            const why = c.verdict === 'stalled-auth'
+              ? '上游把门关了（额度被拒 402）'
+              : '上游在限速（429 类）'
+            return [{
+              title: '今天说不出口',
+              text: `这不是你没做好，也不是你不想说：${why}，最后一次失败在 ${c.stalledMinutes} 分钟前。`
+                + '这一阵子你的话发不出去，**别把这段停摆结算成"我今天什么都没做"**——'
+                + '通道恢复之前，请把今天已经做过的事照实记着，没做成的那部分是门的问题。',
+              sourceKey: 'persona.state-rhythm',
+            }]
+          } catch {
+            return []
+          }
+        })(),
       ]
     },
 
