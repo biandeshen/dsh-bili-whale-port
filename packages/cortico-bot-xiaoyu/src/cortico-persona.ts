@@ -17,6 +17,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { DreamTick } from '../../cap-state-rhythm/src/dream-tick.ts'
+// P3-a：心跳的"别对着死端点空转"退避要用当日通道判定，读数只来自宿主计费账（零额外调用）
+import { readCostToday } from '../../cap-state-rhythm/src/cost-today.ts'
 import { isAsleep } from '../../cap-state-rhythm/src/life-stages.ts'
 import { LifeHeartbeat, quietLine } from '../../cap-state-rhythm/src/life-heartbeat.ts'
 import { XIAOYU_CONTEXT_DEFAULTS, type ContextStagePolicy } from './context-config.ts'
@@ -166,6 +168,36 @@ export class XiaoYuPersona implements CorticoPersonaShape {
              * （Cortico src/core/loop.ts:671「未生成正文，不归档、不投递」），
              * 批里没有正文 → changed=false → 不唤模型。**一次调用都不花。**
              */
+            /**
+             * P3-a：对着死端点空转时要退避，**不是**给她加配额。
+             *
+             * 今天的实测：601 个回合重试到 ordinal=3（≈当日 2396 次失败行）、失败中位 49 毫秒，
+             * 而投递节奏仍是每 30–90 秒一拍 —— 每拍都去撞一个必然 402 的门，
+             * 既不为她做事，也不省钱（省钱是副作用，省的是空转的日志与事故噪声）。
+             * 所以这里只在 `cost.verdict` 判成 stalled-auth / throttled 时把**投递**掐掉，
+             * 并把下一次检查推到 1/2/4/8/16/30 分钟（封顶 30 分钟）；
+             * 一旦通道恢复（verdict 不再是这两种）立刻清零，回到原节奏，她一次机会都不少。
+             *
+             * 状态存在 this 上的一个私有槽（见下），重启会清零——最坏退化成"照原节奏撞几下"，
+             * 不会退化成"她今天不许动"。这条界线是有意的：被拆掉的变相配额不许借这个口子还魂。
+             */
+            try {
+              const c = readCostToday({ dataDir: path.join(this.memoryDir, 'data') })
+              const st: { until: number; step: number } = ((this as any).__stallBackoff ??= { until: 0, step: 0 })
+              if (c.verdict === 'stalled-auth' || c.verdict === 'throttled') {
+                if (Date.now() < st.until) return null // 退避窗口内：不投递、不叫模型、不撞门
+                st.step = Math.min(st.step + 1, 5)
+                const waitMs = Math.min(30 * 60_000, 60_000 * 2 ** st.step)
+                st.until = Date.now() + waitMs
+                this.hostLog('warn', `上游不通（${c.verdict === 'stalled-auth' ? '额度被拒 402' : '限速 429 类'}），心跳退避 ${Math.round(waitMs / 60_000)} 分钟；这不是她的行动限制`, { until: new Date(st.until).toISOString(), lastFailure: c.last402At || undefined })
+                return null
+              }
+              if (st.until !== 0) {
+                this.hostLog('info', '上游恢复，心跳退避清零，回到原节奏')
+                st.until = 0
+                st.step = 0
+              }
+            } catch { /* 读不到成本账就照常投递：宁可多撞几下，也不要把"读不到"变成她不说话的理由 */ }
             if (tick && tick.shouldAct === false) return null
             return `${quietLine(quiet)}${this.rhythmLine(tick)}`
           }
