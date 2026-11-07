@@ -325,7 +325,23 @@ export class Core<C extends CoreConfig = CoreConfig> {
         if (!module() || !this.config.providers[this.config.activeProvider]?.spec) return null;
         const spec = this.activeSpec();
         const window = this.contextWindowOf(spec);
-        return window === undefined ? null : Math.max(0, window - (spec.maxTokens ?? 0));
+        if (window === undefined) return null;
+        const providerHard = Math.max(0, window - (spec.maxTokens ?? 0));
+        /**
+         * 运维在部署配置里写的**阶段预算**（`context.maxTokens`）必须真的拦得住请求。
+         *
+         * 2026-11-07 之前它是空转的：这一路只认物理窗口（本机 1,048,576 − 8,192 = 1,040,384），
+         * 而部署里写的 500,000 全仓唯一读取点是 web 前端算"软阈值"**显示**用的
+         * （`src/web/client/features/live/context.ts:113`）——面板能调、配置会落盘、
+         * 服务端一次都没用它拦过。实测 2026-11-06 单次 input p50=615,918、132 次撞顶。
+         *
+         * 取 min 的方向是**只收紧、不放宽**：阶段预算永远不能越过模型物理窗口。
+         * 交接机制（handoff / forcedHandoffHard / 不可达标记）一行不动，只是更早触发；
+         * 代价是交接次数上升，而一次交接本身也要花调用——收益与代价必须成对测，见
+         * dsh-bili-whale/docs/A-KNIFE-CONTEXT-BUDGET-2026-11-07.md。
+         */
+        const budget = Number((this.config.context as { maxTokens?: unknown } | undefined)?.maxTokens ?? 0);
+        return Number.isFinite(budget) && budget > 0 ? Math.min(providerHard, Math.floor(budget)) : providerHard;
       },
       estimateTokens: (records) => module()?.estimateTokens?.(records, this.activeSpec()) ?? estimateMessagesTokens(records),
       contextOverflow: (error) => module()?.contextOverflow?.(error) ?? false,
