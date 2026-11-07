@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url'
 import { DreamTick } from '../../cap-state-rhythm/src/dream-tick.ts'
 // P3-a：心跳的"别对着死端点空转"退避要用当日通道判定，读数只来自宿主计费账（零额外调用）
 import { readCostToday } from '../../cap-state-rhythm/src/cost-today.ts'
+import { STALL_STEP_MAX, stallScheduleMs, stallNotice } from './stall-backoff.ts'
 import { isAsleep } from '../../cap-state-rhythm/src/life-stages.ts'
 import { LifeHeartbeat, quietLine } from '../../cap-state-rhythm/src/life-heartbeat.ts'
 import { XIAOYU_CONTEXT_DEFAULTS, type ContextStagePolicy } from './context-config.ts'
@@ -186,10 +187,10 @@ export class XiaoYuPersona implements CorticoPersonaShape {
               const st: { until: number; step: number } = ((this as any).__stallBackoff ??= { until: 0, step: 0 })
               if (c.verdict === 'stalled-auth' || c.verdict === 'throttled') {
                 if (Date.now() < st.until) return null // 退避窗口内：不投递、不叫模型、不撞门
-                st.step = Math.min(st.step + 1, 5)
-                const waitMs = Math.min(30 * 60_000, 60_000 * 2 ** st.step)
+                st.step = Math.min(st.step + 1, STALL_STEP_MAX)
+                const waitMs = stallScheduleMs(st.step)
                 st.until = Date.now() + waitMs
-                this.hostLog('warn', `上游不通（${c.verdict === 'stalled-auth' ? '额度被拒 402' : '限速 429 类'}），心跳退避 ${Math.round(waitMs / 60_000)} 分钟；这不是她的行动限制`, { until: new Date(st.until).toISOString(), lastFailure: c.last402At || undefined })
+                this.hostLog('warn', `${stallNotice(st.step)}（${c.verdict === 'stalled-auth' ? '额度被拒 402' : '限速 429 类'}）`, { until: new Date(st.until).toISOString(), lastFailure: c.last402At || undefined })
                 return null
               }
               if (st.until !== 0) {
