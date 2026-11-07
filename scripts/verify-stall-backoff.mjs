@@ -46,7 +46,7 @@ const read = (nowMs) => readCostToday({ dataDir: dir, basis: 'utc', now: nowMs }
 
 console.log('# P3-a 离线演示：每 60 秒一拍，连打 90 拍（4 个心跳拍/分钟 × 约 1.5 小时）\n')
 
-for (const [name, build] of [['上游不通（402）', sceneStalled], ['上游恢复（200）', sceneRecovered]] as const) {
+for (const [name, build] of [['上游不通（402）', sceneStalled], ['上游恢复（200）', sceneRecovered]]) {
   build()
   let st = { until: 0, step: 0 }
   let delivered = 0
