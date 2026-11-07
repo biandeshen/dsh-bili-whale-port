@@ -64,17 +64,46 @@ const specs = fs.existsSync(specsDir) ? fs.readdirSync(specsDir).filter((f) => f
 if (specs.length && specs.length !== 10) {
   problems.push({ rule: 'R1 specs 必须恰好 10 份', where: 'docs/specs', detail: `现在 ${specs.length} 份` })
 }
+// 验收口径②：`docs/` 根目录 .md 净数 ≤ 12（不含 attic/、evidence/、specs/ 子目录）。
+// 这条是"只增不换"的硬上界：案卷可以搬去 attic，但不许在根目录继续堆。
+const rootMd = fs.existsSync(DOCS) ? fs.readdirSync(DOCS).filter((f) => f.endsWith('.md')) : []
+const rootMdCount = rootMd.length
+if (rootMdCount > 12) {
+  problems.push({ rule: 'R1 docs 根目录净数超限', where: 'docs/', detail: `${rootMdCount} 篇 > 12（多余的搬 docs/attic/YYYY-MM/）` })
+}
 
 // ── R2 文档里的路径与 file:line 引用必须存在 ───────────────────────────────
-const REF_RE = /(?:^|[\s`('"])((?:\.\.?\/|docs\/|packages\/|scripts\/|tools\/|src\/|adapters\/|vendor\/)[\w./-]*\.(?:md|ts|tsx|mjs|js|json))(?::\d+)?/g
-for (const f of allDocs) {
+// 扫描范围＝**活文档**。`docs/attic/` 与 `docs/evidence/` 不进 R2：
+// attic 的规矩是"按原日期保留、不改写"，evidence 是门禁消费的机器产物；
+// 拿一条会要求改写的门禁去卡一批明令不许改写的文件，只能逼人绕过整条 R2。
+const REF_RE = /(?:^|[\s`('"])((?:\.\.?\/|docs\/|packages\/|scripts\/|tools\/|src\/|adapters\/|vendor\/|core\/|extensions\/|worlds\/|platform\/)[\w./-]*\.(?:md|ts|tsx|mjs|js|json))(?::\d+)?/g
+/**
+ * 解析口径（第一版在这里错过一次，把 1256 条好端端的引用报成失效）：
+ * ① `docs/`、`packages/` 这类**仓根相对**写法必须从仓根解析，只有 `./`、`../` 才是相对该文档自己；
+ * ② `src/`、`core/`、`extensions/` 这批属于**宿主仓**（Cortico-up），本仓没有——
+ *    按本仓既有的定位约定 `CORTICO_ROOT || ../Cortico-up` 再试一次；
+ *    宿主不在场时报「未核」而不是「失效」，否则换台机器跑门禁就是一片假红。
+ * 用错基准，R2 就变成一把只会喊狼来的尺——假违规比漏违规更坏，它会让下一个人直接加白名单绕过整条门禁。
+ */
+const HOST = process.env.CORTICO_ROOT || path.resolve(ROOT, '..', 'Cortico-up')
+const hostPresent = fs.existsSync(HOST)
+let r2Unchecked = 0
+function resolveRef(docFile, target) {
+  if (target.startsWith('./') || target.startsWith('../')) return [path.resolve(path.dirname(docFile), target)]
+  return [path.resolve(ROOT, target), path.resolve(HOST, target)]
+}
+const livingDocs = allDocs.filter((f) => {
+  const under = rel(f)
+  return !['attic', 'evidence'].includes(under.split('/')[1] ?? '')
+})
+for (const f of livingDocs) {
   const text = fs.readFileSync(f, 'utf8')
   for (const m of text.matchAll(REF_RE)) {
     const target = m[1]
-    const abs = path.isAbsolute(target) ? target : path.resolve(path.dirname(f), target)
-    if (!fs.existsSync(abs)) {
-      problems.push({ rule: 'R2 引用指向不存在的文件', where: `${rel(f)}:${text.slice(0, m.index).split('\n').length}`, detail: target })
-    }
+    const cands = resolveRef(f, target)
+    if (cands.some((c) => fs.existsSync(c))) continue
+    if (cands.length > 1 && !hostPresent) { r2Unchecked += 1; continue }
+    problems.push({ rule: 'R2 引用指向不存在的文件', where: `${rel(f)}:${text.slice(0, m.index).split('\n').length}`, detail: target })
   }
 }
 
@@ -145,10 +174,11 @@ for (const s of specs) {
 }
 if (pending > 3) problems.push({ rule: 'R4 「待观察」超限', where: 'docs/specs', detail: `${pending} 条（上限 3，且每条要注明负责人与批次）` })
 
-if (asJson) console.log(JSON.stringify({ ok: problems.length === 0, specs: specs.length, docs: allDocs.length, problems }, null, 2))
+if (asJson) console.log(JSON.stringify({ ok: problems.length === 0, specs: specs.length, docs: allDocs.length, livingDocs: livingDocs.length, r2Unchecked, problems }, null, 2))
 else {
   console.log(`# 文档卫生门禁`)
-  console.log(`  docs 下 .md ${allDocs.length} 篇（specs ${specs.length}/10）`)
+  console.log(`  docs 下 .md ${allDocs.length} 篇（活文档 ${livingDocs.length}／specs ${specs.length}/10），根目录 ${rootMdCount} 篇（验收上限 12）`)
+  console.log(`  R2 基准：本仓 ${ROOT}；宿主 ${HOST}${hostPresent ? '' : '（不在场 → 宿主侧引用计「未核」，当前 ' + r2Unchecked + ' 条）'}`)
   if (!problems.length) console.log('  ✓ 三条（案卷不新增 / 引用都存在 / ② 的参数有读取点）全绿')
   else {
     const by = {}
