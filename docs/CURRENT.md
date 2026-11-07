@@ -1,7 +1,8 @@
-# CURRENT —— 现状真相源（移植工程）
+# CURRENT —— 台账，不是现状（移植工程）
 
-> **本文件只管一件事：现在到哪了、接下来做什么、怎么起来。** 是真相源之一。
-> 其余按问题分：**任务推进**看 [`ARCHITECTURE-DECOUPLING-2026-11-01.md`](./ARCHITECTURE-DECOUPLING-2026-11-01.md)（§8 总任务单）与执行账 [`DECOUPLING-STATUS-2026-11-02.md`](./DECOUPLING-STATUS-2026-11-02.md) · **重写该长成什么样**看 [`ARCHITECTURE-TARGET-2026-11-03.md`](./ARCHITECTURE-TARGET-2026-11-03.md)（现架构七处病根 + **5 个宿主无关平级能力包 `cap-*` + Cortico 薄转接头 + 全功能可写操作台**；**它是重写方向的唯一依据，主人下令动哪一块之前不构成自动开工凭据**） · **架构**看 [`ARCHITECTURE-2026-11.md`](./ARCHITECTURE-2026-11.md)（代码里现在成立的事，带 `file:line`）· **产品**看 [`PRODUCT.md`](./PRODUCT.md) · **判据**看 [`OBSERVATION-PROTOCOL.md`](./OBSERVATION-PROTOCOL.md) 与 [`evidence/G3B-DECISION-2026-11-01.md`](./evidence/G3B-DECISION-2026-11-01.md) · **版本与变更**看根 [`../CHANGELOG.md`](../CHANGELOG.md)。全部文档的分类与"谁已经让位"见 [`INDEX.md`](./INDEX.md)。
+> **本文件是台账，不是现状。** 它按日期倒序记"到哪了"；**"现在是什么"归 [`specs/`](./specs/) 那十份功能详设**（入口见 [`INDEX.md`](./INDEX.md)）。
+> 自 2026-11-07 文档体制改制起**停止追加新条目**：功能变了就地改对应那份 spec，别再往这里加一段。
+> 其余按问题分：**任务推进**看 [`ARCHITECTURE-DECOUPLING-2026-11-01.md`](./attic/2026-11/ARCHITECTURE-DECOUPLING-2026-11-01.md)（§8 总任务单）与执行账 [`DECOUPLING-STATUS-2026-11-02.md`](./attic/2026-11/DECOUPLING-STATUS-2026-11-02.md) · **重写该长成什么样**看 [`ARCHITECTURE-TARGET-2026-11-03.md`](./attic/2026-11/ARCHITECTURE-TARGET-2026-11-03.md)（现架构七处病根 + **5 个宿主无关平级能力包 `cap-*` + Cortico 薄转接头 + 全功能可写操作台**；**它是重写方向的唯一依据，主人下令动哪一块之前不构成自动开工凭据**） · **架构**看 [`ARCHITECTURE-2026-11.md`](./attic/2026-11/ARCHITECTURE-2026-11.md)（代码里现在成立的事，带 `file:line`）· **产品**看 [`PRODUCT.md`](./attic/2026-10/PRODUCT.md) · **判据**看 [`OBSERVATION-PROTOCOL.md`](./OBSERVATION-PROTOCOL.md) 与 [`evidence/G3B-DECISION-2026-11-01.md`](./evidence/G3B-DECISION-2026-11-01.md) · **版本与变更**看根 [`../CHANGELOG.md`](../CHANGELOG.md)。全部文档的分类与"谁已经让位"见 [`INDEX.md`](./INDEX.md)。
 >
 > **`PLAN-2026-11-03.md` 已作废删除（2026-11-03）**：它把六席分析压成六阶段排期表，未经主人审阅就落仓并触发了开工。原三条冲突裁决已归位到 TARGET §4/§5/§6；原文 `git show 36147ed:docs/PLAN-2026-11-03.md`。
 > `BLUEPRINT.md` 不再是本文件的上级：它的架构部分已由 `ARCHITECTURE-2026-11.md` 取代（分层名与代码不符，见彼文 §8 第 2 条），保留有效的是 50 项能力坐标与改动纪律。
@@ -51,7 +52,7 @@
 - **2026-10-31 晚：发布失败真因定位 + `dynamic recent` 上线（`d481d89`）。** 11:49Z 三次面板放行的实际失败原因是 **B站对 polymer 动态端点回 HTTP 412 风控页**（feed/space 实测同样回 HTML；traffic 闸自动进入暂停）——不是代码问题，除 reporting bug（已修）。新增复核入口：`node tools/bili.mjs dynamic recent --date YYYY-MM-DD [--json]`（时间倒序翻页、翻过目标日即停、412/code≠0 明确报错、TrafficError 不再甩裸 stack）。测试 270/270。**重试放行请等 412 风控窗口过去（约 20:55 本地后），先 `dynamic recent --date 当天` 确认没有半发的动态再点。** 11:49Z 三次面板放行的实际失败原因是 **B站对 polymer 动态端点回 HTTP 412 风控页**（feed/space 实测同样回 HTML；traffic 闸自动进入暂停）——不是代码问题，除 reporting bug（已修）。新增复核入口：`node tools/bili.mjs dynamic recent --date YYYY-MM-DD [--json]`（时间倒序翻页、翻过目标日即停、412/code≠0 明确报错、TrafficError 不再甩裸 stack）。测试 270/270。**重试放行请等 412 风控窗口过去（约 20:55 本地后），先 `dynamic recent --date 当天` 确认没有半发的动态再点。**
 
 - **2026-10-31 晚普查**：13 个 World 工具装配齐（浏览器工具表逐个数过）；读/dry 全真跑通过；kill 关、风控无暂停。**主人 11:49Z 三次面板放行全部失败**：10-29 是本地写间隔 cooldown、10-28/10-31 发布步被网络/风控拒——失败原因当时被 publisher 的 caught 吞了（`59f0e4e` 已修+回归测试+重启生效；三条草稿 failed/cooldown 均可重试；10-31 只完成了传图、发布未成功，无半发动态）。npm **273/273**（2026-10-31 23:50 复跑；此前记的 267 是普查当时的数，后续提交只增）。
-  - **词表回流的分支口径（2026-10-31 自查纠正）**：普查时 live 抽出的 230 条是散文滑窗碎词，属 live 的 n-gram 行为；词组级重写（`dc26a93`）只在 `dev/publisher`，**live 未换**——换它要重启，会把观测前的第 5 次重启坐实。所以"她连报三次的词表没在帮我"这条在 live 上**仍未修**，观察项 #27 的前提是先把 `dc26a93` 合到 live。见 [team-2026-11-01/TEAM-DIGEST-2026-11-01.md](./team-2026-11-01/TEAM-DIGEST-2026-11-01.md) 第 25 行的分支标注。
+  - **词表回流的分支口径（2026-10-31 自查纠正）**：普查时 live 抽出的 230 条是散文滑窗碎词，属 live 的 n-gram 行为；词组级重写（`dc26a93`）只在 `dev/publisher`，**live 未换**——换它要重启，会把观测前的第 5 次重启坐实。所以"她连报三次的词表没在帮我"这条在 live 上**仍未修**，观察项 #27 的前提是先把 `dc26a93` 合到 live。见 [team-2026-11-01/TEAM-DIGEST-2026-11-01.md](./attic/2026-11/team-2026-11-01/TEAM-DIGEST-2026-11-01.md) 第 25 行的分支标注。
 
 - **2026-10-31 12:30：控制中心已聚合上线。** 「小鱼 · 鱼缸」世界页在 WebUI 激活：`http://127.0.0.1:7799/#/provider/world%3Abili-account`——鱼缸（头像/心情/六场值）、待审稿（✓放行/✗拒掉，二次确认）、她的一天、日记双本、意见箱、体征六块页签。真实浏览器逐块走查通过（鱼缸/待审稿/体征含真实数据）。流程：停 bot → `pnpm build:web` → 重启（pid 185072，health 全绿）。Cortico `e6783b2` 已并 master 并推 `biandeshen/Cortico-local`。**8448 临时面板已退役；旧 8447 面板是提权进程杀不掉，等主人手动关掉后整个 dsh panel 即可归档**（数据面已被世界页复用，panel 代码保留作 CLI/数据模块来源）。
 
@@ -59,11 +60,11 @@
 
 - **2026-10-31 凌晨：M1c 媒体层拆分合 live（`ae023a5`）。** `video-build.mjs` 变薄壳；`tools/media/{tts,bgm,video/studio,config}.mjs` 各司其职，BGM 有了 `assets/bgm/catalog.json`，换 TTS/渲染 provider 不动 CLI。门：npm **263/263**（+8 媒体测试）+ 真实闸 `--tts mimo --bgm quiet-room --plan`（茉莉 1.6s）通过。M1 子阶段只剩「观测后重冻 4 个验收脚本 + wake-audit/c2-window 内联 legacy」。
 
-- **2026-10-31 凌晨：Drive v2 模拟对比完成（只比数，live rhythm 未动）。** 三变体（现状骰子 / 概率×3 / 紧急度累积+create/social 驱动）7天×5种子：骰子不是密度主闸（提概率仅 +16%）；v2 零空日、间隔尾巴最短、五种行动全部出现（social 改盈余式定义后 2 次/7天）。采纳与否待拍板。`docs/DRIVE-V2-SIM-2026-10-31.md`。
+- **2026-10-31 凌晨：Drive v2 模拟对比完成（只比数，live rhythm 未动）。** 三变体（现状骰子 / 概率×3 / 紧急度累积+create/social 驱动）7天×5种子：骰子不是密度主闸（提概率仅 +16%）；v2 零空日、间隔尾巴最短、五种行动全部出现（social 改盈余式定义后 2 次/7天）。采纳与否待拍板。`docs/attic/2026-10/DRIVE-V2-SIM-2026-10-31.md`。
 
 - **2026-10-31 凌晨 03:13：权限分级放开落地（live）。** 三裁决之②已实现并合并重启：`bili_dm_reply` 直发主人（被拒自动退回草稿队列等放行）、新增 `bili_like`/`bili_fav` 自发档（收藏五判据/每天 3 条不变；点赞本地账 30 天去重，防 B站 toggle 误取消）、评论/弹幕维持 go-gate 人工放行、关注/取关不开放。档位边界由 `tests/perm-tier.test.mjs` 锁死；dsh **255/255**、Cortico core 18/18；World 重启 pid 159456，health 全绿。证据 `docs/evidence/PERM-TIER-2026-10-31.md`。
 
-- **2026-10-30：V1 视频切片本地成片通过（未接线）。** 20s/1080×1920/h264+aac，MiMo TTS（`mimo-v2.5-tts`，音色茉莉，7.04s）+ CC0 BGM（AERIS `quiet-room`，0.14），9:16 + 16:9 两张封面；`tools/video-build.mjs` 走 vendor/dsh-video-studio（MIT）。只写 `~/.dsh/bili-whale/media/_smoke/`，不接 World、不投稿。证据卡 `docs/evidence/V1-VIDEO-SMOKE-2026-10-30.md`；BGM 曲库与许可见 `assets/bgm/README.md`；模块化边界与观测后拆分计划见 `docs/MODULARITY-2026-10-30.md`。
+- **2026-10-30：V1 视频切片本地成片通过（未接线）。** 20s/1080×1920/h264+aac，MiMo TTS（`mimo-v2.5-tts`，音色茉莉，7.04s）+ CC0 BGM（AERIS `quiet-room`，0.14），9:16 + 16:9 两张封面；`tools/video-build.mjs` 走 vendor/dsh-video-studio（MIT）。只写 `~/.dsh/bili-whale/media/_smoke/`，不接 World、不投稿。证据卡 `docs/evidence/V1-VIDEO-SMOKE-2026-10-30.md`；BGM 曲库与许可见 `assets/bgm/README.md`；模块化边界与观测后拆分计划见 `docs/attic/2026-10/MODULARITY-2026-10-30.md`。
 - **2026-10-31 主人三裁决**：①**日界 04:00 → 自然日 00:00**（全链路 13 处 + 测试 + hashes 重冻；改动在 dev/day-boundary，合并重启后生效）；②**权限分级放开**：点赞/收藏她自己发（限额与去重代码已在），给主人的回信免审批直发（仍过风控/冷却），公开评论维持人工放行，关注/取关不开放（下一开发任务）；③feed 关注豁免保留（观察两轮再议）。
 - **2026-10-31 凌晨（她的 OPS 修复批，全部合入并重启加载）**：①**放行入口**——面板「待审草稿」卡 ✓放行/✗拒掉，token 全程服务端（过期/正文被改自动按当前正文重入队）；②**意见箱**——`bili_feedback` 工具 + 面板卡（add/list/resolve，全本地 jsonl，ORIENTATION 第 10 步教她用）；③**dm_reply 死循环修复**——回信时效=最后一次成功读收件箱（空读也刷新）；④B1 文案中性化、B2 回执说死替换/追加、B3 关注源字段、B4 三路回流全部 live。两次重启 health 全绿（当前 pid 38372）；全量 **252/252**。证据卡：`OPS-FIXES` / `APPROVAL-ENTRY` / `FEEDBACK-BOX`（均 2026-10-30/31）。
 - **2026-10-30 主人拍板（两问）**：①观测期“禁改码”细化为**只冻结 live**——禁合并、禁为加载新代码重启；dev 分支照常推进，观测结束一次性合并；②验收加 **K4 体验复盘项**（连续 7 天私信有来有回、成稿对得上当日情绪、无日记日期错位），**只复盘不卡验收**。协议原文已改：`OBSERVATION-PROTOCOL.md` §2/§3/§6、ROADMAP §4。
@@ -82,7 +83,7 @@
 - **2026-10-29：观测操作卡。** `docs/OBSERVATION-PROTOCOL.md` 固定了每天 20–30 分钟的检查、污染定义、允许的运维与停止条件；G3b 全绿后用 `node scripts/observation-start.mjs` 开窗。
 - **2026-10-29：日界统一到 04:00。** `rhythm.dayKey`、`diary_append`、`todayDraftLine`、草稿 voice 文件全部用同一日界；此前 life 在午夜清零、快照按 04:00 统计，跨 00:00 会把一天算两次。重启后 `life.day=2026-10-28`（00:51 属前一天），health 通过，drill 34/34（测试自身也改为 04:00）。
 
-- **2026-10-27：宿主已统一到 Cortico。** DSH 插件的时钟在本机停用（`clock.enabled=false` + `night.windows=[]`，面板与 `/deps` 仍在）；HKCU `WhaleDraft`（21:30 nightly-scheduler）已删除。Cortico World 改为**状态驱动的醒/睡**（无聊/想他/累 + 抖动决定），见 `Cortico/persona-core/src/rhythm.ts` 与 `docs/CORTICO-PATCHES.md` 第 11 条。**2026-10-30 主人裁决：无每日行动上限、无最小间隔**（`MAX_ACTIONS_PER_DAY=Infinity`、`MIN_GAP_MS=0`），靠体力/事件自然收敛，不用打卡式约束。
+- **2026-10-27：宿主已统一到 Cortico。** DSH 插件的时钟在本机停用（`clock.enabled=false` + `night.windows=[]`，面板与 `/deps` 仍在）；HKCU `WhaleDraft`（21:30 nightly-scheduler）已删除。Cortico World 改为**状态驱动的醒/睡**（无聊/想他/累 + 抖动决定），见 `Cortico/persona-core/src/rhythm.ts` 与 `docs/attic/2026-10/CORTICO-PATCHES.md` 第 11 条。**2026-10-30 主人裁决：无每日行动上限、无最小间隔**（`MAX_ACTIONS_PER_DAY=Infinity`、`MIN_GAP_MS=0`），靠体力/事件自然收敛，不用打卡式约束。
 - 分支 `port/core-opencode-panel`，4 个检查点提交（阶段0-2 / 阶段2 / 阶段3 / 阶段4）。
 - `npm test` **212/212**（37 文件，2026-10-30）；drill **34/34**；Cortico 套件 **112/112**；`tsc --noEmit` 0 错。（数字每次改动都要重跑，别抄这里）
 - 已完成：core 化、AgentSessionPort、WHALE_HOME/WHALE_NODE、notify ntfy/bark、tick-catchup、路由抽取、OpenCode adapter（daemon+MCP）、whale-panel（含鱼缸视图）。
@@ -134,7 +135,7 @@ node tools/video-build.mjs --image "D:/AI/养鱼/assets/daily/daily-04-goodnight
 
 ## 约定
 
-- **行为冻结**：改调度/预算/路由前先对 `docs/BASELINE.md`；快照不一致必须 `--update` 并在提交信息说明原因。
+- **行为冻结**：改调度/预算/路由前先对 `docs/attic/2026-10/BASELINE.md`；快照不一致必须 `--update` 并在提交信息说明原因。
 - **凭据**：只进 `~/.bili-ai/`，任何端点不回显；panel 默认 127.0.0.1 + token，禁外暴（远程走 Tailscale）。
 - **AMpath 借用**：私有仓库、无 LICENSE——只搬了纯函数与契约思路，**发布前必须移除 `core/ports/temporal.mjs` 的注释外引用并自查**。
 - **上游纪律**：写操作仍强制 `--dry/--go`；MCP 包装层不得绕过 `tools/bili.mjs`。

@@ -50,12 +50,25 @@ const DATED_RE = /\d{4}-\d{2}-\d{2}/
 
 // ── R1 不许新增案卷类文档（在 specs/evidence/attic 之外） ──────────────────
 const WHOLESALE = ['specs', 'evidence', 'attic']
+/**
+ * 唯一被点名保留的台账：`docs/CURRENT.md`（主人 2026-11-07 拍板"降级为台账，不是现状"）。
+ * 例外不给白名单而是给条件：**降级那句必须写在前十行里，且不许再加第二本**。
+ * 否则"台账"会变成案卷的合法外衣——这正是这次改制要治的病。
+ */
+const LEDGER_ALLOWED = new Set(['docs/CURRENT.md'])
 for (const f of allDocs) {
   const under = rel(f)
   const top = under.split('/')[1] ?? ''
   if (WHOLESALE.includes(top)) continue
   const base = path.basename(f)
   if (DATED_RE.test(base) || LEDGER_RE.test(base)) {
+    if (LEDGER_ALLOWED.has(under)) {
+      const head = fs.readFileSync(f, 'utf8').split('\n').slice(0, 10).join('\n')
+      if (!/台账/.test(head) || !/不是现状/.test(head)) {
+        problems.push({ rule: 'R1 台账降级声明缺失', where: under, detail: '前十行必须写明"台账，不是现状"' })
+      }
+      continue
+    }
     problems.push({ rule: 'R1 案卷类文档', where: under, detail: '就地改 docs/specs/ 里对应那一份，别再开一本' })
   }
 }
@@ -76,7 +89,9 @@ if (rootMdCount > 12) {
 // 扫描范围＝**活文档**。`docs/attic/` 与 `docs/evidence/` 不进 R2：
 // attic 的规矩是"按原日期保留、不改写"，evidence 是门禁消费的机器产物；
 // 拿一条会要求改写的门禁去卡一批明令不许改写的文件，只能逼人绕过整条 R2。
-const REF_RE = /(?:^|[\s`('"])((?:\.\.?\/|docs\/|packages\/|scripts\/|tools\/|src\/|adapters\/|vendor\/|core\/|extensions\/|worlds\/|platform\/)[\w./-]*\.(?:md|ts|tsx|mjs|js|json))(?::\d+)?/g
+const REF_RE = /(?:^|[\s`('"])((?:\.\.?\/|docs\/|packages\/|scripts\/|tools\/|src\/|adapters\/|vendor\/|core\/|extensions\/|worlds\/|platform\/)[\w./-]*\.(?:tsx|ts|mjs|json|js|md))(?::\d+)?/g
+// 注意扩展名分支的**顺序**：`js|json` 会先吃掉 `.js` 再把 `on` 留在括号外（实测把
+// `extensions/market-index.json` 报成不存在的 `.js`）。长的在前。
 /**
  * 解析口径（第一版在这里错过一次，把 1256 条好端端的引用报成失效）：
  * ① `docs/`、`packages/` 这类**仓根相对**写法必须从仓根解析，只有 `./`、`../` 才是相对该文档自己；
