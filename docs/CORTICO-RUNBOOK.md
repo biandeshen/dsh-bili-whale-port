@@ -1,10 +1,18 @@
 # Cortico 运行手册（小鱼）
 
+> **读前先看这份手册的年份**（2026-11-12 校准）：下面「人设 / World：bili-account / 每轮流程」几节写的是
+> 2026-11-04 搬家**之前**那个人格（部署名 `mybot`、代码包 `cormini`）。它现在是**回滚点**，不是线上：
+> 数据在 `~/.xiaoyu-home/rollback/deployments/mybot`，怎么退回去见 [specs/10-control-surface.md](./specs/10-control-surface.md)。
+> 线上人格是 `xiaoyu`（代码包 `cortico-bot-xiaoyu` + 能力包），当前状态看 [CURRENT.md](./CURRENT.md)。
+> 「进程与地址 / 排障」两节仍然适用。
+
 ## 进程与地址
 - OFM 代理：`127.0.0.1:18910`（转发 OpenCode Go，Responses API）
 - Cortico WebUI：`http://127.0.0.1:7799/`
 - 一键启动：`start-cortico.cmd`（已注册 HKCU Run：WhaleCortico）
-- 部署：`E:\WorkSpace_Qoder\Cortico\deployments\mybot`
+- 线上部署：`~/.xiaoyu-home/xiaoyu`（`deployment.json` 里 `bot=cortico-bot-xiaoyu`；人设两文件都在它的 `prompts/`）
+- 代码树：`CORTICO_ROOT` / 本仓 `.env` 指定（本机是 `E:\WorkSpace_Qoder\Cortico-up`）。**没有硬默认**，缺了就报错，见 `scripts/lib/host-root.mjs`
+- 回滚点部署：`~/.xiaoyu-home/rollback/deployments/mybot`（旧人格 `cormini` + 旧数据，703 文件已逐文件 sha256 核对）
 - **单一调度器**：只由 Cortico World 的生活循环决定她做不做事。DSH 插件时钟已停用（`clock.enabled=false`，`night.windows=[]`），HKCU `WhaleDraft`（21:30 nightly-scheduler）已删除；不要再把它们加回来，否则会抢着出稿。
 
 ## 人设（单一来源）

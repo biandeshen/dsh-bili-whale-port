@@ -1,0 +1,97 @@
+# 宿主路径门禁：故意违规能否变红（原始输出）
+# 采集时间 2026-11-12T14:38:27.952Z · 门禁 scripts/check-cortico-paths.mjs
+# 违规样本写在临时目录 C:\Users\ADMINI~1\AppData\Local\Temp\gate-red-najGga，用 --root 指过去；真仓一个字没改。
+
+===== 故意违规：R1-absolute =====
+--- 喂进去的内容 ---
+const CORTICO = 'E:/WorkSpace_Qoder/Cortico'
+--- 门禁原始输出 ---
+宿主路径门禁：扫了 1 个文件（scripts/tools/tests/packages/adapters/core/panel + 仓库根脚本）
+
+R1-absolute  scripts/bad.mjs:1
+  const CORTICO = 'E:/WorkSpace_Qoder/Cortico'
+  问题：绝对路径指向第二宿主克隆（不带 -up）
+  修法：改用 scripts/lib/host-root.mjs 的 hostRoot()/hostImport()，或把路径换成 live 那棵（-up）
+
+1 处违规。宿主在哪只认 CORTICO_ROOT / 本仓 .env，见 scripts/lib/host-root.mjs。
+
+EXIT=1（期望 1）
+
+===== 故意违规：R1-relative（注释里的用法示例） =====
+--- 喂进去的内容 ---
+/**
+ * 用法：cd ../Cortico && node --import tsx ../dsh-bili-whale/scripts/x.mjs
+ */
+--- 门禁原始输出 ---
+宿主路径门禁：扫了 1 个文件（scripts/tools/tests/packages/adapters/core/panel + 仓库根脚本）
+
+R1-relative  scripts/bad.mjs:2
+  * 用法：cd ../Cortico && node --import tsx ../dsh-bili-whale/scripts/x.mjs
+  问题：相对路径指向第二宿主克隆（不带 -up）
+  修法：同上；用法示例也要改，照着跑就会跑错树
+
+1 处违规。宿主在哪只认 CORTICO_ROOT / 本仓 .env，见 scripts/lib/host-root.mjs。
+
+EXIT=1（期望 1）
+
+===== 故意违规：R1-segment =====
+--- 喂进去的内容 ---
+const host = path.resolve(REPO, '..', 'Cortico')
+--- 门禁原始输出 ---
+宿主路径门禁：扫了 1 个文件（scripts/tools/tests/packages/adapters/core/panel + 仓库根脚本）
+
+R1-segment  scripts/bad.mjs:1
+  const host = path.resolve(REPO, '..', 'Cortico')
+  问题：path.join/resolve 的片段拼出了第二宿主克隆
+  修法：同上
+
+1 处违规。宿主在哪只认 CORTICO_ROOT / 本仓 .env，见 scripts/lib/host-root.mjs。
+
+EXIT=1（期望 1）
+
+===== 故意违规：R2-hard-default =====
+--- 喂进去的内容 ---
+const CORTICO = process.env.CORTICO_ROOT || 'E:/WorkSpace_Qoder/Cortico-up'
+--- 门禁原始输出 ---
+宿主路径门禁：扫了 1 个文件（scripts/tools/tests/packages/adapters/core/panel + 仓库根脚本）
+
+R2-hard-default  scripts/bad.mjs:1
+  const CORTICO = process.env.CORTICO_ROOT || 'E:/WorkSpace_Qoder/Cortico-up'
+  问题：CORTICO_ROOT 的兜底值是绝对机器路径
+  修法：去掉硬默认：缺 CORTICO_ROOT 就明确报错并提示该设什么（hostRoot() 已经这么做）
+
+1 处违规。宿主在哪只认 CORTICO_ROOT / 本仓 .env，见 scripts/lib/host-root.mjs。
+
+EXIT=1（期望 1）
+
+===== 对照：同一个临时仓库，违规文件删掉后 =====
+宿主路径门禁：扫了 0 个文件（scripts/tools/tests/packages/adapters/core/panel + 仓库根脚本）
+没有指向第二宿主克隆的路径，也没有绝对机器路径兜底。
+
+EXIT=0（期望 0）
+
+===== 真仓当前状态 =====
+宿主路径门禁：扫了 474 个文件（scripts/tools/tests/packages/adapters/core/panel + 仓库根脚本）
+没有指向第二宿主克隆的路径，也没有绝对机器路径兜底。
+
+EXIT=0（期望 0）
+
+===== 门禁自己的测试（含 4 条故意违规断言） =====
+✔ 干净仓库：hostRoot() + -up 路径不报红 (133.0859ms)
+✔ R1 绝对路径指向旧克隆：判红并点名文件与行号 (109.0369ms)
+✔ R1 注释里的用法示例也算：照着跑就会跑错树 (112.7061ms)
+✔ R1 path.join 片段拼出旧克隆：判红 (114.8361ms)
+✔ R2 CORTICO_ROOT 兜底是绝对机器路径：判红 (135.0152ms)
+✔ 不误报：Cortico 当显示标签、docs/ 里的历史案卷 (138.3849ms)
+✔ --json 出机器可读结果：hits 带规则/文件/行号 (127.6062ms)
+✔ 真仓当前状态：不许有指向旧克隆的路径 (359.2335ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1398.9429
+
+EXIT=0（期望 0）

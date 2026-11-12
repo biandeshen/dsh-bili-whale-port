@@ -1,0 +1,82 @@
+# 回滚点搬家：核对 + 只读演练（原始输出）
+# 采集时间 2026-11-12T14:39:07.528Z
+# 落点 ~/.xiaoyu-home/rollback/deployments/{mybot,providers}；源 = 第二宿主克隆的 deployments（只读，未删）
+# 完整 sha256 清单是私有产物，留在 ~/.xiaoyu-home/rollback/rollback-manifest.json，不进仓。
+
+===== 逐文件 sha256 + 逐目录核对 =====
+$ C:\Program Files\nodejs\node.exe scripts/verify-rollback-point.mjs --src=E:/WorkSpace_Qoder/Cortico/deployments
+源   E:/WorkSpace_Qoder/Cortico/deployments
+目标 C:\Users\Administrator\.xiaoyu-home\rollback\deployments
+文件 703 → 703    目录 187 → 187
+
+逐部署计数：
+  mybot                    699 → 699
+  providers                4 → 4
+
+逐一级子目录计数：
+  mybot/alarms.json                  1 → 1
+  mybot/avatar.png                   1 → 1
+  mybot/config.json                  1 → 1
+  mybot/data                         682 → 682
+  mybot/deployment.json              1 → 1
+  mybot/prompts                      1 → 1
+  mybot/providers                    2 → 2
+  mybot/workspace                    10 → 10
+  providers/mimo                     2 → 2
+  providers/opencode-go              2 → 2
+
+只在源里的文件 0；只在目标里的文件 0；内容不同 0
+只在源里的目录 0；只在目标里的目录 0
+
+结论：逐文件 sha256 全等，目录集合全等（含空目录）。
+完整哈希清单（私有，不进仓）：C:\Users\Administrator\.xiaoyu-home\rollback\rollback-manifest.json
+
+EXIT=0
+
+===== 只读演练①：宿主列出回滚部署根 =====
+$ C:\Program Files\nodejs\node.exe --import tsx src/launcher.ts --list
+mybot
+
+EXIT=0
+
+===== 只读演练②：宿主装载回滚人格（--json，看有无 problem） =====
+$ C:\Program Files\nodejs\node.exe --import tsx src/launcher.ts --json
+{"root":"C:\\Users\\Administrator\\.xiaoyu-home\\rollback\\deployments","deployments":[{"name":"mybot","dir":"deployments/mybot","bot":"cormini","displayName":"小鱼","colors":{"accent":"#2fd59b","accent2":"#78cbae","ink":"#e9eae9","inkDim":"#828584","danger":"#d18c83"}}],"packages":[{"id":"cormini","source":"tree","displayName":"可缇mini","colors":{"accent":"#2fd59b","accent2":"#78cbae","ink":"#e9eae9","inkDim":"#828584","danger":"#d18c83"}},{"id":"corti-soulmate","source":"tree","displayName":"雪午Yukima","colors":{"accent":"#c87c5d","accent2":"#cb7c78","ink":"#f0efec","inkDim":"#97958d","danger":"#ec7e7e"}},{"id":"cortiv","source":"tree","displayName":"可缇Corti","colors":{"accent":"#81c9ef","accent2":"#6591c3","ink":"#f2f5fa","inkDim":"#8594a7","danger":"#e99bae"}},{"id":"cortico-bot-xiaoyu","source":"extension","displayName":"小鱼","colors":{"accent":"#2fd59b","accent2":"#78cbae","ink":"#e9eae9","inkDim":"#828584","danger":"#d18c83"}}]}
+
+EXIT=0
+
+===== 对照：线上部署根的 listing 没被回滚容器污染 =====
+$ C:\Program Files\nodejs\node.exe --import tsx src/launcher.ts --list
+xiaoyu
+
+EXIT=0
+
+===== 备份前缀兼容性：ops-backup 三条测试（含老前缀落回新回滚点） =====
+$ C:\Program Files\nodejs\node.exe --test tests/ops-backup.test.mjs
+✔ 备份打包人生档案：凭据与运行时垃圾一个字节都不进包 (273.5801ms)
+✔ --restore 默认 dry：报告覆盖/新建清单，不写一个字 (395.1292ms)
+✔ --apply：先另存当前状态再写，原件退得回去 (477.6552ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1299.1174
+
+EXIT=0
+
+===== 旧克隆独占扩展包的保留件（逐包文件数） =====
+  coo-world-petdiary@0.3.5  70 文件
+  coo-world-petdiary@0.3.5.manifest.json  1 文件
+  cortico-provider-opencode@0.3.6  21 文件
+  cortico-provider-opencode@0.3.6.manifest.json  1 文件
+  cortico-world-figure@1.4.4  49 文件
+  cortico-world-figure@1.4.4.manifest.json  1 文件
+  cortico-world-selfkit-alont1@0.1.5  13 文件
+  cortico-world-selfkit-alont1@0.1.5.manifest.json  1 文件
+  fflate@0.8.3  17 文件
+  fflate@0.8.3.manifest.json  1 文件
+合计 175 文件（含 5 份 .manifest.json）
+装载探针结论（本轮实测）：selfkit / pet-diary / opencode 三个包 import 成功；figure 失败（fflate 解析不到），但回滚配置里 figure 是 enabled:false。

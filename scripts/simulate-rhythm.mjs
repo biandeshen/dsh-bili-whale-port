@@ -1,15 +1,15 @@
 /**
  * 离线模拟 30 天作息：醒来时刻由场值 + 抖动决定（不联网、不触发真实唤醒）。
- * 逻辑与 src/worlds/bili-account/definition.ts 的 rhythmTick 对齐（connect 失约计数 + 一天一次的"又没等到"）。
- * 用法：cd ../Cortico && node --import tsx ../dsh-bili-whale/scripts/simulate-rhythm.mjs [seed]
+ * 逻辑与旧 src/worlds/bili-account/definition.ts 的 rhythmTick 对齐（connect 失约计数 + 一天一次的"又没等到"）；
+ * 那个世界已搬进 packages/cortico-world-bilibili，本模拟器读的仍是宿主 persona-core 那份。
+ * 用法：cd ../Cortico-up && node --import tsx ../dsh-bili-whale/scripts/simulate-rhythm.mjs [seed]
  */
-const CORTICO = process.env.CORTICO_ROOT || 'E:/WorkSpace_Qoder/Cortico'
-const base = 'file:///' + CORTICO.replace(/\\/g, '/')
-const { decideAction, restRecoveryDelta, dayKey, ACTION_COST_ENERGY } = await import(base + '/persona-core/src/rhythm.ts')
-const { simulateOfflineTime } = await import(base + '/persona-core/src/decay.ts')
-const { DEFAULT_ATOMIC_FIELDS } = await import(base + '/persona-core/src/types.ts')
-const { createInitialState, deriveNPCState } = await import(base + '/persona-core/src/npc-state-machine.ts')
-const { applyBudgets, emptyBudget } = await import(base + '/persona-core/src/budget.ts')
+import { hostImport } from './lib/host-root.mjs'
+const { decideAction, restRecoveryDelta, dayKey, ACTION_COST_ENERGY } = await import(hostImport('persona-core/src/rhythm.ts'))
+const { simulateOfflineTime } = await import(hostImport('persona-core/src/decay.ts'))
+const { DEFAULT_ATOMIC_FIELDS } = await import(hostImport('persona-core/src/types.ts'))
+const { createInitialState, deriveNPCState } = await import(hostImport('persona-core/src/npc-state-machine.ts'))
+const { applyBudgets, emptyBudget } = await import(hostImport('persona-core/src/budget.ts'))
 
 const seed = Number(process.argv[2] || 42)
 let s = seed >>> 0

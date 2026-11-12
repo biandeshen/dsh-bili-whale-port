@@ -1,15 +1,19 @@
 /**
  * 离线验证「工具纪律门禁」真的会拦人（不联网、不触发真实唤醒）。
- * 用法：在装了 tsx 的目录运行 —— cd ../Cortico && node --import tsx ../dsh-bili-whale/scripts/drill-gate.mjs
+ * 用法：在装了 tsx 的目录运行 —— cd ../Cortico-up && node --import tsx ../dsh-bili-whale/scripts/drill-gate.mjs
+ *
+ * 现状（2026-11-12 实测）：它加载的 src/worlds/bili-account/ 只在第二宿主克隆里有，
+ * live 那棵检出已经没有这个目录（世界搬进了 packages/cortico-world-bilibili）。
+ * 所以本脚本对 live 宿主跑不起来，会明确报「宿主检出里没有 …」；退役与否归旧代码清理批次判。
  */
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 import crypto from 'node:crypto'
 import { fileURLToPath } from 'node:url'
+import { hostImport } from './lib/host-root.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const CORTICO = process.env.CORTICO_ROOT || 'E:/WorkSpace_Qoder/Cortico'
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'drill-'))
 const home = path.join(tmp, 'home')
@@ -29,8 +33,8 @@ fs.writeFileSync(path.join(repo, 'scripts', 'draft-dynamic.mjs'), 'console.log("
 process.env.BILI_WHALE_ROOT = repo
 process.env.WHALE_HOME = home
 
-// 跨仓加载（同 counterfactual.mjs）：CORTICO_ROOT 可变，包名会绑死到某一份检出。
-const mod = await import('file:///' + CORTICO.replace(/\\/g, '/') + '/src/worlds/bili-account/definition.ts')
+// 跨仓加载（同 counterfactual.mjs）：宿主检出由 lib/host-root.mjs 一处解析，包名会绑死到某一份检出。
+const mod = await import(hostImport('src/worlds/bili-account/definition.ts'))
 const tools = Object.fromEntries(mod.BILI_ACCOUNT.create().tools().map((t) => [t.name, t]))
 
 const checks = []
@@ -113,7 +117,7 @@ check('过期被拒', ack.approve(home, q2.id, q2.token).code === 'expired')
 check('不存在的 id 被拒', ack.approve(home, 'ack-missing', 'x').code === 'not-found')
 
 // —— 场景 7：昨日违规 → kick 点名
-const gates = await import('file:///' + CORTICO.replace(/\\/g, '/') + '/src/worlds/bili-account/gates.ts')
+const gates = await import(hostImport('src/worlds/bili-account/gates.ts'))
 const yesterday = new Date(Date.now() - 20 * 3600_000).toISOString()
 fs.appendFileSync(causalFile, JSON.stringify({ at: yesterday, actor: 'cli', kind: 'discipline-violation', reason: 'draft-without-debrief' }) + '\n')
 const entries = fs.readFileSync(causalFile, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l))

@@ -2,19 +2,21 @@
  * 只读预览：当前状态 + 今天日记 → 她会想起什么、voice 会给草稿什么。
  * 不改任何状态、不联网、不产生草稿。
  *
- * 用法（从 Cortico 目录跑，tsx 才能解析类型）：
- *   cd ../Cortico && node --import tsx ../dsh-bili-whale/scripts/preview-recall.mjs
+ * 用法（从宿主检出目录跑，tsx 才能解析类型）：
+ *   cd ../Cortico-up && node --import tsx ../dsh-bili-whale/scripts/preview-recall.mjs
+ *
+ * 现状（2026-11-12 实测）：它加载的 src/worlds/bili-account/ 只在第二宿主克隆里有，
+ * live 那棵检出已经没有这个目录（世界搬进了 packages/cortico-world-bilibili）。
+ * 所以本脚本对 live 宿主跑不起来，会明确报「宿主检出里没有 …」；退役与否归旧代码清理批次判。
  */
 import fs from 'node:fs'
 import path from 'node:path'
 import { whaleHome } from '../tools/lib/paths.mjs'
+import { hostImport } from './lib/host-root.mjs'
 
-const CORTICO = process.env.CORTICO_ROOT || path.resolve(process.cwd())
-const base = 'file:///' + CORTICO.replace(/\\/g, '/')
-
-const { loadState, describeState, recentWatch } = await import(base + '/src/worlds/bili-account/personaAdapter.ts')
-const { buildVoiceBrief } = await import(base + '/persona-core/src/voice-brief.ts')
-const { dayKey } = await import(base + '/persona-core/src/rhythm.ts')
+const { loadState, describeState, recentWatch } = await import(hostImport('src/worlds/bili-account/personaAdapter.ts'))
+const { buildVoiceBrief } = await import(hostImport('persona-core/src/voice-brief.ts'))
+const { dayKey } = await import(hostImport('persona-core/src/rhythm.ts'))
 
 const state = loadState(path.join(whaleHome, 'bili-whale', 'fields.json'))
 const diary = (() => { try { return fs.readFileSync(path.join(whaleHome, 'whale-diary.md'), 'utf8') } catch { return '' } })()

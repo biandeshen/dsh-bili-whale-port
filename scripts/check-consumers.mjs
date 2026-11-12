@@ -4,8 +4,7 @@
  *
  *   node scripts/check-consumers.mjs [--cortico <检出目录>]
  *
- * 落线之后功能在 `Cortico-up`（reanchor/replay），`Cortico` 只做 hotfix；
- * 默认查落线那一侧，临时要看 live 就用 --cortico ../Cortico 显式指定。
+ * 默认查 live 那棵检出（仓库同级的 `Cortico-up`）；要查别的检出用 --cortico <目录> 显式指定。
  */
 import fs from 'node:fs'
 import path from 'node:path'

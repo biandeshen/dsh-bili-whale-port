@@ -1,0 +1,121 @@
+# 宿主路径解析改完之后：七个脚本逐个真跑（原始输出）
+# 采集时间 2026-11-12T14:48:37.559Z
+# 解析契约：CORTICO_ROOT（进程环境）→ 本仓 .env → 明确报错。本机 .env 指向 E:/WorkSpace_Qoder/Cortico-up
+
+===== start-cortico --print-flags（只读查询，不该因为宿主配置而跑不起来） =====
+$ node scripts/start-cortico.mjs --print-flags   (cwd=E:/WorkSpace_Qoder/dsh-bili-whale)
+--use-system-ca
+EXIT=0
+
+===== wake-audit（默认审线上那份会话，不再是搬家前的人格） =====
+$ node scripts/wake-audit.mjs   (cwd=E:/WorkSpace_Qoder/dsh-bili-whale)
+# 唤醒审计 · C:\Users\Administrator\.xiaoyu-home\xiaoyu\data\session-main.jsonl
+共 0 次，显示最近 0 次
+EXIT=0
+
+===== simulate-rhythm（读 live 宿主的 persona-core，含 budget.ts） =====
+$ node --import tsx ../dsh-bili-whale/scripts/simulate-rhythm.mjs 42   (cwd=E:/WorkSpace_Qoder/Cortico-up)
+2026-10-28  心情 均0.18 [0.15,0.20] 体力 均0.68 睡13h  00:30(restless,体力0.70)  18:30(restless,体力0.73)
+2026-10-29  心情 均0.13 [0.10,0.15] 体力 均0.75 睡19h  19:50(restless,体力0.80)
+2026-10-30  心情 均0.12 [0.08,0.17] 体力 均0.75 睡10h  10:40(explore,体力0.81)  17:05(explore,体力0.75)
+2026-10-31  心情 均0.12 [0.08,0.16] 体力 均0.72 睡15h  13:40(restless,体力0.78)  16:45(connect,体力0.73)
+2026-11-01  心情 均0.10 [0.08,0.13] 体力 均0.66 睡14h  00:45(explore,体力0.70)  19:20(restless,体力0.71)
+2026-11-02  心情 均0.03 [0.00,0.08] 体力 均0.59 睡13h  04:25(connect,体力0.68)  05:45(connect,体力0.64)  08:25(connect,体力0.59)
+2026-11-03  心情 均0.02 [0.00,0.05] 体力 均0.58 睡12h  05:40(restless,体力0.64)  13:00(explore,体力0.60)
+2026-11-04  心情 均0.01 [0.00,0.05] 体力 均0.59 睡17h  08:50(restless,体力0.62)  22:45(explore,体力0.62)
+2026-11-05  心情 均0.03 [0.00,0.05] 体力 均0.59 睡13h  17:50(restless,体力0.64)  23:05(explore,体力0.59)
+2026-11-06  心情 均0.01 [0.00,0.05] 体力 均0.52 睡16h  00:55(connect,体力0.53)  22:20(restless,体力0.58)
+2026-11-07  心情 均0.00 [0.00,0.00] 体力 均0.57 睡16h  20:10(restless,体力0.63)
+2026-11-08  心情 均0.04 [0.00,0.09] 体力 均0.55 睡9h  08:25(explore,体力0.62)  17:10(explore,体力0.57)  22:35(connect,体力0.51)
+2026-11-09  心情 均0.03 [0.01,0.05] 体力 均0.48 睡14h  14:35(restless,体力0.53)
+2026-11-10  心情 均0.02 [0.00,0.05] 体力 均0.47 睡10h  06:45(restless,体力0.54)  12:35(explore,体力0.50)  22:00(connect,体力0.46)
+2026-11-11  心情 均0.00 [0.00,0.00] 体力 均0.46 睡20h  23:35(restless,体力0.53)
+2026-11-12  心情 均0.03 [0.00,0.05] 体力 均0.44 睡12h  02:20(explore,体力0.48)  20:00(restless,体力0.49)
+2026-11-13  心情 均0.04 [0.01,0.06] 体力 均0.41 睡10h  03:10(explore,体力0.45)  17:55(restless,体力0.44)
+2026-11-14  心情 均0.04 [0.02,0.07] 体力 均0.40 睡18h  07:15(explore,体力0.44)
+2026-11-15  心情 均0.02 [0.00,0.04] 体力 均0.44 睡18h  01:20(restless,体力0.45)
+2026-11-16  心情 均0.01 [0.00,0.05] 体力 均0.43 睡9h  07:00(restless,体力0.55)  09:10(explore,体力0.50)  10:45(connect,体力0.43)  18:40(connect,体力0.40)  21:25(connect,体力0.35)  23:35(connect,体力0.31)
+2026-11-17  心情 均0.00 [0.00,0.00] 体力 均0.30 睡17h  22:05(restless,体力0.36)
+2026-11-18  心情 均0.02 [0.00,0.05] 体力 均0.33 睡14h  15:10(explore,体力0.38)
+2026-11-19  心情 均0.02 [0.00,0.05] 体力 均0.36 睡15h  12:00(restless,体力0.41)  20:55(explore,体力0.38)
+2026-11-20  心情 均0.07 [0.04,0.09] 体力 均0.28 睡9h  03:35(explore,体力0.32)  18:05(restless,体力0.31)
+2026-11-21  心情 均0.04 [0.02,0.07] 体力 均0.29 睡17h  10:05(restless,体力0.33)  22:30(explore,体力0.32)
+2026-11-22  心情 均0.05 [0.03,0.07] 体力 均0.28 睡14h  16:10(restless,体力0.33)
+2026-11-23  心情 均0.00 [-0.09,0.06] 体力 均0.28 睡11h  09:30(restless,体力0.35)  15:05(explore,体力0.31)  16:30(connect,体力0.24)
+2026-11-24  心情 均-0.06 [-0.09,-0.03] 体力 均0.23 睡18h  08:15(restless,体力0.26)
+2026-11-25  心情 均-0.03 [-0.07,0.04] 体力 均0.24 睡12h  05:20(restless,体力0.30)  12:15(explore,体力0.26)
+2026-11-26  心情 均-0.09 [-0.12,-0.03] 体力 均0.22 睡13h  01:50(restless,体力0.25)  18:30(restless,体力0.27)  22:50(explore,体力0.22)
+
+seed=42 · 30 天共行动 59 次（restless 27，explore 20，connect 12）· 有行动的天数 30/30
+行动时段分布：00点、01点、02点、03点、04点、05点、06点、07点、08点、09点、10点、12点、13点、14点、15点、16点、17点、18点、19点、20点、21点、22点、23点
+最终：connection=0.00 mood=-0.05 关系=unjudged
+EXIT=0
+
+===== drill-gate（加载的世界已搬走 → 应明确报"宿主检出里没有"） =====
+$ node --import tsx ../dsh-bili-whale/scripts/drill-gate.mjs   (cwd=E:/WorkSpace_Qoder/Cortico-up)
+file:///E:/WorkSpace_Qoder/dsh-bili-whale/scripts/lib/host-root.mjs:52
+    throw new Error(`宿主检出 ${root} 里没有 ${rel}：要么指错了检出，要么这段代码已经搬走（${HINT}）`)
+          ^
+
+Error: 宿主检出 E:\WorkSpace_Qoder\Cortico-up 里没有 src/worlds/bili-account/definition.ts：要么指错了检出，要么这段代码已经搬走（请把 CORTICO_ROOT 设成宿主检出目录（live 那棵是 E:/WorkSpace_Qoder/Cortico-up），或写进本仓根 .env 的 CORTICO_ROOT= 行）
+    at hostImport (file:///E:/WorkSpace_Qoder/dsh-bili-whale/scripts/lib/host-root.mjs:52:11)
+    at <anonymous> (E:\WorkSpace_Qoder\dsh-bili-whale\scripts\drill-gate.mjs:37:26)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:633:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.16.0
+EXIT=1
+
+===== smoke-tools（同上；import 阶段就停，不会发出任何 B 站请求） =====
+$ node --import tsx ../dsh-bili-whale/scripts/smoke-tools.mjs   (cwd=E:/WorkSpace_Qoder/Cortico-up)
+file:///E:/WorkSpace_Qoder/dsh-bili-whale/scripts/lib/host-root.mjs:52
+    throw new Error(`宿主检出 ${root} 里没有 ${rel}：要么指错了检出，要么这段代码已经搬走（${HINT}）`)
+          ^
+
+Error: 宿主检出 E:\WorkSpace_Qoder\Cortico-up 里没有 src/worlds/bili-account/definition.ts：要么指错了检出，要么这段代码已经搬走（请把 CORTICO_ROOT 设成宿主检出目录（live 那棵是 E:/WorkSpace_Qoder/Cortico-up），或写进本仓根 .env 的 CORTICO_ROOT= 行）
+    at hostImport (file:///E:/WorkSpace_Qoder/dsh-bili-whale/scripts/lib/host-root.mjs:52:11)
+    at <anonymous> (E:\WorkSpace_Qoder\dsh-bili-whale\scripts\smoke-tools.mjs:19:26)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:633:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.16.0
+EXIT=1
+
+===== preview-recall（同上） =====
+$ node --import tsx ../dsh-bili-whale/scripts/preview-recall.mjs   (cwd=E:/WorkSpace_Qoder/Cortico-up)
+file:///E:/WorkSpace_Qoder/dsh-bili-whale/scripts/lib/host-root.mjs:52
+    throw new Error(`宿主检出 ${root} 里没有 ${rel}：要么指错了检出，要么这段代码已经搬走（${HINT}）`)
+          ^
+
+Error: 宿主检出 E:\WorkSpace_Qoder\Cortico-up 里没有 src/worlds/bili-account/personaAdapter.ts：要么指错了检出，要么这段代码已经搬走（请把 CORTICO_ROOT 设成宿主检出目录（live 那棵是 E:/WorkSpace_Qoder/Cortico-up），或写进本仓根 .env 的 CORTICO_ROOT= 行）
+    at hostImport (file:///E:/WorkSpace_Qoder/dsh-bili-whale/scripts/lib/host-root.mjs:52:11)
+    at <anonymous> (E:\WorkSpace_Qoder\dsh-bili-whale\scripts\preview-recall.mjs:17:64)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:633:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.16.0
+EXIT=1
+
+===== host-root 契约测试（9 条，含 percent-encode 回归） =====
+$ node --test tests/host-root.test.mjs   (cwd=E:/WorkSpace_Qoder/dsh-bili-whale)
+✔ 缺 CORTICO_ROOT 且没有 .env：明确报错并提示该设什么，不猜路径 (139.3101ms)
+✔ .env 里的 CORTICO_ROOT 生效（本机落盘答案） (128.9055ms)
+✔ 进程环境优先于 .env (123.8739ms)
+✔ CORTICO_ROOT 指向不存在的目录：报错说"目录不存在"，不是 ERR_MODULE_NOT_FOUND (114.3643ms)
+✔ hostImport 先确认文件真在这棵检出里：缺文件时报"宿主检出里没有" (135.9476ms)
+✔ hostImport 文件在场：给出可 import 的 file:// 地址 (123.8073ms)
+✔ rollbackRoot 缺省 ~/.xiaoyu-home/rollback/deployments，可被 XIAOYU_ROLLBACK_ROOT 覆盖 (242.7458ms)
+✔ 路径里有空格/中文/~ 也读得到 .env（percent-encode 回归） (148.5753ms)
+✔ 真仓当前配置解析得出来，且指向的检出里真有 persona-core (114.0929ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1447.9172
+EXIT=0

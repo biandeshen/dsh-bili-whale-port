@@ -18,10 +18,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
-import { fileURLToPath } from 'node:url'
 import { whaleHome, whalePath, homePath, draftsDir } from '../tools/lib/paths.mjs'
+import { rollbackRoot } from './lib/host-root.mjs'
 
-const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const stamp = () => new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z')
 const sha256 = (file) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')
 
@@ -38,14 +37,19 @@ function sources() {
   const draftRoots = [...new Set([draftsDir(), path.join(whaleHome, 'bili-whale', 'drafts')])]
     .map((d) => path.resolve(d))
     .sort((a, b) => Number(fs.existsSync(b)) - Number(fs.existsSync(a)) || a.localeCompare(b))
-  const cortico = process.env.CORTICO_ROOT || path.resolve(REPO, '..', 'Cortico')
+  // 旧人格（cormini）的档案跟着回滚点走：2026-11-12 它从第二宿主克隆的 deployments/mybot
+  // 搬到 ~/.xiaoyu-home/rollback/deployments/mybot（S1）。这里再按克隆路径拼就会天天记 missing，
+  // 而 missing 看起来像"本来就没有"，没人会发现档案已经不再被备份。
+  const rollback = rollbackRoot()
   return {
     roots: {
       whale: whaleHome,
       // 备份要跨双家：迁移期两边都可能有还没搬完的东西，只备新家会丢旧家那份。
       // 这是"读"的用法，不是状态读写分叉，所以直接拼路径是这里唯一正当的一处。
       'bili-ai': homePath('.bili-ai'),
-      cortico,
+      // 包内前缀仍是 cortico/deployments/…（11-01/11-02 那四份旧包要恢复得回来），
+      // 所以这个根取回滚点的**上一级**：新落点刻意保留了 deployments/mybot 这层形状。
+      cortico: path.dirname(rollback),
       drafts: draftRoots[0],
       ...(draftRoots.length > 1 ? { 'drafts-2': draftRoots[1] } : {}),
     },
@@ -60,17 +64,17 @@ function sources() {
       ['whale/bili-whale.config.json', whalePath('bili-whale.config.json')],
       // 同上：备份跨双家，旧家这份人格文件单独列。
       ['bili-ai/persona.md', homePath('.bili-ai', 'persona.md')],
-      ['cortico/deployments/mybot/config.json', path.join(cortico, 'deployments', 'mybot', 'config.json')],
-      ['cortico/deployments/mybot/prompts/ORIENTATION.md', path.join(cortico, 'deployments', 'mybot', 'prompts', 'ORIENTATION.md')],
-      ['cortico/deployments/mybot/workspace/CONSTITUTION.md', path.join(cortico, 'deployments', 'mybot', 'workspace', 'CONSTITUTION.md')],
+      ['cortico/deployments/mybot/prompts/ORIENTATION.md', path.join(rollback, 'mybot', 'prompts', 'ORIENTATION.md')],
+      ['cortico/deployments/mybot/workspace/CONSTITUTION.md', path.join(rollback, 'mybot', 'workspace', 'CONSTITUTION.md')],
     ],
     // 目录源：[前缀, 磁盘目录, 过滤说明]
     dirs: [
       ['whale/bili-whale/days', whalePath('bili-whale', 'days'), null],
       ['whale/bili-whale/feed', whalePath('bili-whale', 'feed'), null],
       ['whale/bili-whale/control', whalePath('bili-whale', 'control'), (f) => !/\.(pid|log|tmp|lock)$/.test(f)],
-      // 对话全文只存在这里（runs/r-*/transcript.jsonl）：不备它，唯一的历史既读不全也没副本。
-      ['cortico/deployments/mybot/data/runs', path.join(cortico, 'deployments', 'mybot', 'data', 'runs'),
+      // 旧人格的对话全文只存在这里（runs/r-*/transcript.jsonl）：不备它，那段历史既读不全也没副本。
+      // 注意：**线上人格（xiaoyu）的 runs 不在本清单里**，那是另一个缺口，见 specs/10 ⑤。
+      ['cortico/deployments/mybot/data/runs', path.join(rollback, 'mybot', 'data', 'runs'),
         (f) => !/\.(pid|log|tmp|lock)$/.test(f)],
       ['drafts', draftRoots[0], null],
       ...(draftRoots.length > 1 ? [['drafts-2', draftRoots[1], null]] : []),
@@ -136,7 +140,7 @@ function doBackup(to) {
       'credentials.json（B站 SESSDATA/bili_jct/buvid3，永不打包）',
       'github-token.json / 任何 *token*、*secret*、*cookie*、*.key、*.pem 命名的文件（白名单 + 敏感名双闸，实测命中记在 sensitiveBlocked）',
       '~/.dsh/panel.token（面板令牌）',
-      'Cortico deployments/mybot/config.json（可能含模型 API key；只取人设两文件）',
+      '回滚点 mybot/config.json（含模型 API key 与 worlds.console.pin；只取人设两文件 + runs）',
       'control/*.pid、control/*.log、*.tmp、*.lock（运行时垃圾，不是档案）',
       '备份根自身（防套娃）',
     ],

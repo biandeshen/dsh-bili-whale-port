@@ -20,14 +20,16 @@ function setup(t) {
   const bili = path.join(whale, 'bili-whale')
   const broot = path.join(home, 'broot')
   const drafts = path.join(home, 'drafts')
-  const cortico = path.join(home, 'cortico')
+  // 回滚人格的档案落点（S1：不再依赖第二宿主克隆），包内前缀仍是 cortico/deployments/…
+  const rollback = path.join(home, 'rollback', 'deployments')
   fs.mkdirSync(path.join(bili, 'days', '2026-11-01'), { recursive: true })
   fs.mkdirSync(path.join(bili, 'control'), { recursive: true })
   fs.mkdirSync(path.join(bili, 'feed'), { recursive: true })
   fs.mkdirSync(path.join(home, '.bili-ai'), { recursive: true })
   fs.mkdirSync(drafts, { recursive: true })
-  fs.mkdirSync(path.join(cortico, 'deployments', 'mybot', 'prompts'), { recursive: true })
-  fs.mkdirSync(path.join(cortico, 'deployments', 'mybot', 'workspace'), { recursive: true })
+  fs.mkdirSync(path.join(rollback, 'mybot', 'prompts'), { recursive: true })
+  fs.mkdirSync(path.join(rollback, 'mybot', 'workspace'), { recursive: true })
+  fs.mkdirSync(path.join(rollback, 'mybot', 'data', 'runs', 'r-test'), { recursive: true })
   const w = (p, s) => fs.writeFileSync(p, s)
   w(path.join(bili, 'fields.json'), JSON.stringify({ fields: { energy: 0.4 } }))
   w(path.join(bili, 'causal.jsonl'), '{"a":1}\n{"a":2}\n')
@@ -44,15 +46,18 @@ function setup(t) {
   w(path.join(home, '.bili-ai', 'credentials.json'), '{"sessdata":"SECRET-DO-NOT-BACKUP"}')
   w(path.join(home, '.bili-ai', 'github-token.json'), '{"token":"ghp_SECRET"}')
   w(path.join(drafts, 'dyn-20261101.json'), '{"status":"sent"}')
-  w(path.join(cortico, 'deployments', 'mybot', 'prompts', 'ORIENTATION.md'), '# 本轮\n')
-  w(path.join(cortico, 'deployments', 'mybot', 'workspace', 'CONSTITUTION.md'), '# 她是谁\n')
+  w(path.join(rollback, 'mybot', 'prompts', 'ORIENTATION.md'), '# 本轮\n')
+  w(path.join(rollback, 'mybot', 'workspace', 'CONSTITUTION.md'), '# 她是谁\n')
+  w(path.join(rollback, 'mybot', 'data', 'runs', 'r-test', 'transcript.jsonl'), '{"role":"user"}\n')
+  // 诱饵：回滚配置里有模型 key 与控制台 PIN，白名单不该把它捞进来
+  w(path.join(rollback, 'mybot', 'config.json'), '{"model":{"apiKey":"SECRET-DO-NOT-BACKUP"},"worlds":{"console":{"pin":"1234"}}}')
   const run = (args = []) => spawnSync(process.execPath, [SCRIPT, ...args], {
     encoding: 'utf8', timeout: 30000,
-    env: { ...process.env, USERPROFILE: home, HOME: home, WHALE_HOME: whale, WHALE_BACKUP_DIR: broot, WHALE_DRAFTS: drafts, CORTICO_ROOT: cortico, DSH_HOME: undefined },
+    env: { ...process.env, USERPROFILE: home, HOME: home, WHALE_HOME: whale, WHALE_BACKUP_DIR: broot, WHALE_DRAFTS: drafts, XIAOYU_ROLLBACK_ROOT: rollback, CORTICO_ROOT: undefined, DSH_HOME: undefined },
   })
   const bundles = () => fs.existsSync(broot) ? fs.readdirSync(broot).filter((d) => d.startsWith('backup-')) : []
   const manifest = () => JSON.parse(fs.readFileSync(path.join(broot, bundles()[0], 'MANIFEST.json'), 'utf8'))
-  return { home, whale, bili, broot, run, bundles, manifest }
+  return { home, whale, bili, broot, rollback, run, bundles, manifest }
 }
 
 test('备份打包人生档案：凭据与运行时垃圾一个字节都不进包', (t) => {
@@ -70,8 +75,10 @@ test('备份打包人生档案：凭据与运行时垃圾一个字节都不进�
     'drafts/dyn-20261101.json',
     'cortico/deployments/mybot/prompts/ORIENTATION.md',
     'cortico/deployments/mybot/workspace/CONSTITUTION.md',
+    'cortico/deployments/mybot/data/runs/r-test/transcript.jsonl',
     'whale/bili-whale/control/feedback.jsonl',
   ]) assert.ok(rels.includes(want), `没打包 ${want}`)
+  assert.ok(!rels.includes('cortico/deployments/mybot/config.json'), '回滚配置（模型 key + 控制台 PIN）混进了备份包')
   assert.ok(!rels.some((x) => /credentials|github-token|token|secret/i.test(x)), '凭据混进了备份包')
   assert.ok(!rels.includes('whale/bili-whale/control/day-watchdog.pid'), 'pid 不是档案')
   assert.ok(!rels.includes('whale/bili-whale/control/day-watchdog.log'), 'log 不是档案')
@@ -105,10 +112,14 @@ test('--apply：先另存当前状态再写，原件退得回去', (t) => {
   const s = setup(t)
   assert.equal(s.run().status, 0)
   fs.writeFileSync(path.join(s.bili, 'fields.json'), 'MUTATED-AFTER-BACKUP')
+  // 回滚点搬家后，包内老前缀 cortico/deployments/… 仍要落回新落点（旧备份包恢复得回来）
+  const orientation = path.join(s.rollback, 'mybot', 'prompts', 'ORIENTATION.md')
+  fs.writeFileSync(orientation, 'MUTATED-ORIENTATION')
   const r = s.run(['--restore', path.join(s.broot, s.bundles()[0]), '--apply'])
   assert.equal(r.status, 0, r.stdout + r.stderr)
   assert.match(r.stdout, /恢复完成/)
   assert.equal(fs.readFileSync(path.join(s.bili, 'fields.json'), 'utf8'), JSON.stringify({ fields: { energy: 0.4 } }), '备份没写回目标')
+  assert.equal(fs.readFileSync(orientation, 'utf8'), '# 本轮\n', '老前缀没落回新回滚点')
   const pre = fs.readdirSync(s.broot).find((d) => d.startsWith('pre-restore'))
   assert.ok(pre, '真写前没有另存当前状态')
   assert.equal(fs.readFileSync(path.join(s.broot, pre, 'files', 'whale', 'bili-whale', 'fields.json'), 'utf8'), 'MUTATED-AFTER-BACKUP', '另存的不是当前原件')

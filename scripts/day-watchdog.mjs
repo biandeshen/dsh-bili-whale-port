@@ -12,9 +12,9 @@ import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { DSH_HOME as WHALE_HOME } from '../tools/lib/paths.mjs'
 import { tick, seed, logicalDay, daysDir, closeFromLastTick } from './day-snapshot.mjs'
+import { hostRoot } from './lib/host-root.mjs'
 
 const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'))
-const CORTICO = process.env.CORTICO_ROOT || 'E:/WorkSpace_Qoder/Cortico'
 
 const CONTROL = path.join(WHALE_HOME, 'bili-whale', 'control')
 const LOCK = path.join(CONTROL, 'day-watchdog.pid')
@@ -117,8 +117,16 @@ function autoCounterfactual(now) {
   const outFile = path.join(dir, 'counterfactual.json')
   if (!fs.existsSync(path.join(dir, 'state.start.json')) || fs.existsSync(outFile)) return
   const script = path.join(HERE, 'counterfactual.mjs')
+  // 宿主检出解析失败不该把看门狗整个打死：tick 是它的主业，反事实只是每日附带。
+  // 失败如实写进当日产物（error=host-root-unresolved），不静默跳过、也不猜路径。
+  let host
+  try { host = hostRoot() } catch (e) {
+    writeAtomic(outFile, { ok: false, error: 'host-root-unresolved', detail: String(e?.message ?? e), generatedAt: new Date(now).toISOString() })
+    log(`counterfactual ${prev} 未跑：${e?.message ?? e}`)
+    return
+  }
   const r = spawnSync(process.execPath, ['--import', 'tsx', script, '--date', prev, '--json'], {
-    cwd: CORTICO, encoding: 'utf8', timeout: 120000,
+    cwd: host, env: { ...process.env, CORTICO_ROOT: host }, encoding: 'utf8', timeout: 120000,
   })
   let parsed = null
   try { parsed = JSON.parse(String(r.stdout ?? '')) } catch {}

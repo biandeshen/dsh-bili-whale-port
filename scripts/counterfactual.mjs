@@ -2,25 +2,25 @@
  * 每日反事实：同一天、同一份日记，用「真实状态」与「中性状态」各出一版草稿，
  * 量出差异。G3b 要求连续 3 天 diff ≥ 4 字。
  *
- *   cd Cortico && node --import tsx ../dsh-bili-whale/scripts/counterfactual.mjs --date 2026-10-28
+ *   cd ../Cortico-up && node --import tsx ../dsh-bili-whale/scripts/counterfactual.mjs --date 2026-10-28
  *   ... --json
  */
 import fs from 'node:fs'
 import path from 'node:path'
 import { DSH_HOME as WHALE_HOME, dayEvidencePaths } from '../tools/lib/paths.mjs'
 import { composeDraft } from './draft-dynamic.mjs'
+import { hostImport } from './lib/host-root.mjs'
 
-const CORTICO = process.env.CORTICO_ROOT || 'E:/WorkSpace_Qoder/Cortico'
 const argv = process.argv.slice(2)
 const arg = (k, d) => { const i = argv.indexOf('--' + k); return i >= 0 ? argv[i + 1] : d }
 const asJson = argv.includes('--json')
 const DAY_BOUNDARY_HOUR = 0 // 2026-10-31 主人拍板：自然日
 const logicalDay = (now = Date.now()) => new Date(now - DAY_BOUNDARY_HOUR * 3600_000).toLocaleDateString('sv-SE')
 
-// 跨仓加载：CORTICO_ROOT 可指向任意检出（live 的 Cortico、落线的 Cortico-up、临时副本），
+// 跨仓加载：宿主检出由 scripts/lib/host-root.mjs 一处解析（CORTICO_ROOT / 本仓 .env），
 // 所以这里只能按绝对路径 import，不能写成 '@xiaoyu/persona-core/...' —— 包名会绑死到本仓的
 // node_modules 解析结果，换一份检出就加载到错的代码。这是有意的例外，不是没做完。
-const { buildVoiceBrief } = await import('file:///' + CORTICO.replace(/\\/g, '/') + '/persona-core/src/voice-brief.ts')
+const { buildVoiceBrief } = await import(hostImport('persona-core/src/voice-brief.ts'))
 
 function readJson(file) { try { return JSON.parse(fs.readFileSync(file, 'utf8')) } catch { return null } }
 function readText(file) { try { return fs.readFileSync(file, 'utf8') } catch { return null } }

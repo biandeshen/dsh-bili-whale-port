@@ -66,6 +66,44 @@ world/bot 包浏览器端注册表      packages/cortico-world-bilibili/src/webu
 `npm run gates` 从 2026-11-07 起末尾多了一条 `node scripts/check-doc-hygiene.mjs`（`package.json` 的 `gates`）——文档违规会直接把整批验收变红。
 **只有 CLI**：待放行队列批量放行（见 06 ⑤ 第 10 条）；`node scripts/audit-controls.mjs` 是控件普查入口，不是操作入口。
 
+### 回滚：出问题退回哪个人格、用哪条命令、数据在哪（2026-11-12 落盘）
+
+以前这份计划只存在于 `scripts/start-cortico.mjs` 的注释里，而注释不是回滚计划。现在写在这。
+
+**退回谁**：部署名 `mybot`、代码包 `cormini` —— 2026-11-04 搬家**之前**那个人格。**不是**线上的 `xiaoyu`（`cortico-bot-xiaoyu` + 能力包）。
+
+**数据在哪**（都不在任何 git 树里，凭据跟着数据走、不进仓）：
+
+| 东西 | 落点 | 核对 |
+|---|---|---|
+| 回滚部署根 | `~/.xiaoyu-home/rollback/deployments/{mybot,providers}` | 703 文件 / 187 目录，逐文件 sha256 与源全等 |
+| 会话与记忆 | 同上 `mybot/data/`（682 文件，含 `runs/r-*/transcript.jsonl`） | 同上 |
+| 人设两文件 | 同上 `mybot/prompts/ORIENTATION.md`、`mybot/workspace/CONSTITUTION.md` | 同上 |
+| 端点凭据 | 同上 `providers/{mimo,opencode-go}/.env` | 同上（**永不进仓、永不进备份包**） |
+| 哈希清单 | `~/.xiaoyu-home/rollback/rollback-manifest.json`（私有） | 由核对脚本生成 |
+| 旧克隆独占的扩展包 | `~/.xiaoyu-home/rollback-extensions/`（4 包 + `fflate`，157 文件） | 逐文件 sha256 核过；见下面「前置」 |
+| 每日备份里的旧人格档案 | 包内前缀仍是 `cortico/deployments/mybot/…`，恢复时落回上面的回滚部署根 | `scripts/ops-backup.mjs` 的 `roots.cortico` 取回滚根的上一级 |
+
+**宿主代码树在哪**：只认 `CORTICO_ROOT`（进程环境）或本仓 `.env`，**没有硬默认**，缺了就明确报错 —— `scripts/lib/host-root.mjs` 是唯一答案，门禁 `scripts/check-cortico-paths.mjs` 禁止任何脚本再指向第二宿主克隆。回滚点位置同理：`XIAOYU_ROLLBACK_ROOT` 可覆盖，缺省即上表。
+
+**命令（按顺序，前两条只读）**：
+
+1. 核对回滚点没被改坏（只读，写一份私有清单）：
+   `node scripts/verify-rollback-point.mjs --src=<源部署根>` → 退出 0 才算全等；`--dest` 缺省取 `rollbackRoot()`。
+2. 只读演练：宿主能不能装载这个人格（**不起进程、不占端口、不投事件**）。在宿主检出目录里跑：
+   `CORTICO_HOME=C:/Users/Administrator/.xiaoyu-home/rollback/deployments node --import tsx src/launcher.ts --list` → 应只打印 `mybot`；
+   同环境 `--json` → 该部署 `bot=cormini`、`displayName=小鱼`、**无 `problem` 字段**。
+3. 真回滚（**会接管 7799 与同一个 pid 文件，所以必须先停线上实例**）：
+   `CORTICO_HOME=C:/Users/Administrator/.xiaoyu-home/rollback/deployments CORTICO_BOT=mybot node scripts/start-cortico.mjs`
+4. 回滚后想再回来：停掉回滚实例，`node scripts/start-cortico.mjs`（缺省即 `~/.xiaoyu-home` + `xiaoyu`）。
+5. 档案恢复（默认 dry，只报告会覆盖/新建哪些）：`node scripts/ops-backup.mjs --restore <备份目录>`；加 `--apply` 才写盘，写前当前状态另存到 `<备份根>/pre-restore-<ts>/`。
+
+**前置（不补就会缺一块能力）**：回滚配置启用 `bili-account` 与 `selfkit` 两个世界（`figure`/`pet-diary` 是 `enabled:false`）。
+`bili-account` 由 live 宿主已装的 `cortico-world-bilibili` 提供；`selfkit` 来自扩展包 `cortico-world-selfkit-alont1`，**live 宿主没装** —— 不补装会报 `World: selfkit 不可用`（宿主对缺世界是非致命的：收集进 `missing[]` 继续跑，但那一块能力就是没有）。
+保留件在 `~/.xiaoyu-home/rollback-extensions/`；这 5 个包都是 npm 上 MIT 发布的、且在宿主 `extensions/market-catalog.json` 里，所以也可以重装而不是用保留件。**补装这一步没验证过。**
+
+**已经验证过的 / 没验证过的（别把前者当后者）**：见 ⑤ 第 12 条。
+
 ## ⑤ 已知缺陷与验证方式
 
 1. **"设计落地率"这类百分比不写进本仓文档**（它不可复现）；可复现的是控件与方法的对账：**100 个控件 / 50 个 `actionButton` / 7 个裸按钮 / 53 个方法（31 writable）**。
@@ -100,3 +138,10 @@ world/bot 包浏览器端注册表      packages/cortico-world-bilibili/src/webu
 10. **`call()` 无 busy**：只有 `actionButton` 有重入闸门（`webui-helpers.ts:127`、`:131-143`），`call()`（`:72-88`）没有——
     面板里所有"非按钮触发"的调用（下拉即改、翻页）连点会并发打服务端。复现：`sed -n '72,88p' packages/cortico-adapter/src/webui-helpers.ts`（看函数体内无 running 标志）。
 11. **旧面板体系与 Cortico 契约并行**：`panel/server.js`（8447/8448 已退役但目录活着）与 `panel/views/tank.html` 仍在仓内，测试 `tests/dom/tank-smoke.test.mjs:8` 还在跑它——属契约外的渲染面，别把它当面板现状引用。复现：`grep -n "tank.html" tests/dom/tank-smoke.test.mjs`。
+12. **回滚只做过只读演练，没真起过那个人格**（2026-11-12，④ 的回滚计划配套）。
+    已验证：703 文件 / 187 目录逐文件 sha256 与源全等；宿主 `--list` 只打印 `mybot`、`--json` 报 `bot=cormini` 且**无 `problem`**；线上部署根 `--list` 仍只有 `xiaoyu`（回滚容器没污染线上 listing）。
+    **没验证**：真起进程、模型调用、B 站读写、`selfkit` 扩展补装、7799 与 pid 文件的交接。所以"回滚可用"目前只成立到"宿主装载得起来"这一层。
+    另：保留件 `cortico-world-figure` 装载探针失败（`fflate` 解析不到），但它在回滚配置里 `enabled:false`，不阻塞回滚。
+    复现：`node scripts/verify-rollback-point.mjs --src=<源部署根>`（退出 0 才算全等）；`node scripts/check-cortico-paths.mjs`（退出 0）；`node --test tests/cortico-paths.test.mjs`（8 条，其中 4 条是故意违规必须判红）。
+13. **线上人格的对话全文不在每日备份里**（本轮只登记）：`scripts/ops-backup.mjs` 的目录源只有回滚点那条 `mybot/data/runs`，线上 `~/.xiaoyu-home/xiaoyu/data/runs` 不在清单里——备份天天绿，丢的却是**现在**这个人格的历史。改采集面属存储合同变化，先提案再动。
+    复现：`grep -n "'runs'" scripts/ops-backup.mjs`（只有一条，指向回滚点）；`ls ~/.xiaoyu-home/xiaoyu/data/runs | wc -l`（线上真有多少 run）。

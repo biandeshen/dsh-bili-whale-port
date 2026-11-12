@@ -153,7 +153,15 @@ node tools/video-build.mjs --image "D:/AI/养鱼/assets/daily/daily-04-goodnight
 | `D:\AI\养鱼\` | 素材与产出：`assets\daily\*.png`、`drafts\<日期>.json`、旧 `tools\build-*.mjs` | 你最早定的素材盘；`tools\` 那三个是 DSH 插件时代留下的，现在没人调用 |
 | `E:\WorkSpace_Qoder\_retired-2026-11-02\` | 退役的三条 Cortico 检出目录 + `Cortico-dev/scratch` 备份（41M） | 主人裁决留一周，**2026-11-09 之后可彻底删**；分支 ref 都在主仓，删目录不丢代码 |
 
-代码树与部署树在 2026-11-02 之后是**分开的两份**，成对出现才有意义：`CORTICO_ROOT=Cortico-up` + `CORTICO_HOME=Cortico/deployments`，两条都写进了 `scripts/start-cortico.mjs` 的默认值。
+**2026-11-12 校准**（上表是 11-02 的登记，保留作历史；下面三条是现在的事实）：
+
+- 线上部署数据**不在任何代码树里**：`C:\Users\Administrator\.xiaoyu-home\xiaoyu`（`deployment.json` 里 `bot=cortico-bot-xiaoyu`，人设两文件在它的 `prompts/`）。
+- 旧人格 `mybot`（代码包 `cormini`）连数据一起搬出了第二宿主克隆，落在 `~/.xiaoyu-home/rollback/deployments/{mybot,providers}`：703 文件 / 187 目录逐文件 sha256 核对全等。它是**回滚点**，不是线上；怎么退回去见 [specs/10-control-surface.md](./specs/10-control-surface.md)。
+- `Cortico` 与 `Cortico-up` 的 worktree 关系**没变**：删 `Cortico` 仍会把 live 一起带走。退役它之前必须先 `git bundle` 全量分支并验证可读回（那是另一批的活）。
+
+代码树与部署树是**分开的两份**，成对出现才有意义：`CORTICO_ROOT=<宿主检出>` + `CORTICO_HOME=<部署根>`。
+2026-11-12 起 `scripts/start-cortico.mjs` **不再有宿主路径硬默认**：`CORTICO_ROOT` 只认进程环境或本仓 `.env`，缺了就明确报错（`scripts/lib/host-root.mjs`）；`CORTICO_HOME` 缺省 `~/.xiaoyu-home`、`CORTICO_BOT` 缺省 `xiaoyu`。
+（11-02 那版写的是 `CORTICO_HOME=Cortico/deployments`，且两条都有硬默认——那正是"脚本安静读错树"的来源，已拆。门禁：`node scripts/check-cortico-paths.mjs`。）
 
 ## 文件地图
 

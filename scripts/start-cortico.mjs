@@ -7,6 +7,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
+import { hostRoot } from './lib/host-root.mjs'
 
 const HOME = process.env.USERPROFILE || process.env.HOME || '.'
 const CONTROL = path.join(HOME, '.dsh', 'bili-whale', 'control')
@@ -17,10 +18,11 @@ const LOG_FILE = path.join(CONTROL, 'cortico.log')
 //   部署 = ~/.xiaoyu-home（新家：她的 memory/session/config/workspace 都在这，deployment.json 里 bot=xiaoyu）
 //   bot  = xiaoyu（新架构人格：cortico-bot-xiaoyu + 四个能力包）
 // 少一条就会起出"新代码配旧数据"或"旧 bot 配新数据"的实例——今天 12:53 就误起过一次
-// CORTICO_HOME=Cortico/deployments + bot=mybot 的组合（那是**回滚点**，cormini 人格）。
-// 回滚点仍可用，只是必须三条一起指回去：
-//   CORTICO_HOME=E:/WorkSpace_Qoder/Cortico/deployments CORTICO_BOT=mybot node scripts/start-cortico.mjs
-const CORTICO = process.env.CORTICO_ROOT || 'E:/WorkSpace_Qoder/Cortico-up'
+// 回滚点（cormini 人格 + 旧数据）2026-11-12 搬到 ~/.xiaoyu-home/rollback/deployments/，不再依赖第二宿主克隆：
+//   CORTICO_HOME=C:/Users/Administrator/.xiaoyu-home/rollback/deployments CORTICO_BOT=mybot node scripts/start-cortico.mjs
+// 代码树仍用 live 那棵（cormini 包在 bots/cormini，已只读验证能被当前宿主装载）。
+// 但回滚配置里的 selfkit 世界来自扩展包，宿主现在没装 —— 不补装那一格会报「不可用」（不致命，能力缺一块）。
+// 完整回滚计划（数据在哪、补装哪几个包、哪几步没验证过）见 docs/specs/10-control-surface.md；注释不是回滚计划。
 const DEPLOY_ROOT = process.env.CORTICO_HOME || path.join(HOME, '.xiaoyu-home')
 const BOT = process.env.CORTICO_BOT || 'xiaoyu'
 const PROXY = path.join(HOME, '.dsh', 'ofm-go-proxy', 'proxy.mjs')
@@ -80,6 +82,10 @@ if (!proxyUp) {
 // 配置档放行，连到外面的 WiFi 时公用档依然拦着——见 start-cortico-firewall.cmd）。
 // 注意 WebUI 本身**没有登录鉴权**：这个决定只在"局域网内都是自己的设备"的前提下成立。
 const BIND_HOST = process.env.CORTICO_BIND_HOST || '0.0.0.0'
+// 代码树在哪只认 CORTICO_ROOT / 本仓 .env，不猜路径（缺了就明确报错，别起到别的检出上去）。
+// 放在这里而不是模块顶层：--print-flags 这类只读查询不该因为没配宿主就跑不起来。
+let CORTICO
+try { CORTICO = hostRoot() } catch (e) { console.error('[start] ' + (e?.message ?? e)); process.exit(2) }
 const fd = fs.openSync(LOG_FILE, 'a')
 const child = spawn(NODE, [...CA_FLAGS, path.join(CORTICO, 'bin', 'cortico.mjs'), BOT, '--port=7799', `--host=${BIND_HOST}`], {
   cwd: CORTICO, detached: true, stdio: ['ignore', fd, fd],

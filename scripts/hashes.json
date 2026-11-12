@@ -1,14 +1,16 @@
 {
-  "frozenAt": "2026-11-07T13:03:25.873Z",
+  "frozenAt": "2026-11-12T14:49:09.305Z",
   "firstFrozenAt": "2026-11-06T04:32:02.354Z",
   "files": {
-    "scripts/check-hashes.mjs": "e218d84715bdd902132cd6c874c224b851cf0a096cea6fbcabe058ef639225c7",
+    "scripts/check-hashes.mjs": "c52a17840cd9f0b652ab45d80175eb432b162fb4987b14240be4332aaae28c79",
     "scripts/day-report.mjs": "a74ac7fe9c78333f8525208cc4cf490920ffc37eaf08d55953cd05e581827701",
     "scripts/day-snapshot.mjs": "6daf4e09d067a9b4d84f276c350959fe7dac4509a57e879558b3a978e843a9c3",
-    "scripts/day-watchdog.mjs": "cd495cb2bcdbdb4f903b6572d588ef26729f315e6a4043e3b91e07f5c8aa6ab9",
-    "scripts/counterfactual.mjs": "60ad6e64dee058680476a3eb306436c99ea2ae2b8e6f4176ff32d24fcb3c4f87",
-    "scripts/run-mjs-tests.mjs": "01cab65e490512502e9f3a8415665ca1e080aa8a6a3671e3a44176f646228037",
-    "scripts/check-consumers.mjs": "629f454904919bb448df0ab2789cb0c1f8a44f50090c253207bd2ab64bf98133",
+    "scripts/day-watchdog.mjs": "3a60c51be493a13638ea44358e399eb3670052ac0a1e7119d5f8a0aeeaaff5c7",
+    "scripts/counterfactual.mjs": "c5d7aa322563ce9d621819f89d54e43f51c542e41e3347f972bebdea5bcfbed4",
+    "scripts/run-mjs-tests.mjs": "55f766a3dae6ab2174e713ef5cfb9f90cdaa482e0c206188364fcdbe66bc5b53",
+    "scripts/check-consumers.mjs": "ecdc7315ac240cbaff9ec11a793fc5f32d4f4c817b88e1f76d675bbef8718c73",
+    "scripts/check-cortico-paths.mjs": "fd4d6b0be516cb88a38c3b9d5b85391fe058119a9d235330de84fe5fbcae8185",
+    "scripts/lib/host-root.mjs": "e4702ccadc60641e250da4a50db064efb26662ad3be59ffa1a9b7ca754e1d626",
     "scripts/g3b-check.mjs": "a89df7331ecf687693e4b9e849254b7277921acb378946abd1c3a9b353df33d6",
     "scripts/observation-start.mjs": "6502a58661ae637b153eb1bd764417f11bdd3787ce43b1fe7e8dd81a67949f3c",
     "scripts/goal-audit.mjs": "d4b6eb2a17fc82d14bfff4ff6316af948d122da24fdb8b5a1d4de4ba44145a8c",
@@ -31,6 +33,62 @@
       "from": null,
       "to": "e218d84715bdd902132cd6c874c224b851cf0a096cea6fbcabe058ef639225c7",
       "reason": "同上一条（批次：文档体制改制 / 主人 2026-11-07 拍板的三个现成洞）。本轮把校验器自身也放进冻结名单，否则改弱这条防线只需改 check-hashes.mjs 本身而账上看不出来；--write 从此必须带 --note 或 FREEZE_NOTE，并在 history 里留下 from→to 与理由。"
+    },
+    {
+      "at": "2026-11-12T14:39:25.453Z",
+      "file": "scripts/check-hashes.mjs",
+      "from": "e218d84715bdd902132cd6c874c224b851cf0a096cea6fbcabe058ef639225c7",
+      "to": "b513b55cdf546a308ddda6a2a162d8043b7cec9b64f23ea812e9df119e0c245d",
+      "reason": "A-S2（2026-11-12）摘除第二宿主克隆前置工程：day-watchdog/counterfactual 改用 hostRoot()/hostImport()（缺 CORTICO_ROOT 明确报错；看门狗把解析失败如实写进当日产物 error=host-root-unresolved，不静默跳过）；run-mjs-tests/check-consumers 只改用法注释指向 live 那棵；新增 check-cortico-paths.mjs 门禁并纳入冻结名单（防改弱这条防线）。判据未放宽：发现数=执行数、cancelled 判失败、--write 必须带 note 全部保留。"
+    },
+    {
+      "at": "2026-11-12T14:39:25.453Z",
+      "file": "scripts/day-watchdog.mjs",
+      "from": "cd495cb2bcdbdb4f903b6572d588ef26729f315e6a4043e3b91e07f5c8aa6ab9",
+      "to": "3a60c51be493a13638ea44358e399eb3670052ac0a1e7119d5f8a0aeeaaff5c7",
+      "reason": "A-S2（2026-11-12）摘除第二宿主克隆前置工程：day-watchdog/counterfactual 改用 hostRoot()/hostImport()（缺 CORTICO_ROOT 明确报错；看门狗把解析失败如实写进当日产物 error=host-root-unresolved，不静默跳过）；run-mjs-tests/check-consumers 只改用法注释指向 live 那棵；新增 check-cortico-paths.mjs 门禁并纳入冻结名单（防改弱这条防线）。判据未放宽：发现数=执行数、cancelled 判失败、--write 必须带 note 全部保留。"
+    },
+    {
+      "at": "2026-11-12T14:39:25.453Z",
+      "file": "scripts/counterfactual.mjs",
+      "from": "60ad6e64dee058680476a3eb306436c99ea2ae2b8e6f4176ff32d24fcb3c4f87",
+      "to": "c5d7aa322563ce9d621819f89d54e43f51c542e41e3347f972bebdea5bcfbed4",
+      "reason": "A-S2（2026-11-12）摘除第二宿主克隆前置工程：day-watchdog/counterfactual 改用 hostRoot()/hostImport()（缺 CORTICO_ROOT 明确报错；看门狗把解析失败如实写进当日产物 error=host-root-unresolved，不静默跳过）；run-mjs-tests/check-consumers 只改用法注释指向 live 那棵；新增 check-cortico-paths.mjs 门禁并纳入冻结名单（防改弱这条防线）。判据未放宽：发现数=执行数、cancelled 判失败、--write 必须带 note 全部保留。"
+    },
+    {
+      "at": "2026-11-12T14:39:25.453Z",
+      "file": "scripts/run-mjs-tests.mjs",
+      "from": "01cab65e490512502e9f3a8415665ca1e080aa8a6a3671e3a44176f646228037",
+      "to": "55f766a3dae6ab2174e713ef5cfb9f90cdaa482e0c206188364fcdbe66bc5b53",
+      "reason": "A-S2（2026-11-12）摘除第二宿主克隆前置工程：day-watchdog/counterfactual 改用 hostRoot()/hostImport()（缺 CORTICO_ROOT 明确报错；看门狗把解析失败如实写进当日产物 error=host-root-unresolved，不静默跳过）；run-mjs-tests/check-consumers 只改用法注释指向 live 那棵；新增 check-cortico-paths.mjs 门禁并纳入冻结名单（防改弱这条防线）。判据未放宽：发现数=执行数、cancelled 判失败、--write 必须带 note 全部保留。"
+    },
+    {
+      "at": "2026-11-12T14:39:25.453Z",
+      "file": "scripts/check-consumers.mjs",
+      "from": "629f454904919bb448df0ab2789cb0c1f8a44f50090c253207bd2ab64bf98133",
+      "to": "ecdc7315ac240cbaff9ec11a793fc5f32d4f4c817b88e1f76d675bbef8718c73",
+      "reason": "A-S2（2026-11-12）摘除第二宿主克隆前置工程：day-watchdog/counterfactual 改用 hostRoot()/hostImport()（缺 CORTICO_ROOT 明确报错；看门狗把解析失败如实写进当日产物 error=host-root-unresolved，不静默跳过）；run-mjs-tests/check-consumers 只改用法注释指向 live 那棵；新增 check-cortico-paths.mjs 门禁并纳入冻结名单（防改弱这条防线）。判据未放宽：发现数=执行数、cancelled 判失败、--write 必须带 note 全部保留。"
+    },
+    {
+      "at": "2026-11-12T14:39:25.453Z",
+      "file": "scripts/check-cortico-paths.mjs",
+      "from": null,
+      "to": "fd4d6b0be516cb88a38c3b9d5b85391fe058119a9d235330de84fe5fbcae8185",
+      "reason": "A-S2（2026-11-12）摘除第二宿主克隆前置工程：day-watchdog/counterfactual 改用 hostRoot()/hostImport()（缺 CORTICO_ROOT 明确报错；看门狗把解析失败如实写进当日产物 error=host-root-unresolved，不静默跳过）；run-mjs-tests/check-consumers 只改用法注释指向 live 那棵；新增 check-cortico-paths.mjs 门禁并纳入冻结名单（防改弱这条防线）。判据未放宽：发现数=执行数、cancelled 判失败、--write 必须带 note 全部保留。"
+    },
+    {
+      "at": "2026-11-12T14:49:09.305Z",
+      "file": "scripts/check-hashes.mjs",
+      "from": "b513b55cdf546a308ddda6a2a162d8043b7cec9b64f23ea812e9df119e0c245d",
+      "to": "c52a17840cd9f0b652ab45d80175eb432b162fb4987b14240be4332aaae28c79",
+      "reason": "A-S2 收尾（2026-11-12）：scripts/lib/host-root.mjs 纳入冻结（它是七脚本与 check-cortico-paths 共同指的判据，悄悄加回硬默认等于整批修复作废）。同批修了它一个真 bug：REPO 用 new URL(...).pathname 会把 ~ / 空格 / 中文 percent-encode（本机 tmpdir 是 ADMINI~1），.env 明明在也报缺 CORTICO_ROOT；改用 fileURLToPath，并加 tests/host-root.test.mjs 9 条契约测试（含显式空格+中文+~ 回归）。判据未放宽。"
+    },
+    {
+      "at": "2026-11-12T14:49:09.305Z",
+      "file": "scripts/lib/host-root.mjs",
+      "from": null,
+      "to": "e4702ccadc60641e250da4a50db064efb26662ad3be59ffa1a9b7ca754e1d626",
+      "reason": "A-S2 收尾（2026-11-12）：scripts/lib/host-root.mjs 纳入冻结（它是七脚本与 check-cortico-paths 共同指的判据，悄悄加回硬默认等于整批修复作废）。同批修了它一个真 bug：REPO 用 new URL(...).pathname 会把 ~ / 空格 / 中文 percent-encode（本机 tmpdir 是 ADMINI~1），.env 明明在也报缺 CORTICO_ROOT；改用 fileURLToPath，并加 tests/host-root.test.mjs 9 条契约测试（含显式空格+中文+~ 回归）。判据未放宽。"
     }
   ]
 }

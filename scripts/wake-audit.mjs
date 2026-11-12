@@ -11,10 +11,17 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
+import os from 'node:os'
 import { whaleHome, isDefaultWhaleHome, LEGACY_DRAFTS } from '../tools/lib/paths.mjs'
+import { hostRoot } from './lib/host-root.mjs'
 
-const CORTICO = process.env.CORTICO_ROOT || 'E:/WorkSpace_Qoder/Cortico'
-const DEFAULT_SESSION = path.join(CORTICO, 'deployments', 'mybot', 'data', 'session-main.jsonl')
+// 默认审的是**线上那份会话**，与 start-cortico.mjs 同一套部署根/bot 名约定。
+// 以前这里默认指向第二宿主克隆的 deployments/mybot（cormini 旧人格），
+// 于是"唤醒审计"审的是搬家前的人格，报告却看不出来——2026-11-12 改。
+// 要审回滚人格：--file <回滚点>/mybot/data/session-main.jsonl（回滚点见 specs/10）。
+const DEPLOY_ROOT = process.env.CORTICO_HOME || path.join(os.homedir(), '.xiaoyu-home')
+const BOT = process.env.CORTICO_BOT || 'xiaoyu'
+const DEFAULT_SESSION = path.join(DEPLOY_ROOT, BOT, 'data', 'session-main.jsonl')
 
 const logicalDay = (iso) => new Date(Date.parse(iso)).toLocaleDateString('sv-SE') // 自然日（2026-10-31 拍板）
 function draftPath(day) {
@@ -185,7 +192,7 @@ if (isMain) {
 
   if (argv.includes('--usage')) {
     const u = usageOf(file)
-    const declared = declaredTools(opt('code-root', process.env.CORTICO_ROOT || 'E:/WorkSpace_Qoder/Cortico-up'))
+    const declared = declaredTools(opt('code-root', hostRoot()))
     const never = declared ? declared.filter((n) => !(n in u.perTool)) : null
     const broken = u.order.filter((n) => u.perTool[n].crashed > 0 || u.perTool[n].failed > 0)
     if (argv.includes('--json')) {

@@ -3,7 +3,7 @@
  *
  *   node scripts/run-mjs-tests.mjs                     # 本仓：tests/ + adapters/
  *   node scripts/run-mjs-tests.mjs --report docs/evidence/gates-2026-11-01.json
- *   node scripts/run-mjs-tests.mjs --root E:/WorkSpace_Qoder/Cortico --import tsx
+ *   node scripts/run-mjs-tests.mjs --root ../Cortico-up --import tsx   # 宿主那棵（tsx 装在那）
  *
  * 为什么不用 package.json 里手写的文件清单：删掉一个测试文件，清单仍"自洽"，
  * 门禁会静默变绿。这里每次从磁盘重新发现。
