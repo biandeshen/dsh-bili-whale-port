@@ -2,9 +2,12 @@
 
 - 跑于 2026-11-13 00:15（本机，北京时间），仓 `E:\WorkSpace_Qoder\dsh-bili-whale`
 - 跑时仓 HEAD `7bf91984718d871f4c58fde10b966be2043b8b5e`（删除已 `git rm` 入暂存区，当时尚未提交）
-- **本批落成的提交：`b2e9fe7`**（118 文件，+7118 / −5902）。上面所有读数跑在 `7bf9198` + 同一份工作区改动上，
-  内容与 `b2e9fe7` 一致；`gates-2026-11-13.json` 里的 `gitSha` 记的是**跑时 HEAD**（`7bf9198`），不是 `b2e9fe7`——
-  这就是下面第三节末尾说的那个口径缺陷，归任务 #63。
+- **本批落成的提交：`b2e9fe7`**（118 文件，+7118 / −5902），证据补记提交 `4f6de3b`。
+- **提交后在干净工作区复跑过一次**（HEAD `4f6de3b`）：whale `EXECUTED=149/149`、`tests=858 pass=858 fail=0 skipped=0 todo=0 cancelled=0`；
+  宿主 `EXECUTED=28/28`、`229 pass / 0 fail`（宿主报告 gitSha `ca48a69`）。
+  所以 `gates-2026-11-13.json` 里的 `gitSha` 现在是 **`4f6de3b`**，与它实际跑的那份代码一致。
+  下面第三节记录的**删前**那份 `gates-2026-11-12.json`（gitSha `07fa6b6`）仍有口径缺陷：
+  它跑在脏工作区上，sha 不等于实际代码——runner 不记 `dirty`，归任务 #63，本批不改冻结件。
 - 门禁 `scripts/check-script-paths.mjs`（本批新增，已进 `scripts/hashes.json` 冻结名单，16 份）
 - 回归 `tests/script-paths.test.mjs`：11 条，含故意违规与**故意合法**两侧（假红比漏红更坏）
 
