@@ -54,10 +54,22 @@
 |---|---|
 | [`INDEX.md`](./INDEX.md) | 本页，唯一入口 |
 | [`CURRENT.md`](./CURRENT.md) | **台账，不是现状。** 按日期倒序记"到哪了"；自 2026-11-07 起停止追加新条目，"现在是什么"归 specs |
-| [`RUNBOOK.md`](./RUNBOOK.md) · [`STOP-RUNBOOK.md`](./STOP-RUNBOOK.md) · [`DEPLOY.md`](./DEPLOY.md) | 运维：起、停、部署 |
-| [`CORTICO-RUNBOOK.md`](./CORTICO-RUNBOOK.md) · [`QQ-SETUP.md`](./QQ-SETUP.md) · [`TERMUX.md`](./TERMUX.md) | 宿主链路 / QQ 通道 / 手机端 |
+| [`CORTICO-RUNBOOK.md`](./CORTICO-RUNBOOK.md) · [`STOP-RUNBOOK.md`](./STOP-RUNBOOK.md) | 运维：起（宿主链路）、停 |
+| [`QQ-SETUP.md`](./QQ-SETUP.md) | QQ 通道 |
 | [`OBSERVATION-PROTOCOL.md`](./OBSERVATION-PROTOCOL.md) | 判据协议（K1–K4 与污染口径） |
 | [`CREDITS.md`](./CREDITS.md) | 素材与代码来源、许可署名（合规件，不是案卷） |
 
 `evidence/` 是门禁消费的机器产物（带日期的报告与哈希），**不是案卷**，留在原位。
-`attic/2026-10/`、`attic/2026-11/` 是 73 篇过程文档的归宿，按原日期保留、未改写、未删除。
+`attic/2026-10/`、`attic/2026-11/` 是 76 篇过程文档的归宿，按原日期保留、未改写、未删除。
+
+**2026-11-12 退役三份运维文档**：`DEPLOY.md`、`RUNBOOK.md`、`TERMUX.md` 原样搬进
+[`attic/2026-11/`](./attic/2026-11/)。它们写的是 DSH 插件 / OpenCode daemon / 独立面板（8447）/ Termux
+这四条接入线，而那四棵代码树（`core/`、`panel/`、`adapters/`、`vendor/dsh-autocut/`）已在同批删除。
+现在的起停与部署只看 [`CORTICO-RUNBOOK.md`](./CORTICO-RUNBOOK.md) 与 [`specs/10-control-surface.md`](./specs/10-control-surface.md)。
+
+**读 attic 的一条口径（2026-11-13 补）**：attic 里引的**上游**路径不是本仓路径，别照着去开文件。
+实例：`attic/2026-10/ARCHITECTURE.md` §12.1 引 `emotion-projection.ts`、§12.3 引 `life-generator.ts`，
+两处带的前缀是上游 AMpath 的 `shared` / `server` 两棵目录——**本仓与宿主都没有那两棵**
+（2026-11-13 实测 `ls packages/shared packages/server` 与宿主侧同名目录均不存在）。
+落地的实现分别是本仓 `packages/persona-core/src/emotion-projection.ts` 与 `packages/persona-core/src/life-activities.ts`
+（后者改了名，7 类活动与文案轮换在里面）。**attic 原文一个字不改**，映射写在这里。

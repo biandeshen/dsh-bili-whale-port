@@ -1,0 +1,3792 @@
+{
+  "summary": {
+    "repo": "E:\\WorkSpace_Qoder\\dsh-bili-whale",
+    "candidates": 168,
+    "referrerFiles": 682,
+    "rootKinds": {
+      "pkg": 188,
+      "entry": 7,
+      "script": 24
+    },
+    "tiers": {
+      "T1": 6,
+      "T2a": 5,
+      "T2b": 127,
+      "T3": 4,
+      "T4": 13,
+      "T0": 13
+    },
+    "unconfirmedPairs": 35
+  },
+  "legend": {
+    "T1": "被 packages 源码引 —— 运行时真在用，不许删",
+    "T2a": "被活脚本引（npm scripts 往下可达，含 gates 链）—— 删了门禁或运维就断",
+    "T2b": "只被退役入口（package.json main/exports、仓根 .cmd/.vbs）或死脚本引 —— 可删，但必须连带处理那些入口/脚本",
+    "T3": "只被测试引 —— 删文件必须同时处置那些测试，否则套件红",
+    "T4": "只被文档或注释提及 —— 可删；attic 里的提及不改写（那是当时的真相）",
+    "T0": "无人引用 —— 可删，但许可证/校验清单例外（vendor 的 LICENSE 与 SHA256SUMS 被测试真读，且删 vendored 代码必须留许可证）"
+  },
+  "npmScripts": [
+    "test → scripts/run-mjs-tests.mjs",
+    "gates → scripts/check-mjs-syntax.mjs",
+    "gates → scripts/run-mjs-tests.mjs",
+    "gates → scripts/run-mjs-tests.mjs",
+    "gates → scripts/check-consumers.mjs",
+    "gates → scripts/check-hashes.mjs",
+    "gates → scripts/check-state-roots.mjs",
+    "gates → scripts/check-cortico-paths.mjs",
+    "gates → scripts/check-script-paths.mjs",
+    "gates → scripts/check-live-drift.mjs",
+    "gates → scripts/check-doc-hygiene.mjs",
+    "mjs-syntax → scripts/check-mjs-syntax.mjs",
+    "drift → scripts/check-live-drift.mjs",
+    "hashes → scripts/check-hashes.mjs",
+    "hashes:write → scripts/check-hashes.mjs",
+    "day:seed → scripts/day-snapshot.mjs",
+    "day:tick → scripts/day-snapshot.mjs",
+    "day:report → scripts/day-report.mjs",
+    "g3b → scripts/g3b-check.mjs",
+    "observe → scripts/observation-status.mjs",
+    "observe:day → scripts/observation-day.mjs",
+    "ops:day → scripts/ops-day.mjs",
+    "ops:backup → scripts/ops-backup.mjs",
+    "ops:repair-mem → scripts/repair-memory-source.mjs",
+    "ops:repair-mem:go → scripts/repair-memory-source.mjs",
+    "observe:start → scripts/observation-start.mjs",
+    "audit:goal → scripts/goal-audit.mjs",
+    "c2:arm → scripts/c2-offline.mjs",
+    "c2:verify → scripts/c2-offline.mjs",
+    "c2:check → scripts/c2-window.mjs",
+    "watchdog → scripts/day-watchdog.mjs",
+    "wake:audit → scripts/wake-audit.mjs",
+    "action:watch → scripts/action-watch.mjs"
+  ],
+  "rows": [
+    {
+      "file": "adapters/opencode/controller.js",
+      "tier": "T2b",
+      "bytes": 2546,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "adapters/opencode/daemon.js",
+        "panel/server.js"
+      ],
+      "test": [
+        "adapters/opencode/test/contract.test.mjs"
+      ],
+      "doc": [
+        "adapters/opencode/README.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "adapters/opencode/daemon.js",
+      "tier": "T2b",
+      "bytes": 2660,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "adapters/opencode/package.json",
+        "scripts/setup.mjs"
+      ],
+      "test": [],
+      "doc": [
+        "adapters/opencode/README.md",
+        "docs/CURRENT.md",
+        "docs/DEPLOY.md",
+        "docs/RUNBOOK.md",
+        "docs/TERMUX.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "adapters/opencode/mcp-stdio.js",
+      "tier": "T2b",
+      "bytes": 3998,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "adapters/opencode/package.json",
+        "scripts/setup.mjs"
+      ],
+      "test": [
+        "adapters/opencode/test/contract.test.mjs"
+      ],
+      "doc": [
+        "adapters/opencode/README.md",
+        "docs/attic/2026-11/team-2026-11-03/02-capability-matrix.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "adapters/opencode/package.json",
+      "tier": "T0",
+      "bytes": 419,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "adapters/opencode/README.md",
+      "tier": "T4",
+      "bytes": 2181,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [],
+      "test": [],
+      "doc": [
+        "CHANGELOG.md",
+        "docs/DEPLOY.md",
+        "README.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "adapters/opencode/test/contract.test.mjs",
+      "tier": "T2b",
+      "bytes": 5523,
+      "isTest": true,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "adapters/opencode/package.json"
+      ],
+      "test": [],
+      "doc": [
+        "docs/attic/2026-11/team-2026-11-03/05-red-team.md",
+        "docs/evidence/gates-2026-11-02.json",
+        "docs/evidence/gates-2026-11-03.json",
+        "docs/evidence/gates-2026-11-05.json",
+        "docs/evidence/gates-2026-11-06.json",
+        "docs/evidence/gates-2026-11-07.json",
+        "docs/evidence/gates-2026-11-12.json"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "core/api/routes.js",
+      "tier": "T2b",
+      "bytes": 17779,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "core/index.js",
+        "panel/server.js"
+      ],
+      "test": [
+        "tests/contract/routes.test.mjs"
+      ],
+      "doc": [
+        "core/index.js",
+        "docs/attic/2026-10/PR-port-core-opencode-panel.md",
+        "docs/attic/2026-11/ARCHITECTURE-DECOUPLING-2026-11-01.md",
+        "docs/attic/2026-11/EXECUTION-2026-11-01.md",
+        "docs/attic/2026-11/PANEL-GAP-AUDIT-2026-11-04.md",
+        "docs/attic/2026-11/team-2026-11-01/security.md",
+        "docs/attic/2026-11/team-2026-11-03/02-capability-matrix.md",
+        "docs/specs/07-account-and-credentials.md",
+        "panel/server.js",
+        "tests/contract/state-home.test.mjs"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "core/api/support.js",
+      "tier": "T2b",
+      "bytes": 3585,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "core/api/routes.js",
+        "core/index.js",
+        "panel/server.js",
+        "scripts/setup.mjs"
+      ],
+      "test": [
+        "tests/contract/routes.test.mjs"
+      ],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "core/client.js",
+      "tier": "T4",
+      "bytes": 42571,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [],
+      "test": [],
+      "doc": [
+        "docs/attic/2026-11/CONTROL-SURFACE-2026-11-04.md",
+        "docs/attic/2026-11/PANEL-GAP-AUDIT-2026-11-04.md",
+        "docs/attic/2026-11/team-2026-11-01/round3/form-and-independence.md",
+        "docs/attic/2026-11/team-2026-11-01/round3/four-questions-decisions.md",
+        "docs/attic/2026-11/team-2026-11-01/security.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "core/index.js",
+      "tier": "T3",
+      "bytes": 6694,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [],
+      "test": [
+        "tests/helpers/plugin.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-10/PLUGIN-INTEGRATION-PLAN-2026-10-30.md",
+        "docs/attic/2026-11/team-2026-11-01/round2/judgment-loop-design.md",
+        "docs/attic/2026-11/team-2026-11-01/round3/form-and-independence.md",
+        "docs/attic/2026-11/team-2026-11-01/round3/four-questions-decisions.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "core/mention-summary.js",
+      "tier": "T2b",
+      "bytes": 1388,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "core/scheduler.js"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "core/node-runtime.js",
+      "tier": "T2b",
+      "bytes": 771,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "core/api/support.js",
+        "core/index.js",
+        "core/scheduler.js",
+        "panel/server.js"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "core/ports/temporal.mjs",
+      "tier": "T4",
+      "bytes": 2215,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [],
+      "test": [],
+      "doc": [
+        "docs/attic/2026-11/ARCHITECTURE-TARGET-2026-11-03.md",
+        "docs/attic/2026-11/team-2026-11-01/round3/four-questions-decisions.md",
+        "docs/attic/2026-11/team-2026-11-01/round3/project-hygiene.md",
+        "docs/CREDITS.md",
+        "docs/CURRENT.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "core/scheduler.js",
+      "tier": "T2b",
+      "bytes": 42788,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "adapters/opencode/daemon.js",
+        "core/index.js",
+        "panel/server.js"
+      ],
+      "test": [
+        "tests/contract/injection.test.mjs",
+        "tests/helpers/dm-delivery.mjs",
+        "tests/helpers/dm-exit-integration.mjs",
+        "tests/helpers/listener-polling.mjs",
+        "tests/helpers/scheduler-timeout.mjs",
+        "tests/helpers/scheduler.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-11/ARCHITECTURE-TARGET-2026-11-03.md",
+        "docs/attic/2026-11/team-2026-11-01/security.md",
+        "docs/attic/2026-11/team-2026-11-03/02-capability-matrix.md",
+        "docs/attic/2026-11/team-2026-11-03/05-red-team.md",
+        "packages/cap-bilibili/src/client/bili-inbox.ts",
+        "packages/cap-bilibili/src/domain/inbox-listener.ts",
+        "packages/cap-bilibili/src/index.ts"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "core/session-delivery.js",
+      "tier": "T2b",
+      "bytes": 5162,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "core/scheduler.js"
+      ],
+      "test": [
+        "adapters/opencode/test/contract.test.mjs"
+      ],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "core/work-dir.js",
+      "tier": "T2b",
+      "bytes": 555,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "core/index.js"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "panel/assets/whale-girl/celebrate.png",
+      "tier": "T2b",
+      "bytes": 227576,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "panel/assets/whale-girl/manifest.json"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "panel/assets/whale-girl/disappointed.png",
+      "tier": "T2b",
+      "bytes": 149283,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "panel/assets/whale-girl/manifest.json"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "panel/assets/whale-girl/drag.png",
+      "tier": "T2b",
+      "bytes": 64818,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "panel/assets/whale-girl/manifest.json"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "panel/assets/whale-girl/eat.png",
+      "tier": "T2b",
+      "bytes": 227624,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "panel/assets/whale-girl/manifest.json"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "panel/assets/whale-girl/error.png",
+      "tier": "T2b",
+      "bytes": 146246,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "panel/assets/whale-girl/manifest.json"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "panel/assets/whale-girl/idle.png",
+      "tier": "T2b",
+      "bytes": 222748,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "panel/assets/whale-girl/manifest.json"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "panel/assets/whale-girl/joy.png",
+      "tier": "T2b",
+      "bytes": 151820,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "panel/assets/whale-girl/manifest.json"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "panel/assets/whale-girl/manifest.json",
+      "tier": "T4",
+      "bytes": 2064,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [],
+      "test": [],
+      "doc": [
+        "scripts/audit-legacy-refs.mjs"
+      ],
+      "unconfirmed": [
+        "scripts/purge-acceptance-residue.mjs"
+      ]
+    },
+    {
+      "file": "panel/assets/whale-girl/play.png",
+      "tier": "T2b",
+      "bytes": 211214,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "panel/assets/whale-girl/manifest.json"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "panel/assets/whale-girl/sleep.png",
+      "tier": "T2b",
+      "bytes": 141754,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "panel/assets/whale-girl/manifest.json"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "panel/assets/whale-girl/think.png",
+      "tier": "T2b",
+      "bytes": 76358,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "panel/assets/whale-girl/manifest.json"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "panel/assets/whale-girl/wait.png",
+      "tier": "T2b",
+      "bytes": 73120,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "panel/assets/whale-girl/manifest.json"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "panel/assets/whale-girl/wake.png",
+      "tier": "T2b",
+      "bytes": 146730,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "panel/assets/whale-girl/manifest.json"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "panel/assets/whale-girl/walk.png",
+      "tier": "T2b",
+      "bytes": 156331,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "panel/assets/whale-girl/manifest.json"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "panel/assets/whale-girl/welcome.png",
+      "tier": "T2b",
+      "bytes": 131735,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "panel/assets/whale-girl/manifest.json"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "panel/assets/whale-girl/working.png",
+      "tier": "T2b",
+      "bytes": 229457,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "panel/assets/whale-girl/manifest.json"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "panel/auth.js",
+      "tier": "T2b",
+      "bytes": 1773,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "panel/server.js"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "panel/causal.mjs",
+      "tier": "T2b",
+      "bytes": 3021,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "panel/data.js"
+      ],
+      "test": [],
+      "doc": [
+        "docs/attic/2026-10/MODULARITY-2026-10-30.md",
+        "docs/attic/2026-10/TEAM-GAP-ANALYSIS-2026-10-30.md",
+        "docs/attic/2026-11/team-2026-11-01/security.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "panel/data.js",
+      "tier": "T2b",
+      "bytes": 4511,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "panel/server.js"
+      ],
+      "test": [],
+      "doc": [
+        "docs/attic/2026-11/ARCHITECTURE-DECOUPLING-2026-11-01.md",
+        "docs/attic/2026-11/EXECUTION-2026-11-01.md",
+        "docs/attic/2026-11/team-2026-11-01/architecture.md",
+        "docs/attic/2026-11/team-2026-11-01/round3/form-and-independence.md",
+        "docs/attic/2026-11/team-2026-11-01/security.md",
+        "tests/contract/state-home.test.mjs"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "panel/drafts.mjs",
+      "tier": "T2b",
+      "bytes": 2793,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "panel/data.js",
+        "panel/server.js"
+      ],
+      "test": [],
+      "doc": [
+        "docs/attic/2026-10/MODULARITY-2026-10-30.md",
+        "docs/attic/2026-10/TEAM-GAP-ANALYSIS-2026-10-30.md",
+        "docs/attic/2026-11/team-2026-11-01/architecture.md",
+        "docs/attic/2026-11/team-2026-11-01/round3/form-and-independence.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "panel/feedback.mjs",
+      "tier": "T2b",
+      "bytes": 336,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "panel/server.js"
+      ],
+      "test": [],
+      "doc": [
+        "docs/attic/2026-11/team-2026-11-01/architecture.md",
+        "docs/attic/2026-11/team-2026-11-01/round2/judgment-loop-design.md",
+        "docs/attic/2026-11/team-2026-11-01/round3/form-and-independence.md",
+        "docs/attic/2026-11/team-2026-11-03/02-capability-matrix.md"
+      ],
+      "unconfirmed": [
+        "tests/contract/feedback.test.mjs"
+      ]
+    },
+    {
+      "file": "panel/server.js",
+      "tier": "T2b",
+      "bytes": 9386,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "scripts/launch-panel.mjs"
+      ],
+      "test": [
+        "tests/contract/injection.test.mjs",
+        "tests/contract/panel.test.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-11/ARCHITECTURE-2026-11.md",
+        "docs/attic/2026-11/ARCHITECTURE-TARGET-2026-11-03.md",
+        "docs/attic/2026-11/team-2026-11-01/architecture.md",
+        "docs/attic/2026-11/team-2026-11-01/round3/config-surface.md",
+        "docs/attic/2026-11/team-2026-11-01/security.md",
+        "docs/DEPLOY.md",
+        "docs/evidence/APPROVAL-ENTRY-2026-10-31.md",
+        "docs/RUNBOOK.md",
+        "docs/specs/10-control-surface.md",
+        "docs/TERMUX.md",
+        "README.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "panel/views/tank.html",
+      "tier": "T2b",
+      "bytes": 24484,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "panel/server.js"
+      ],
+      "test": [
+        "tests/dom/tank-smoke.test.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-11/PANEL-GAP-AUDIT-2026-11-04.md",
+        "docs/attic/2026-11/team-2026-11-01/round3/config-surface.md",
+        "docs/attic/2026-11/team-2026-11-01/round3/form-and-independence.md",
+        "docs/evidence/APPROVAL-ENTRY-2026-10-31.md",
+        "docs/specs/10-control-surface.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/bili.mjs",
+      "tier": "T2b",
+      "bytes": 8200,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "adapters/opencode/daemon.js",
+        "adapters/opencode/mcp-stdio.js",
+        "core/api/routes.js",
+        "core/index.js",
+        "panel/server.js",
+        "scripts/drill-gate.mjs",
+        "scripts/preflight.mjs",
+        "scripts/setup.mjs",
+        "tools/commands/deps.mjs",
+        "tools/commands/reply-draft.mjs"
+      ],
+      "test": [
+        "adapters/opencode/test/contract.test.mjs",
+        "tests/contract/comment-tier.test.mjs",
+        "tests/contract/outbound-plain.test.mjs",
+        "tests/helpers/dm-delivery.mjs",
+        "tests/helpers/dm-exit-integration.mjs",
+        "tests/helpers/listener-polling.mjs",
+        "tests/helpers/scheduler-timeout.mjs",
+        "tests/issue27.test.mjs"
+      ],
+      "doc": [
+        "adapters/opencode/mcp-stdio.js",
+        "adapters/opencode/README.md",
+        "AI-SHARE-TRIAL.md",
+        "CHANGELOG.md",
+        "docs/attic/2026-10/ISSUES.md",
+        "docs/attic/2026-10/PR-port-core-opencode-panel.md",
+        "docs/attic/2026-11/ARCHITECTURE-2026-11.md",
+        "docs/attic/2026-11/ARCHITECTURE-TARGET-2026-11-03.md",
+        "docs/attic/2026-11/DECOUPLING-STATUS-2026-11-02.md",
+        "docs/attic/2026-11/EXECUTION-2026-11-01.md",
+        "docs/attic/2026-11/team-2026-11-01/round2/devils-advocate-2.md",
+        "docs/attic/2026-11/team-2026-11-01/round2/judgment-loop-design.md",
+        "docs/attic/2026-11/team-2026-11-01/round3/config-surface.md",
+        "docs/attic/2026-11/team-2026-11-03/01-arch-arbiter.md",
+        "docs/attic/2026-11/team-2026-11-03/02-capability-matrix.md",
+        "docs/attic/2026-11/team-2026-11-03/05-red-team.md",
+        "docs/attic/2026-11/V-NOW-2026-11-04.md",
+        "docs/CURRENT.md",
+        "docs/DEPLOY.md",
+        "docs/evidence/D0-2026-10-29.md",
+        "docs/evidence/landing-drill-2026-11-02.md",
+        "docs/evidence/M3-DM-2026-10-29.md",
+        "docs/evidence/M3-DM-REPLY-2026-10-29.md",
+        "docs/RUNBOOK.md",
+        "docs/specs/06-bili-write.md",
+        "README.md",
+        "scripts/live-code-anchor.mjs",
+        "scripts/ops-day.mjs",
+        "tests/live-code-anchor.test.mjs",
+        "tools/commands/dm-draft.mjs",
+        "tools/commands/dynamic-image.mjs"
+      ],
+      "unconfirmed": [
+        "core/mention-summary.js",
+        "core/scheduler.js",
+        "tests/contract/feedback.test.mjs",
+        "tests/dynamic-recent.test.mjs",
+        "tools/commands/bili-watch.mjs",
+        "tools/commands/dynamic-image.mjs",
+        "tools/commands/dynamic.mjs",
+        "tools/commands/fav.mjs",
+        "tools/commands/feed.mjs",
+        "tools/commands/like.mjs",
+        "tools/commands/rename.mjs",
+        "tools/commands/selftest.mjs",
+        "tools/commands/video-content.mjs"
+      ]
+    },
+    {
+      "file": "tools/commands/ai-share.mjs",
+      "tier": "T2b",
+      "bytes": 2866,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/commands/bili-watch.mjs",
+      "tier": "T2b",
+      "bytes": 9183,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs",
+        "tools/commands/debrief.mjs"
+      ],
+      "test": [],
+      "doc": [
+        "docs/attic/2026-11/DEEP-AUDIT-2026-11-05.md",
+        "docs/attic/2026-11/V-NOW-2026-11-04.md",
+        "packages/cap-bilibili/src/client/bili-watch.ts",
+        "packages/cap-vision/src/subtitle-strip.ts",
+        "packages/cap-vision/tests/subtitle-strip.test.mjs"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/commands/comment-await.mjs",
+      "tier": "T2b",
+      "bytes": 6728,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [],
+      "doc": [
+        "docs/attic/2026-11/team-2026-11-01/round3/config-surface.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/commands/comment-del.mjs",
+      "tier": "T2b",
+      "bytes": 2350,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [
+        "tests/traffic.test.mjs"
+      ],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/commands/comment-digest.mjs",
+      "tier": "T2b",
+      "bytes": 6120,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs",
+        "tools/commands/quota.mjs"
+      ],
+      "test": [
+        "tests/integration.test.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-11/team-2026-11-03/02-capability-matrix.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/commands/comment.mjs",
+      "tier": "T2b",
+      "bytes": 25013,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [
+        "tests/contract/go-gate.test.mjs",
+        "tests/integration.test.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-11/team-2026-11-03/02-capability-matrix.md",
+        "docs/evidence/PERM-TIER-2026-10-31.md",
+        "tools/commands/quota.mjs"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/commands/comments.mjs",
+      "tier": "T2b",
+      "bytes": 5551,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs",
+        "tools/commands/ai-share.mjs"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/commands/danmaku-await.mjs",
+      "tier": "T2b",
+      "bytes": 20987,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": [
+        "core/scheduler.js"
+      ]
+    },
+    {
+      "file": "tools/commands/danmaku.mjs",
+      "tier": "T2b",
+      "bytes": 14427,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [
+        "tests/contract/go-gate.test.mjs"
+      ],
+      "doc": [
+        "docs/evidence/PERM-TIER-2026-10-31.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/commands/debrief.mjs",
+      "tier": "T2b",
+      "bytes": 22130,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [
+        "tests/debrief-capability.test.mjs",
+        "tests/debrief-sampling.test.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-11/team-2026-11-01/security.md",
+        "packages/cap-bilibili/src/client/bili-debrief.ts"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/commands/deps.mjs",
+      "tier": "T2b",
+      "bytes": 9196,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [
+        "tests/integration.test.mjs"
+      ],
+      "doc": [
+        "docs/RUNBOOK.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/commands/diary.mjs",
+      "tier": "T2b",
+      "bytes": 6689,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [],
+      "doc": [
+        "docs/attic/2026-11/team-2026-11-01/round3/config-surface.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/commands/dm-await.mjs",
+      "tier": "T2b",
+      "bytes": 3876,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [
+        "tests/dm-history.test.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-11/team-2026-11-03/02-capability-matrix.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/commands/dm-draft.mjs",
+      "tier": "T2b",
+      "bytes": 2436,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [],
+      "doc": [
+        "docs/evidence/M3-DM-REPLY-2026-10-29.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/commands/dm.mjs",
+      "tier": "T2b",
+      "bytes": 8725,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs",
+        "tools/commands/notify.mjs"
+      ],
+      "test": [
+        "tests/dm-out-causal.test.mjs",
+        "tests/integration.test.mjs"
+      ],
+      "doc": [
+        "tests/dm-out-causal.test.mjs"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/commands/dynamic-image.mjs",
+      "tier": "T2b",
+      "bytes": 2195,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [],
+      "doc": [
+        "docs/attic/2026-11/team-2026-11-01/round3/config-surface.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/commands/dynamic.mjs",
+      "tier": "T2b",
+      "bytes": 15010,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [
+        "tests/dynamic-recent.test.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-10/ARCHITECTURE.md",
+        "packages/cap-bilibili/src/platform/wbi.ts"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/commands/edit-dynamic.mjs",
+      "tier": "T2b",
+      "bytes": 3736,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [
+        "tests/edit-dynamic.test.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-11/team-2026-11-03/02-capability-matrix.md",
+        "packages/cap-bilibili/src/client/bili-write-extra.ts"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/commands/fav.mjs",
+      "tier": "T2b",
+      "bytes": 11172,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [
+        "tests/contract/go-gate.test.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-11/team-2026-11-01/round3/config-surface.md",
+        "docs/attic/2026-11/team-2026-11-01/security.md",
+        "docs/evidence/PERM-TIER-2026-10-31.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/commands/feed.mjs",
+      "tier": "T2b",
+      "bytes": 25075,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [
+        "tests/feed-seen.test.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-10/ISSUES.md",
+        "docs/attic/2026-11/team-2026-11-01/round2/content.md",
+        "docs/attic/2026-11/team-2026-11-01/round2/judgment-loop-design.md",
+        "docs/attic/2026-11/team-2026-11-01/round2/self-correction.md",
+        "docs/attic/2026-11/team-2026-11-01/round3/config-surface.md",
+        "docs/attic/2026-11/team-2026-11-03/01-arch-arbiter.md",
+        "docs/evidence/D-31-RULING-2026-10-29.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/commands/feedback.mjs",
+      "tier": "T2b",
+      "bytes": 6189,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "panel/feedback.mjs",
+        "tools/bili.mjs"
+      ],
+      "test": [
+        "tests/contract/feedback.test.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-11/ARCHITECTURE-2026-11.md",
+        "docs/attic/2026-11/team-2026-11-01/round2/judgment-loop-design.md",
+        "panel/feedback.mjs"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/commands/judgment.mjs",
+      "tier": "T2b",
+      "bytes": 2124,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/commands/like.mjs",
+      "tier": "T2b",
+      "bytes": 6988,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [
+        "tests/perm-tier-cli.test.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-11/team-2026-11-01/devils-advocate.md",
+        "docs/attic/2026-11/team-2026-11-01/product.md",
+        "docs/attic/2026-11/team-2026-11-01/round3/config-surface.md",
+        "docs/attic/2026-11/team-2026-11-01/security.md",
+        "docs/evidence/PERM-TIER-2026-10-31.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/commands/likes.mjs",
+      "tier": "T2b",
+      "bytes": 3763,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs",
+        "tools/commands/quota.mjs"
+      ],
+      "test": [],
+      "doc": [
+        "docs/attic/2026-11/team-2026-11-03/01-arch-arbiter.md",
+        "docs/attic/2026-11/team-2026-11-03/02-capability-matrix.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/commands/notify.mjs",
+      "tier": "T2b",
+      "bytes": 13501,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs",
+        "tools/commands/ai-share.mjs",
+        "tools/commands/comment.mjs",
+        "tools/commands/reply-draft.mjs"
+      ],
+      "test": [
+        "tests/integration.test.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-11/team-2026-11-01/architecture.md",
+        "docs/attic/2026-11/team-2026-11-01/round2/operations.md"
+      ],
+      "unconfirmed": [
+        "core/api/routes.js",
+        "tools/lib/report.mjs"
+      ]
+    },
+    {
+      "file": "tools/commands/quota.mjs",
+      "tier": "T2b",
+      "bytes": 21046,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs",
+        "tools/commands/comment.mjs"
+      ],
+      "test": [
+        "tests/integration.test.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-11/ARCHITECTURE-2026-11.md",
+        "docs/attic/2026-11/team-2026-11-01/round3/config-surface.md",
+        "tools/commands/comment.mjs"
+      ],
+      "unconfirmed": [
+        "tools/lib/quota-gate.mjs"
+      ]
+    },
+    {
+      "file": "tools/commands/rename.mjs",
+      "tier": "T2b",
+      "bytes": 3851,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/commands/reply-draft.mjs",
+      "tier": "T2b",
+      "bytes": 8487,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [],
+      "doc": [
+        "docs/attic/2026-11/team-2026-11-01/security.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/commands/search.mjs",
+      "tier": "T2b",
+      "bytes": 3602,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/commands/selftest.mjs",
+      "tier": "T2b",
+      "bytes": 6716,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [],
+      "doc": [
+        "docs/attic/2026-11/DECOUPLING-STATUS-2026-11-02.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/commands/subtitles.mjs",
+      "tier": "T2b",
+      "bytes": 7044,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [],
+      "doc": [
+        "tools/commands/comments.mjs"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/commands/traffic.mjs",
+      "tier": "T2b",
+      "bytes": 2033,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [
+        "tests/traffic-pause-expiry.test.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-11/team-2026-11-01/round2/self-correction.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/commands/video-content.mjs",
+      "tier": "T2b",
+      "bytes": 5883,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [],
+      "doc": [
+        "tools/commands/subtitles.mjs"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/commands/whale-night.mjs",
+      "tier": "T2b",
+      "bytes": 2174,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [
+        "tests/integration.test.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-11/team-2026-11-01/round3/config-surface.md",
+        "docs/DEPLOY.md",
+        "docs/RUNBOOK.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/diagnostics/fetch-covers.mjs",
+      "tier": "T2b",
+      "bytes": 1843,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/diagnostics/whois.mjs",
+      "tier": "T2b",
+      "bytes": 1842,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [],
+      "doc": [
+        "packages/cap-bilibili/src/platform/wbi.ts"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/docs/comment-add.md",
+      "tier": "T4",
+      "bytes": 25441,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [],
+      "test": [],
+      "doc": [
+        "docs/attic/2026-11/team-2026-11-01/platform.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/docs/dynamic-action.md",
+      "tier": "T0",
+      "bytes": 8852,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/docs/dynamic-publish.md",
+      "tier": "T4",
+      "bytes": 16832,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [],
+      "test": [],
+      "doc": [
+        "docs/attic/2026-11/team-2026-11-01/platform.md",
+        "packages/cap-bilibili/src/client/bili-write-extra.ts"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/docs/live-danmaku.md",
+      "tier": "T0",
+      "bytes": 50033,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/docs/live-room-info.md",
+      "tier": "T0",
+      "bytes": 44353,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/docs/rich-text-nodes.md",
+      "tier": "T4",
+      "bytes": 12058,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [],
+      "test": [],
+      "doc": [
+        "docs/attic/2026-11/team-2026-11-01/platform.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/drafts/compose.mjs",
+      "tier": "T2b",
+      "bytes": 18975,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "scripts/draft-dynamic.mjs"
+      ],
+      "test": [
+        "tests/contract/outbound-plain.test.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-11/DECOUPLING-STATUS-2026-11-02.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/drafts/publishers/bilibili-dynamic.mjs",
+      "tier": "T2b",
+      "bytes": 12204,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "scripts/dynamic-approve.mjs",
+        "tools/commands/dynamic-image.mjs",
+        "tools/commands/dynamic.mjs"
+      ],
+      "test": [
+        "tests/drafts-publisher.test.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-10/MODULARITY-2026-10-30.md",
+        "docs/attic/2026-11/team-2026-11-01/platform.md",
+        "docs/attic/2026-11/team-2026-11-03/02-capability-matrix.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/drafts/store.mjs",
+      "tier": "T2b",
+      "bytes": 3591,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "scripts/draft-dynamic.mjs",
+        "scripts/dynamic-approve.mjs"
+      ],
+      "test": [
+        "tests/contract/state-roots.test.mjs"
+      ],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/drafts/voice.schema.json",
+      "tier": "T2b",
+      "bytes": 2435,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/drafts/compose.mjs"
+      ],
+      "test": [
+        "tests/contract/voice.test.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-11/ARCHITECTURE-2026-11.md",
+        "docs/attic/2026-11/ARCHITECTURE-DECOUPLING-2026-11-01.md",
+        "tools/drafts/compose.mjs"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/ai-share.mjs",
+      "tier": "T2b",
+      "bytes": 5144,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/commands/ai-share.mjs",
+        "tools/commands/comment.mjs",
+        "tools/commands/comments.mjs"
+      ],
+      "test": [
+        "tests/ai-share.test.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-11/team-2026-11-01/round3/config-surface.md",
+        "docs/attic/2026-11/team-2026-11-03/02-capability-matrix.md",
+        "tools/lib/report.mjs"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/bili-api.mjs",
+      "tier": "T2b",
+      "bytes": 318,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/commands/bili-watch.mjs",
+        "tools/commands/comments.mjs",
+        "tools/commands/debrief.mjs",
+        "tools/commands/deps.mjs",
+        "tools/commands/fav.mjs",
+        "tools/commands/quota.mjs",
+        "tools/commands/subtitles.mjs",
+        "tools/commands/video-content.mjs",
+        "tools/lib/dm-history.mjs",
+        "tools/verify/dryrun.mjs"
+      ],
+      "test": [
+        "tests/review.test.mjs",
+        "tests/supplement.test.mjs"
+      ],
+      "doc": [
+        "CHANGELOG.md",
+        "docs/attic/2026-11/DECOUPLING-STATUS-2026-11-02.md",
+        "docs/attic/2026-11/V-NOW-2026-11-04.md",
+        "packages/cap-bilibili/src/client/bili-read.ts"
+      ],
+      "unconfirmed": [
+        "adapters/opencode/test/contract.test.mjs"
+      ]
+    },
+    {
+      "file": "tools/lib/capture.mjs",
+      "tier": "T2b",
+      "bytes": 1217,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/commands/ai-share.mjs",
+        "tools/commands/bili-watch.mjs",
+        "tools/commands/comment.mjs",
+        "tools/commands/debrief.mjs",
+        "tools/commands/notify.mjs",
+        "tools/commands/quota.mjs",
+        "tools/commands/selftest.mjs",
+        "tools/lib/ffmpeg.mjs",
+        "tools/lib/quota-gate.mjs"
+      ],
+      "test": [
+        "tests/updates.test.mjs"
+      ],
+      "doc": [
+        "CHANGELOG.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/causal.mjs",
+      "tier": "T2a",
+      "bytes": 1657,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": true,
+      "pkg": [],
+      "entry": [],
+      "ops": [
+        "scripts/ops-day.mjs"
+      ],
+      "script": [
+        "scripts/ops-day.mjs",
+        "tools/commands/feed.mjs",
+        "tools/drafts/store.mjs",
+        "tools/lib/dm-send-core.mjs",
+        "tools/lib/write-refusal.mjs"
+      ],
+      "test": [
+        "tests/contract/state-roots.test.mjs"
+      ],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/cli-args.mjs",
+      "tier": "T2b",
+      "bytes": 1346,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [
+        "tests/updates.test.mjs"
+      ],
+      "doc": [
+        "CHANGELOG.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/config.mjs",
+      "tier": "T2b",
+      "bytes": 6313,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/commands/ai-share.mjs",
+        "tools/commands/comment-await.mjs",
+        "tools/commands/comment-digest.mjs",
+        "tools/commands/comment.mjs",
+        "tools/commands/danmaku-await.mjs",
+        "tools/commands/danmaku.mjs",
+        "tools/commands/debrief.mjs",
+        "tools/commands/diary.mjs",
+        "tools/commands/dm-await.mjs",
+        "tools/commands/dm.mjs",
+        "tools/commands/feed.mjs",
+        "tools/commands/like.mjs",
+        "tools/commands/likes.mjs",
+        "tools/commands/notify.mjs",
+        "tools/commands/quota.mjs",
+        "tools/lib/dm-send-core.mjs",
+        "tools/lib/judgment.mjs",
+        "tools/lib/msgfeed.mjs",
+        "tools/lib/report.mjs",
+        "tools/verify/mention-check.mjs"
+      ],
+      "test": [],
+      "doc": [
+        "core/api/support.js",
+        "docs/attic/2026-11/ARCHITECTURE-2026-11.md",
+        "docs/attic/2026-11/team-2026-11-01/round3/config-surface.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/cred.mjs",
+      "tier": "T2b",
+      "bytes": 3535,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/commands/dm.mjs",
+        "tools/commands/rename.mjs",
+        "tools/lib/credentials/bilibili.mjs",
+        "tools/lib/dm-send-core.mjs"
+      ],
+      "test": [
+        "tests/contract/state-home.test.mjs",
+        "tests/helpers/plugin.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-10/MODULARITY-2026-10-30.md",
+        "docs/attic/2026-11/ARCHITECTURE-2026-11.md",
+        "tools/lib/credentials/bilibili.mjs"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/credentials/bilibili.mjs",
+      "tier": "T2b",
+      "bytes": 733,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/lib/credentials/index.mjs"
+      ],
+      "test": [],
+      "doc": [
+        "docs/specs/07-account-and-credentials.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/credentials/index.mjs",
+      "tier": "T3",
+      "bytes": 1277,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [],
+      "test": [
+        "tests/contract/credentials.test.mjs"
+      ],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/credentials/mimo.mjs",
+      "tier": "T2b",
+      "bytes": 179,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/lib/credentials/index.mjs"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/dm-drafts.mjs",
+      "tier": "T2b",
+      "bytes": 3381,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "scripts/dm-approve.mjs",
+        "tools/commands/dm-draft.mjs"
+      ],
+      "test": [
+        "tests/contract/dm-approve.test.mjs",
+        "tests/contract/outbound-plain.test.mjs",
+        "tests/dm-drafts.test.mjs"
+      ],
+      "doc": [
+        "docs/evidence/M3-DM-REPLY-2026-10-29.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/dm-history.mjs",
+      "tier": "T2b",
+      "bytes": 2817,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/commands/dm-await.mjs"
+      ],
+      "test": [],
+      "doc": [
+        "docs/attic/2026-11/team-2026-11-03/02-capability-matrix.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/dm-send-core.mjs",
+      "tier": "T2b",
+      "bytes": 10388,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "scripts/dm-approve.mjs",
+        "tools/commands/dm.mjs"
+      ],
+      "test": [],
+      "doc": [
+        "docs/attic/2026-11/team-2026-11-01/TEAM-DIGEST-2026-11-01.md",
+        "packages/cap-bilibili/src/client/bili-write-extra.ts",
+        "packages/cap-bilibili/src/client/bili-write.ts"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/feed-feedback.mjs",
+      "tier": "T2b",
+      "bytes": 3863,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "scripts/wordlist-hit-check.mjs",
+        "tools/commands/feed.mjs"
+      ],
+      "test": [
+        "tests/contract/feed-feedback.test.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-11/team-2026-11-01/round2/devils-advocate-2.md",
+        "docs/attic/2026-11/team-2026-11-01/round2/self-correction.md",
+        "docs/evidence/OPS-FIXES-2026-10-30.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/feed-quality.mjs",
+      "tier": "T2b",
+      "bytes": 3356,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/commands/feed.mjs"
+      ],
+      "test": [
+        "tests/contract/feed-quality.test.mjs",
+        "tests/contract/judgment-loop.test.mjs",
+        "tests/feed-dislike.test.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-10/ISSUES.md",
+        "docs/evidence/D-31-RULING-2026-10-29.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/feedback.mjs",
+      "tier": "T2b",
+      "bytes": 656,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/commands/quota.mjs"
+      ],
+      "test": [
+        "tests/updates.test.mjs"
+      ],
+      "doc": [
+        "CHANGELOG.md"
+      ],
+      "unconfirmed": [
+        "tests/contract/feedback.test.mjs"
+      ]
+    },
+    {
+      "file": "tools/lib/ffmpeg.mjs",
+      "tier": "T2b",
+      "bytes": 3180,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/commands/bili-watch.mjs",
+        "tools/commands/debrief.mjs",
+        "tools/commands/deps.mjs"
+      ],
+      "test": [],
+      "doc": [
+        "NOTICE.md",
+        "packages/cap-vision/src/vendor/see-now/VENDORED.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/go-gate.mjs",
+      "tier": "T2b",
+      "bytes": 1936,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/commands/comment.mjs",
+        "tools/commands/danmaku.mjs",
+        "tools/commands/fav.mjs",
+        "tools/commands/like.mjs"
+      ],
+      "test": [
+        "tests/contract/go-gate.test.mjs",
+        "tests/contract/state-home.test.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-10/CLOSEOUT.md",
+        "docs/attic/2026-11/ARCHITECTURE-2026-11.md",
+        "docs/attic/2026-11/team-2026-11-01/security.md",
+        "tests/perm-tier.test.mjs",
+        "tools/lib/pending-queue.mjs"
+      ],
+      "unconfirmed": [
+        "tests/perm-tier.test.mjs"
+      ]
+    },
+    {
+      "file": "tools/lib/go-rebuild.mjs",
+      "tier": "T2b",
+      "bytes": 6738,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "core/api/routes.js"
+      ],
+      "test": [
+        "tests/contract/m1e-approval.test.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-11/ARCHITECTURE-2026-11.md",
+        "docs/attic/2026-11/team-2026-11-01/security.md",
+        "docs/attic/2026-11/team-2026-11-03/04-gate-single-point.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/judgment.mjs",
+      "tier": "T2b",
+      "bytes": 11046,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/commands/feed.mjs",
+        "tools/commands/judgment.mjs"
+      ],
+      "test": [
+        "tests/contract/judgment.test.mjs"
+      ],
+      "doc": [
+        "tools/commands/judgment.mjs"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/kill.mjs",
+      "tier": "T2a",
+      "bytes": 366,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": true,
+      "pkg": [],
+      "entry": [],
+      "ops": [
+        "scripts/ops-day.mjs"
+      ],
+      "script": [
+        "scripts/ops-day.mjs"
+      ],
+      "test": [
+        "tests/contract/kill-unified.test.mjs",
+        "tests/helpers/home-probe.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-10/ISSUES.md",
+        "docs/attic/2026-10/MODULARITY-2026-10-30.md",
+        "docs/attic/2026-11/README.md",
+        "docs/attic/2026-11/team-2026-11-01/round3/config-surface.md",
+        "docs/attic/2026-11/team-2026-11-01/security.md",
+        "docs/STOP-RUNBOOK.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/msgfeed.mjs",
+      "tier": "T2b",
+      "bytes": 4239,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "core/scheduler.js",
+        "tools/commands/comment-await.mjs",
+        "tools/commands/comment-digest.mjs"
+      ],
+      "test": [],
+      "doc": [
+        "docs/attic/2026-11/ARCHITECTURE-TARGET-2026-11-03.md",
+        "docs/attic/2026-11/team-2026-11-03/01-arch-arbiter.md",
+        "docs/attic/2026-11/team-2026-11-03/02-capability-matrix.md",
+        "docs/attic/2026-11/team-2026-11-03/05-red-team.md",
+        "packages/cap-bilibili/src/client/bili-inbox.ts"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/night-config.mjs",
+      "tier": "T2b",
+      "bytes": 568,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "core/scheduler.js",
+        "tools/commands/whale-night.mjs"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/night-plan.mjs",
+      "tier": "T2b",
+      "bytes": 6958,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "core/scheduler.js",
+        "tools/commands/whale-night.mjs"
+      ],
+      "test": [
+        "adapters/opencode/test/contract.test.mjs",
+        "tests/helpers/scheduler-timeout.mjs",
+        "tests/helpers/scheduler.mjs",
+        "tests/planner.test.mjs",
+        "tests/scheduler-snapshot.test.mjs",
+        "tests/supplement.test.mjs",
+        "tests/updates.test.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-11/RESEARCH-EXPANSION-2026-11-04.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/nodebin.mjs",
+      "tier": "T2b",
+      "bytes": 452,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs",
+        "tools/commands/ai-share.mjs",
+        "tools/commands/comment.mjs",
+        "tools/commands/debrief.mjs",
+        "tools/commands/deps.mjs",
+        "tools/commands/notify.mjs",
+        "tools/commands/quota.mjs",
+        "tools/commands/reply-draft.mjs",
+        "tools/commands/selftest.mjs",
+        "tools/lib/pending-queue.mjs",
+        "tools/lib/quota-gate.mjs",
+        "tools/lib/report.mjs"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/offline-gap.mjs",
+      "tier": "T2a",
+      "bytes": 1846,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": true,
+      "pkg": [],
+      "entry": [],
+      "ops": [
+        "scripts/c2-offline.mjs"
+      ],
+      "script": [
+        "scripts/c2-offline.mjs"
+      ],
+      "test": [
+        "tests/offline-gap.test.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-10/ISSUES.md",
+        "docs/evidence/C2-DECISION-2026-10-29.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/paths.mjs",
+      "tier": "T2a",
+      "bytes": 368,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": true,
+      "pkg": [],
+      "entry": [],
+      "ops": [
+        "scripts/action-watch.mjs",
+        "scripts/c2-offline.mjs",
+        "scripts/c2-window.mjs",
+        "scripts/check-state-roots.mjs",
+        "scripts/day-report.mjs",
+        "scripts/day-snapshot.mjs",
+        "scripts/day-watchdog.mjs",
+        "scripts/g3b-check.mjs",
+        "scripts/goal-audit.mjs",
+        "scripts/observation-day.mjs",
+        "scripts/observation-start.mjs",
+        "scripts/observation-status.mjs",
+        "scripts/ops-backup.mjs",
+        "scripts/ops-day.mjs",
+        "scripts/repair-memory-source.mjs",
+        "scripts/wake-audit.mjs",
+        "tools/lib/state-roots.mjs"
+      ],
+      "script": [
+        "adapters/opencode/daemon.js",
+        "core/api/routes.js",
+        "core/api/support.js",
+        "core/index.js",
+        "core/scheduler.js",
+        "panel/data.js",
+        "panel/drafts.mjs",
+        "panel/server.js",
+        "scripts/action-watch.mjs",
+        "scripts/audit-state-locations.mjs",
+        "scripts/c2-offline.mjs",
+        "scripts/c2-window.mjs",
+        "scripts/check-state-roots.mjs",
+        "scripts/counterfactual.mjs",
+        "scripts/day-report.mjs",
+        "scripts/day-snapshot.mjs",
+        "scripts/day-watchdog.mjs",
+        "scripts/dm-approve.mjs",
+        "scripts/draft-dynamic.mjs",
+        "scripts/dynamic-approve.mjs",
+        "scripts/g3b-check.mjs",
+        "scripts/goal-audit.mjs",
+        "scripts/launch-panel.mjs",
+        "scripts/live-code-anchor.mjs",
+        "scripts/migrate-causal.mjs",
+        "scripts/migrate-state-roots.mjs",
+        "scripts/observation-day.mjs",
+        "scripts/observation-start.mjs",
+        "scripts/observation-status.mjs",
+        "scripts/open-panel.mjs",
+        "scripts/ops-backup.mjs",
+        "scripts/ops-day.mjs",
+        "scripts/preflight.mjs",
+        "scripts/preview-recall.mjs",
+        "scripts/repair-memory-source.mjs",
+        "scripts/setup.mjs",
+        "scripts/wake-audit.mjs",
+        "tools/commands/bili-watch.mjs",
+        "tools/commands/comment-await.mjs",
+        "tools/commands/comment-del.mjs",
+        "tools/commands/comment-digest.mjs",
+        "tools/commands/comment.mjs",
+        "tools/commands/comments.mjs",
+        "tools/commands/danmaku-await.mjs",
+        "tools/commands/danmaku.mjs",
+        "tools/commands/debrief.mjs",
+        "tools/commands/deps.mjs",
+        "tools/commands/diary.mjs",
+        "tools/commands/dm-await.mjs",
+        "tools/commands/dm-draft.mjs",
+        "tools/commands/dm.mjs",
+        "tools/commands/dynamic.mjs",
+        "tools/commands/edit-dynamic.mjs",
+        "tools/commands/fav.mjs",
+        "tools/commands/feed.mjs",
+        "tools/commands/feedback.mjs",
+        "tools/commands/like.mjs",
+        "tools/commands/likes.mjs",
+        "tools/commands/notify.mjs",
+        "tools/commands/quota.mjs",
+        "tools/commands/reply-draft.mjs",
+        "tools/commands/search.mjs",
+        "tools/commands/selftest.mjs",
+        "tools/commands/subtitles.mjs",
+        "tools/commands/video-content.mjs",
+        "tools/commands/whale-night.mjs",
+        "tools/diagnostics/fetch-covers.mjs",
+        "tools/diagnostics/whois.mjs",
+        "tools/drafts/publishers/bilibili-dynamic.mjs",
+        "tools/lib/ai-share.mjs",
+        "tools/lib/config.mjs",
+        "tools/lib/cred.mjs",
+        "tools/lib/credentials/bilibili.mjs",
+        "tools/lib/dm-send-core.mjs",
+        "tools/lib/ffmpeg.mjs",
+        "tools/lib/go-gate.mjs",
+        "tools/lib/judgment.mjs",
+        "tools/lib/night-config.mjs",
+        "tools/lib/nodebin.mjs",
+        "tools/lib/pending-queue.mjs",
+        "tools/lib/pick-image.mjs",
+        "tools/lib/report.mjs",
+        "tools/lib/state-roots.mjs",
+        "tools/lib/write-refusal.mjs",
+        "tools/verify/comment-exists.mjs",
+        "tools/verify/session.mjs",
+        "tools/video-build.mjs"
+      ],
+      "test": [
+        "tests/contract/go-gate.test.mjs",
+        "tests/contract/kill-unified.test.mjs",
+        "tests/contract/m1a-observability.test.mjs",
+        "tests/contract/pending-queue.test.mjs",
+        "tests/contract/state-home.test.mjs",
+        "tests/contract/whale-home.test.mjs",
+        "tests/helpers/home-probe.mjs"
+      ],
+      "doc": [
+        "CHANGELOG.md",
+        "docs/attic/2026-10/TEAM-GAP-ANALYSIS-2026-10-30.md",
+        "docs/attic/2026-11/AUDIT-REPLY-2026-11-01.md",
+        "docs/attic/2026-11/DECOUPLING-STATUS-2026-11-02.md",
+        "docs/attic/2026-11/README.md",
+        "docs/attic/2026-11/team-2026-11-01/architecture.md",
+        "docs/attic/2026-11/team-2026-11-03/05-red-team.md",
+        "tests/contract/go-gate.test.mjs",
+        "tests/helpers/dm-delivery.mjs",
+        "tests/review.test.mjs",
+        "tools/lib/ai-share.mjs",
+        "tools/lib/config.mjs",
+        "tools/lib/state-roots.mjs"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/pending-queue.mjs",
+      "tier": "T2b",
+      "bytes": 6126,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/commands/reply-draft.mjs"
+      ],
+      "test": [
+        "tests/contract/pending-queue.test.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-11/DECOUPLING-STATUS-2026-11-02.md",
+        "docs/attic/2026-11/team-2026-11-03/02-capability-matrix.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/pick-image.mjs",
+      "tier": "T2b",
+      "bytes": 1541,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "scripts/draft-dynamic.mjs"
+      ],
+      "test": [
+        "tests/contract/pick-image.test.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-11/ARCHITECTURE-2026-11.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/plain-outbound.mjs",
+      "tier": "T2b",
+      "bytes": 386,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/commands/comment.mjs",
+        "tools/commands/danmaku.mjs",
+        "tools/drafts/compose.mjs",
+        "tools/lib/dm-drafts.mjs",
+        "tools/lib/dm-send-core.mjs"
+      ],
+      "test": [
+        "tests/contract/plain-outbound.test.mjs"
+      ],
+      "doc": [
+        "CHANGELOG.md",
+        "docs/attic/2026-11/DECOUPLING-STATUS-2026-11-02.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/poll-policy.mjs",
+      "tier": "T2b",
+      "bytes": 452,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "core/scheduler.js"
+      ],
+      "test": [
+        "tests/traffic.test.mjs"
+      ],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/proc.mjs",
+      "tier": "T0",
+      "bytes": 176,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/publish-policy.mjs",
+      "tier": "T2b",
+      "bytes": 3066,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/commands/comment.mjs",
+        "tools/commands/danmaku.mjs",
+        "tools/commands/fav.mjs",
+        "tools/commands/like.mjs"
+      ],
+      "test": [
+        "tests/publish-policy.test.mjs"
+      ],
+      "doc": [
+        "CHANGELOG.md",
+        "docs/attic/2026-11/ARCHITECTURE-2026-11.md",
+        "docs/attic/2026-11/ARCHITECTURE-DECOUPLING-2026-11-01.md",
+        "docs/attic/2026-11/DEEP-AUDIT-2026-11-05.md",
+        "docs/attic/2026-11/README.md",
+        "docs/attic/2026-11/team-2026-11-01/architecture.md",
+        "docs/attic/2026-11/team-2026-11-01/round2/devils-advocate-2.md",
+        "docs/attic/2026-11/team-2026-11-01/security.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/quota-gate.mjs",
+      "tier": "T2b",
+      "bytes": 1711,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/commands/danmaku.mjs",
+        "tools/commands/dm.mjs",
+        "tools/commands/dynamic.mjs",
+        "tools/commands/edit-dynamic.mjs",
+        "tools/drafts/publishers/bilibili-dynamic.mjs",
+        "tools/lib/dm-send-core.mjs"
+      ],
+      "test": [],
+      "doc": [
+        "docs/attic/2026-11/team-2026-11-03/02-capability-matrix.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/report.mjs",
+      "tier": "T2b",
+      "bytes": 3606,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/commands/comment.mjs",
+        "tools/commands/dm.mjs",
+        "tools/commands/dynamic-image.mjs",
+        "tools/commands/fav.mjs",
+        "tools/commands/like.mjs"
+      ],
+      "test": [
+        "tests/contract/report.test.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-11/AUDIT-REPLY-2026-11-01.md",
+        "docs/attic/2026-11/team-2026-11-03/02-capability-matrix.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/runtime.mjs",
+      "tier": "T2b",
+      "bytes": 2886,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "core/node-runtime.js",
+        "tools/lib/nodebin.mjs"
+      ],
+      "test": [
+        "tests/updates.test.mjs"
+      ],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/share-policy.mjs",
+      "tier": "T2b",
+      "bytes": 859,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/commands/comment.mjs",
+        "tools/commands/dm.mjs"
+      ],
+      "test": [
+        "tests/planner.test.mjs"
+      ],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/state-lock.mjs",
+      "tier": "T3",
+      "bytes": 3577,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [],
+      "test": [
+        "tests/contract/state-roots.test.mjs"
+      ],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/state-roots.mjs",
+      "tier": "T2a",
+      "bytes": 7284,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": true,
+      "pkg": [],
+      "entry": [],
+      "ops": [
+        "scripts/check-state-roots.mjs"
+      ],
+      "script": [
+        "scripts/audit-state-locations.mjs",
+        "scripts/check-state-roots.mjs",
+        "scripts/migrate-state-roots.mjs"
+      ],
+      "test": [
+        "tests/contract/state-roots.test.mjs"
+      ],
+      "doc": [
+        "CHANGELOG.md",
+        "docs/attic/2026-11/ARCHITECTURE-DECOUPLING-2026-11-01.md",
+        "docs/attic/2026-11/DECOUPLING-STATUS-2026-11-02.md",
+        "docs/attic/2026-11/team-2026-11-03/05-red-team.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/traffic.mjs",
+      "tier": "T2b",
+      "bytes": 372,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "core/api/support.js",
+        "core/index.js",
+        "core/scheduler.js",
+        "panel/data.js",
+        "panel/server.js",
+        "panel/views/tank.html",
+        "scripts/preflight.mjs",
+        "tools/commands/bili-watch.mjs",
+        "tools/commands/comment-del.mjs",
+        "tools/commands/comment.mjs",
+        "tools/commands/danmaku-await.mjs",
+        "tools/commands/danmaku.mjs",
+        "tools/commands/debrief.mjs",
+        "tools/commands/deps.mjs",
+        "tools/commands/dm.mjs",
+        "tools/commands/dynamic.mjs",
+        "tools/commands/edit-dynamic.mjs",
+        "tools/commands/fav.mjs",
+        "tools/commands/feed.mjs",
+        "tools/commands/like.mjs",
+        "tools/commands/likes.mjs",
+        "tools/commands/notify.mjs",
+        "tools/commands/rename.mjs",
+        "tools/commands/search.mjs",
+        "tools/commands/subtitles.mjs",
+        "tools/commands/traffic.mjs",
+        "tools/commands/video-content.mjs",
+        "tools/diagnostics/fetch-covers.mjs",
+        "tools/diagnostics/whois.mjs",
+        "tools/drafts/publishers/bilibili-dynamic.mjs",
+        "tools/lib/dm-history.mjs",
+        "tools/lib/dm-send-core.mjs",
+        "tools/lib/msgfeed.mjs",
+        "tools/verify/comment-exists.mjs",
+        "tools/verify/dynamic-inspect.mjs",
+        "tools/verify/mention-check.mjs",
+        "tools/verify/session.mjs",
+        "tools/verify/thread.mjs",
+        "tools/verify/watch-replies.mjs"
+      ],
+      "test": [
+        "tests/contract/kill-unified.test.mjs",
+        "tests/contract/write-refusal.test.mjs",
+        "tests/helpers/listener-polling.mjs",
+        "tests/helpers/traffic-worker.mjs",
+        "tests/traffic-pause-expiry.test.mjs",
+        "tests/traffic.test.mjs"
+      ],
+      "doc": [
+        "CHANGELOG.md",
+        "docs/attic/2026-11/ARCHITECTURE-2026-11.md",
+        "docs/attic/2026-11/PANEL-GAP-AUDIT-2026-11-04.md",
+        "docs/attic/2026-11/README.md",
+        "docs/attic/2026-11/team-2026-11-01/architecture.md",
+        "docs/attic/2026-11/team-2026-11-01/round2/operations.md",
+        "docs/attic/2026-11/team-2026-11-01/round2/self-correction.md",
+        "docs/attic/2026-11/team-2026-11-01/round3/form-and-independence.md",
+        "docs/attic/2026-11/team-2026-11-01/security.md",
+        "docs/attic/2026-11/team-2026-11-03/02-capability-matrix.md",
+        "docs/STOP-RUNBOOK.md",
+        "packages/cap-bilibili/src/platform/kill.mjs",
+        "tools/lib/state-lock.mjs",
+        "tools/lib/write-refusal.mjs"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/watch-options.mjs",
+      "tier": "T2b",
+      "bytes": 624,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/commands/bili-watch.mjs"
+      ],
+      "test": [
+        "tests/issue27.test.mjs"
+      ],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/lib/write-refusal.mjs",
+      "tier": "T2b",
+      "bytes": 3710,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/commands/comment.mjs",
+        "tools/commands/danmaku.mjs",
+        "tools/commands/fav.mjs",
+        "tools/commands/like.mjs"
+      ],
+      "test": [
+        "tests/contract/write-refusal.test.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-11/DECOUPLING-STATUS-2026-11-02.md",
+        "docs/attic/2026-11/team-2026-11-03/05-red-team.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/media/bgm.mjs",
+      "tier": "T2b",
+      "bytes": 174,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/video-build.mjs"
+      ],
+      "test": [
+        "tests/media-bgm.test.mjs"
+      ],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/media/config.mjs",
+      "tier": "T2b",
+      "bytes": 192,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/video-build.mjs"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/media/tts.mjs",
+      "tier": "T2b",
+      "bytes": 174,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/video-build.mjs"
+      ],
+      "test": [
+        "tests/media-tts.test.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-11/ARCHITECTURE-2026-11.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/media/video/studio.mjs",
+      "tier": "T2b",
+      "bytes": 195,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/video-build.mjs"
+      ],
+      "test": [
+        "tests/media-studio.test.mjs"
+      ],
+      "doc": [
+        "docs/attic/2026-11/ARCHITECTURE-2026-11.md",
+        "docs/attic/2026-11/team-2026-11-01/round3/form-and-independence.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/templates/config.example.json",
+      "tier": "T4",
+      "bytes": 1962,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [],
+      "test": [],
+      "doc": [
+        "docs/attic/2026-11/team-2026-11-01/security.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/verify/comment-exists.mjs",
+      "tier": "T2b",
+      "bytes": 6114,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/verify/dryrun.mjs",
+      "tier": "T2b",
+      "bytes": 3999,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/verify/dynamic-inspect.mjs",
+      "tier": "T2b",
+      "bytes": 2514,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/verify/mention-check.mjs",
+      "tier": "T2b",
+      "bytes": 3184,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/verify/session.mjs",
+      "tier": "T2b",
+      "bytes": 1921,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/verify/thread.mjs",
+      "tier": "T2b",
+      "bytes": 2414,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/verify/watch-replies.mjs",
+      "tier": "T2b",
+      "bytes": 3740,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "tools/bili.mjs"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "tools/video-build.mjs",
+      "tier": "T3",
+      "bytes": 6855,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [],
+      "test": [
+        "tests/media-studio.test.mjs"
+      ],
+      "doc": [
+        "assets/bgm/README.md",
+        "CHANGELOG.md",
+        "docs/attic/2026-10/MODULARITY-2026-10-30.md",
+        "docs/attic/2026-10/PLUGIN-INTEGRATION-PLAN-2026-10-30.md",
+        "docs/attic/2026-10/REUSE-MATRIX.md",
+        "docs/attic/2026-11/ARCHITECTURE-2026-11.md",
+        "docs/attic/2026-11/ARCHITECTURE-TARGET-2026-11-03.md",
+        "docs/attic/2026-11/team-2026-11-01/platform.md",
+        "docs/attic/2026-11/team-2026-11-01/round2/content.md",
+        "docs/CURRENT.md",
+        "docs/evidence/V1-VIDEO-SMOKE-2026-10-30.md",
+        "packages/cap-media-studio/src/render.ts",
+        "packages/cortico-world-media/src/cortico-world.ts",
+        "vendor/dsh-video-studio/VENDOR.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "vendor/dsh-autocut/lib/assets.js",
+      "tier": "T2b",
+      "bytes": 5836,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "vendor/dsh-autocut/lib/pipeline.js",
+        "vendor/dsh-autocut/lib/selections.js"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "vendor/dsh-autocut/lib/deepseek.js",
+      "tier": "T0",
+      "bytes": 4664,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "vendor/dsh-autocut/lib/export.js",
+      "tier": "T0",
+      "bytes": 1212,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "vendor/dsh-autocut/lib/import-research.js",
+      "tier": "T0",
+      "bytes": 2741,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "vendor/dsh-autocut/lib/mapping.js",
+      "tier": "T2b",
+      "bytes": 1382,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "vendor/dsh-autocut/lib/timeline.js"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "vendor/dsh-autocut/lib/online.js",
+      "tier": "T0",
+      "bytes": 10363,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "vendor/dsh-autocut/lib/pipeline.js",
+      "tier": "T0",
+      "bytes": 2863,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "vendor/dsh-autocut/lib/project.js",
+      "tier": "T2b",
+      "bytes": 4909,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "vendor/dsh-autocut/lib/pipeline.js"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "vendor/dsh-autocut/lib/render.js",
+      "tier": "T2b",
+      "bytes": 3042,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "vendor/dsh-autocut/lib/pipeline.js"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": [
+        "tests/vendor-video-studio.test.mjs"
+      ]
+    },
+    {
+      "file": "vendor/dsh-autocut/lib/review.js",
+      "tier": "T0",
+      "bytes": 9906,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "vendor/dsh-autocut/lib/selections.js",
+      "tier": "T0",
+      "bytes": 5589,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "vendor/dsh-autocut/lib/sound.js",
+      "tier": "T2b",
+      "bytes": 2578,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "vendor/dsh-autocut/lib/pipeline.js"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "vendor/dsh-autocut/lib/timeline.js",
+      "tier": "T2b",
+      "bytes": 7048,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "vendor/dsh-autocut/lib/pipeline.js"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "vendor/dsh-autocut/lib/util.js",
+      "tier": "T2b",
+      "bytes": 4032,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "vendor/dsh-autocut/lib/assets.js",
+        "vendor/dsh-autocut/lib/export.js",
+        "vendor/dsh-autocut/lib/import-research.js",
+        "vendor/dsh-autocut/lib/online.js",
+        "vendor/dsh-autocut/lib/pipeline.js",
+        "vendor/dsh-autocut/lib/project.js",
+        "vendor/dsh-autocut/lib/render.js",
+        "vendor/dsh-autocut/lib/review.js",
+        "vendor/dsh-autocut/lib/selections.js",
+        "vendor/dsh-autocut/lib/sound.js",
+        "vendor/dsh-autocut/lib/timeline.js",
+        "vendor/dsh-autocut/lib/voice.js"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "vendor/dsh-autocut/lib/voice.js",
+      "tier": "T2b",
+      "bytes": 6304,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "vendor/dsh-autocut/lib/pipeline.js"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    },
+    {
+      "file": "vendor/dsh-autocut/LICENSE",
+      "tier": "T4",
+      "bytes": 1102,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [],
+      "test": [],
+      "doc": [
+        "vendor/dsh-autocut/VENDOR.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "vendor/dsh-autocut/SHA256SUMS",
+      "tier": "T4",
+      "bytes": 1291,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [],
+      "test": [],
+      "doc": [
+        "vendor/dsh-autocut/VENDOR.md"
+      ],
+      "unconfirmed": [
+        "scripts/audit-legacy-refs.mjs",
+        "tests/vendor-autocut.test.mjs",
+        "tests/vendor-video-studio.test.mjs"
+      ]
+    },
+    {
+      "file": "vendor/dsh-autocut/VENDOR.md",
+      "tier": "T4",
+      "bytes": 1083,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [],
+      "test": [],
+      "doc": [
+        "docs/attic/2026-11/team-2026-11-01/round3/form-and-independence.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "vendor/dsh-video-studio/cover.js",
+      "tier": "T1",
+      "bytes": 10082,
+      "isTest": false,
+      "reachablePkg": true,
+      "reachableOps": false,
+      "pkg": [
+        "packages/cap-media-studio/src/vendor/video/studio.mjs"
+      ],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "vendor/dsh-video-studio/render.js"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": [
+        "tests/vendor-video-studio.test.mjs"
+      ]
+    },
+    {
+      "file": "vendor/dsh-video-studio/ffmpeg.js",
+      "tier": "T1",
+      "bytes": 7422,
+      "isTest": false,
+      "reachablePkg": true,
+      "reachableOps": false,
+      "pkg": [
+        "packages/cap-media-studio/src/vendor/video/studio.mjs"
+      ],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "vendor/dsh-video-studio/cover.js",
+        "vendor/dsh-video-studio/media.js",
+        "vendor/dsh-video-studio/render.js"
+      ],
+      "test": [],
+      "doc": [
+        "docs/specs/09-media-output.md",
+        "vendor/dsh-video-studio/VENDOR.md"
+      ],
+      "unconfirmed": [
+        "tests/vendor-video-studio.test.mjs"
+      ]
+    },
+    {
+      "file": "vendor/dsh-video-studio/fonts.js",
+      "tier": "T1",
+      "bytes": 3316,
+      "isTest": false,
+      "reachablePkg": true,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "vendor/dsh-video-studio/cover.js",
+        "vendor/dsh-video-studio/render.js"
+      ],
+      "test": [],
+      "doc": [
+        "docs/specs/09-media-output.md"
+      ],
+      "unconfirmed": [
+        "tests/vendor-video-studio.test.mjs"
+      ]
+    },
+    {
+      "file": "vendor/dsh-video-studio/LICENSE",
+      "tier": "T4",
+      "bytes": 1062,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [],
+      "test": [],
+      "doc": [
+        "vendor/dsh-video-studio/VENDOR.md"
+      ],
+      "unconfirmed": []
+    },
+    {
+      "file": "vendor/dsh-video-studio/media.js",
+      "tier": "T1",
+      "bytes": 6387,
+      "isTest": false,
+      "reachablePkg": true,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "vendor/dsh-video-studio/cover.js",
+        "vendor/dsh-video-studio/render.js"
+      ],
+      "test": [],
+      "doc": [],
+      "unconfirmed": [
+        "tests/vendor-video-studio.test.mjs"
+      ]
+    },
+    {
+      "file": "vendor/dsh-video-studio/render.js",
+      "tier": "T1",
+      "bytes": 29784,
+      "isTest": false,
+      "reachablePkg": true,
+      "reachableOps": false,
+      "pkg": [
+        "packages/cap-media-studio/src/vendor/video/studio.mjs"
+      ],
+      "entry": [],
+      "ops": [],
+      "script": [],
+      "test": [],
+      "doc": [],
+      "unconfirmed": [
+        "tests/vendor-video-studio.test.mjs"
+      ]
+    },
+    {
+      "file": "vendor/dsh-video-studio/SHA256SUMS",
+      "tier": "T4",
+      "bytes": 623,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [],
+      "test": [],
+      "doc": [
+        "vendor/dsh-video-studio/VENDOR.md"
+      ],
+      "unconfirmed": [
+        "scripts/audit-legacy-refs.mjs",
+        "tests/vendor-autocut.test.mjs",
+        "tests/vendor-video-studio.test.mjs"
+      ]
+    },
+    {
+      "file": "vendor/dsh-video-studio/subtitles.js",
+      "tier": "T1",
+      "bytes": 10095,
+      "isTest": false,
+      "reachablePkg": true,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [
+        "vendor/dsh-video-studio/render.js"
+      ],
+      "test": [],
+      "doc": [
+        "vendor/dsh-video-studio/render.js"
+      ],
+      "unconfirmed": [
+        "tests/vendor-video-studio.test.mjs"
+      ]
+    },
+    {
+      "file": "vendor/dsh-video-studio/VENDOR.md",
+      "tier": "T0",
+      "bytes": 1692,
+      "isTest": false,
+      "reachablePkg": false,
+      "reachableOps": false,
+      "pkg": [],
+      "entry": [],
+      "ops": [],
+      "script": [],
+      "test": [],
+      "doc": [],
+      "unconfirmed": []
+    }
+  ]
+}

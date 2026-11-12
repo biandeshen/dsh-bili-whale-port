@@ -148,8 +148,5 @@ test('因果账新写入带署名：CLI 默认 cli，宿主页面点下来记 ho
   const lines = fs.readFileSync(path.join(dir, 'bili-whale', 'causal.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l))
   assert.equal(lines[0].actor, 'cli', 'CLI 写入默认署名 cli')
   assert.equal(lines[1].actor, 'host', '面板放行要署名 host：署名给"谁做的决定"')
-  // 历史条目没有这个字段，投影侧必须老实显示为空，不能编一个署名
-  const { normalizeCausalEntry } = await import('../../panel/causal.mjs')
-  assert.equal(normalizeCausalEntry({ kind: 'diary' }).actor, null)
   fs.rmSync(dir, { recursive: true, force: true })
 })

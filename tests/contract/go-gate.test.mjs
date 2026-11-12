@@ -1,5 +1,6 @@
-// go-gate 契约：公开表达类写操作（评论/弹幕）--go 进待审队列；panel 放行重放 argv+--go
+// go-gate 契约：公开表达类写操作（评论/弹幕）--go 进待审队列，入队前零网络请求
 // 2026-10-31 分级放开：收藏/点赞改自发档、回主人私信直发——不在此列（见 tests/perm-tier.test.mjs）
+// 2026-11-12：原有一条「旧面板放行重放 argv+--go」随旧 panel 树退役；放行侧契约现在在 tests/contract/draft-approve-panel.test.mjs
 process.env.BILI_TRAFFIC_TEST = '1'
 import test from 'node:test'
 import assert from 'node:assert/strict'
@@ -54,29 +55,6 @@ test('分享链路不受闸影响（--share --auto 直发，由既有评分闸�
   assert.notEqual(r.status, 0, '无评分仍须被既有闸拒绝')
   assert.equal(fs.existsSync(env.TEST_REQUESTS) ? fs.readFileSync(env.TEST_REQUESTS, 'utf8') : '', '')
 })
-test('panel approve 对 go-gate 项重放 argv 并补 --go', async () => {
-  const seeded = { id: 'gate1', at: new Date().toISOString(), kind: '评论', who: '评论', src: '', message: 'hi', oid: '1', bvid: 'BV1', argv: ['comment', '--oid', '1', '--message', 'hi'] }
-  fs.writeFileSync(PENDING, JSON.stringify({ items: [seeded] }))
-  const calls = []
-  const { makeRoutes } = await import(pathToFileURL(path.join(ROOT, 'core/api/routes.js')).href)
-  const { routes } = makeRoutes({
-    cfgFile: path.join(home, 'whale', 'bili-whale.config.json'), credFile: path.join(home, '.bili-ai', 'credentials.json'),
-    toolsRoot: ROOT, home, whaleHome: path.join(home, 'whale'),
-    getSchedStatus: () => ({ ok: true }), execNode: (args, o, cb) => { if (args.includes('take')) return cb(null, JSON.stringify(seeded), ''); calls.push(args); cb(null, 'code=0 rpid=1', '') },
-    fetch: async () => ({ json: async () => ({}) }),
-  })
-  const { readBody } = await import(pathToFileURL(path.join(ROOT, 'core/api/support.js')).href)
-  const body = JSON.stringify({ id: 'gate1' })
-  const req = { method: 'POST', headers: { host: '127.0.0.1' }, destroy() {} }
-  req.on = (ev, cb) => { if (ev === 'data') cb(Buffer.from(body)); if (ev === 'end') cb() }
-  const res = { statusCode: 0, writeHead() {}, end(t) { this.body = t } }
-  await routes['/dsh-bili/api/pending/approve'](req, res)
-  const out = JSON.parse(res.body)
-  assert.equal(out.ok, true, res.body)
-  assert.deepEqual(calls.at(-1).slice(1, 3), ['comment', '--oid'])
-  assert.equal(calls.at(-1).at(-1), '--go')
-})
-
 // 恢复进程级 env，避免污染同进程的后续测试文件
 test.after(() => { process.env.USERPROFILE = _env.u; process.env.HOME = _env.h; process.env.DSH_HOME = _env.d; process.env.DSH_NODE = _env.n; process.env.BILI_TRAFFIC_TEST = _env.b })
 

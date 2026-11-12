@@ -116,18 +116,22 @@
 
 ## 一分钟接上
 
+> 本节命令 2026-11-12 就地校准：原来指的快速验收剧本（evaluate.sh）、OpenCode 时钟冒烟、独立面板（8447）
+> 与两份运维手册都已随旧接入层退役——四棵代码树删除，`DEPLOY.md`/`RUNBOOK.md`/`TERMUX.md` 原样搬进
+> [attic/2026-11/](./attic/2026-11/)。这不是新增台账条目，是把过期指令改成还能跑的那几条。
+
 ```bash
 cd E:/WorkSpace_Qoder/dsh-bili-whale
 node scripts/run-mjs-tests.mjs # 全量回归（`npm test` 是同一件事；判据 fail 0，条数随提交变化）
 node scripts/check-hashes.mjs  # 验收脚本哈希须「一致」
 node scripts/check-consumers.mjs  # 生产调用须「全部有生产调用」
-node scripts/preflight.mjs        # 部署预检（凭据/风控/端口/OpenCode）
-bash scripts/evaluate.sh quick   # 快速验收剧本
+node scripts/preflight.mjs        # 部署预检（凭据/风控/宿主路径）
+npm run gates                    # 全部门禁串跑（含路径门、文档门、哈希门、状态根门）
 npm run ops:day                  # 一天的只读汇总：进程/端口/今日稿/令牌/tick/三条 K4/kill/风控
-# 真机上线按 docs/DEPLOY.md 走；交给 AI 执行用 docs/RUNBOOK.md
-node adapters/opencode/daemon.js --once   # 时钟冒烟（窗口外应零投递）
+# 起停与部署只看 docs/CORTICO-RUNBOOK.md 与 docs/specs/10-control-surface.md
+node scripts/start-cortico.mjs   # 单实例探活 + 自动 resume（需 CORTICO_ROOT，缺了明确报错）
 # 界面：Cortico WebUI 的「小鱼 · 鱼缸」世界页 http://127.0.0.1:7799/#/provider/world%3Abili-account
-#（panel/server.js 的 8447/8448 已退役，只剩调试用途，见 RUNBOOK §2）
+#（旧的独立面板 8447/8448 整棵树已删，不再是"退役待调试"，是没有了）
 # V1 出片（本地，不投稿，未接调用方）：MiMo TTS + CC0 BGM + 双封面
 node tools/video-build.mjs --image "D:/AI/养鱼/assets/daily/daily-04-goodnight-a.png" \
   --text $'今晚听雨。\n三十九分钟，没有人说话。\n晚安。' --duration 20
@@ -136,8 +140,8 @@ node tools/video-build.mjs --image "D:/AI/养鱼/assets/daily/daily-04-goodnight
 ## 约定
 
 - **行为冻结**：改调度/预算/路由前先对 `docs/attic/2026-10/BASELINE.md`；快照不一致必须 `--update` 并在提交信息说明原因。
-- **凭据**：只进 `~/.bili-ai/`，任何端点不回显；panel 默认 127.0.0.1 + token，禁外暴（远程走 Tailscale）。
-- **AMpath 借用**：私有仓库、无 LICENSE——只搬了纯函数与契约思路，**发布前必须移除 `core/ports/temporal.mjs` 的注释外引用并自查**。
+- **凭据**：只进 `~/.bili-ai/`（旧家只读兜底）与 `~/.xiaoyu-home/`，任何端点不回显；宿主 WebUI 只听 127.0.0.1，禁外暴（远程走 Tailscale）。
+- **AMpath 借用**：私有仓库、无 LICENSE。旧 `core/ports/` 下那份 `temporal.mjs` 纯函数借用件 **2026-11-12 随 `core/` 删除**（原文 `git show 7bf9198:core/ports/temporal.mjs`）；但 `packages/persona-core/` 仍是 AMpath 移植件，**"对外发布前必须重写或取得授权"这条义务照旧成立**（见 [CREDITS.md](./CREDITS.md) 与 [NOTICE.md](../NOTICE.md)）。
 - **上游纪律**：写操作仍强制 `--dry/--go`；MCP 包装层不得绕过 `tools/bili.mjs`。
 
 ## 她的东西放在哪三个盘（2026-11-02 实测登记）
@@ -165,18 +169,20 @@ node tools/video-build.mjs --image "D:/AI/养鱼/assets/daily/daily-04-goodnight
 
 ## 文件地图
 
+> 2026-11-12 重画：`core/`、`core/ports/`、`adapters/opencode/`、`panel/`、`vendor/dsh-autocut/` 五处已删除
+> （旧 DSH 插件 / OpenCode daemon / 独立面板 8447 三条接入线整棵退役）。现在只剩下面这些。
+
 ```
-core/            scheduler/session-delivery/api（宿主无关）
-core/ports/      temporal（AMpath 移植件）
-adapters/opencode/  daemon.js controller.js mcp-stdio.js（接入见其 README）
-panel/           server.js auth.js data.js views/tank.html
-tools/           41 个 B 站命令（数法见下）+ traffic 风控（未动契约）
+packages/        11 个包：cap-{bilibili,journal,media-studio,memory,state-rhythm,vision}
+                 + cortico-adapter（薄转接头）+ cortico-bot-xiaoyu（人格）
+                 + cortico-world-{bilibili,media} + persona-core
+tools/           43 个 B 站命令（数法见下）+ traffic 风控（未动契约）
 tools/video-build.mjs  V1 出片 CLI（MiMo/Edge TTS + CC0 BGM + vendor 渲染/封面）
 assets/bgm/      3 首 CC0 BGM + LICENSE + README（可整包替换）
-vendor/          dsh-video-studio（MIT，6 文件）、dsh-autocut（MIT，lib 15 文件）
-tests/contract/  路由/panel 契约；tests/scheduler-snapshot.test.mjs 行为快照
-docs/            入口与真相源仲裁看 INDEX.md；现状看本文件；架构看 ARCHITECTURE-2026-11.md
-                 BASELINE.md 的路由表被 tests/contract/routes.test.mjs:54 当断言源，不许随手改
+vendor/          dsh-video-studio（MIT，6 文件）——dsh-autocut 已随旧接入层删除
+scripts/         门禁 / 运维 / 审批 CLI（start-cortico、check-*、ops:day…）
+tests/contract/  36 份契约；tests/dom/ 9 份（FakeEl，不算真浏览器）；tests/scheduler-snapshot.test.mjs 行为快照
+docs/            入口与真相源仲裁看 INDEX.md；"现在是什么"看 specs/ 那十份；本文件是台账
 ```
 
-命令行数以 `node tools/bili.mjs help | grep -cE '^  [a-z]'` 现数（2026-11-01 实测 **41**；旧文档写的 40 是 `like` 落地前的数）。
+命令行数以 `node tools/bili.mjs help | grep -cE '^  [a-z]'` 现数（2026-11-12 实测 **43**；11-01 那次是 41，旧文档写的 40 是 `like` 落地前的数）。

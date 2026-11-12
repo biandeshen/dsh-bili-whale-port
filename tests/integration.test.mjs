@@ -28,15 +28,6 @@ test('unscored DM share is rejected before network access',t=>{const env=sandbox
 test('valid DM share works and repeated video is blocked',t=>{const env=sandbox(t);const r=run(env,'tools/commands/dm.mjs',args);assert.equal(r.status,0,r.stderr);assert.equal((requests(env).match(/POST/g)??[]).length,1);const again=run(env,'tools/commands/dm.mjs',args);assert.notEqual(again.status,0);assert.equal((requests(env).match(/POST/g)??[]).length,1)})
 test('ordinary owner DM does not require sharing score',t=>{const env=sandbox(t,{share:{enabled:false}});const r=run(env,'tools/commands/dm.mjs',['--msg','hello','--go']);assert.equal(r.status,0,r.stderr)})
 test('comment uses the same score rule',t=>{const env=sandbox(t);const r=run(env,'tools/commands/comment.mjs',['--oid','1','--bvid','BV1234567890','--message','hello','--share','--auto','--go']);assert.notEqual(r.status,0);assert.equal(requests(env),'')})
-test('custom home, persona, diary and failed approval recovery',t=>{const r=run(sandbox(t),'tests/helpers/plugin.mjs');assert.equal(r.status,0,r.stderr)})
-test('successful approval removes draft',t=>{const env=sandbox(t);env.TEST_SEND_SUCCESS='1';const r=run(env,'tests/helpers/plugin.mjs');assert.equal(r.status,0,r.stderr)})
-test('missing runtime reports scheduler failure',t=>{const env=sandbox(t,{},{noNode:true});env.PATH='';delete env.ProgramFiles;env.TEST_NO_NODE='1';const r=run(env,'tests/helpers/plugin.mjs');assert.equal(r.status,0,r.stderr)})
-test('real scheduler: midnight, retries, history, persona and disposal',t=>{const r=run(sandbox(t),'tests/helpers/scheduler.mjs');assert.equal(r.status,0,r.stderr)})
-test('DM delivery retries persisted message and acknowledges only after success',t=>{const r=run(sandbox(t),'tests/helpers/dm-delivery.mjs');assert.equal(r.status,0,r.stderr)})
-
-test('scheduler timeouts retain ownership until late delivery completes for all three channels',t=>{
-  const r=run(sandbox(t),'tests/helpers/scheduler-timeout.mjs');assert.equal(r.status,0,r.stdout+r.stderr)
-})
 
 test('health check distinguishes a completed plan from a later overdue plan',t=>{
   const env=sandbox(t,{night:{windows:[{start:'00:00',end:'24:00',wakes:2}]}})

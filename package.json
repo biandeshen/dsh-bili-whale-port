@@ -13,7 +13,7 @@
   "type": "module",
   "scripts": {
     "test": "node scripts/run-mjs-tests.mjs",
-    "gates": "node scripts/check-mjs-syntax.mjs && node scripts/run-mjs-tests.mjs --report docs/evidence/ && node scripts/run-mjs-tests.mjs --root ../Cortico-up --import tsx --report docs/evidence/ && node scripts/check-consumers.mjs && node scripts/check-hashes.mjs && node scripts/check-state-roots.mjs && node scripts/check-cortico-paths.mjs && node scripts/check-live-drift.mjs && node scripts/check-doc-hygiene.mjs",
+    "gates": "node scripts/check-mjs-syntax.mjs && node scripts/run-mjs-tests.mjs --report docs/evidence/ && node scripts/run-mjs-tests.mjs --root ../Cortico-up --import tsx --report docs/evidence/ && node scripts/check-consumers.mjs && node scripts/check-hashes.mjs && node scripts/check-state-roots.mjs && node scripts/check-cortico-paths.mjs && node scripts/check-script-paths.mjs && node scripts/check-live-drift.mjs && node scripts/check-doc-hygiene.mjs",
     "mjs-syntax": "node scripts/check-mjs-syntax.mjs",
     "drift": "node scripts/check-live-drift.mjs",
     "hashes": "node scripts/check-hashes.mjs",
@@ -37,38 +37,17 @@
     "wake:audit": "node scripts/wake-audit.mjs",
     "action:watch": "node scripts/action-watch.mjs"
   },
-  "main": "core/index.js",
-  "exports": {
-    ".": "./core/index.js",
-    "./client": "./core/client.js",
-    "./package.json": "./package.json"
-  },
   "files": [
-    "core",
-    "adapters",
-    "panel",
+    "packages",
     "docs",
     "scripts",
     "tools",
-    "cordis.patch.yml",
+    "vendor",
+    "assets",
     "README.md",
     "tests",
-    "AUDIT-FIXES.md",
-    "RISK-PROTECTION.md",
     "AI-SHARE-TRIAL.md",
-    "LOCAL-UPDATE.md",
-    "ISSUE27-FIX.md",
-    "LISTENER-FIX.md",
     "DM-HISTORY-FIX.md"
   ],
-  "dsh": {
-    "bundle": {
-      "patch": "./cordis.patch.yml"
-    },
-    "client": {
-      "inject": [],
-      "platform": "web"
-    }
-  },
   "license": "MIT"
 }

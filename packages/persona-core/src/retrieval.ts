@@ -57,7 +57,8 @@ export interface RecalledMemory {
   faded?: boolean
 }
 
-/** 召回四因子的权重（分数就是这四项加权相加，见 `recallMemories`）。 */
+/** 召回四因子的权重（分数就是这四项加权相加，见 `recallMemories`）。
+ *  这四个数是本仓自定的：无评测集、无调参记录，自地基提交未动过——别当成调好的或有外部依据的常量。 */
 export const RECALL_WEIGHTS = {
   keyword: 0.40,
   vivid: 0.30,

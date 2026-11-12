@@ -110,9 +110,9 @@ world/bot 包浏览器端注册表      packages/cortico-world-bilibili/src/webu
    复现（自己数一遍）：
    `for p in cap-bilibili cap-journal cap-media-studio cap-memory cap-state-rhythm cap-vision; do f=packages/$p/src/webui/client.ts; [ -f $f ] && echo "$p AB=$(grep -c 'actionButton(' $f) BTN=$(grep -c 'ui\.button(' $f) INPUT=$(grep -c 'ui\.input(' $f) SELECT=$(grep -c 'ui\.select(' $f) TA=$(grep -c 'ui\.textarea(' $f) CHK=$(grep -c 'ui\.checkbox(' $f) SL=$(grep -c 'sliderField(' $f)"; done`
    注意 `scripts/audit-controls.mjs` 报的是 10 面板 / 45 方法 / 27 writable：差值来自它对 `methods: panelMethods`（`packages/cap-vision/src/index.ts:471` 变量间接引用）与 journal `feedback-triage` 的解析盲区，**该脚本自己在 `:16-17`、`:264` 已声明正则口径不可全信**。
-2. **真浏览器测试实际 0 个**：`tests/dom/` 那 10 个跑的是自建 `FakeEl`（定义 `tests/helpers/panel-harness.mjs:14-99`，`isConnected` 是为脏守卫专门补的 `:77-85`）；
-   第 10 个 `tests/dom/tank-smoke.test.mjs` 用 `node:vm` 跑旧 `panel/views/tank.html` 内联脚本，不属 Cortico 面板体系。
-   复现：`grep -rn "playwright\|puppeteer\|chrome-devtools\|jsdom" package.json tests scripts | wc -l` → 0。
+2. **真浏览器测试实际 0 个**：`tests/dom/` 那 9 个跑的是自建 `FakeEl`（定义 `tests/helpers/panel-harness.mjs:14-99`，`isConnected` 是为脏守卫专门补的 `:77-85`）。
+   （2026-11-12 校准：原为 10 个，第 10 个 `tank-smoke` 用 `node:vm` 跑旧面板的 tank.html，随旧面板整棵树一起删除。）
+   复现：`grep -rn "playwright\|puppeteer\|chrome-devtools\|jsdom" package.json tests scripts | wc -l` → 0；`ls tests/dom | wc -l` → 9。
    弱断言现存样本（渲染对了也测不出内容错）：`tests/dom/memory-history-rollback.test.mjs:67`、`:155`、`:173` 只断 `!textContent.includes('undefined')`；
    `tests/dom/b13d-ui-fixes.test.mjs:172`、`tests/dom/her-day-panel.test.mjs:213`、`:231` 靠 placeholder 文案子串定位控件——**文案一改测试即瞎**。
    复现：`grep -rn "includes('undefined')" tests/dom | wc -l`。
@@ -137,7 +137,10 @@ world/bot 包浏览器端注册表      packages/cortico-world-bilibili/src/webu
    复现：`grep -rn "releaseAll\|releaseMany" packages/cap-bilibili/src | wc -l` → 0；逐条放行的入口在 `packages/cap-bilibili/src/webui/client.ts:336`。
 10. **`call()` 无 busy**：只有 `actionButton` 有重入闸门（`webui-helpers.ts:127`、`:131-143`），`call()`（`:72-88`）没有——
     面板里所有"非按钮触发"的调用（下拉即改、翻页）连点会并发打服务端。复现：`sed -n '72,88p' packages/cortico-adapter/src/webui-helpers.ts`（看函数体内无 running 标志）。
-11. **旧面板体系与 Cortico 契约并行**：`panel/server.js`（8447/8448 已退役但目录活着）与 `panel/views/tank.html` 仍在仓内，测试 `tests/dom/tank-smoke.test.mjs:8` 还在跑它——属契约外的渲染面，别把它当面板现状引用。复现：`grep -n "tank.html" tests/dom/tank-smoke.test.mjs`。
+11. ~~旧面板体系与 Cortico 契约并行~~ **已关闭（2026-11-12）**：旧独立面板（8447/8448 的 server.js 与 views/tank.html）
+    曾与 Cortico 面板契约并行存在于仓内，属契约外的渲染面。整棵 `panel/` 树连同它的冒烟测试已删除，
+    现在仓内只有能力包 `webui/client.ts` 这一套渲染面。删除清单见 [`legacy-refs-2026-11-12.md`](../evidence/legacy-refs-2026-11-12.md)。
+    复现：`git ls-files panel | wc -l` → 0；`grep -rn "tank.html" tests scripts packages | wc -l` → 0。
 12. **回滚只做过只读演练，没真起过那个人格**（2026-11-12，④ 的回滚计划配套）。
     已验证：703 文件 / 187 目录逐文件 sha256 与源全等；宿主 `--list` 只打印 `mybot`、`--json` 报 `bot=cormini` 且**无 `problem`**；线上部署根 `--list` 仍只有 `xiaoyu`（回滚容器没污染线上 listing）。
     **没验证**：真起进程、模型调用、B 站读写、`selfkit` 扩展补装、7799 与 pid 文件的交接。所以"回滚可用"目前只成立到"宿主装载得起来"这一层。

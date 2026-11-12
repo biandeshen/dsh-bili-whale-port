@@ -18,15 +18,16 @@ function walk(dir, out = []) {
 }
 
 test('npm test 覆盖磁盘上所有 *.test.mjs（手写清单或动态发现）', () => {
-  const files = [...walk(path.join(ROOT, 'tests')), ...walk(path.join(ROOT, 'adapters'))]
+  // adapters/ 那棵树 2026-11-12 随旧接入层退役，不再枚举（readdirSync 对不存在的目录会抛）。
+  const files = [...walk(path.join(ROOT, 'tests'))]
 
-  // 动态发现：runner 从磁盘重新枚举，天然覆盖全部；只需确认它存在且没把 tests/adapters 排除
+  // 动态发现：runner 从磁盘重新枚举，天然覆盖全部；只需确认它存在且没把 tests 排除
   if (/run-mjs-tests\.mjs/.test(script)) {
     const runner = path.join(ROOT, 'scripts', 'run-mjs-tests.mjs')
     assert.ok(fs.existsSync(runner), 'npm test 指向了不存在的 run-mjs-tests.mjs')
     const src = fs.readFileSync(runner, 'utf8')
     const skipLine = (src.match(/const SKIP = new Set\(\[([^\]]*)\]\)/) || [])[1] || ''
-    for (const dir of ['tests', 'adapters']) {
+    for (const dir of ['tests']) {
       assert.ok(!skipLine.includes(`'${dir}'`), `动态发现把 ${dir}/ 排除了`)
     }
     return

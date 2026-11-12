@@ -1,38 +1,18 @@
 import test from 'node:test'
-import { wakePrompt } from '../core/scheduler.js'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { resolveWorkDir } from '../core/work-dir.js'
 import { resolveRuntime, probeRuntime } from '../tools/lib/runtime.mjs'
 import { execFileSync } from '../tools/lib/capture.mjs'
 import { makePlan, completePlan, historyOf } from '../tools/lib/night-plan.mjs'
 import { newReplies } from '../tools/lib/feedback.mjs'
-import { mentionSummaryLines } from '../core/mention-summary.js'
 import { translateNamed } from '../tools/lib/cli-args.mjs'
 const temp = t => { const p=fs.mkdtempSync(path.join(os.tmpdir(),'whale-updates-'));t.after(()=>fs.rmSync(p,{recursive:true,force:true}));return p }
 test('issue 5: named positional arguments keep unrelated valued/boolean flags',()=>{
   assert.deepEqual(translateNamed('recon',['--bvid','BV1234567890','--ps','5','--json']),['BV1234567890','--ps','5','--json'])
   assert.deepEqual(translateNamed('search',['--page','2','--kw','猫','--json']),['猫','2','--json'])
   assert.deepEqual(translateNamed('recon',['BV1234567890','--ps','5']),['BV1234567890','--ps','5'])
-})
-test('issue 10: summary requires opt-in, owner mention and explicit request',()=>{
-  const cfg={owner:{mid:'222'},listen:{mentionSummary:true}}
-  const item={kind:'at',mid:'222',source:'请总结这个视频',uri:'https://www.bilibili.com/video/BV1234567890'}
-  assert.equal(mentionSummaryLines({},[item]).length,0)
-  assert.equal(mentionSummaryLines(cfg,[{...item,mid:'999'}]).length,0)
-  assert.equal(mentionSummaryLines(cfg,[{...item,kind:'reply'}]).length,0)
-  assert.equal(mentionSummaryLines(cfg,[{...item,source:'你好'}]).length,0)
-  assert.match(mentionSummaryLines(cfg,[item]).join('\n'),/notify/)
-})
-test('issue 11/PR 13: configurable existing directory, invalid values fall back', t=>{
-  const dir=temp(t), fallback=path.join(dir,'default'), file=path.join(dir,'file');fs.writeFileSync(file,'x')
-  assert.equal(resolveWorkDir(dir,fallback),fs.realpathSync(dir))
-  let warnings=0
-  for(const v of ['relative',file,path.join(dir,'absent'),42,{}])assert.equal(resolveWorkDir(v,fallback,()=>warnings++),fallback)
-  for(const v of ['',null,undefined])resolveWorkDir(v,fallback,()=>warnings++)
-  assert.equal(warnings,5)
 })
 test('PR 12: resolve real node from PATH and verify execution', t=>{
   const dir=temp(t)
@@ -86,30 +66,4 @@ test('issue 14: shrinking/reordered results and same-second replies are deduplic
   assert.equal(newReplies([b,a],fb,now).fresh.length,0)
   assert.equal(newReplies([{...a,id:'c'}],fb,now).fresh.length,1)
   assert.equal(newReplies([{...a,id:'old',time:new Date(now-7200000).toISOString()}],fb,now).fresh.length,0)
-})
-
-test('wake prompt follows night.maxVideos instead of a hard-coded 5',()=>{
-  const st={date:'2026-10-22',n:12}
-  for(const mv of [1,3,5]){
-    const lines=wakePrompt(st,'',mv).split(/\r?\n/)
-    const line=lines.find((l)=>l.includes('feed 选题'))
-    assert.ok(line, '提示里应该有 feed 选题 这一行')
-    assert.match(line,new RegExp('≤'+mv+' 条'),'maxVideos='+mv+' 时应显示 ≤'+mv+' 条，实际：'+line)
-  }
-  // 不传就按 5（向后兼容 ✓）
-  assert.match(wakePrompt(st,''),/≤5 条/)
-})
-
-test('wake prompt states the current share.via and only that route',()=>{
-  const st={date:'2026-10-22',n:12}
-  const viaComment=wakePrompt(st,'',5,'comment')
-  assert.match(viaComment,/share.via = comment/)
-  assert.match(viaComment,/走【评论区 @】/)
-  assert.match(viaComment,/不要走私信/)
-  const viaDm=wakePrompt(st,'',5,'dm')
-  assert.match(viaDm,/share.via = dm/)
-  assert.match(viaDm,/走【私信】/)
-  assert.match(viaDm,/不要在评论区 @ 他/)
-  assert.match(viaDm,/必须带 --share/)
-  assert.doesNotMatch(viaComment,/必须带 --share/)
 })

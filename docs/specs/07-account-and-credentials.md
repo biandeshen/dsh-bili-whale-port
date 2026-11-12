@@ -46,17 +46,21 @@
 
 面板（`connection`，`packages/cap-bilibili/src/index.ts:1319`）：体检（`get`，`:1324-1350`）、绑定（`bindCookie`，`:1351-1428`，服务端强制 `confirm:true` `:1364-1366`）、
 解绑（`unbindCookie`，`:1429-1450`，同样强制确认；空串即删键 `:1440` → `bili-read.ts:200-203`）、换号当场明示（`changedAccount`/`previous`，`index.ts:1408`、`:1423-1425`）。
-**只有 cookie 粘贴一条路**：全仓无扫码/QR 登录实现（`grep -rn "qrcode\|auth_code\|扫码" packages core` → 0）。
+**只有 cookie 粘贴一条路**：全仓无扫码/QR 登录实现（`grep -rn "qrcode\|auth_code\|扫码" packages tools` → 0；旧 `core/` 树 2026-11-12 已删，不再进扫描范围）。
 **只能改文件**：`credentialsFile` 路径本身、`ownerMid`（换主人，需重启）、`worlds.bili-account.listen.*` 之外的 identity 键、
 `worlds.qq.token/wsUrl/groups/privates`（本仓无 QQ 能力包，宿主实现未找到）、宿主模型 key（在 `<部署家>/providers/<name>/.env`，与她的 B 站 cookie 物理分离）。
 
 ## ⑤ 已知缺陷与验证方式
 
-1. **同一件事两套口径并存**：新面板先验后写（`packages/cap-bilibili/src/index.ts:1380-1401`），
-   旧 HTTP 面 `core/api/routes.js:123-128` **先写后验**（`:145` 的返回值自己承认"已写入，但 B 站不认这个 cookie"）。
-   旧面还在仓里、还能被本机免口令端口打到。复现：`sed -n '123,128p' core/api/routes.js`。
+1. ~~同一件事两套口径并存~~ **已关闭（2026-11-12）**：旧 HTTP 面（`core/api` 的 routes.js）曾**先写后验**
+   （123-128 行直接落盘，145 行的返回值自己承认"已写入，但 B 站不认这个 cookie"），与新面板的先验后写
+   （`packages/cap-bilibili/src/index.ts:1380-1401`）并存，且还能被本机免口令端口打到。旧面板整棵树已删除，
+   现在只剩先验后写这一条口径。原文留档：`git show 7bf9198:core/api/routes.js`；删除清单见
+   [`legacy-refs-2026-11-12.md`](../evidence/legacy-refs-2026-11-12.md)。
+   复现（确认第二套已不存在）：`git ls-files core | wc -l` → 0；`grep -rn "saveCredentials" packages tools` → 只有 `packages/cap-bilibili` 那 4 处。
 2. **新旧两家凭据文件分裂**：新 `<部署家>/xiaoyu/.env`（`packages/cortico-world-bilibili/src/index.ts:132`）vs 旧 `~/.bili-ai/credentials.json`
-   （`tools/lib/credentials/bilibili.mjs:3-4`）；`scripts/preflight.mjs:43-46` 仍读旧家并据此报"B 站凭据缺失"。
+   （`tools/lib/credentials/bilibili.mjs:3-4`）；`scripts/preflight.mjs:44-47` 仍读旧家并据此报"B 站凭据缺失（旧家）"
+   （2026-11-12 校准：措辞已标明这是旧家兜底口径、线上真正读 `<部署家>/xiaoyu/.env`，但**读的仍是旧家**，分裂本身没修）。
    复现：`grep -n "credentialsPath" scripts/preflight.mjs tools/lib/credentials/bilibili.mjs` ＋ 离线落点账 `node scripts/audit-state-locations.mjs`。
 3. **`.env.pre-bind-*` 是明文滚动备份**：每次换 cookie 都留一份含旧凭据全值的文件（`bili-read.ts:216-217`），
    它们**不在 git**（`.gitignore:28` 的 `.env.*` 命中，实测 `git check-ignore -v .env.pre-bind-1` 有输出），但**在盘上无人清理**。

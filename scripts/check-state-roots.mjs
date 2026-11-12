@@ -28,7 +28,7 @@ const notes = []
 const declared = new Set(kinds())
 
 // 1. 表覆盖：扫调用点里写死的 <name>.json，确认都在表里。
-const SRC = ['tools', 'core', 'panel', 'scripts']
+const SRC = ['tools', 'scripts']   // core/、panel/ 2026-11-12 随旧接入层删除，不再扫（覆盖面因此缩小，见下面口径行）
 const declaredFiles = new Set()
 for (const kind of declared) {
   try {
@@ -159,7 +159,7 @@ if (json) {
   console.log(`  新家：${fresh}`)
   console.log(`  旧家：${legacy}`)
   console.log(`  表里声明 ${result.declared.length} 类；旧 CLI 调用点抓到 ${used.size} 类`)
-  console.log(`  ⚠ 口径：只扫 tools/core/panel/scripts 四个目录，正则只认 stateReadPath/writeStateText 两种写法；`)
+  console.log(`  ⚠ 口径：只扫 tools/scripts 两个目录（core/、panel/ 已于 2026-11-12 删除），正则只认 stateReadPath/writeStateText 两种写法；`)
   console.log(`    packages/（能力包，她真正在跑的那一侧）**不经过这张表**，所以"12"不等于"只有 12 类有人用"。`)
   console.log(`    要说"她实际在写哪份文件"，跑 scripts/audit-state-locations.mjs——那条盘上实况为准。`)
   for (const n of notes) console.log(`  · ${n}`)

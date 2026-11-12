@@ -15,7 +15,8 @@
 每拍进上下文的只有两小块：**core 常驻**（按"新→旧"排序后 `slice(0, residentCap)`，
 `packages/cap-memory/src/index.ts:175`）与**本轮关联记忆**（`onMessageDelivery` 召回 3 条主槽 + 1 条意外槽，
 `index.ts:198-217`）。检索是纯函数四因子加权（`packages/persona-core/src/retrieval.ts:182-183`）：
-关键词 0.40、鲜活 0.30、情绪 0.15、新鲜 0.15；意外槽只从"≥7 天、从没被想起过、非 flashbulb"里挑
+关键词 0.40、鲜活 0.30、情绪 0.15、新鲜 0.15（**这四个数是本仓自定的，无外部依据**：没有评测集、没有调参记录，
+不是从某个论文或平台指标抄来的，见 ⑤ 第 3 条）；意外槽只从"≥7 天、从没被想起过、非 flashbulb"里挑
 （`retrieval.ts:196-200`）。归档只在**睡着且当日未结算**时发生一次（`packages/cap-state-rhythm/src/dream-tick.ts:115-120`
 → `card-store.ts:390-410`），回滚走 git annotated tag + `reset --hard`（`packages/cap-memory/src/workspace-git.ts:396-419`）。
 
@@ -26,7 +27,7 @@
 | `residentCap` | `packages/cap-memory/src/index.ts:65`（默认 8）；执行 `:175` 截断、`:536-542` 新建拒、`:571-581` 置顶拒 | `memory.residentCap`（`packages/cortico-bot-xiaoyu/src/memory-config.ts:23`；部署 `config.json` 实值 8） | 宿主「配置」页（`memory-config.ts:51-62`） |
 | `activeCap` | `index.ts:66` + 钳位 `:86`，**无执行语义**（见 ⑤ 第 1 条） | `memory.activeCap`（实值 40） | 配置页有滑块（`memory-config.ts:63-72`） |
 | `archiveThreshold` | `index.ts:67` → `cortico-persona.ts:410` → `dream-tick.ts:120` → `card-store.ts:390-396` | `memory.archiveThreshold`（实值 0.35） | 配置页 |
-| `keyword` / `vivid` / `mood` / `recency` | `packages/persona-core/src/retrieval.ts:61-66`（`RECALL_WEIGHTS`），求和 `:182-183` | 无键 | 无控件，只随召回解释回显（`packages/cap-memory/src/index.ts:369` → `webui/client.ts:325-326`） |
+| `keyword` / `vivid` / `mood` / `recency` | `packages/persona-core/src/retrieval.ts:61-66`（`RECALL_WEIGHTS`），求和 `:182-183`。**数值无外部依据、本仓自定**（2026-11-12 主人拍板要求标明；自地基提交未调过，无评测集） | 无键 | 无控件，只随召回解释回显（`packages/cap-memory/src/index.ts:369` → `webui/client.ts:325-326`） |
 | `k` / `surprises` | `retrieval.ts:140-141` 钳位（k≤8、surprises≤4）；调用点写死 3/1（`packages/cap-memory/src/index.ts:204-205`）与 `args.k ?? 5`（`:274`） | 无键 | 无 |
 | `accessCount` | 想起即 +1（`card-store.ts:374-381`）；意外槽判据用它（`retrieval.ts:197`） | 无键 | 随审阅台显示（`packages/cap-memory/src/index.ts:420-421`） |
 | `pinned` | 进 core 即置真（`card-store.ts:228`），衰减免疫（`packages/persona-core/src/memory.ts:28`），settle 跳过（`card-store.ts:396`） | 无键 | 面板「置顶/移入 core」 |
@@ -59,8 +60,16 @@
    工具路径 `:236-255` 直调 `store.create`/`rememberFirst`，而 `rememberFirst` 首次命中即 `tier:'core'`（`card-store.ts:240-252`）——所以 core 实测 21 > 8。
    复现：同第 1 条（core 那行），并对照 `grep -n residentCap packages/cap-memory/src/index.ts` 的三个执行点没有一处落在工具上；
    测试 `packages/cap-memory/tests/core-cap.test.mjs:89` 走的是**面板** `create`，不是工具，别把它当成已覆盖。
-3. **四因子权重无依据**：0.40/0.30/0.15/0.15 自地基提交未调过，文档里唯一的出处是**仓外**的 AMpath `computeWarmScore`。
-   复现：`node --input-type=module -e "const m=await import('./packages/persona-core/src/retrieval.ts');console.log(JSON.stringify(m.RECALL_WEIGHTS))"`（在仓根跑）；仓内无 AMpath（`grep -rn AMpath packages | wc -l` → 0）。
+3. **四因子权重无外部依据、本仓自定**（2026-11-12 主人拍板要求在 ① 与 ② 都标明）：0.40/0.30/0.15/0.15 自地基提交 `8d7fc8e` 未调过，
+   无评测集、无调参记录。名义出处是 [`attic/2026-10/BLUEPRINT.md:156`](../attic/2026-10/BLUEPRINT.md)「搬 AMpath `computeWarmScore` 四项权重」，
+   但同一行写着 AMpath 的 `retrieval.ts` **未搬**（原样搬需 SQLite+FTS5），本仓 `retrieval.ts` 是自写的——
+   所以这四个数**不是**从某个可核对的上游实现抄来的，也没有任何实验支撑，就是本仓定的。
+   复现：`node --input-type=module -e "const m=await import('./packages/persona-core/src/retrieval.ts');console.log(JSON.stringify(m.RECALL_WEIGHTS))"`（在仓根跑）；
+   `grep -rn computeWarmScore . --include=*.md` → 只命中 BLUEPRINT 那行与本条。
+   **口径纠正（2026-11-13）**：本条原写「仓内无 AMpath（`grep -rn AMpath packages | wc -l` → 0）」——那个 0 只证明
+   *字符串* AMpath 没出现在 packages 里，**不证明仓内没有 AMpath 代码**：`packages/persona-core/` 就是 AMpath 移植，
+   `types`/`effect-bus`/`causal-chain`/`memory`/`npc-state-machine` 五份原样搬或抽符号（见 [`CREDITS.md`](../CREDITS.md)、`NOTICE.md`），
+   对外发布前必须重写或取得授权。`retrieval.ts` 不在那五份里，这才是"权重与 AMpath 实现无关"的正确判据。
 4. **60% 的分数与查询无关**：`vivid+mood+recency` 三项共 0.60 只看卡片自身（`retrieval.ts:172-175`），
    无关但新鲜的事能顶掉相关的；且 `kw = hit/maxIdf`（`:176-181`）单点罕见词即饱和。
    复现：`node --test packages/persona-core/tests/retrieval.test.mjs`（11 项全用 2–3 条合成卡验算术，任改一权重立刻红）。

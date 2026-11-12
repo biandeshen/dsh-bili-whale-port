@@ -23,6 +23,9 @@ const FILES = [
   'scripts/run-mjs-tests.mjs',
   'scripts/check-consumers.mjs',
   'scripts/check-cortico-paths.mjs',
+  // 退役批的路径门也冻起来：2026-11-12 删掉四棵旧接入树之后，它是唯一拦"脚本又指回已消失文件"的判据。
+  // 悄悄给它加一条豁免、或把某条规则改成只警告，等于把整批退役作废，而门禁自己看不出来。
+  'scripts/check-script-paths.mjs',
   // 「宿主在哪」的唯一答案也冻起来：它是七个脚本与那条门禁共同指的判据，
   // 悄悄给它加回一个硬默认，等于把整批修复一次性作废，而门禁自己看不出来。
   'scripts/lib/host-root.mjs',

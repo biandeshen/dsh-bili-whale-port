@@ -7,6 +7,10 @@
  * `check-state-roots.mjs` 那行「表里声明 24 类；调用点用了 12 类」看着像结论，
  * 其实是**门禁自己不会说话**——它只扫 `tools/core/panel/scripts` 四个旧目录，
  * 用的正则只认 `stateReadPath('x.json')` 这一种写法；
+ *
+ * 2026-11-12 起 `core/`、`panel/`、`adapters/` 已随旧接入层整棵删除，本脚本的扫描面
+ * 因此**缩了**（CLI 侧只剩 `tools/scripts`，包侧只剩 `packages`）。`walk()` 遇到不存在的
+ * 目录是静默返回空的，不缩名单就等于让"调用点数"悄悄变小、还看着像"她不用这类了"。
  * 她真正在跑的 `packages/` 那侧**根本不在扫描范围内**，
  * 所以"12 类"不是"只有 12 类有人在用"，是"旧 CLI 里能被我正则抓到的有 12 类"。
  * 拿这种数当结论说过一次就已经够错了，所以这里改成摆事实：
@@ -44,6 +48,9 @@ function walk(dir, accept, out = []) {
   return out
 }
 
+/** 扫描面本身也是读数的一部分：名单变了而输出不说，调用点数就会悄悄变小。 */
+const SCAN_DIRS = { cli: ['tools', 'scripts'], pkg: ['packages'] }
+
 /** 数调用点：分开数"旧 CLI 那侧"与"能力包那侧"，混在一起就没法说清谁还活着。 */
 function callSites(kind) {
   const fileRe = new RegExp(`['"\`]${kind.replace(/[-]/g, '\\-')}\\.`, 'g')
@@ -60,8 +67,8 @@ function callSites(kind) {
     return { n, files }
   }
   return {
-    cli: hit(['tools', 'core', 'panel', 'scripts']),
-    pkg: hit(['packages', 'adapters']),
+    cli: hit(SCAN_DIRS.cli),
+    pkg: hit(SCAN_DIRS.pkg),
   }
 }
 
@@ -142,7 +149,7 @@ const offTable = rows.filter((r) => r.offTable)
 const clash = rows.filter((r) => r.table !== '—' && r.live !== '—')
 
 if (asJson) {
-  console.log(JSON.stringify({ whaleNew, whaleOld, deployData, liveRoots: liveRoots.map(([, l]) => l), rows }, null, 2))
+  console.log(JSON.stringify({ whaleNew, whaleOld, deployData, scanDirs: SCAN_DIRS, liveRoots: liveRoots.map(([, l]) => l), rows }, null, 2))
 } else {
   console.log(`# 状态文件落点账（只读）`)
   console.log(`  表管的两家：${whaleOld}（旧）/ ${whaleNew}（新）`)
@@ -176,4 +183,6 @@ if (asJson) {
   }
   console.log(`\n口径说明：调用点是正则抓 resolve('kind') 与文件名两种写法数的，`)
   console.log(`  **只能用来分类，不能当"有没有人用"的结论**——真结论看 mtime：她那天有没有真的写过这份文件。`)
+  console.log(`  扫描面：旧 CLI = ${SCAN_DIRS.cli.join('/')}，能力包 = ${SCAN_DIRS.pkg.join('/')}；`)
+  console.log(`  core/panel/adapters 已于 2026-11-12 删除，**不在扫描面内**（调用点数比 11-12 之前小是名单缩了，不是她不用了）。`)
 }

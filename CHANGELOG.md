@@ -1,19 +1,142 @@
 # CHANGELOG
 
-> 版本线规矩（何时打 tag / 谁打 / 不 push）见 [`docs/INDEX.md`](docs/INDEX.md) §4。上游 `v0.4.6`（tag 在，2026-10-24）之上的移植工作走 `port-0.x.y`。
+> **版本线规矩**（原写「见 `docs/INDEX.md` §4」，**那一节已随文档改制删掉**：`1f90099` 之后 INDEX 只剩三节，
+> 2026-11-13 实测 `grep -n '^## ' docs/INDEX.md` → 1/2/3。原文可取回：`git show 1f90099^:docs/INDEX.md` §4。
+> 规矩搬到本文头部，五条照抄不改口径）：
+>
+> 1. **版本线只有一条**：上游 `v0.4.6`（2026-10-24，tag 在）之上的移植工作用 `port-0.x.y`，与 `package.json` 的 `version` 一起走。历史 `v0.1.x–v0.4.6` 是上游轻量 tag，不动、不重打。已知不一致：`port-0.5.1` 打了 tag 但没 bump（停在 `0.5.0`），`0.5.2` 起重新对齐，旧 tag 不重打。
+> 2. **什么时候打 tag**：一个能被 `node scripts/run-mjs-tests.mjs` 全绿复现的**里程碑收口**时，不是每个提交、也不是每条 dev 分支。tag 前必须复跑并把真实数字写进本文。
+> 3. **谁打**：改动的那一席在本地打**附注 tag**（`git tag -a`），message 写"这一版包含"+ 可验证物（commit 号、文件、命令）。
+> 4. **不 push**：tag 与提交默认只留本地；`private`（`biandeshen/dsh-bili-whale-port`）只在主人明说"推"时推，`upstream`（`Alterssss/dsh-bili-whale`）是公开仓**不推**——AMpath 借用件与 CC BY-NC-SA 素材未清干净，见 [`docs/CREDITS.md`](docs/CREDITS.md)。
+> 5. **本文写法**：里程碑级条目，每条带日期与可验证物；不逐提交流水，不抄 INDEX §3 的数字。
 
-## port-0.5.2（2026-11-02）—— live 换到 reanchor 线，并补上"看得见的证据"三处
+## 未发版（2026-11-12 → 11-13）—— 旧接入层四棵树退役，79 个文件真删
+
+**版本号没 bump、tag 没打**：按本文头部第 2 条，tag 只在里程碑收口时打，而这一批的验收还差一条
+（真浏览器 11 个页签，见下「没验的那条」），主人也没说发版。所以这条条目先记事实，不占版本号。
+
+### 删了什么（`git rm`，不是"端口退役、目录留着"）
+
+四棵旧接入树整棵删除，共 **79 个文件**（`git diff --cached --name-only --diff-filter=D | wc -l` → 79）：
+
+| 树 | 文件数 | 是什么 |
+|---|---|---|
+| `core/` | 10 | 旧 DSH 插件内核：`index.js`、`client.js`、`api/routes.js`、`api/support.js`、`scheduler.js`、`session-delivery.js`、`mention-summary.js`、`node-runtime.js`、`work-dir.js`、`ports/temporal.mjs` |
+| `panel/` | 23 | 独立面板（8447/8448）：`server.js`、`auth.js`、`data.js`、`causal.mjs`、`drafts.mjs`、`feedback.mjs`、`views/tank.html` + `assets/whale-girl/` 16 张 png 与 manifest |
+| `adapters/opencode/` | 6 | OpenCode daemon / MCP stdio 接入线 |
+| `vendor/dsh-autocut/` | 18 | 旧自动剪辑 vendored 件（`vendor/dsh-video-studio/` **留下**，它是 T1） |
+| 仓根 + `scripts/` | 8 | `start.cmd`、`open-panel.cmd`、`setup.cmd`、`cordis.patch.yml`；`scripts/{launch-panel,open-panel,setup}.mjs`、`scripts/evaluate.sh` |
+| `tests/` | 14 | 7 份只测旧树的契约/集成/DOM + 7 份只被它们用的 helper |
+
+**逐文件四层引用表**（施工依据，不是事后补的说明）：[`docs/evidence/legacy-refs-2026-11-12.md`](docs/evidence/legacy-refs-2026-11-12.md)
+（+ 同名 `.json`）。候选 168 文件、引用方文本 682 份，分层 T1=6 / T2a=5 / T2b=127 / T3=4 / T4=13 / T0=13。
+**删除集里的 57 个树内文件零 T1、零 T2a**——注释里提一句不算引用，`path.join` 片段按整组解析，
+文档与测试不当根、不当桥。
+
+### `tools/` 一个文件都没删（三条硬判据，不是"保守起见"）
+
+1. **有活脚本真的 import 它，不是"存在性探针"而已**：
+   - `scripts/dynamic-approve.mjs:15` → `import { postImageDynamic } from '../tools/drafts/publishers/bilibili-dynamic.mjs'`（动态审批放行 CLI，`:68` 用它当默认 publisher）。
+   - `scripts/preflight.mjs:49-50` → `add(fs.existsSync(tools/bili.mjs) ? 'ok' : 'fail', '工具链入口', …)`，缺了就红。
+   - `scripts/counterfactual.mjs:11`（**在哈希冻结名单里**）→ `draft-dynamic.mjs` → `tools/lib/pick-image.mjs`；`scripts/nightly-scheduler.mjs:18` 也 spawn 它。
+
+   这三个脚本都**不在 `npm run gates` 链里**，所以引用表把它们当死脚本、把 `tools/bili.mjs` 归进 T2b——
+   **这是表的口径漏洞**：它的"活脚本"根集只取 npm 可达，漏了没接进 npm 的运维入口，于是 T2b 偏宽。
+   删除集本身不受影响——新路径门禁扫的是**全部 422 个脚本**，不分层。
+   补测（2026-11-13，静态 import + 派发表字符串 + 动态 `import()` 三类边）：
+   从 `tools/bili.mjs` 传递可达 **31/42** 个 `tools/lib` 文件；再并上 ops 脚本可达的 `kill`/`offline-gap`/`state-roots`
+   与 `draft-dynamic.mjs` 可达的 `pick-image`，**35/42**（顶层 39 个里 35 个）。
+   审阅方给的「33/39 是活的」与此同向，差在口径（分母含不含 `credentials/` 三件、算不算 ops 脚本），
+   结论一致：**整棵删不动**。判据与原始输出落盘在
+   [`docs/evidence/tools-retention-2026-11-13.md`](docs/evidence/tools-retention-2026-11-13.md)。
+2. **能力包侧还有两处功能缺口，删了 tools 就等于把这两条能力一起删掉**：
+   - **带图动态发不出去**：`bili_dynamic` 工具收 `imagePath`（`packages/cap-bilibili/src/index.ts:864/870/876`）并交给闸门，
+     但默认执行器 `:330-333` 调 `executeBiliWrite(kind, { target, body })` 时**把 imagePath 丢了**；
+     再往下 `client/bili-write.ts:343-346` 与 `client/bili-write-extra.ts:42-45` 的入参类型里**根本没有图片字段**
+     （`grep -n "image\|pictures" client/bili-write.ts` → 0）。真能发图文动态的只有
+     `tools/drafts/publishers/bilibili-dynamic.mjs` 的 `postImageDynamic`。
+   - **批量放行只有一个入口**：cap-bilibili 里没有 `releaseAll`（`grep -rn "releaseAll\|'--all'" packages/cap-bilibili/src` → 0），
+     `tools/commands/reply-draft.mjs:120-123` 的 `release --all` 是唯一的批量放行路径。
+3. **没有活代码引用的只有 7 个**：`go-rebuild`、`poll-policy`（原来只被已删的 `core/api/routes.js`、`core/scheduler.js` 引，
+   本批之后变成孤儿）、`proc`（T0，谁都不引）、`state-lock` 与 `credentials/` 三件（T3，只有测试引）。
+   **它们留在原地**，等 tools 收编那批一起处理，不单独摘——T3 不等于可删，测试还在跑它们。
+
+### 新门禁：脚本不许指向已消失的文件
+
+`scripts/check-script-paths.mjs`（五条规则：R1 import / R2 仓内路径 / R3 片段拼出 / R4 启动器 / R5 用法注释裸路径），
+接进 `npm run gates`，并**冻进哈希名单**（`check-hashes.mjs` 16 份，本批 `--write --note` 重冻 rewritten=2）。
+故意违规的红输出与故意合法的绿输出都在
+[`docs/evidence/script-paths-red-demo-2026-11-13.md`](docs/evidence/script-paths-red-demo-2026-11-13.md)：
+夹具放在**仓外**临时目录（`--root` 指过去），红 5 条（R1×1 / R3×3 / R4×1）EXIT=1，
+真仓绿 422 个脚本文件、30 条未核**逐条给理由**（散文提及 6 / 模板字符串 2 / 夹具键名 21 / 断言期望值 1），不留静默白名单。
+配套 `tests/script-paths.test.mjs` 11 条。
+
+### 连带改的（都是"不改就说谎"那一类）
+
+- **`package.json`**：删 `main`/`exports`（指向 `core/index.js`、`core/client.js`）与整个 `dsh` 段（DSH 插件 bundle 声明）；
+  `files` 去掉 core/adapters/panel/cordis.patch.yml 与四份早已不存在的 md，补上 packages/vendor/assets。
+  `description`/`keywords` 仍写着 DSH 插件——**那是宣称降级那批的活，本批不动**。
+- **三份运维文档原样搬 attic**：`DEPLOY.md`、`RUNBOOK.md`、`TERMUX.md` → [`docs/attic/2026-11/`](docs/attic/2026-11/)，
+  它们写的正是被删掉的那四条接入线。INDEX 根目录表同步，起停只看 `CORTICO-RUNBOOK.md` 与 `specs/10`。
+- **`scripts/preflight.mjs` 重写探针**：panel.token / `PANEL_PORT||8447` / OpenCode 三项换成
+  `hostRoot()` + `deployment.json` + 固定 7799；凭据缺失的文案改成「旧家兜底口径，线上真正读 `<部署家>/xiaoyu/.env`」。
+  顺手修一个假读数：风控 `until` 是**熔断到期时刻**，过期后 guard 自己就放行（`traffic.mjs:69` 比的是 `until > now`），
+  以前不比较就把三天前的旧熔断报成「熔断中」。现在实测 EXIT=0：未熔断 · 账号桶 3 个 · 宿主 `Cortico-up` · 端口 7799 可用。
+- **两处扫描面缩小，写明而不是静默**：`check-state-roots.mjs` 与 `audit-state-locations.mjs` 的目录名单去掉
+  core/panel/adapters（`walk()` 遇到不存在的目录是静默返回空的，不缩名单就等于让调用点数悄悄变小）。
+  后者的 JSON 现在带 `scanDirs`，人读输出多两行口径。
+- **署名义务没跟着删**：`core/ports/temporal.mjs` 是 AMpath 纯函数借用件，删了；但
+  `packages/persona-core/` 仍是 AMpath 移植（`types`/`effect-bus`/`causal-chain`/`memory`/`npc-state-machine` 五份原样搬或抽符号，
+  2026-11-12 实测五份都在），**私有仓、无 LICENSE，对外发布前必须重写或取得授权**这条义务照旧。
+  CREDITS / NOTICE / CURRENT 三处都改成这个口径，并记下一个真实缺口：逐文件「来源与取舍」对照表只在宿主侧
+  `Cortico-up/persona-core/README.md:5-44`，本仓 `packages/persona-core/README.md` 只有模块职责表。
+  whale-girl 16 张素材随面板退役，CC BY-NC-SA 4.0 / ZipZipPipe / 上善无形 的署名义务在 CREDITS 与 NOTICE 里保留原文。
+- **specs 关掉两条**：`07-account-and-credentials.md` ⑤1（旧面板明文存凭据）与 `10-control-surface.md` ⑤11（tank.html）
+  划掉并标 **已关闭（2026-11-12）**，各带复现命令；⑤2 的 FakeEl 计数 10→9，preflight 行号锚点 `:43-46`→`:44-47`。
+- **两笔旧账按主人拍板标明**：
+  ① 召回四因子 `0.40/0.30/0.15/0.15` 在 `specs/02` 的 ①、②、⑤3 三处都标成**数值无外部依据、本仓自定**
+  （名义出处 `attic/2026-10/BLUEPRINT.md:156`「搬 AMpath `computeWarmScore`」，但同一行写着 AMpath 的 `retrieval.ts` **未搬**，
+  本仓那份是自写的）；`packages/persona-core/src/retrieval.ts:60` 的常量注释同步加一句，别让它看着像调好的。
+  顺手纠一个假判据：⑤3 原写「仓内无 AMpath（`grep -rn AMpath packages` → 0）」——那个 0 只证明*字符串*没出现，
+  **不证明仓内没有 AMpath 代码**（persona-core 五份就是移植件）。
+  ② `attic/2026-10/ARCHITECTURE.md` §12.1/§12.3 引的 `emotion-projection.ts`、`life-generator.ts` 带的是
+  **上游 AMpath 的 `shared`/`server` 目录前缀**，本仓与宿主都没有那两棵（实测）；落地实现是
+  `packages/persona-core/src/emotion-projection.ts` 与 `packages/persona-core/src/life-activities.ts`（改了名）。
+  **attic 原文一个字不改**，映射写在 `docs/INDEX.md` 的 attic 段当读法口径。
+- **本文自身三处死引用补正**：头部 `docs/INDEX.md §4`（该节已随 `1f90099` 删除，规矩五条搬进本文头部）、
+  `DECOUPLING-STATUS-2026-11-02.md` 链接改指 attic、上游 0.4.5 那条的 `RISK-PROTECTION.md`
+  （上游 `0cc36fb` 就删了，本仓从未包含，改成 `git show 0cc36fb^:RISK-PROTECTION.md` 取回口径）。
+
+### 门禁（2026-11-13 逐条实跑，退出码即判据）
+
+`check-mjs-syntax` 0（322 个 .mjs）· `run-mjs-tests` 0（**149/149 文件，858 pass / 0 fail / 0 skip / 0 todo / 0 cancelled**）·
+宿主 `--root ../Cortico-up --import tsx` 0（28/28，229 pass）· `check-consumers` 0 · `check-hashes` 0（16 份一致）·
+`check-cortico-paths` 0 · `check-script-paths` 0 · `check-live-drift` 0 · `check-doc-hygiene` 0（活文档 17 / specs 10/10 / docs 根 7）·
+**`check-state-roots` 1**——`dm-await-state`、`dm-quota`、`pending-replies` 三类新旧两家读数分家，
+**本批之前就红**，属状态落点收口（任务 #58），不是删除造成的。
+
+测试数 892→858 的**逐文件对账**（不是净差猜测）：整份退役 8 份 −21、就地瘦身 7 份 −24、新增 1 份 +11，
+892 − 21 − 24 + 11 = 858。瘦身删掉的都是指向已删模块的那几条，留下的 149 个文件全部执行。
+对账表与一个口径缺陷（报告 `gitSha` 记跑时 HEAD、不记工作区脏，删前那份 `07fa6b6` 不等于它实际跑的代码）
+都在上面那份 evidence 里，登记为任务 #63。
+
+### 没验的那条（别把这条条目读成"全验收通过"）
+
+**真浏览器 11 个页签可用：未验证。** `node scripts/preflight.mjs` 实测报「端口 7799 可用」，
+即线上宿主此刻**没在跑**；本批约束是不重启线上生活循环，所以没有起宿主去点那 11 个页签。
+`tests/dom/` 那 9 份是 FakeEl，**不算真浏览器**。要补这一条，得主人拍板：要么允许起线上，
+要么按任务 #5 的先例开一个备用端口的隔离验证实例。
 
 主人的口径是"别再推延期，交付功能"。这一版把 11-01 那份 §8 瘦身做完、把 live 切过去，
 并顺手补了三个"数字看着对、其实没人核过"的洞。**版本线本身也有一处不一致，一并说明**：
 `port-0.5.1` 的附注 tag 已在（`git tag`），但当时 `package.json` 没跟着 bump，一直停在 `0.5.0`；
-本版把 `package.json` 抬到 `0.5.2`，此后 tag 与版本号一起走（`docs/INDEX.md` §4 同步改了"现值"）。
+本版把 `package.json` 抬到 `0.5.2`，此后 tag 与版本号一起走（当时同步改了 `docs/INDEX.md` §4 的"现值"；**那一节已于 `1f90099` 删除**，规矩现在写在本文头部）。
 
 ### 换线（live 现在是哪份代码）
 
 - **7799 改跑 `Cortico-up`（`reanchor/replay` + 8 个 replay 提交）**，代码树与部署树分开：
   代码在 `Cortico-up`，她的 memory/session/config 仍在 `Cortico/deployments`。切换清单见
-  [`docs/DECOUPLING-STATUS-2026-11-02.md`](docs/DECOUPLING-STATUS-2026-11-02.md)「切 live」一节。
+  [`docs/attic/2026-11/DECOUPLING-STATUS-2026-11-02.md`](docs/attic/2026-11/DECOUPLING-STATUS-2026-11-02.md)「切 live」一节（2026-11-07 `1f90099` 文档改制时原样搬进 attic，链接此处补正）。
 - **两处当场暴露**：① `Cortico-up` 的 `dist/web` 从来没构建过，直接切是白屏——构建那一步进清单；
   ② 世界页「待放行」比面板少 1，漏的是 `control/dm-drafts.json` 那本队列（`119a068` 修 + 测试）。
 - **`start-cortico.mjs` 补齐这个拓扑**（`303f523`）：以前默认代码树还是 master，
@@ -245,7 +368,7 @@ README 新增「账号前提」一节：这个插件是**两个号**的模型，
 ---
 ## 0.4.5 请求保护修订（2026-10-23）
 
-新增跨进程请求间隔、会话预算、平台反馈暂停、写入防重复与人工核查入口；私信、评论、弹幕轮询增加空闲退避。83 项测试通过。详见 [RISK-PROTECTION.md](RISK-PROTECTION.md)。
+新增跨进程请求间隔、会话预算、平台反馈暂停、写入防重复与人工核查入口；私信、评论、弹幕轮询增加空闲退避。83 项测试通过。详见 `RISK-PROTECTION.md`——**该文件已于上游 `0cc36fb`（2026-10-24）删除，本仓不含**，原文取回：`git show 0cc36fb^:RISK-PROTECTION.md`（2026-11-13 实测可读出）。
 
 ## v0.4.5（2026-10-22）
 

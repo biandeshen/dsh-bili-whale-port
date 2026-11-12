@@ -1,5 +1,5 @@
 /**
- * 存量真实数据无损接管脚本（见 docs/ARCHITECTURE-TARGET-2026-11-03.md §9.2）。
+ * 存量真实数据无损接管脚本（见 docs/attic/2026-11/ARCHITECTURE-TARGET-2026-11-03.md §9.2）。
  *
  * 默认只读预演（--dry）：打印每项存量数据（fields.json 的 6 场值 + memories + chain、
  * 两本日记、judgment.jsonl、feedback.jsonl、causal.jsonl）的迁出计划与条数，不改任何文件。

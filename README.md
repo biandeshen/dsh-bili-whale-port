@@ -10,9 +10,9 @@
 > **本分支是移植版（port/core-opencode-panel）**：DSH 不再是唯一宿主。
 > **文档从 [docs/INDEX.md](docs/INDEX.md) 进**：十份功能详设在 [docs/specs/](docs/specs/)，一份一个功能，只写"现在是怎么设计的"
 > 台账（不是现状）[docs/CURRENT.md](docs/CURRENT.md) · 过程案卷 [docs/attic/](docs/attic/)（只用于考古，不许作为施工依据）
-> · OpenCode 接入 [adapters/opencode/README.md](adapters/opencode/README.md) · 一键安装 [setup.cmd](setup.cmd) · 真机操作手册 [docs/RUNBOOK.md](docs/RUNBOOK.md) · 手机部署 [docs/TERMUX.md](docs/TERMUX.md)
-> · 日常界面：Cortico WebUI 的「小鱼 · 鱼缸」世界页 `http://127.0.0.1:7799/#/provider/world%3Abili-account`；独立面板 `panel/server.js` 的 8447/8448 **端口已退役**（目录留作 CLI 与数据模块来源，调试仍可起）
-> · 素材与许可 [docs/CREDITS.md](docs/CREDITS.md)（鲸鱼娘图形 CC BY-NC-SA 4.0，仅个人非商用）
+> · 起停与部署 [docs/CORTICO-RUNBOOK.md](docs/CORTICO-RUNBOOK.md) · 控制面总则 [docs/specs/10-control-surface.md](docs/specs/10-control-surface.md) · QQ 通道 [docs/QQ-SETUP.md](docs/QQ-SETUP.md)
+> · 日常界面：Cortico WebUI 的「小鱼 · 鱼缸」世界页 `http://127.0.0.1:7799/#/provider/world%3Abili-account`。**2026-11-12 起只剩这一条接入线**：DSH 插件、OpenCode daemon、独立面板（8447/8448）三棵代码树已整棵删除，不是"端口退役、目录留着"。
+> · 素材与许可 [docs/CREDITS.md](docs/CREDITS.md)（鲸鱼娘序列帧 CC BY-NC-SA 4.0，已随旧面板退役，出处与义务留档）
 > · 改调度/预算/路由前先读 [docs/specs/01-rhythm-and-autonomy.md](docs/specs/01-rhythm-and-autonomy.md)（原 `docs/BASELINE.md` 的现行部分已归此；历史数字在 `docs/attic/2026-10/BASELINE.md`）。
 
 ## ⚠️ 默认值是按「刚创的小号」定的（先看这个）
@@ -394,9 +394,10 @@ node --test tests/planner.test.mjs tests/integration.test.mjs tests/updates.test
 
 **代码**：MIT（见 `LICENSE`）。
 
-**图形素材**：`panel/assets/whale-girl/`（鲸鱼娘序列帧）不是 MIT——
+**图形素材**：鲸鱼娘序列帧（原 `panel/assets/whale-girl/`）**不是 MIT**——
 它是 **CC BY-NC-SA 4.0**（仅个人非商用、必须署名、衍生作品同协议共享）。
 署名 **ZipZipPipe**（原图），角色原型 **上善无形** 的「溟月」。
+**2026-11-12 随旧面板整棵树删除，本仓已不再包含这套素材**；署名与许可义务照旧留档，将来若重新引入必须一并带回。
 `assets/bgm/` 的 mp3 是 CC0（公共领域）。
 完整清单见 [`docs/CREDITS.md`](docs/CREDITS.md) 与 [`NOTICE.md`](NOTICE.md)。
 

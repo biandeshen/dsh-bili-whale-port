@@ -119,7 +119,7 @@ test('注入 home 的读点：新家有就用新家，新家没有才退到 <hom
 // 写落到 A、读落到 B，两边各自"正常"，合起来是两个数。所以这条锁的是**调用方**，
 // 不是 paths.mjs 本身。
 const REPO = path.resolve(import.meta.dirname, '..', '..')
-const SRC_DIRS = ['tools', 'panel', 'scripts']
+const SRC_DIRS = ['tools', 'scripts']   // panel/ 2026-11-12 随旧面板退役，不再扫（walk 对不存在的目录会抛）
 
 function walk(dir, out = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
