@@ -10,6 +10,60 @@
 > 4. **不 push**：tag 与提交默认只留本地；`private`（`biandeshen/dsh-bili-whale-port`）只在主人明说"推"时推，`upstream`（`Alterssss/dsh-bili-whale`）是公开仓**不推**——AMpath 借用件与 CC BY-NC-SA 素材未清干净，见 [`docs/CREDITS.md`](docs/CREDITS.md)。
 > 5. **本文写法**：里程碑级条目，每条带日期与可验证物；不逐提交流水，不抄 INDEX §3 的数字。
 
+## 未发版（2026-11-13）—— 宿主宣称降级：从「宿主可以整个换掉」到「只验证过 Cortico」
+
+主人拍板三连的**第二件**（删旧代码 → **改文档宣称** → 假宿主验证）。**纯文档 + manifest，`packages/` 一行代码没动。**
+**版本号没 bump、tag 没打**（同下条的理由：第三件还没跑，主人也没说发版）。
+
+### 生效的是哪一版
+
+**降级版（当前版）**。主人指定的原文逐字写进 `README.md` 顶部新增节与 `VISION.md` 落点表后：
+
+> 接口已做宿主无关设计（能力包严禁 import `cortico/*`；UI 经 `PanelCtx` 注入；模型由宿主发起）。**但目前只有一个真实宿主被验证过：Cortico。** 在未通过最小宿主验证之前，不宣称『可安装到任意底座』。
+
+升级版（带验证日期 / stub SHA / 24h / 对外凭据 exit 0 / 三页真浏览器）**要等第三件三条判据全过**才允许写。
+三句禁语一条没写：「支持任意底座」/「插件化完成」/「即装即用」。**也不是把句子删掉就算完**——每处都给了实测判据。
+
+### 先量后写：三条宣称里有一条被量翻
+
+| 宣称 | 判定 | 判据 |
+|---|---|---|
+| 能力包严禁 import `cortico/*` | **成立，且比宣称更宽** | 整个 `packages/` 树 11 个包 **0 个** `cortico/*` 模块说明符；唯一命中是 `persona-core/src/capability.ts:6` 的**注释** |
+| UI 经 `PanelCtx` 注入 | **成立**（有一条要说清的边） | `PanelCtx` 只注入 DOM 根 + `invoke`（`cortico-adapter/src/webui-helpers.ts:55-63`）；adapter 两文件 517 行、**0 条 import/require**。但 6 个能力包 UI 用相对路径引这个包（12 行 import）——包名叫 `cortico-adapter`，里面却没有 Cortico 专有依赖 |
+| 模型由宿主发起 | **不成立（一处反例）** | `cap-media-studio/src/vendor/tts.mjs:41` 自己 POST `api.xiaomimimo.com/v1/chat/completions`；链路 `index.ts:226` → `render.ts:10` → `tts.mjs:96`；key 取自本机凭据文件/`MIMO_API_KEY`，**不经宿主**，且 `:61` 明写不走 traffic 闸 |
+
+**这条反例是审查方给的口径里没有的**，本批自己量出来后写进了降级文（不是悄悄放过）：
+换宿主之后配音那一路照样自己花钱，宿主的成本账/退避/402 感知都管不到它。
+**第三件必须覆盖配音这一路**，否则 stub 上跑通也只证明了另外五个包。修法（交回宿主发起 / 改宣称口径）**待主人拍板**，本批不改代码。
+
+### 装载层的三处真耦合（换底座真正要改的地方）
+
+1. 宿主 `extensions/package.json` 三条 **绝对路径 link**（`link:E:/WorkSpace_Qoder/dsh-bili-whale/packages/...`）+ `extensions/node_modules/` 三条符号链接 ⇒ 换机器/换盘符就断，断法是宿主启动期报错（`Cortico-up/src/extensions.ts:220-222`）。
+2. `scripts/build-webui.mjs:24` **先找隔壁 `../Cortico-up/node_modules/esbuild`**；本仓 `node_modules/esbuild` 不存在、根 `package.json` 没有任何依赖声明 ⇒ 实际只有这一条路，目录名写死。
+3. 本仓**任何 package.json 都没有 `engines`**（`node>=22` 是宿主的声明）；`npm run gates` 自己也写死 `--root ../Cortico-up`。
+
+### 改了哪些文件
+
+| 文件 | 改了什么 |
+|---|---|
+| `README.md` | 第一句「给 **DSH** 装」→「在 **Cortico** 里养」；分支行「DSH 不再是唯一宿主」→「唯一验证过的宿主是 Cortico」；**新增顶部节**（当前版原文 + TTS 反例 + 三处耦合）；`## 装` 整节重写（原三步 `dsh plugin add` / 「设置 → 养鱼」/ 重启 DSH **已随代码树删除，照做不会成功**）→ 实测装载路径 + 「连接与凭据」面板 + `tools/bili.mjs selftest`；「保存即生效」降级（`x-hot` 无消费方，只有 cookie 下一拍生效）；前提行说清 engines 归属；`## 依赖与移植性` 七行 DSH 时代表 → **九行实测表**（每行带 file:line），**「宿主可以整个换掉」删掉并在原位说明为什么删**；ffmpeg 体检入口改 `deps`；`AGENTS.md` 小节加「DSH 时代、当前不生效」标注（原文留对照） |
+| `VISION.md` | 落点表后新增「愿景与当前实测的差」。**作者原话一个字不改**；另加校注：第 12 行「`dislike` 是硬屏蔽」是旧口径，以落点表第一行为准（主人 2026-11-06：只是个标签，不做硬拦） |
+| `docs/INDEX.md` | 第二条「读 attic 的口径」：`ARCHITECTURE-TARGET-2026-11-03.md` §2.1 铁律2「100% 宿主无关」是**设计裁决不是验收结论**（且当时 5 个包、现在 6 个）。**attic 原文一个字不改** |
+| `docs/specs/10-control-surface.md` | ⑤ 新增**第 14 条＝本仓唯一的跨宿主验证登记处**：已量到的 / 量翻的 / 三处耦合 / stub 四件事与三条判据 / **三条都还没跑**（402 无凭据 ⇒ ①② 未验证）/ 只读复现命令 |
+| `package.json` | `description` 去掉「DSH 里的 agent」「『养鱼』完整设置页（27 项）」，写明只验证过 Cortico；`keywords` 去掉 `dsh`/`dsh-plugin`/`deepseek-harness`，换 `cortico`/`persona`。**`name` 与 `version` 不动**（改包名要动宿主 link，另开批次） |
+| `docs/evidence/host-claim-downgrade-2026-11-13.md` | **新增**：逐条实测读数（grep 原文 + exit code）、TTS 完整调用链每一跳行号、装载层三处原始输出、落地位置对照表、复现命令、七条「没验的 / 登记给后续批次的」 |
+
+### 门禁与测试（改动相关，逐个跑）
+
+`check-doc-hygiene` / `check-hashes` / `check-consumers` / `check-script-paths` / `check-cortico-paths` / `check-live-drift` / `check-mjs-syntax` **全 EXIT=0**。
+`check-state-roots` **EXIT=1**——`dm-await-state`/`dm-quota`/`pending-replies` 三条分叉，**本批之前就红**，归 #58，没为它加豁免。
+测试：本仓 **149/149 文件，858 pass / 0 fail / 0 skip / 0 todo / 0 cancelled**；宿主 **28/28，229 pass**（报告落宿主仓 `docs/evidence/`，未提交，宿主仓不动）。
+
+### 没验的那条
+
+**本批没有在任何非 Cortico 宿主上装载过。**「只验证过 Cortico」的依据是「仓内不存在第二个宿主的装载记录」，
+**不是**「试过别的宿主失败了」——那个试验是第三件。另：真浏览器 11 个页签（B-1 尾）仍未做，线上 7799 当前没起。
+
 ## 未发版（2026-11-12 → 11-13）—— 旧接入层四棵树退役，79 个文件真删
 
 提交：`b2e9fe7`（118 文件，+7118 / −5902），分支 `port/core-opencode-panel`，**未 push**。

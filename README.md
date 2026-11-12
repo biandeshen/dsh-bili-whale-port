@@ -1,19 +1,38 @@
 # dsh-bili-whale 0.5.2
 
 
-> 给 DSH 装一条**有日子的鱼**：它自己按作息刷 B 站、真看懂视频、写两本日记，把值得的 **@ 你**。
+> 在 Cortico 里养一条**有日子的鱼**：她按自己的作息刷 B 站、真看懂视频、写两本日记，把值得的 **@ 你**。
 >
 > 不是"定时任务 + 关键词搜索"，是**生物钟 + 偏好 + 克制**：每天只醒一两次，筛五条、深读两三条、**最多 @ 你三次**。
 
 她该长成什么，见 [VISION.md](VISION.md)；每一版的改动见 [CHANGELOG.md](CHANGELOG.md)。
 
-> **本分支是移植版（port/core-opencode-panel）**：DSH 不再是唯一宿主。
+> **本分支是移植版（port/core-opencode-panel）**：DSH 插件那条接入线已整棵删除，**当前唯一验证过的宿主是 Cortico**（见下节）。
 > **文档从 [docs/INDEX.md](docs/INDEX.md) 进**：十份功能详设在 [docs/specs/](docs/specs/)，一份一个功能，只写"现在是怎么设计的"
 > 台账（不是现状）[docs/CURRENT.md](docs/CURRENT.md) · 过程案卷 [docs/attic/](docs/attic/)（只用于考古，不许作为施工依据）
 > · 起停与部署 [docs/CORTICO-RUNBOOK.md](docs/CORTICO-RUNBOOK.md) · 控制面总则 [docs/specs/10-control-surface.md](docs/specs/10-control-surface.md) · QQ 通道 [docs/QQ-SETUP.md](docs/QQ-SETUP.md)
 > · 日常界面：Cortico WebUI 的「小鱼 · 鱼缸」世界页 `http://127.0.0.1:7799/#/provider/world%3Abili-account`。**2026-11-12 起只剩这一条接入线**：DSH 插件、OpenCode daemon、独立面板（8447/8448）三棵代码树已整棵删除，不是"端口退役、目录留着"。
 > · 素材与许可 [docs/CREDITS.md](docs/CREDITS.md)（鲸鱼娘序列帧 CC BY-NC-SA 4.0，已随旧面板退役，出处与义务留档）
 > · 改调度/预算/路由前先读 [docs/specs/01-rhythm-and-autonomy.md](docs/specs/01-rhythm-and-autonomy.md)（原 `docs/BASELINE.md` 的现行部分已归此；历史数字在 `docs/attic/2026-10/BASELINE.md`）。
+
+## 宿主：只验证过 Cortico（2026-11-13 降级宣称）
+
+接口已做宿主无关设计（能力包严禁 import `cortico/*`；UI 经 `PanelCtx` 注入；模型由宿主发起）。**但目前只有一个真实宿主被验证过：Cortico。** 在未通过最小宿主验证之前，不宣称『可安装到任意底座』。
+
+**上面那句「模型由宿主发起」有一处实测例外，别当全量成立**：配音这一路自己打模型 API ——
+`packages/cap-media-studio/src/vendor/tts.mjs:41` 直接 POST `api.xiaomimimo.com/v1/chat/completions`，
+key 从本机凭据文件或 `MIMO_API_KEY` 取，**不经宿主**；链路是能力包自己的工具
+（`cap-media-studio/src/index.ts:226` → `render.ts:10` → `tts.mjs:96`）。换宿主之后这一路照样自己花钱。
+
+**装载层的耦合不在能力包里，在这三处**（这才是"换底座"真要改的）：
+
+1. 宿主 `extensions/package.json` 用**绝对路径 link** 指到本仓三个包，`extensions/node_modules/` 里是三条符号链接 —— 换机器/换盘符就断。
+2. `scripts/build-webui.mjs:24` **先找隔壁 `../Cortico-up/node_modules/esbuild`**；本仓没有自己的 esbuild、根 `package.json` 没有任何依赖声明 ⇒ 没那个隔壁检出，面板构建跑不起来。
+3. 本仓**任何 package.json 都没写 `engines`**；`node>=22` 是宿主的声明。`npm run gates` 自己也写死 `--root ../Cortico-up`。
+
+逐条实测读数（含 grep 原文与 exit code）、三处宣称的成立/不成立判定、以及登记给后续批次的项：
+[docs/evidence/host-claim-downgrade-2026-11-13.md](docs/evidence/host-claim-downgrade-2026-11-13.md)。
+最小宿主验证的三条判据见 [docs/specs/10-control-surface.md](docs/specs/10-control-surface.md)；**验过了才允许把这段话升级**。
 
 ## ⚠️ 默认值是按「刚创的小号」定的（先看这个）
 
@@ -116,6 +135,12 @@
 
 ### 2) 宿主自己的 `AGENTS.md`（兜底 / 通用底色）
 
+> ⚠️ **这一小节是 DSH 时代的口径，当前不生效**（2026-11-13 标注，原文留着对照）：
+> DSH 插件那条接入线已删除，`~/.dsh/AGENTS.md` 不会再被热加载。
+> 现在改她走**线上部署的人设正本**：`~/.xiaoyu-home/xiaoyu/prompts/CONSTITUTION.md`（她是谁）
+> 与同目录 `ORIENTATION.md`（这一轮做什么）——2026-11-13 实测两文件都在，
+> 见 [docs/CORTICO-RUNBOOK.md](docs/CORTICO-RUNBOOK.md)「人设（单一来源）」节（那节标题下写的 `deployments/mybot/...` 是**回滚点**的路径，不是线上）。
+
 `~/.dsh/AGENTS.md` 会被 DSH **在所有会话里热加载** —— 所以它对**每一个** agent 生效，
 不只对她 ✗ 想只改她就用上面的 `persona.md` ✓
 
@@ -153,32 +178,51 @@
 
 ## 装
 
-**前提**：Node 22+（与宿主 Cortico 的 `engines` 一致——低版本跑得了本仓自己的脚本，但装不进宿主）；**ffmpeg**（看画面要用，见下）。
+> **先读上面那节「宿主：只验证过 Cortico」。** 下面这条路径**只在 Cortico 上成立**，
+> 不是通用装法；DSH 插件那条装法（`dsh plugin add` + 「设置 → 养鱼」）已随代码树在 2026-11-12 删除，**照着做不会成功**。
+
+**前提**：Node 22+（这是**宿主** `Cortico-up/package.json` 的 `engines.node>=22`；**本仓自己没有任何 `engines` 声明**，
+低版本跑得了本仓脚本但装不进宿主）；**ffmpeg**（看画面要用，见下）；**一个 Cortico 检出**（面板构建要借它的 esbuild，见上面第 2 条）。
 
 ```bash
-# 1) 装插件（本地目录 / npm 都行）
-dsh plugin --profile desktop add "link:C:\path\to\dsh-bili-whale"
+# 1) 在宿主的 extensions/package.json 里登记本仓三个包（本机是绝对路径 link）
+#    cortico-bot-xiaoyu / cortico-world-bilibili / cortico-world-media
+#    → "link:E:/WorkSpace_Qoder/dsh-bili-whale/packages/<包名>"
+#    然后在宿主 extensions/ 下装一次（pnpm），让 node_modules 里出现那三条链接
 
-# 2) 重启一次 DSH（bundle 层要重启才组装）
+# 2) 改过任何面板客户端源码（packages/cap-*/src/webui/client.ts）就必须先构建
+node scripts/build-webui.mjs
 
-# 3) 打开「设置 → 养鱼」（不是 /dsh-bili/ 那个页面 —— 那个被 DSH 的信任栅栏挡着 ✗）
+# 3) 起宿主（单实例探活 + 自动 resume；别直接 node bin/cortico.mjs）
+node scripts/start-cortico.mjs
 ```
 
-**设置页里三件事**：
+第 3 步之前要先有 `.env` 或 `CORTICO_ROOT` 指向宿主检出——**没有硬默认，缺了就报错**（`scripts/lib/host-root.mjs`）。
+起停与排障的全文见 [docs/CORTICO-RUNBOOK.md](docs/CORTICO-RUNBOOK.md)。
 
-1. **填 cookie** —— 在 `bilibili.com` 页面按 **F12 → Application（应用）→ Cookies → https://www.bilibili.com**，
-   手动复制 `SESSDATA`、`bili_jct`、`buvid3` 三个值粘进设置页 ✓
+**装完在面板里做三件事**（世界页「小鱼 · 鱼缸」，`http://127.0.0.1:7799/#/provider/world%3Abili-account`）：
+
+1. **填 cookie** —— 进「**连接与凭据**」页（`packages/cap-bilibili/src/index.ts:1319`）。
+   在 `bilibili.com` 页面按 **F12 → Application（应用）→ Cookies → https://www.bilibili.com**，
+   手动复制 `SESSDATA`、`bili_jct`、`buvid3` 三个值粘进去 ✓
    （⚠️ 别用 `document.cookie` ✗ —— `SESSDATA` 是 **HttpOnly**，脚本里读不到，照那个做会得到一份缺件的 cookie 然后卡在体检）
 2. **填你的 mid + 昵称** —— 分享评论要 @ 的人
-3. **点「依赖体检」** —— 它会**真的去请求一次** B 站验证登录态，并检查 ffmpeg / Node / 数据目录
+3. **跑启动测试** —— `node tools/bili.mjs selftest`：配置 / 凭据 / 登录态 / 目录 / ffmpeg 一次过
 
-> ⚠️ **改完一定要点「保存」** —— 设置页的输入框是**先改在本地、点保存才落盘**的 ✓
+> ⚠️ **改完一定要点「保存」** —— 面板输入框是**先改在本地、点保存才落盘**的 ✓
 > 不点保存 = 什么都没发生（刷新一下就变回原样 ✗，这个坑本鲸自己也踩过 ✗）
 >
-> ✅ **保存即生效**：作息窗口 / 评论监听 / 直播间开关 / 消息推送 / 分享闸门，都是保存后立刻重算 ✓
-> ⚠️ 只有**换插件代码/版本**才需要重启 DSH（改配置不用 ✗）
+> ⚠️ **「保存即生效」这句不要全信**：能力包里 12+ 处 `x-hot` 标注**没有消费方**，宿主只认 configGroups 的热生效
+> （详见 [docs/specs/10-control-surface.md](docs/specs/10-control-surface.md) ⑤ 第 3 条，带复现命令）。
+> cookie 是例外：「连接与凭据」页绑定成功后下一拍就用新的，不用重启（`cap-bilibili/src/index.ts:259`）。
+> ⚠️ 改**面板客户端代码**必须 `build-webui.mjs` + **重启宿主**（版本在启动期读进 `webUiAssets`）。
 
-设置保存在 `~/.dsh/bili-whale.config.json`（**不含凭据**）；凭据单独在 `~/.bili-ai/credentials.json`，**永远不回显**。
+设置保存在 `~/.dsh/bili-whale.config.json`（**不含凭据**；落点优先级 `WHALE_HOME → DSH_HOME → <HOME>/.dsh`，
+见 `packages/cap-bilibili/src/platform/paths.mjs:29`）；凭据单独在 `~/.bili-ai/credentials.json`，**永远不回显**。
+
+**这条路径的验证状态（别把"跑起来过"当"本批验过"）**：线上部署 `~/.xiaoyu-home/xiaoyu` 就是这样装起来的；
+但**本批没有重新装一遍**，11 个页签的真浏览器验收也还没做（线上 7799 当前没起）。
+换任何别的宿主：**没验过**，见上面那节。
 
 ---
 
@@ -291,8 +335,8 @@ sudo apt install ffmpeg    # Debian / Ubuntu
 
 ### 怎么确认装上了
 
-打开 **设置 → 养鱼 → 依赖体检** ✓ —— 它会真的跑一次 `ffmpeg -version` 并显示**路径** ✓
-（命令行等价：`node bili.mjs deps` ✓）
+跑 **`node tools/bili.mjs deps`** ✓ —— 它会真的跑一次 `ffmpeg -version` 并显示**路径** ✓
+（`selftest` 也含这一项。**旧口径「设置 → 养鱼 → 依赖体检」已随 DSH 插件删除，那个页面不存在了**。）
 
 ### 装在别处 / 不想装
 
@@ -349,23 +393,35 @@ sudo apt install ffmpeg    # Debian / Ubuntu
 
 ## 依赖与移植性（**装之前先读这节**）
 
-这套东西**不是开箱即用的通用件** —— 它建立在一组"宿主假设"上。逐条列清楚，以及换环境怎么办：
+这套东西**不是开箱即用的通用件** —— 它建立在一组"宿主假设"上。
+**2026-11-13 重写**：原来这张表写的是 DSH 插件时代的机器（`sessionController.prompt` / `night plan` /
+`whale-night.mjs mark` / `~/.dsh/whale-work`），那棵代码树已于 2026-11-12 整棵删除，**表里描述的东西仓里已不存在**。
+下面每一行都是当前实测的落点（带 file:line），不是设计意图：
 
-| 假设 | 为什么依赖它 | 换环境怎么办 |
+| 假设 | 现在实际靠什么（实测） | 换环境怎么办 |
 |---|---|---|
-| **宿主能"被唤醒"** | 生物钟由**插件宿主自己**驱动：每 60 秒 tick → 跑 `night plan` → 到点用 `sessionController.prompt` 往她的会话里塞一个回合（v0.1.5 起 ✗ 不再需要人挂 `night clock`）| 换 DSH 版本时确认 `sessionController` 还在；没有的话退化成"宿主侧定时轮询 + `night clock`"（老办法 ✓）|
-| **有一个通知渠道**（向使用者推送）| 可见性要求"自主发言后必须报备""每天推一条摘要" | 换成你的：邮件 / webhook / IM / 写文件让宿主轮询。**只要"使用者看得见"成立** ✓ 配置见 `config.notify`（`stdout`/`file`/`dm`/`webhook`/`command` 五种后端 —— **`dm` 就是 B站私信，零外部依赖** ✓）|
-| **有一个调度器** | 兜底标记（宿主没开那晚也留痕）| Windows 计划任务 / Linux `cron` / systemd timer —— 都只是**跑一次** `whale-night.mjs mark` |
-| **有 ffmpeg** | 只有"抽帧看画面"用得到 | 装进 PATH，或用环境变量 `FFMPEG` 指定绝对路径；不装就跳过画面那一路，其余照常 |
-| **B 站账号 + 本机凭据文件** | 一切读写都靠它 | 无替代（这就是目标平台）|
-| **能 spawn 一个真 node** | 工具链全部是 `.mjs`，要 Node 跑 | **不能**用 Electron 主程序顶（会静默返回空输出 ✗）；插件自己找，找不到就在体检和设置页报错 |
-| **可写的专用工作目录** | 她的会话建在 `~/.dsh/whale-work` | 别用用户主目录（会触发工作区权限问题 ✗ v0.4.0 已改）|
+| **宿主能"被唤醒"** | Cortico World 的生活循环：`packages/persona-core/src/rhythm.ts` 每 3–7 分钟评估一次（无聊/想他/歇够了 × 体力 × 随机），到点由宿主往她会话里塞一个回合。**单一调度器就是它** | 新宿主要自己提供**定时器**＋**一个能投递回合的入口**。这正是最小宿主验证要证的四件事之一 |
+| **有一个通知渠道** | 两条路：① 宿主事件总线 —— `packages/cap-bilibili/src/index.ts:447-460` 推 `bili-account.inbox` 事件；② CLI 分发 —— `tools/commands/notify.mjs:173-225`，**9 个后端**：`none`/`desktop`/`webhook`/`ntfy`/`bark`/`command`/`dm`/`stdout`/`file`（`dm` 就是 B站私信，零外部依赖 ✓）| ①要重接新宿主的事件面；②与宿主无关，照用。只要"使用者看得见"成立 ✓ |
+| **不要第二个调度器** | DSH 插件时钟已停用（`clock.enabled=false`、`night.windows=[]`），HKCU `WhaleDraft`（21:30 nightly-scheduler）已删除 —— 见 [docs/CORTICO-RUNBOOK.md](docs/CORTICO-RUNBOOK.md)。**别再加回来，否则会抢着出稿** | 兜底看门狗是可选的：`node scripts/day-watchdog.mjs`（它只补标记，不替她决定做事）|
+| **有 ffmpeg** | 只有"抽帧看画面"用得到。查找顺序 `$FFMPEG` → PATH → `<仓库>/bin` → `~/.dsh/bili-whale/bin`（`packages/cap-vision/src/ffmpeg.ts:7,53`）| 装进 PATH，或 `FFMPEG` 指绝对路径；不装就跳过画面那一路，其余照常 |
+| **B 站账号 + 本机凭据文件** | `~/.bili-ai/credentials.json`（`packages/cap-bilibili/src/platform/paths.mjs:289-294`，**不参与状态目录归一**，读写都留旧家）| 无替代（这就是目标平台）|
+| **能 spawn 一个真 node** | 工具链是 `.mjs`，要真 Node 跑：`tools/lib/nodebin.mjs` → `tools/lib/runtime.mjs` 的 `resolveRuntime` | **不能**用 Electron 主程序顶（会静默返回空输出 ✗）；找不到就报错，不猜 |
+| **可写的专用工作目录** | `<部署家>/<bot>/workspace`（`paths.mjs:111-113`：`workspace` / `workspace/diary` / `workspace/memo`）。本机＝`~/.xiaoyu-home/xiaoyu/workspace` | 别用用户主目录（会触发工作区权限问题 ✗）。部署家由 `CORTICO_HOME` + `CORTICO_BOT` 决定（`paths.mjs:65-82`）|
+| **隔壁有一个 Cortico 检出**（构建期）| `scripts/build-webui.mjs:24` 先找 `../Cortico-up/node_modules/esbuild`；本仓没有自己的 esbuild，根 `package.json` 没有任何依赖声明 | 目录名写死在 `:24`。换环境要么改这一行，要么给本仓装上 esbuild。**已登记待修** |
+| **宿主用绝对路径 link 装载** | 宿主 `extensions/package.json` 三条 `link:E:/WorkSpace_Qoder/dsh-bili-whale/packages/...` ＋ `extensions/node_modules/` 三条符号链接 | 换机器/换盘符就断，断法是宿主启动期报错（`Cortico-up/src/extensions.ts:220-222`），不是静默降级 |
 
 **不依赖什么**：没有数据库、没有守护进程、没有框架、没有云服务。状态全在**几个普通文件**里
-（`quota.json` / `whale-log.jsonl` / 两本日记）—— 人随时能打开看，宿主可以整个换掉。
+（`quota.json` / `whale-log.jsonl` / 两本日记）—— 人随时能打开看。
 
-> ⚠️ 已知边界：本项目最初是围绕**一个具体的人的日常**长出来的（Windows + DSH + 微信通道）。
-> 上表就是把那些假设摆到明面上 —— 换环境时**照着"怎么办"一列改**，别指望它一行不改就跑。
+> **原来这里还有半句「宿主可以整个换掉」，2026-11-13 删掉了 —— 不是藏问题，是它不成立**：
+> 「状态是普通文件」推不出「装载层可移植」。状态确实随时能搬，但上表最后两行（构建期借隔壁 esbuild、
+> 宿主绝对路径 link）加上配音那一路自己发起模型调用，都是换宿主时**必须动**的东西。
+> 现在的口径是顶部那节：**只验证过 Cortico**。逐条判据见
+> [docs/evidence/host-claim-downgrade-2026-11-13.md](docs/evidence/host-claim-downgrade-2026-11-13.md)。
+
+> ⚠️ 已知边界：本项目最初是围绕**一个具体的人的日常**长出来的（Windows + DSH + 微信通道）；
+> DSH 那条接入线已删，现在跑在 Windows + Cortico 上。上表就是把那些假设摆到明面上 ——
+> 换环境时**照着"怎么办"一列改**，别指望它一行不改就跑。
 
 ---
 

@@ -1,14 +1,13 @@
 {
   "name": "dsh-bili-whale",
   "version": "0.5.2",
-  "description": "养一条有日子的鱼：让 DSH 里的 agent 自己刷 B 站、看懂视频、写两本日记，把值得的 @ 你。设置里有「养鱼」完整设置页（27 项）+ 依赖体检 + cookie 写入 + 共享配置（与工具链同一份 bili-whale.config.json）。",
+  "description": "养一条有日子的鱼：她按自己的作息刷 B 站、看懂视频、写两本日记，把值得的 @ 你。接口按宿主无关设计，但目前只有一个真实宿主被验证过（Cortico），不宣称可安装到任意底座。操作面在 Cortico WebUI 的世界页；配置与工具链共用一份 bili-whale.config.json。",
   "keywords": [
-    "dsh",
-    "dsh-plugin",
-    "deepseek-harness",
+    "cortico",
     "bilibili",
     "agent",
-    "diary"
+    "diary",
+    "persona"
   ],
   "type": "module",
   "scripts": {

@@ -148,3 +148,21 @@ world/bot 包浏览器端注册表      packages/cortico-world-bilibili/src/webu
     复现：`node scripts/verify-rollback-point.mjs --src=<源部署根>`（退出 0 才算全等）；`node scripts/check-cortico-paths.mjs`（退出 0）；`node --test tests/cortico-paths.test.mjs`（8 条，其中 4 条是故意违规必须判红）。
 13. **线上人格的对话全文不在每日备份里**（本轮只登记）：`scripts/ops-backup.mjs` 的目录源只有回滚点那条 `mybot/data/runs`，线上 `~/.xiaoyu-home/xiaoyu/data/runs` 不在清单里——备份天天绿，丢的却是**现在**这个人格的历史。改采集面属存储合同变化，先提案再动。
     复现：`grep -n "'runs'" scripts/ops-backup.mjs`（只有一条，指向回滚点）；`ls ~/.xiaoyu-home/xiaoyu/data/runs | wc -l`（线上真有多少 run）。
+14. **跨宿主只验证过 Cortico —— 本仓唯一的跨宿主验证登记处**（2026-11-13，主人拍板三连第二件配套）。
+    当前口径（降级版，逐字写在 `README.md` 顶部与 `VISION.md` 落点表后）：接口已做宿主无关设计，
+    **但只有一个真实宿主被验证过**；未通过最小宿主验证前不宣称「可安装到任意底座」。
+    **已量到的**：整个 `packages/` 树 0 个 `cortico/*` 模块说明符（唯一命中是 `persona-core/src/capability.ts:6` 的注释）；
+    `cortico-adapter/src` 两文件 517 行、0 条 import/require，`PanelCtx` 只注入 DOM 根 + `invoke`（`webui-helpers.ts:55-63`）。
+    **量翻的一条**：「模型由宿主发起」不成立 —— `cap-media-studio/src/vendor/tts.mjs:41` 自己 POST MiMo，
+    链路 `index.ts:226` → `render.ts:10` → `tts.mjs:96`，key 取自本机凭据文件/`MIMO_API_KEY`，且 `:61` 明写不走 traffic 闸。
+    **装载层三处真耦合**：宿主 `extensions/package.json` 绝对路径 link；`scripts/build-webui.mjs:24` 借隔壁 `Cortico-up` 的 esbuild（本仓无自己的）；
+    本仓任何 package.json 都无 `engines`，`npm run gates` 写死 `--root ../Cortico-up`。
+    **最小宿主（stub）验证的三条判据**（第三件；只实现四件事：模型发起 / 面板挂载点 / 状态目录 / 定时器；
+    挂 6 个能力包 + `cortico-bot-xiaoyu`；**不许复制现有宿主代码进 stub、不许 mock 模型发起**）：
+    ① 在 stub 上连续跑 24h；② `node scripts/outward-evidence.mjs --date=<验证日>` 退出 0（判据＝**对外凭据**，`life_do` 自记账不算）；
+    ③「她的一天」「作息遥控台」「待放行队列」三页在**真浏览器**可用（`FakeEl` 不算）。
+    **三条都还没跑**（MiMo 账户 402 欠费，真实模型调用与对外写当前无凭据 ⇒ ①② 属未验证，不许用候选输出顶替回执）。
+    证据落 `docs/evidence/`（gitSha + stub SHA + outward-evidence 原始输出 + 截图/DOM 断言），验过后才允许把宣称升级。
+    复现（现在就能跑的只读测量）：`grep -rn -E "['\"]cortico/" packages/ --include=*.ts --include=*.mjs --include=*.js`（1 行注释）；
+    `grep -rn "api.xiaomimimo.com" packages/`（tts.mjs:41）；`grep -rn '"engines"' --include=package.json . | grep -v node_modules | wc -l` → 0；
+    `sed -n '19,33p' scripts/build-webui.mjs`。逐条读数见 [`host-claim-downgrade-2026-11-13.md`](../evidence/host-claim-downgrade-2026-11-13.md)。

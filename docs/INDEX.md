@@ -73,3 +73,13 @@
 （2026-11-13 实测 `ls packages/shared packages/server` 与宿主侧同名目录均不存在）。
 落地的实现分别是本仓 `packages/persona-core/src/emotion-projection.ts` 与 `packages/persona-core/src/life-activities.ts`
 （后者改了名，7 类活动与文案轮换在里面）。**attic 原文一个字不改**，映射写在这里。
+
+**读 attic 的第二条口径（2026-11-13 补）：设计裁决 ≠ 验收结论。**
+`attic/2026-11/ARCHITECTURE-TARGET-2026-11-03.md` §2.1 铁律2 写着「**核心资产 100% 宿主无关（连 Cortico 本身也是可插拔插座）**……
+将来 Cortico 升级契约或彻底换掉 Cortico 底座，5 个能力包一行代码不用动」，§2.2 的三层图也标着「100% 宿主无关，零 Cortico 依赖」。
+**那是 2026-11-03 主人拍板的设计方向，不是已经验过的事实**（而且当时是 5 个能力包，现在是 6 个）。
+2026-11-13 实测：接口层确实干净（整个 `packages/` 树 0 个 `cortico/*` 说明符），但
+①「模型由宿主发起」有一处反例（配音自己打 MiMo）；② 装载层有三处真耦合（宿主绝对路径 link、构建借隔壁 esbuild、本仓无 `engines`）。
+**当前对外口径以 [`specs/10-control-surface.md`](./specs/10-control-surface.md) ⑤ 第 14 条为准**（本仓唯一的跨宿主验证登记处），
+读数见 [`evidence/host-claim-downgrade-2026-11-13.md`](./evidence/host-claim-downgrade-2026-11-13.md)。
+**attic 原文一个字不改**；谁要拿铁律2 当「已经可插拔」的依据，先去看那三条判据跑没跑。
