@@ -8,8 +8,10 @@ import {
   toCorticoToolDef,
   toCorticoPanelDecl,
   invokePanelMethod,
+  emitHostLog,
   type CorticoToolDef,
   type CorticoPanelDecl,
+  type HostLogLike,
 } from '../../cortico-adapter/src/index.ts'
 import { createBilibiliCapability, type BilibiliCapabilityOptions, type BilibiliReadHandlers } from '../../cap-bilibili/src/index.ts'
 import { listJudgments } from '../../cap-journal/src/judgments-feedback.ts'
@@ -24,7 +26,8 @@ export interface CorticoWorldHost {
     meta?: Record<string, unknown>
     atMs?: number
   }, opts?: Record<string, unknown>): void
-  log?: (level: 'info' | 'warn' | 'error', msg: string) => void
+  /** 宿主的日志口：函数或 Logger 对象两种形状都认，见 cortico-adapter 的 emitHostLog。 */
+  log?: HostLogLike
 }
 
 export interface BiliWorldOptions extends BilibiliCapabilityOptions {
@@ -114,7 +117,7 @@ export function createBiliWorld(opts: BiliWorldOptions) {
             atMs: ev.atMs,
           })
         },
-        log: (level, msg, meta) => host.log?.(level, `${msg}${meta ? ' ' + JSON.stringify(meta) : ''}`),
+        log: (level, msg, meta) => emitHostLog(host.log, level, `${msg}${meta ? ' ' + JSON.stringify(meta) : ''}`),
       })
     },
 

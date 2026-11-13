@@ -41,9 +41,21 @@ export const mediaStudioPanel = {
         { k: '底图', v: (res.images ?? []).length },
         { k: 'CC0 曲目', v: (res.bgmTracks ?? []).length },
         { k: 'ffmpeg', v: tc.ffmpegReady ? '可用' : '不可用' },
-        { k: 'TTS', v: tc.tts?.mimoKey === 'missing' ? '缺凭据' : '可用' },
+        {
+          k: 'TTS',
+          v: tc.tts?.mimoKey === 'missing'
+            ? '缺凭据'
+            : tc.ttsCooldown?.active
+              ? `降级中 · ${tc.ttsCooldown.reason}`
+              : '可用',
+        },
       ])
       box.append(stats)
+      if (tc.ttsCooldown?.active) {
+        // 欠费/限流时她只能用自己的声音以外的那条路。要写出来，不能只留在日志里。
+        const until = new Date(tc.ttsCooldown.until)
+        box.append(ui.pill(`配音暂用备用声线，${until.toLocaleString('zh-CN')} 后再试 MiMo`, 'on'))
+      }
       if (!tc.ffmpegReady) {
         const warn = ui.pill('找不到 ffmpeg，出不了片', 'on')
         box.append(warn)

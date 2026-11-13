@@ -398,3 +398,41 @@ PROBE_KERNEL=host node --import tsx docs/evidence/probes/rhythm-attrib.mjs
 
 - `packages/persona-core/src/rhythm.ts:75-81`：注释叙述「0.003/h 是旧口径…0.005/h × 16h」，而常量实际是 **0.02**；
   `:82-90` 又写「恢复…0.008」，也与 0.02 不符。行为按常量走，注释落后——登记，不改（改注释会动冻结哈希，另开批次）。
+## ⑩ 顺带实测出一个真缺陷：`host.log` 是对象，不是函数（2026-11-13 起实例时撞到）
+
+起隔离实例（临时 home + 独立端口 7798，**没碰线上 7799**）时，宿主日志第一行就是：
+
+```
+ERROR core/world-start-failed: World 启动失败,已跳过: bili-account TypeError: host.log is not a function
+    at Object.log (packages/cortico-world-bilibili/src/cortico-world.ts:117:41)
+```
+
+**根因**：宿主 `WorldCtx.log` 的类型是 **Logger 对象**（`info/warn/error/emit/child`，`Cortico-up/src/core/types.ts:1181-1190`），
+而三个适配器都声明成 `(level, msg) => void` 并按函数调：`host.log?.(level, msg)`。
+`?.` 只挡 `undefined`，挡不住「值是对象」——于是 `TypeError`，宿主把世界列入 `missing[]` 跳过。
+
+**后果有多重**：这不是日志丢了，是**整条 B 站能力静默消失**——`bili-account` 世界起不来，
+收件箱监听、发布、私信全部没有，而界面上只是少一个 World。
+
+**修法**：`cortico-adapter` 加 `emitHostLog()`，两种形状都认（函数 / Logger 对象 / 都没有 → 什么都不做），
+三处适配器（bilibili / media / 以及以后新增的）统一走它；日志本身抛错也不许拖垮业务。
+回归用例 `packages/cortico-adapter/tests/host-log.test.mjs` 5 条，其中一条就是「Logger 对象形状」。
+
+**修复前后对照（同一台机器、同一份部署副本）**：
+
+```
+修前：[ERROR] World 启动失败,已跳过: bili-account TypeError: host.log is not a function
+修后：[INFO] worlds.bili-account: 收件箱监听已启动（回复/@我/收到的赞 + 主人私信）
+      [INFO] core: World 已启动: bili-account
+      [INFO] core: World 已启动: media-studio
+      扩展: cortico-bot-xiaoyu@0.1.3a59a1f7 → bot xiaoyu
+      扩展: cortico-world-bilibili@0.1.3a2637f6 → World bili-account
+      扩展: cortico-world-media@0.1.250d9c75 → World media-studio
+```
+
+**这条对第三件（stub）的意义**：stub 若提供一个 Logger 形状的 `log`（很自然，因为宿主就是），
+同一段代码会被同一处 `?.` 骗过去。所以「世界能挂上」不能只看 `start()` 没抛，
+必须看宿主日志里**每个 World 都真的在 `已启动` 列表里**。
+
+**没验的**：线上 7799 那个进程是修复前起的，它现在还跑着旧代码（`host.log` 那条可能仍在被跳过）。
+要不要重启线上由主人定——我没有动它。

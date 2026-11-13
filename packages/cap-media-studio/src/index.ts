@@ -19,6 +19,7 @@ import {
   renderVideoSlice,
   previewTtsAudio,
   describeTtsStatus,
+  ttsCooldownStatus,
   VIDEO_SIZE_LIMITS,
   type RenderVideoSliceInput,
   type RenderVideoSliceResult,
@@ -76,6 +77,12 @@ export interface MediaStudioCapabilityOptions {
     { ok: true; provider: string; voice: string; outFile: string; seconds: number | null } | { ok: false; error: string }
   >
   onPushToBiliQueue?: (draft: VideoDraftRecord) => Promise<{ ok: boolean; pendingId?: string }> | { ok: boolean; pendingId?: string }
+  /**
+   * 配音用量的上报口（宿主注入 `WorldCtx.reportUsage`）。
+   * 配音是本包域内的外部合成服务，宿主不管它的运行时、只记账；不注入就跳过记账，不做别的。
+   * 穿结构由宿主决定，本包只承诺 shape：{ usage, provider, model }。
+   */
+  onUsage?: (u: { usage: Record<string, unknown>; provider: string; model: string }) => void
 }
 
 function ffmpegAvailable(binDir?: string): { ffmpeg: string | null; ffprobe: string | null } {
@@ -181,6 +188,7 @@ export function createMediaStudioCapability(
         outFile,
         toolsBinDir: opts.toolsBinDir,
         ffprobePath: ffprobe ?? undefined,
+        onTtsUsage: opts.onUsage,
       })
     }
     // 试听要能**真在页面里播**：宿主没有 `/api/files?path=`（按任意路径取文件的路由不存在，
@@ -239,6 +247,7 @@ export function createMediaStudioCapability(
       binDir: opts.binDir,
       toolsBinDir: opts.toolsBinDir,
       planOnly: Boolean(params.planOnly),
+      onTtsUsage: opts.onUsage,
     })
 
     if (!res.ok) {
@@ -397,6 +406,9 @@ export function createMediaStudioCapability(
                     ffprobe: bins.ffprobe,
                     ffmpegReady: Boolean(bins.ffmpeg && bins.ffprobe),
                     tts: describeTtsStatus(),
+                    // 402/429 冷却：欠费时配音会静默降级到 edge。不能只留在日志里——
+                    // 面板上要能看出"为什么这次不是她自己的声音"（B22-P3 的可见面）。
+                    ttsCooldown: ttsCooldownStatus(opts.outputDir),
                   },
                   limits: VIDEO_SIZE_LIMITS,
                   drafts: readDraftRecords().reverse(),

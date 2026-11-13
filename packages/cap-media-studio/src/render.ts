@@ -8,6 +8,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { resolveBgm } from './vendor/bgm.mjs'
 import { ttsPlan, synthesize, describeTts } from './vendor/tts.mjs'
+export { ttsCooldownStatus, readTtsCooldown } from './vendor/tts.mjs'
 import {
   studioConfig,
   resolveTools,
@@ -43,6 +44,8 @@ export interface RenderVideoSliceInput {
   bgmDir?: string
   onWarn?: (msg: string) => void
   onProgress?: (msg: string) => void
+  /** 配音（MiMo）用量的上报口：宿主注入 WorldCtx.reportUsage；不注入就只跳过记账。 */
+  onTtsUsage?: (u: { usage: Record<string, unknown>; provider: string; model: string }) => void
 }
 
 export interface RenderVideoSliceResult {
@@ -169,9 +172,14 @@ export async function renderVideoSlice(input: RenderVideoSliceInput): Promise<Re
         model: input.model ?? 'mimo-v2.5-tts',
         binDir: input.toolsBinDir ?? '',
         onWarn: (m: string) => warn('[tts] ' + m),
+        stateDir: input.outDir,
       })
       ttsProvider = r.provider
       voiceUsed = r.voice
+      if (r.usage) {
+        // 配音是能力包自己的域内外部服务，宿主不管它的运行时，只记账（WorldCtx.reportUsage）。
+        input.onTtsUsage?.({ usage: r.usage, provider: r.provider, model: input.model ?? 'mimo-v2.5-tts' })
+      }
       ttsDuration = await probeDuration(ffprobe, voiceFile)
       const need = Math.ceil(ttsDuration + 2)
       if (need > duration) {
@@ -269,6 +277,8 @@ export async function previewTtsAudio(input: {
   toolsBinDir?: string
   ffprobePath?: string
   onWarn?: (msg: string) => void
+  /** 配音用量上报口；同 renderVideoSlice。 */
+  onTtsUsage?: (u: { usage: Record<string, unknown>; provider: string; model: string }) => void
 }): Promise<{ ok: true; provider: string; voice: string; outFile: string; seconds: number | null } | { ok: false; error: string }> {
   const clean = String(input.text ?? '').trim()
   if (!clean) return { ok: false, error: '台词是空的' }
@@ -285,7 +295,11 @@ export async function previewTtsAudio(input: {
       model: input.model ?? 'mimo-v2.5-tts',
       binDir: input.toolsBinDir ?? '',
       onWarn: input.onWarn ?? (() => {}),
+      stateDir: path.dirname(input.outFile),
     })
+    if (r?.usage) {
+      input.onTtsUsage?.({ usage: r.usage, provider: r.provider, model: input.model ?? 'mimo-v2.5-tts' })
+    }
     let seconds: number | null = null
     if (input.ffprobePath) {
       try {

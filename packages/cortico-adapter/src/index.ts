@@ -144,3 +144,49 @@ export async function invokePanelMethod(
   const params = Array.isArray(args) ? (args[0] ?? {}) : (args ?? {})
   return await m.invoke(params)
 }
+
+/**
+ * 宿主日志口的归一调用。
+ *
+ * **真实踩过的坑**（2026-11-13，起实例时 `bili-account` 世界直接启动失败）：
+ * 宿主 `WorldCtx.log` 是 **Logger 对象**（`info/warn/error/emit/child`，见宿主 `core/types.ts:1181`），
+ * 不是 `(level, msg) => void` 函数。适配器写成 `host.log?.(level, msg)` 时，
+ * `?.` 只挡 undefined——值是对象照样调，于是 `TypeError: host.log is not a function`，
+ * 世界被宿主列入 `missing[]` 跳过，**她的整条 B 站能力静默消失**。
+ *
+ * 所以这里两种形状都认：
+ *   · 函数 → 直接调（旧宿主 / stub 可能就这么给）
+ *   · Logger 对象 → 按 level 映射到对应方法
+ *   · 都没有 → 什么都不做（最小宿主可以不提供日志）
+ */
+export type HostLogLike =
+  | ((level: 'info' | 'warn' | 'error', msg: string) => void)
+  | {
+      info?(msg: string): void
+      warn?(msg: string): void
+      error?(msg: string): void
+      emit?(level: string, msg: string): void
+    }
+  | null
+  | undefined
+
+export function emitHostLog(log: HostLogLike, level: 'info' | 'warn' | 'error', msg: string): void {
+  if (!log) return
+  try {
+    if (typeof log === 'function') {
+      log(level, msg)
+      return
+    }
+    if (typeof log === 'object') {
+      // 顺序：先按 level 找同名方法；没有再退回 emit（宿主的低层出口）
+      const fn = (log as Record<string, unknown>)[level]
+      if (typeof fn === 'function') {
+        ;(fn as (m: string) => void).call(log, msg)
+        return
+      }
+      if (typeof log.emit === 'function') log.emit(level, msg)
+    }
+  } catch {
+    // 日志失败不许拖垮业务：她该跑还得跑
+  }
+}
