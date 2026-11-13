@@ -95,6 +95,10 @@ world/bot 包浏览器端注册表      packages/cortico-world-bilibili/src/webu
    同环境 `--json` → 该部署 `bot=cormini`、`displayName=小鱼`、**无 `problem` 字段**。
 3. 真回滚（**会接管 7799 与同一个 pid 文件，所以必须先停线上实例**）：
    `CORTICO_HOME=C:/Users/Administrator/.xiaoyu-home/rollback/deployments CORTICO_BOT=mybot node scripts/start-cortico.mjs`
+   **前置：`rollback/deployments/providers` 必须在**（2026-11-14 实测：只拷 `mybot` 时报
+   `activeProvider="opencode-go" 在 providers 段里不存在(现有: 无)` 直接退出 1）。完整回滚根是
+   `~/.xiaoyu-home/rollback/deployments/{mybot,providers}` 两棵；演练记录见
+   [`liveness-and-orphan-2026-11-14.md`](../evidence/liveness-and-orphan-2026-11-14.md) §3.2。
 4. 回滚后想再回来：停掉回滚实例，`node scripts/start-cortico.mjs`（缺省即 `~/.xiaoyu-home` + `xiaoyu`）。
 5. 档案恢复（默认 dry，只报告会覆盖/新建哪些）：`node scripts/ops-backup.mjs --restore <备份目录>`；加 `--apply` 才写盘，写前当前状态另存到 `<备份根>/pre-restore-<ts>/`。
 

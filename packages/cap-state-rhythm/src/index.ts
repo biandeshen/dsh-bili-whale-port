@@ -19,6 +19,7 @@ import type {
 import type { AtomicFields } from '../../persona-core/src/types.ts'
 import { dayKey } from '../../persona-core/src/rhythm.ts'
 import { readCostToday, costSummary } from './cost-today.ts'
+import { readLiveness } from './liveness.ts'
 import {
   emptyState,
   loadState,
@@ -548,6 +549,18 @@ export function createStateRhythmCapability(
                       return { ...c, line: costSummary(c) }
                     } catch (e: any) {
                       return { verdict: 'quiet', calls: 0, paid: 0, failed: 0, line: `成本读数取不到：${String(e?.message ?? e).slice(0, 80)}` }
+                    }
+                  })(),
+                  /**
+                   * 「她还活着吗、停了多久」（第三方 2026-11-13 P2）。
+                   * 两次事故（停 25h / 停 3d22h）在观察面上都只是"她很安静"，
+                   * 所以这一条必须和成本分开：成本说"花多少"，这一条说"人在不在"。
+                   */
+                  liveness: (() => {
+                    try {
+                      return readLiveness({ dataDir: path.dirname(path.dirname(opts.lifeFile)) })
+                    } catch (e: any) {
+                      return { kind: 'running', line: `存活读数取不到：${String(e?.message ?? e).slice(0, 80)}`, silentMinutes: null, lastOkAt: '', last402At: '', basis: [] }
                     }
                   })(),
                   today: {

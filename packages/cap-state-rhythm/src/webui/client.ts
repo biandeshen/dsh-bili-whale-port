@@ -400,6 +400,20 @@ export const dayPanel = {
        * 只有"今天做过 N 件"的话，累、设计如此、没钱了三种情况看着一样。
        * 数字来源是宿主计费账，口径跟数一起出（后端 cost.line 已经带好）。
        */
+      /**
+       * 存活状态（第三方 2026-11-13 P2）：运行中 / 已暂停（停 N 小时）/ 已关机（停 N 小时）/ 余额不足。
+       * 两次事故（停 25 小时、停 3 天 22 小时）在页面上都只是"她很安静"——
+       * 所以这一行必须**带时长**，且余额不足要单独说"恢复也不会活"。
+       * 放在成本行上面：先回答"人在不在"，再回答"花了多少"。
+       */
+      if (s?.liveness?.line) {
+        const aliveLine = ui.h('div')
+        const kind = String(s.liveness.kind ?? 'running')
+        const bad = kind === 'stopped' || kind === 'paused' || kind === 'no-balance'
+        aliveLine.style.cssText = `margin:2px 0 6px;font-size:13px;font-weight:${bad ? '600' : '400'};${bad ? 'color:#c0392b' : 'opacity:0.9'}`
+        aliveLine.textContent = String(s.liveness.line)
+        portraitBox.append(aliveLine)
+      }
       if (s?.cost?.line) {
         const costLine = ui.h('div')
         costLine.style.cssText = 'margin:2px 0 8px;opacity:0.9;font-size:12.5px'
