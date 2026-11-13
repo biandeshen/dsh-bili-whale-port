@@ -20,7 +20,8 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { readCostToday } from '../packages/cap-state-rhythm/src/cost-today.ts'
-import { stallScheduleMs } from '../packages/cortico-bot-xiaoyu/src/stall-backoff.ts'
+import { stallScheduleMs, STALL_STEP_MAX } from '../packages/cortico-bot-xiaoyu/src/stall-backoff.ts'
+import { readStallState, writeStallState, clearStallState } from '../packages/cortico-bot-xiaoyu/src/stall-state.ts'
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stall-demo-'))
 const file = path.join(dir, 'usage.jsonl')
@@ -48,32 +49,37 @@ console.log('# P3-a 离线演示：每 60 秒一拍，连打 90 拍（4 个心�
 
 for (const [name, build] of [['上游不通（402）', sceneStalled], ['上游恢复（200）', sceneRecovered]]) {
   build()
-  let st = { until: 0, step: 0 }
+  clearStallState(dir)
   let delivered = 0
   let skipped = 0
+  let collisions = 0
   const log = []
   for (let i = 0; i < 90; i += 1) {
     const now = t0 + i * 60_000
     const c = read(now)
     const stalled = c.verdict === 'stalled-auth' || c.verdict === 'throttled'
+    const st = readStallState(dir, now)   // 与投递处同一份持久化状态
     if (stalled) {
       if (now < st.until) { skipped += 1; continue }
-      st.step = Math.min(st.step + 1, 5)
-      st.until = now + stallScheduleMs(st.step)
+      // 窗口到期：这一拍会真的去撞一次（线上就是这一次 402），然后按公式拉长
+      collisions += 1
+      const next = { ...st, step: Math.min(st.step + 1, STALL_STEP_MAX), until: now + stallScheduleMs(Math.min(st.step + 1, STALL_STEP_MAX)), kind: c.verdict }
+      writeStallState(dir, next)
       skipped += 1
-      log.push(`第 ${i + 1} 拍：判为 ${c.verdict} → 本拍不投递，退避 ${Math.round(stallScheduleMs(st.step) / 60_000)} 分钟`)
+      log.push(`第 ${i + 1} 拍：判为 ${c.verdict} → 撞 1 次，随后退避 ${Math.round(stallScheduleMs(next.step) / 60_000)} 分钟`)
     } else {
-      if (st.until !== 0) { log.push(`第 ${i + 1} 拍：判为 ${c.verdict} → 退避清零，恢复投递节奏`); st = { until: 0, step: 0 } }
+      if (st.until !== 0) { log.push(`第 ${i + 1} 拍：判为 ${c.verdict}（失败之后确有成功）→ 退避清零，恢复投递节奏`); clearStallState(dir) }
       delivered += 1
     }
   }
   console.log(`## ${name}`)
   for (const l of log.slice(0, 8)) console.log(`   ${l}`)
   if (log.length > 8) console.log(`   …（共 ${log.length} 条状态变化）`)
-  console.log(`   合计：投递 ${delivered} 拍 · 退避/不投递 ${skipped} 拍`
-    + `（对照原节奏 90 拍全投，省掉 ${skipped} 次对着端点的空转）\n`)
+  console.log(`   合计：投递 ${delivered} 拍 · 不投递 ${skipped} 拍 · 实际撞端点 ${collisions} 次`
+    + `（对照旧行为：90 拍全撞 = ${90} 次空转）\n`)
 }
+
 
 console.log('口径：这里证的是判定与退避公式（与投递处同一份 stall-backoff.ts），')
 console.log('     不等于"线上进程今天已经这么跑"——那句要等一次真重启后回看日志才敢说。')
-fs.rmSync(dir, { recursive: true, force: true })
+

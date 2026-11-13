@@ -11,12 +11,20 @@
  * 上游一恢复（`cost-today` 的 verdict 不再判 stalled/throttled），调用方立刻清零回到原节奏。
  */
 
-/** 连退避次数的上限（0..5）：第 5 次起封顶在 30 分钟，不再往上堆。 */
-export const STALL_STEP_MAX = 5
-/** 单次退避的封顶（分钟）。再长就失去"恢复后马上能说话"的意义。 */
-export const STALL_MAX_MINUTES = 30
+/** 连退避次数的上限（0..6）：第 6 次起封顶，不再往上堆。 */
+export const STALL_STEP_MAX = 6
+/**
+ * 单次退避的封顶（分钟）。
+ *
+ * 2026-11-14 从 30 改成 60：实测 402 之后按 2/4/8/16 分钟爬，30 分钟封顶意味着
+ * 一个欠费的夜里仍会撞 2×/小时；而欠费是**要人充值**才恢复的，不是自己会好的抖动。
+ * 对照 `cap-media-studio/src/vendor/tts.mjs` 的 `COOLDOWN_402_MS = 6h`，那边更保守。
+ * 取 1 小时是有意的折中：足够少撞（一夜 ≤8 次），恢复后最多等 1 小时就能说话。
+ * **这不是配额**：它只在端点明确欠费/限流时生效，判据是调用回执，不是"她做了几件事"。
+ */
+export const STALL_MAX_MINUTES = 60
 
-/** 第 `step` 次退避该多久（毫秒）：1 → 2 → 4 → 8 → 16 → 30（封顶）。 */
+/** 第 `step` 次退避该多久（毫秒）：2 → 4 → 8 → 16 → 32 → 60（封顶）。 */
 export function stallScheduleMs(step: number): number {
   const s = Math.max(0, Math.min(STALL_STEP_MAX, Number(step) || 0))
   return Math.min(STALL_MAX_MINUTES * 60_000, 60_000 * 2 ** s)

@@ -32,7 +32,14 @@ test('付费与失败分开计，且能数出顶到上限的次数', (t) => {
   assert.equal(c.failed, 1)
   assert.equal(c.atCeiling, 1, '≥95% 上限的那次要数出来')
   assert.equal(c.statusCounts['402'], 1)
-  assert.match(costSummary(c), /近 15 分钟没有新调用/, 'quiet 的措辞要说"这一阵没动静"，不能说成"今天没调用"')
+  /**
+   * 2026-11-14 改期望（原为 quiet）：最后一条是 402，之后没有成功调用 ⇒ 通道**仍然关着**。
+   * 旧期望「近 15 分钟没动静 = quiet」正是被假冒恢复坑到的那条逻辑——
+   * 线上 00:08:30 因此判成"上游恢复"清零退避，3 秒后又 402。
+   * 现在只有「失败之后确实又成功过」才算恢复；quiet 只留给"今天既没成功也没失败"。
+   */
+  assert.equal(c.verdict, 'stalled-auth', '最后一条是 402 且之后没有成功 → 通道关着，不许判 quiet')
+  assert.match(costSummary(c), /说不出口/, '要直说是额度把门关了')
   assert.match(costSummary(c), /今天 3 次调用/, '当日累计要一并给出来')
 })
 
@@ -49,7 +56,7 @@ test('402 最近还在发生 → verdict=stalled-auth，不是"她很安静"', (
   assert.match(costSummary(c), /说不出口/, '要直说是额度把门关了')
 })
 
-test('近 15 分钟两边都没动静 → quiet，不是 ok（别让人读成"她选择沉默"）', (t) => {
+test('失败之后一直没有成功 → 仍是 stalled（不许假恢复）；成功之后才回到 ok', (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cost-'))
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }))
   write(dir, [
@@ -58,8 +65,22 @@ test('近 15 分钟两边都没动静 → quiet，不是 ok（别让人读成"�
   ])
   // 现在已是 06:00：成功与失败都远在 15 分钟之外
   const c = readCostToday({ dataDir: dir, basis: 'utc', now: Date.parse(`${day}T06:00:00.000Z`) })
-  assert.equal(c.verdict, 'quiet', '既没成功也没失败＝这一阵谁都没动，不能报"通道开着她在沉默"')
+  /**
+   * 2026-11-14 改期望（原为 quiet）。旧口径「两边都过了 15 分钟 → quiet」会让心跳退避清零，
+   * 而失败行要等下一次调用才落盘——于是"没有新行"被读成"恢复了"，实测 3 秒后又 402。
+   * 现在：最后一次失败之后没有任何成功调用 ⇒ 通道仍关着（stalled-auth）。
+   */
+  assert.equal(c.verdict, 'stalled-auth', '失败之后没有成功＝通道还关着，不能判成"谁都没动"')
   assert.equal(c.paid, 1, '当日累计数还是要给，只是"当下状态"要判对')
+
+  // 再来一条成功 → 这才是真的恢复
+  write(dir, [
+    { attempt: { startedAt: `${day}T05:00:00.000Z`, outcome: 'success', status: 200, meters: { input: 1000 } } },
+    { attempt: { startedAt: `${day}T05:01:00.000Z`, outcome: 'failed', status: 402, meters: {} } },
+    { attempt: { startedAt: `${day}T05:10:00.000Z`, outcome: 'success', status: 200, meters: { input: 900 } } },
+  ])
+  const ok = readCostToday({ dataDir: dir, basis: 'utc', now: Date.parse(`${day}T06:00:00.000Z`) })
+  assert.equal(ok.verdict, 'ok', '失败之后有成功＝通道确实恢复（这一条以前永远判不出来：lastPaidMs 从没赋值）')
 })
 
 test('半行（进程被杀）不炸；没有账的文件要说明白', (t) => {

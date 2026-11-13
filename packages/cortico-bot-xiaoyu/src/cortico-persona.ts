@@ -20,6 +20,7 @@ import { DreamTick } from '../../cap-state-rhythm/src/dream-tick.ts'
 // P3-a：心跳的"别对着死端点空转"退避要用当日通道判定，读数只来自宿主计费账（零额外调用）
 import { readCostToday } from '../../cap-state-rhythm/src/cost-today.ts'
 import { STALL_STEP_MAX, stallScheduleMs, stallNotice } from './stall-backoff.ts'
+import { readStallState, writeStallState, clearStallState } from './stall-state.ts'
 import { isAsleep } from '../../cap-state-rhythm/src/life-stages.ts'
 import { LifeHeartbeat, quietLine } from '../../cap-state-rhythm/src/life-heartbeat.ts'
 import { XIAOYU_CONTEXT_DEFAULTS, type ContextStagePolicy } from './context-config.ts'
@@ -183,20 +184,24 @@ export class XiaoYuPersona implements CorticoPersonaShape {
              * 不会退化成"她今天不许动"。这条界线是有意的：被拆掉的变相配额不许借这个口子还魂。
              */
             try {
-              const c = readCostToday({ dataDir: path.join(this.memoryDir, 'data') })
-              const st: { until: number; step: number } = ((this as any).__stallBackoff ??= { until: 0, step: 0 })
+              const dataDir = path.join(this.memoryDir, 'data')
+              const c = readCostToday({ dataDir })
+              // 退避状态落盘（2026-11-14）：只放 this 上时，重启即清零，刚欠费的机器又按 30 秒一拍往回撞。
+              const st = readStallState(dataDir)
               if (c.verdict === 'stalled-auth' || c.verdict === 'throttled') {
                 if (Date.now() < st.until) return null // 退避窗口内：不投递、不叫模型、不撞门
                 st.step = Math.min(st.step + 1, STALL_STEP_MAX)
                 const waitMs = stallScheduleMs(st.step)
                 st.until = Date.now() + waitMs
+                st.kind = c.verdict
+                st.lastFailureAt = c.last402At || new Date().toISOString()
+                writeStallState(dataDir, st)
                 this.hostLog('warn', `${stallNotice(st.step)}（${c.verdict === 'stalled-auth' ? '额度被拒 402' : '限速 429 类'}）`, { until: new Date(st.until).toISOString(), lastFailure: c.last402At || undefined })
                 return null
               }
-              if (st.until !== 0) {
-                this.hostLog('info', '上游恢复，心跳退避清零，回到原节奏')
-                st.until = 0
-                st.step = 0
+              if (st.until !== 0 || st.step !== 0) {
+                this.hostLog('info', '上游恢复（成功后才有这条），心跳退避清零，回到原节奏')
+                clearStallState(dataDir)
               }
             } catch { /* 读不到成本账就照常投递：宁可多撞几下，也不要把"读不到"变成她不说话的理由 */ }
             if (tick && tick.shouldAct === false) return null
@@ -607,6 +612,19 @@ export class XiaoYuPersona implements CorticoPersonaShape {
         )
         return
       }
+      /**
+       * 停摆期不请求交接（2026-11-14 实测补的）：
+       * 交接本身要叫一次模型写笔记。402 时那次调用**必然再失败**，
+       * 线上日志已见 `00:08:33 402` 紧接 `00:08:36 上下文交接完成` —— 白花一次请求。
+       * 等通道恢复（cost-today verdict 不再是 stalled/throttled）再交接，顺序不会因此乱。
+       */
+      try {
+        const c = readCostToday({ dataDir: path.join(this.memoryDir, 'data') })
+        if (c.verdict === 'stalled-auth' || c.verdict === 'throttled') {
+          this.hostLog('warn', '上下文已超软阈值，但上游不通，这次先不交接（交接本身要叫一次模型，会再失败）')
+          return
+        }
+      } catch { /* 读不到成本账就按原逻辑走：不把"读不到"变成"不交接"的理由 */ }
       const handed = core.requestContextHandoff?.() === true
       if (handed) this.pressureWarned = false
     } catch (e) {

@@ -83,6 +83,10 @@ export function readCostToday(opts: { dataDir: string; basis?: 'utc' | 'local'; 
       paid += 1
       inputTokens += input
       outputTokens += Number(a?.meters?.output ?? 0)
+      // 2026-11-14 补：`lastPaidMs` 声明了却从没赋值，于是 `recentlyPaid` 永远为 false、
+      // `recoveredSinceFail` 也永远为 false —— verdict 从来不可能判成 'ok'，
+      // "上游恢复"只能靠 quiet 猜（正是这次被假冒恢复坑到的那处）。按时间取最大。
+      lastPaidMs = Math.max(lastPaidMs, Date.parse(started) || 0)
       if (input >= CEILING * 0.95) atCeiling += 1
     } else {
       failed += 1
@@ -101,11 +105,31 @@ export function readCostToday(opts: { dataDir: string; basis?: 'utc' | 'local'; 
   const freshMs = 15 * 60_000
   const recentlyFailed = stalledMinutes !== null && now - lastErrMs <= freshMs
   const recentlyPaid = lastPaidMs > 0 && now - lastPaidMs <= freshMs
-  const verdict: CostToday['verdict'] = recentlyFailed
-    ? (last402Ms === lastErrMs ? 'stalled-auth' : 'throttled')
-    : recentlyPaid
+  /**
+   * 2026-11-14 修一个会自己骗自己的判定（实测踩到，见 docs/evidence/402-stoploss-2026-11-14.md）：
+   *
+   * 402 之后**不会立刻有新行落盘**——失败记录要等下一次调用才写。于是：
+   *   23:53 402 → 之后 15 分钟窗口一过 → `recentlyFailed=false`、`recentlyPaid=false`
+   *   → verdict 退回 `quiet` → 心跳退避**清零**（"上游恢复"）→ 下一拍又撞 402。
+   * 线上日志实证：`00:08:30 上游恢复，心跳退避清零` 之后 3 秒就是 `00:08:33 402`。
+   *
+   * 所以 `quiet` 不能无条件等于"通道开着"。只有**最后一次失败之后确实来了一次成功**，
+   * 才算恢复；否则保持 stalled（继续按退避节奏试，而不是回到 30 秒一拍）。
+   * 这条和"15 分钟新鲜度"是两件事：新鲜度决定"现在是不是又在失败"，这条决定"恢复没恢复"。
+   */
+  const recoveredSinceFail = lastPaidMs > 0 && lastPaidMs > lastErrMs
+  const stillDown = lastErrMs > 0 && !recoveredSinceFail
+  const verdict: CostToday['verdict'] =
+    // ① 失败之后已经有成功调用 → 通道确实恢复了（这一条必须排最前：
+    //    否则"402 后又成功"仍会因为 last402Ms===lastErrMs 被误判成还在停摆）
+    recoveredSinceFail
       ? 'ok'
-      : 'quiet'
+      // ② 失败之后还没有任何成功 → 通道仍然关着，不管是刚失败（recentlyFailed）还是已经过了一阵（stillDown）
+      : lastErrMs > 0
+        ? (last402Ms === lastErrMs && last402Ms > 0 ? 'stalled-auth' : 'throttled')
+        : recentlyPaid
+          ? 'ok'
+          : 'quiet'
 
   return {
     day: today, dayBasis: basis, calls, paid, failed, inputTokens, outputTokens,
