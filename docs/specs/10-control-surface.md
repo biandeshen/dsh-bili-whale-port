@@ -164,8 +164,10 @@ world/bot 包浏览器端注册表      packages/cortico-world-bilibili/src/webu
     **三条都还没跑**（MiMo 账户 402 欠费，真实模型调用与对外写当前无凭据 ⇒ ①② 属未验证，不许用候选输出顶替回执）。
     **内核归一的实测前置**（2026-11-13 量完，脚本在账）：宿主 `persona-core/src` 16 份 vs 本仓 21 份，15 份内容不同、1 份相同、宿主独有 0；
     宿主运行时不引用它（`src/` 命中 0），本仓 51 处 import 全是相对路径。宿主门禁 9 文件/90 用例跑的是旧副本，指向本仓真内核后 **86 过 4 红**，
+    （本仓 `packages/persona-core/tests/` 有 90 个内核用例全绿：5 份与宿主副本逐字节相同、`voice-brief` 仅 fixture 路径不同、
+    `budget`/`retrieval`/`rhythm` 是本仓更新版、`activity-decision`/`capability` 本仓独有。所以「搬测试」不需要做。）
     4 红全在作息（恢复速率 / 评估间隔 30–90s / 第四驱动 activityDrive / 单日醒数）——逐条归因为「旧副本落后于 2026-11-06 裁决」，非本仓 bug；
-    旧参数下体力门 `tired` 拍数 0（从未触发），新参数下 2500/2880。推荐 A 段（测试搬回本仓 + 期望值按现行裁决更新，不碰宿主）后 B 段（删副本 + 防二次分叉门禁，需批准）。
+    旧参数下体力门 `tired` 拍数 0（从未触发），新参数下 2500/2880。**A 段（搬测试）实测不需要**（本仓已有 90 例），只剩 B 段（删宿主副本 + 防二次分叉门禁，需批准）。
     读数与复现命令见 [`host-claim-downgrade-2026-11-13.md`](../evidence/host-claim-downgrade-2026-11-13.md) ⑧⑨，
     探针 `docs/evidence/probes/kernel-fork-probe.mjs`、`rhythm-attrib.mjs`。
     证据落 `docs/evidence/`（gitSha + stub SHA + outward-evidence 原始输出 + 截图/DOM 断言），验过后才允许把宣称升级。
