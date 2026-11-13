@@ -218,8 +218,12 @@ grep -rn '"engines"' --include=package.json . | grep -v node_modules   # 零命�
 1. **没验**：本批**没有**在任何非 Cortico 宿主上装载过。降级版文本里「只验证过 Cortico」这句的依据是
    「仓内不存在第二个宿主的装载记录」，**不是**「试过别的宿主失败了」。第三件才是那个试验。
 2. **没验**：真浏览器 11 个页签（B-1 尾，任务 #74）——线上 7799 当前没起，标准规矩不许我重启生活循环。
-3. **登记（不在本批改代码）**：TTS 自己发起模型调用（③）。两条出路：交回宿主发起，或把宣称改成「除配音外」。
-   归第三件之后的批次，**由主人拍板选哪条**。
+3. **登记（不在本批改代码）**：TTS 自己发起模型调用（③）。~~两条出路：交回宿主发起，或把宣称改成「除配音外」。~~
+   **2026-11-13 追补（实测推翻了这个二选一）**：宿主**已有**给 World 用的用量上报契约
+   `WorldCtx.reportUsage(usage, opts?)`（`Cortico-up/src/core/types.ts:734`、实现 `core.ts:605`），
+   文档原文写着「记录 **World 自有模型**的用量，写入 session 统计和 usage.jsonl。**Core 不管理 World 自有模型的运行时**」。
+   这正是「能力包自己调自己的域内合成服务，宿主只记账」的形状。本仓对这个口的调用数为 **0**。
+   ⇒ 不需要新造宿主契约、也不需要把调用搬进宿主；见 ⑧。归后续批次，**由主人拍板选哪条**（三条都列在 ⑧）。
 4. **登记**：`cortico-adapter` 包名误导（②B）。改名要动 12 行 import + 冻结哈希，另开批次。
 5. **登记**：`build-webui.mjs:24` 与 `npm run gates` 写死隔壁目录名 `Cortico-up`。
    与 A-S2 已修的「七脚本硬默认」同类，但这两处**当时不在那七个里**；归后续批次（改法＝走 `scripts/lib/host-root.mjs`）。
@@ -233,3 +237,148 @@ grep -rn '"engines"' --include=package.json . | grep -v node_modules   # 零命�
      `packages/cap-bilibili/src/platform/paths.mjs:29` 的优先级链仍是 `WHALE_HOME → DSH_HOME → <HOME>/.dsh`；
      ffmpeg 查找顺序第 ③④ 位也仍是 `<仓库>/bin` 与 `~/.dsh/bili-whale/bin`（`packages/cap-vision/src/ffmpeg.ts:7`）。
      `.dsh` 这个**目录名**是遗留兼容，不是「DSH 宿主还在」的证据。
+
+## ⑧ TTS 反例的第三条出路：宿主已有 `reportUsage` 契约（2026-11-13 追补实测）
+
+写 ③ 时只搜了「宿主有没有 TTS 契约」，所以得出「宿主没有，要搬就得新造契约」——**这个前提是错的**。
+真正该搜的是「宿主有没有给 World **自报用量**的口」。
+
+### 实测：宿主有一个专门给这个场景的契约
+
+```
+$ grep -rniE "\btts\b|配音|语音合成" E:/WorkSpace_Qoder/Cortico-up/src --include=*.ts | wc -l
+1                     # 唯一命中 extensions/index.ts:1847，是应用市场的搜索框占位词，不是契约
+$ sed -n '732,737p' E:/WorkSpace_Qoder/Cortico-up/src/core/types.ts
+  /**
+   * 记录 World 自有模型的用量，写入 session 统计和 usage.jsonl。
+   * 仅记录主动上报的用量；Core 不管理 World 自有模型的运行时。`label` 是 session 列表里的显示名,缺省为 World id。
+   */
+  reportUsage(usage: LLMUsage, opts?: { model?: string; label?: string; charges?: ...Charge[] }): void;
+$ sed -n '605,607p' E:/WorkSpace_Qoder/Cortico-up/src/core/core.ts
+      reportUsage: (usage, opts) => {
+        if (lease.active) this.reportWorldUsage(mod.id, usage, opts);
+      },
+$ sed -n '627,629p' E:/WorkSpace_Qoder/Cortico-up/src/core/core.ts
+   * World 上报的用量按 `worlds.<World>` 仪表项计入 session 统计和 usage.jsonl。
+   * 用量标签不携带模型用途语义。
+$ grep -rn "reportUsage" packages/ | wc -l
+0                     # 本仓一次都没用过这个口
+```
+
+### 三条出路的对账
+
+| | 做法 | 代价 | 判定 |
+|---|---|---|---|
+| A（我最初列的） | 把 TTS 的模型发起搬进宿主 | 宿主没有音频合成契约，要为它新造一个；能力包反而更依赖宿主 | **不选**。把「域内服务」提到宿主，是把耦合加深 |
+| B（我最初列的） | 宣称改成「除配音外由宿主发起」 | 宣称变小，问题留着；TTS 花的钱仍然不进账 | **可作兜底**，但不是最好的 |
+| C（实测后推荐） | 调用留在能力包（**形态与 cap-bilibili 调 B 站相同**：能力包调自己域内的外部服务），合成后经**注入的回调**把用量交给宿主已有的 `reportUsage` | 5 处小改，全在本仓，**零宿主改动**；stub 上这个回调可省略（可选参数），正好证明它非必需 | **推荐** |
+
+### C 的具体落点（行号已核，施工时照这个改）
+
+| # | 文件 | 现状 | 改法 |
+|---|---|---|---|
+| 1 | `packages/cap-media-studio/src/vendor/tts.mjs:50-53` | 解析 `j.choices[0].message.audio.data`，把同一响应里的 `j.usage` **丢掉** | 读 `j.usage`，`synthesize()` 返回 `{ provider, voice, usage? }` |
+| 2 | `packages/cap-media-studio/src/index.ts:60-79` | 只有 `renderPipeline` / `ttsPreview` / `onPushToBiliQueue` 三个注入回调 | 加同风格的 `onUsage?: (u, o) => void`（**可选**，纯回调、不引 `cortico/*`） |
+| 3 | `packages/cap-media-studio/src/render.ts:163`、`:279` | `await synthesize(...)` 后只取 provider/voice | 拿到 `usage` 就调 `opts.onUsage?.()` |
+| 4 | `packages/cortico-world-media/src/cortico-world.ts:20-30` | `CorticoWorldHost` 只声明了 `pushEvent` / `log`（本地结构类型，**不 import 宿主**） | 加可选 `reportUsage?`；`:79-95` 的 `start(host)` 里透传 |
+| 5 | `packages/cap-media-studio/src/vendor/tts.mjs:90-104` | 402/429 只是 `catch` 后换 edge-tts，**每次渲染都重试 mimo** | 402/429 记一个冷却（持久化到输出目录旁的 state），冷却期内直接走 edge；停摆写成可读状态（接 #61） |
+
+### 仍未验证（别当成已解决）
+
+1. **MiMo 的音频响应到底带不带 `usage`**——没验。402 欠费，打不了真接口；`tts.mjs:50-53` 只取 audio.data，历史上没人看过 `usage` 字段。
+   施工时必须先留原始响应体样本；若确实没有 token 计数，就上报全 0 + 一条 `charges`（金额）或把「音频字节/字符数」记成 detail，**不许编 token 数**。
+2. **`reportUsage` 写入后 `cost-today.ts` 能不能读到**——按 `core.ts:627` 的注释同走 `usage.jsonl`，但 `worlds.media-studio` 这个 session id 是否被 `cost-today` 的统计口径覆盖，没验。
+3. **stub 上省略 `reportUsage` 时能力包不许崩**——靠「可选参数 + `?.`」保证，需要一条测试钉住。
+
+## ⑨ 内核分叉实测：90 个用例里 4 个判红，且**都不是本仓的 bug**（2026-11-13 追补）
+
+第三件（最小宿主验证）的前置是「内核归一」。先量：宿主 `persona-core/` 与本仓 `packages/persona-core/` 到底差多少。
+
+```
+$ ls E:/WorkSpace_Qoder/Cortico-up/persona-core/src | wc -l   → 16
+$ ls packages/persona-core/src | wc -l                        → 21
+# 逐文件比对：15 份内容不同，1 份完全相同（naming.ts），宿主独有 0 份
+# 本仓独有 5 份：atomic-write.ts capability.ts cortico-defaults.ts temporal.ts tz.ts
+$ grep -rn "persona-core" E:/WorkSpace_Qoder/Cortico-up/src | wc -l   → 0   （宿主运行时不引用它）
+$ grep -rn "persona-core/src" packages/ | wc -l                       → 51  （本仓用相对路径，全是本仓那份）
+```
+
+**关键事实**：宿主门禁 28 个文件 / 229 个用例里，有 **9 个文件 / 90 个用例（39.3%）跑的是那份旧副本**（`../src/*.ts`）；
+本仓的真内核对应用例数是 **0**。
+
+### 探针读数（只读，零 token，脚本已入库）
+
+```bash
+node docs/evidence/probes/kernel-fork-probe.mjs          # 基线 vs 指向本仓真内核
+# 基线（宿主旧副本）：exit=0 · tests 90 · pass 90 · fail 0
+# 探针（本仓真内核）：exit=1 · tests 90 · pass 86 · fail 4
+#   76 rhy：睡着时体力按小时恢复，满了不溢出
+#   77 rhy：评估间隔带抖动，不是整点
+#   78 rhy：等不到人的次数会随时间回落（不会永远不再找他）
+#   79 10 天模拟：醒几次、几点醒由状态+抖动决定，不跟随固定时间表
+# 工具性错误：URL_SCHEME=0 MODULE_NOT_FOUND=0   ← 这一行必须为 0，否则读数作废
+```
+
+> 探针 v1 曾报 `0/9`，原因是改写后的 import 用了裸 `E:/...` 而不是 `file:///E:/...`（`ERR_UNSUPPORTED_ESM_URL_SCHEME`）。
+> **那 9 个"失败"是工具坏了，不是断言失败**，不作任何结论；脚本头部与 `工具性错误：` 行就是为了让下一个人不重踩。
+
+### 四条判红逐条归因（同一份模拟循环分别喂两份内核）
+
+```bash
+node --import tsx docs/evidence/probes/rhythm-attrib.mjs                      # 本仓真内核
+PROBE_KERNEL=host node --import tsx docs/evidence/probes/rhythm-attrib.mjs    # 宿主旧副本
+```
+
+| # | 用例断言 | 宿主旧副本 | 本仓真内核 | 谁对 |
+|---|---|---|---|---|
+| 76 | `restRecoveryDelta(0.5, 5h) ≈ 0.025`（=0.005/h） | `REST_RECOVERY_PER_HOUR=0.005` | `0.02`（4×） | **本仓**（后来调过恢复速率；测试把这个数写死了） |
+| 77 | `nextCheckDelay ∈ [3min, 7min]` | `3–7min` | `30–90s` | **本仓**——`rhythm.ts:95-99` 原话「2026-11-06 从 3–7 分钟收紧」 |
+| 78 | `urge ≈ 0.25` | 三驱动 `max(explore, connect, restPressure)` | 加第四驱动 `activityDrive(f)` → 实测 **0.825** | **本仓**——`rhythm.ts:144-154`「2026-11-06 补的：只算前三个会锁死 70 小时」 |
+| 79 | 单日醒 ≤15 | 逐日 `1,1,1,2,3,4,1,4,5,7,2`（10 天 31 次） | 逐日 `18,4,4,3,4,4,4,4,4,3,2`（10 天 54 次） | **本仓**（见下，界限是按旧参数标定的） |
+
+**第 79 条的归因（这条最重要，因为它看起来像「体力门失效」）**：
+
+```
+本仓真内核：总拍数 2880，tired 拍数 2500（86.8%）；首日 energy 0.7035 → 0.1998，末次醒后 0.1698 < 0.18（门阈值）
+宿主旧副本：总拍数 2880，tired 拍数 0（0%）；首日 energy 0.703 → 0.673（几乎没动）
+```
+
+- 本仓：门**在起作用**，而且是唯一起作用的闸——`(0.7035 − 0.18) / 0.03 ≈ 17.4` → 一箱体力 18 轮，算得出来。
+- 宿主旧副本：**门槛一次都没被触发过**（`tired` 拍数 0），所谓「通过」是因为旧参数（`CHECK_PROB=0.05`、恢复 0.005/h）压根没压到体力。
+- 所以「单日 ≤15」是**按旧概率标定的经验界限**，不是不变量；`CHECK_PROB 0.05 → 0.35`（`rhythm.ts:74`，主人「不限次」裁决）之后，
+  同一箱体力在更短时间内被花掉，首日（从 14:00 起算只有 10 小时）自然装下 18 次。
+
+**结论**：这 4 条判红说明**旧副本落后于主人的裁决**，不是本仓内核有 bug。同时它暴露了一个更值得记的事实：
+宿主门禁那 90 个用例，**有相当一部分测的是「参数长什么样」，而不是「她像不像人」**；旧参数下体力门从不触发，等于对最关键的那条行为零覆盖。
+
+### 因此「内核归一」的推荐做法（分两段，A 段现在就能做且不碰宿主）
+
+**A 段（本批/下一批，只在本仓，零宿主写操作）**
+1. 把这 9 份测试**搬进本仓**（`packages/persona-core/tests/`），import 改成相对路径指向本仓内核。
+2. 4 条判红的期望值按**现行裁决**更新，并在测试名或注释里写明依据（76 写恢复速率、77 引 2026-11-06 收紧、78 引 activityDrive、79 把「≤15」换成**体力账守恒**断言：
+   总醒次数 ≈ `(初始energy − 门阈值)/每次开销`，且 tired 拍数 > 0——这条断言在旧参数下会失败，正是我们要的敏感性）。
+3. 跑一遍记账：**本仓内核首次获得单元覆盖**，宿主从 229 降到 139（90 个用例搬走，不是消失）。
+
+**B 段（需主人批准，因为要动宿主仓）**
+4. 宿主侧：删 `persona-core/` 副本 + `package.json:38` 依赖 + `pnpm-workspace.yaml:14` 条目；**先 `git bundle` 备份**（同 A 段删旧代码的四条判据）。
+5. 加一条**防第二次分叉**的门禁：宿主仓 `src/` 里出现 `persona-core` 引用即红；本仓 `packages/*/src` 出现 `@xiaoyu/persona-core` 包名 import 即红（只许相对路径）。
+6. stub 规矩：加载 persona-core **只许相对路径**，不许包名——`adapter.test.mjs` 那条链（测试 → 退役适配器 → `@xiaoyu/persona-core/*` → 宿主 `node_modules` 符号链接 → 宿主自己那份）
+   就是包名解析悄悄换掉内核的活样本。
+
+**为什么不用「锁定解析优先级」**：本仓 51 处 import **全是相对路径**，从来没有「解析到哪份」的歧义。锁优先级是在解决一个不存在的问题，
+而真问题（宿主跑着旧副本 + 真内核无单测）一点没动。
+
+### 复现（全部只读）
+
+```bash
+cd E:/WorkSpace_Qoder/dsh-bili-whale
+node docs/evidence/probes/kernel-fork-probe.mjs
+node --import tsx docs/evidence/probes/rhythm-attrib.mjs
+PROBE_KERNEL=host node --import tsx docs/evidence/probes/rhythm-attrib.mjs
+# 宿主里 tsx 装在宿主侧；在宿主 cwd 下跑第二步是本机实测可行的调用方式
+```
+
+### 顺带登记（本仓内核的注释漂移，不影响行为）
+
+- `packages/persona-core/src/rhythm.ts:75-81`：注释叙述「0.003/h 是旧口径…0.005/h × 16h」，而常量实际是 **0.02**；
+  `:82-90` 又写「恢复…0.008」，也与 0.02 不符。行为按常量走，注释落后——登记，不改（改注释会动冻结哈希，另开批次）。

@@ -162,6 +162,12 @@ world/bot 包浏览器端注册表      packages/cortico-world-bilibili/src/webu
     ① 在 stub 上连续跑 24h；② `node scripts/outward-evidence.mjs --date=<验证日>` 退出 0（判据＝**对外凭据**，`life_do` 自记账不算）；
     ③「她的一天」「作息遥控台」「待放行队列」三页在**真浏览器**可用（`FakeEl` 不算）。
     **三条都还没跑**（MiMo 账户 402 欠费，真实模型调用与对外写当前无凭据 ⇒ ①② 属未验证，不许用候选输出顶替回执）。
+    **内核归一的实测前置**（2026-11-13 量完，脚本在账）：宿主 `persona-core/src` 16 份 vs 本仓 21 份，15 份内容不同、1 份相同、宿主独有 0；
+    宿主运行时不引用它（`src/` 命中 0），本仓 51 处 import 全是相对路径。宿主门禁 9 文件/90 用例跑的是旧副本，指向本仓真内核后 **86 过 4 红**，
+    4 红全在作息（恢复速率 / 评估间隔 30–90s / 第四驱动 activityDrive / 单日醒数）——逐条归因为「旧副本落后于 2026-11-06 裁决」，非本仓 bug；
+    旧参数下体力门 `tired` 拍数 0（从未触发），新参数下 2500/2880。推荐 A 段（测试搬回本仓 + 期望值按现行裁决更新，不碰宿主）后 B 段（删副本 + 防二次分叉门禁，需批准）。
+    读数与复现命令见 [`host-claim-downgrade-2026-11-13.md`](../evidence/host-claim-downgrade-2026-11-13.md) ⑧⑨，
+    探针 `docs/evidence/probes/kernel-fork-probe.mjs`、`rhythm-attrib.mjs`。
     证据落 `docs/evidence/`（gitSha + stub SHA + outward-evidence 原始输出 + 截图/DOM 断言），验过后才允许把宣称升级。
     复现（现在就能跑的只读测量）：`grep -rn -E "['\"]cortico/" packages/ --include=*.ts --include=*.mjs --include=*.js`（1 行注释）；
     `grep -rn "api.xiaomimimo.com" packages/`（tts.mjs:41）；`grep -rn '"engines"' --include=package.json . | grep -v node_modules | wc -l` → 0；
