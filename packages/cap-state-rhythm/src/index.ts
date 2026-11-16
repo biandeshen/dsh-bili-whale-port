@@ -20,6 +20,7 @@ import type { AtomicFields } from '../../persona-core/src/types.ts'
 import { dayKey } from '../../persona-core/src/rhythm.ts'
 import { readCostToday, costSummary } from './cost-today.ts'
 import { readLiveness } from './liveness.ts'
+import { WriteDeduper, contentKey } from '../../persona-core/src/write-dedupe.ts'
 import {
   emptyState,
   loadState,
@@ -189,6 +190,8 @@ export function createStateRhythmCapability(
 ): XiaoyuCapability<StateRhythmConfig> {
   let hostRef: CapabilityHost | null = null
   const actionsFile = opts.actionsFile ?? path.join(path.dirname(opts.lifeFile), 'actions.ndjson')
+  /** 写工具的「最近写过什么」窗口：life_do 的幂等靠它（见 recordActionImpl 里那段） */
+  const actionDeduper = new WriteDeduper(64)
 
   /**
    * 她记下一笔"真的做过的小事"（`life_do` 工具的唯一实现）。
@@ -210,6 +213,26 @@ export function createStateRhythmCapability(
       return { ok: false, error: `activity 只能是 ${ACTIVITY_TYPES.join(' / ')} 之一` }
     }
     const note = String(params?.note ?? '').trim().slice(0, 200)
+    /**
+     * 幂等（2026-11-14，抄业界 content-hash idempotency key 的做法）：
+     * 实测同一件事在 8 分钟内被记了两笔、**逐字相同**（「翻记忆池找所有收下的视频，看哪条是漏掉的」）。
+     * 同 (activity, note) 重复调用 → 直接说"已记过"，**不扣体力、不追加行动账**。
+     * 主人手动记（source='owner'）不拦：他自己要记两遍是他的自由。
+     */
+    if (params?.source !== 'owner') {
+      const key = contentKey(['life_do', activity, note])
+      const hit = actionDeduper.lookup(key)
+      if (hit) {
+        return {
+          ok: true,
+          deduped: true,
+          activity,
+          label: ACTIVITY_LABELS[activity],
+          at: hit.at,
+          receipt: `这件事刚记过了（${new Date(hit.at).toLocaleTimeString('zh-CN')}），没有重复扣体力、也没有再记一笔。`,
+        }
+      }
+    }
     const nowMs = Date.now()
     // ① 真花体力：以前行动是零成本的，"累了就歇"这条反馈根本触发不了。
     const withCost = applyEffects(
@@ -240,6 +263,8 @@ export function createStateRhythmCapability(
       },
     })
     try { opts.onActionRecorded?.(rec) } catch { /* 通知失败不影响记账本身 */ }
+    // 记下指纹：下一次同内容调用直接返回（幂等，见上面那段）
+    if (params?.source !== 'owner') actionDeduper.remember(contentKey(['life_do', activity, note]), { at: nowMs }, nowMs)
     return {
       ok: true,
       activity,
@@ -438,6 +463,20 @@ export function createStateRhythmCapability(
           },
           mutatesState: true,
           execute(args: { preset?: string; verdict?: WatchVerdict; note?: string }) {
+            /**
+             * 幂等（同 life_do）：同一组 (preset, verdict, note) 重复调用不再叠加场值。
+             * 实测一笔行动里 mood_apply 被调了 3 次——同一件事的同一情绪被计了三遍。
+             */
+            const moodKey = contentKey(['mood_apply', args?.preset, args?.verdict, args?.note])
+            const moodHit = actionDeduper.lookup(moodKey)
+            if (moodHit) {
+              return {
+                ok: true,
+                deduped: true,
+                applied: `这组情绪刚记过了（${new Date(moodHit.at).toLocaleTimeString('zh-CN')}），没有重复叠加`,
+                mood: readMood(loadState(opts.fieldsFile)),
+              }
+            }
             let s = loadState(opts.fieldsFile)
             let appliedDesc = ''
             if (args?.preset === 'watchedVideo') {
@@ -456,6 +495,7 @@ export function createStateRhythmCapability(
               s = remember(s, String(args.note).trim(), { sender: 'npc', source: 'npc_self' })
             }
             saveState(opts.fieldsFile, s)
+            actionDeduper.remember(moodKey)
             return { ok: true, applied: appliedDesc || '已记录', mood: readMood(s), fields: s.fields }
           },
         },

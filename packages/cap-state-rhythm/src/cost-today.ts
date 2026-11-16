@@ -33,6 +33,15 @@ export interface CostToday {
   last402At: string
   /** 连续 402/429 且距今多久——用来区分"她不想说"和"说不出口" */
   stalledMinutes: number | null
+  /**
+   * 每笔行动摊到几次模型调用（2026-11-14 新增，第三方复核的验收指标）。
+   * 11-06 实测 226 笔 / 3237 次 = 14.3；11-13 是 4 笔 / 14 次 = 3.5。
+   * 目标 ≤ 3。这是"一件事被拆成几轮"的直接读数——比单次 token 更能说明烧钱的单位。
+   * `actions` 为 0（今天没行动）时为 null：不拿"没行动"去算一个好看的比例。
+   */
+  callsPerAction: number | null
+  /** 今天记了几笔行动（行动账的条数，不是 life.json 的汇总） */
+  actions: number
   verdict: 'ok' | 'stalled-auth' | 'throttled' | 'quiet'
   file: string
   note: string
@@ -56,6 +65,7 @@ export function readCostToday(opts: { dataDir: string; basis?: 'utc' | 'local'; 
     day: new Date(now).toISOString().slice(0, 10), dayBasis: basis,
     calls: 0, paid: 0, failed: 0, inputTokens: 0, outputTokens: 0, avgInputPerPaid: 0,
     atCeiling: 0, ceiling: CEILING, statusCounts: {}, last402At: '', stalledMinutes: null,
+    callsPerAction: null, actions: 0,
     verdict: 'quiet', file,
     note: fs.existsSync(file) ? '今天的账读到了，但一条调用都没有（她没开口）' : `还没有计费账：${file} 不存在`,
   }
@@ -131,12 +141,35 @@ export function readCostToday(opts: { dataDir: string; basis?: 'utc' | 'local'; 
           ? 'ok'
           : 'quiet'
 
+  /**
+   * 每笔行动摊到几次调用（第三方复核 2026-11-14 定的唯一验收数）。
+   * 行动数从 `actions.ndjson` 读当日条数——**不用 life.json 的 actionsToday**，
+   * 因为那个是汇总、且以前有对不上账的前科；验收要看凭据。
+   */
+  let actions = 0
+  try {
+    const af = path.join(opts.dataDir, 'persona', 'actions.ndjson')
+    const fallback = path.join(opts.dataDir, 'actions.ndjson')
+    const target = fs.existsSync(af) ? af : fallback
+    if (fs.existsSync(target)) {
+      for (const line of fs.readFileSync(target, 'utf8').split('\n')) {
+        if (!line.trim()) continue
+        try {
+          const r = JSON.parse(line)
+          const at = Number(r?.at ?? 0)
+          if (at > 0 && dayKey(new Date(at).toISOString(), basis) === today) actions += 1
+        } catch { /* 半行跳过 */ }
+      }
+    }
+  } catch { /* 读不到行动账就报 null，不编一个数 */ }
+  const callsPerAction = actions > 0 ? Number((calls / actions).toFixed(2)) : null
+
   return {
     day: today, dayBasis: basis, calls, paid, failed, inputTokens, outputTokens,
     avgInputPerPaid: paid ? Math.round(inputTokens / paid) : 0,
     atCeiling, ceiling: CEILING, statusCounts,
     last402At: last402Ms ? new Date(last402Ms).toISOString() : '',
-    stalledMinutes, verdict, file,
+    stalledMinutes, callsPerAction, actions, verdict, file,
     note: '',
   }
 }
@@ -145,6 +178,14 @@ export function readCostToday(opts: { dataDir: string; basis?: 'utc' | 'local'; 
 export function costSummary(c: CostToday): string {
   const m = (n: number) => `${(n / 1e6).toFixed(1)}M`
   const head = `今天 ${c.calls} 次调用（付费 ${c.paid} · 失败 ${c.failed}）· 输入 ${m(c.inputTokens)} · 单次均 ${c.avgInputPerPaid.toLocaleString('en-US')}，其中 ${c.atCeiling} 次顶到 ${c.ceiling.toLocaleString('en-US')} 上限`
+  /**
+   * 「每笔行动几次调用」放在最前——这是烧钱的单位（第三方 2026-11-14 定的唯一验收数）。
+   * 11-06 是 14.3、11-13 是 3.5，目标 ≤ 3；>3 就明说超了，别藏在后面。
+   * 今天没行动时写 null 的理由，不拿 0 去伪装一个漂亮比例。
+   */
+  const burn = c.actions > 0
+    ? `｜**每笔行动 ${c.callsPerAction} 次调用**${(c.callsPerAction ?? 0) > 3 ? '（超 3，一件事被拆太碎）' : ''}（今天 ${c.actions} 笔）`
+    : '｜今天还没有行动，算不出每笔调用数'
   const tail = c.verdict === 'stalled-auth'
     ? `｜**说不出口**：额度被拒（402），最后一次 ${c.stalledMinutes} 分钟前，这不是她不想说`
     : c.verdict === 'throttled'
@@ -156,5 +197,5 @@ export function costSummary(c: CostToday): string {
         : c.calls > 0
           ? `｜近 15 分钟没有新调用（今天累计 ${c.calls} 次，其中付费 ${c.paid} 次）`
           : '｜今天一次都没调用（账上是空的）'
-  return `${head}${tail}（日界口径：${c.dayBasis}）`
+  return `${burn}${head}${tail}（日界口径：${c.dayBasis}）`
 }

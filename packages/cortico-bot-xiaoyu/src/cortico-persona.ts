@@ -530,6 +530,12 @@ export class XiaoYuPersona implements CorticoPersonaShape {
      * 她自己记下一笔行动（life_do）也由能力包回调重置。
      */
     if (this.isRealActivity(ctx.events)) this.heartbeat?.noteActivity()
+    /**
+     * 每次唤醒开始，把工具调用闸门清零（2026-11-14）。
+     * 抄 LangChain ToolCallLimitMiddleware 的 run_limit 语义：一次 invocation 内计数，
+     * 新一批投递时重置。**不跨批累计** —— 那就变成"她今天能做几件事"了，主人禁过。
+     */
+    try { this.hub.resetToolGate() } catch { /* 闸门重置失败不该拦住这一批 */ }
     // 投递路径的纪律：这里抛任何错，宿主只给一行无详情的 WARN（实测），注入全部丢失。
     // 所以整段兜底：宁可这一批不带回忆，也不能让异常冒出去。
     try {

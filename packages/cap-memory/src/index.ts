@@ -26,6 +26,7 @@ import {
 } from './card-store.ts'
 import { GitWorkspaceMemory } from './workspace.ts'
 import { recallMemories, RECALL_WEIGHTS } from '../../persona-core/src/retrieval.ts'
+import { WriteDeduper, contentKey } from '../../persona-core/src/write-dedupe.ts'
 
 export {
   MemoryCardStore,
@@ -72,6 +73,8 @@ export function createMemoryCapability(
 ): XiaoyuCapability<MemoryCapabilityConfig> & { readonly git: GitWorkspaceMemory['git'] | null; readonly store: MemoryCardStore } {
   const workspace = opts.workspaceDir ? new GitWorkspaceMemory({ memoryDir: opts.workspaceDir }) : null
   const store = new MemoryCardStore(opts.memoRoot, workspace?.git ?? undefined)
+  /** memory_remember 的幂等窗口（见工具里那段） */
+  const memDeduper = new WriteDeduper(64)
 
   /** 现读配置（主人在 WebUI 改完立刻生效，不用重启）。 */
   const cfg = (): MemoryCapabilityConfig => {
@@ -234,6 +237,21 @@ export function createMemoryCapability(
           },
           mutatesState: true,
           execute(args: { content: string; tags?: string[]; milestone?: boolean; firstTag?: string }) {
+            /**
+             * 幂等：同一 content 重复记不再新建卡片（实测一件小事里 memory_remember 被调了 1 次、
+             * memory_recall 3 次；recall 是读、不改账，但 remember 重复会多一张卡 + 多一次 git commit）。
+             * 只比 content，不比 tags —— tags 顺序不同不该算同一件事，但 content 相同一定是。
+             */
+            const mKey = contentKey(['memory_remember', args.content])
+            const mHit = memDeduper.lookup(mKey)
+            if (mHit) {
+              const prev = mHit.result as { id?: string; tier?: string; flashbulb?: boolean } | undefined
+              return {
+                ok: true, deduped: true,
+                id: prev?.id, tier: prev?.tier, flashbulb: prev?.flashbulb,
+                receipt: `这条刚记过了（${new Date(mHit.at).toLocaleTimeString('zh-CN')}），没有重复建卡。`,
+              }
+            }
             const mood = opts.getCurrentMood ? opts.getCurrentMood() : 0
             if (args.firstTag) {
               const card = store.rememberFirst(args.content, args.firstTag, {
@@ -241,6 +259,7 @@ export function createMemoryCapability(
                 mood,
                 tags: args.tags,
               })
+              memDeduper.remember(mKey, { id: card.id, tier: card.tier, flashbulb: card.flashbulb })
               return { ok: true, id: card.id, tier: card.tier, flashbulb: card.flashbulb }
             }
             const card = store.create({
@@ -251,6 +270,7 @@ export function createMemoryCapability(
               mood,
               source: 'npc_self',
             })
+            memDeduper.remember(mKey, { id: card.id, tier: card.tier, flashbulb: card.flashbulb })
             return { ok: true, id: card.id, tier: card.tier, flashbulb: card.flashbulb }
           },
         },

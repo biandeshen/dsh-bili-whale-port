@@ -8,6 +8,7 @@
  * - 向下适配 Cortico BotDefinition（api: 7），同时暴露宿主无关的 `createXiaoyuBotHub` 供任意底座直接挂载。
  */
 import path from 'node:path'
+import { ToolCallGate, withToolGate, DEFAULT_TOOL_LIMITS, type ToolCallLimitConfig } from './tool-gate.ts'
 import {
   validateCapabilityContract,
   type XiaoyuCapability,
@@ -41,6 +42,8 @@ export interface XiaoyuBotHubOptions {
    * 以前这三个数只声明不生效——核心常驻上限是硬编码的 8。
    */
   memoryConfig?: () => { residentCap?: number; activeCap?: number; archiveThreshold?: number }
+  /** 工具调用闸门的上限（面板可改）；缺省用 DEFAULT_TOOL_LIMITS（抄 LangChain 文档示例值） */
+  toolLimits?: Partial<ToolCallLimitConfig>
 }
 
 export interface XiaoyuBotHub {
@@ -59,6 +62,10 @@ export interface XiaoyuBotHub {
   assembleSystemPrefix(ctx: TurnContext): Promise<PrefixBlock[]>
   assembleDeliveryInjections(ctx: DeliveryContext): Promise<string[]>
   tools(): ToolRegistration<any, any>[]
+  /** 工具调用闸门的当前读数（面板可见：这一轮用了几次、哪个工具最多） */
+  panelToolGateStats(): { total: number; byTool: Record<string, number>; repeated: number }
+  /** 每次唤醒投递前重置（宿主 onDelivery 每批必调） */
+  resetToolGate(): void
   panels(): CapabilityPanelDecl[]
   /**
    * 各能力包声明的可清除存储单元（宿主在装配期收这一份）。
@@ -75,6 +82,13 @@ export function createXiaoyuBotHub(opts: XiaoyuBotHubOptions): XiaoyuBotHub {
   const lifeFile = path.join(dataPersonaDir, 'life.json')
 
   const workspace = new GitWorkspaceMemory({ memoryDir: workspaceDir })
+
+  /**
+   * 工具调用闸门：一次唤醒内计数，宿主每批投递时 resetToolGate() 清零。
+   * 上限可被 opts.toolLimits 覆盖（面板/配置读这个值，不是硬编码）。
+   */
+  const limitCfg: ToolCallLimitConfig = { ...DEFAULT_TOOL_LIMITS, ...(opts.toolLimits ?? {}) }
+  const gate = new ToolCallGate(limitCfg)
 
   const stateRhythmCap = createStateRhythmCapability({
     fieldsFile,
@@ -163,7 +177,23 @@ export function createXiaoyuBotHub(opts: XiaoyuBotHubOptions): XiaoyuBotHub {
     },
 
     tools(): ToolRegistration<any, any>[] {
-      return capabilities.flatMap((c) => [...c.tools()])
+      const raw = capabilities.flatMap((c) => [...c.tools()])
+      /**
+       * 工具调用闸门（2026-11-14，抄 LangChain ToolCallLimitMiddleware）：
+       * 实测一件事被拆成 10 次工具调用（life_do ×4 / mood_apply ×3 / memory_recall ×3），
+       * 宿主那层 `rounds.hard` 按"轮"计数，拦不住"同一个工具反复调"。
+       * 闸门只在**一次唤醒内**计数（onDelivery 时重置），跨唤醒不限制——
+       * 它拦的是机械重复，不是"她今天能做几件事"。
+       */
+      return withToolGate(raw, gate)
+    },
+
+    panelToolGateStats() {
+      return gate.stats()
+    },
+
+    resetToolGate() {
+      gate.reset()
     },
 
     panels(): CapabilityPanelDecl[] {

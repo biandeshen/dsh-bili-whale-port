@@ -21,6 +21,7 @@ import type {
 import { dayKey } from '../../persona-core/src/rhythm.ts'
 import { atomicWriteFile } from '../../persona-core/src/atomic-write.ts'
 import { WorkspaceGit, AUTHOR_SELF, AUTHOR_OPERATOR } from '../../cap-memory/src/workspace-git.ts'
+import { WriteDeduper, contentKey } from '../../persona-core/src/write-dedupe.ts'
 import {
   diaryDefaultHeader,
   upsertDiarySection,
@@ -215,6 +216,8 @@ export function createJournalCapability(
 ): XiaoyuCapability<JournalCapabilityConfig> {
   const diaryPath = (book: DiaryBook) =>
     book === 'private' ? opts.privateDiaryFile : opts.publicDiaryFile
+  /** 写日记的幂等窗口（见 diary_write 里那段） */
+  const diaryDeduper = new WriteDeduper(64)
   const commitDiary = (message: string, byOwner: boolean): void => {
     if (!opts.git) return
     try {
@@ -366,12 +369,29 @@ export function createJournalCapability(
           execute(args: { book: DiaryBook; heading: string; body: string; date?: string }) {
             const book: DiaryBook = args.book === 'private' ? 'private' : 'public'
             const date = args.date?.trim() || dayKey(Date.now())
+            /**
+             * 幂等：同一 (book, heading, body, date) 重复写入直接返回，不重写文件、不产生第二次 git commit。
+             * 虽然 upsertDiarySection 本身是"有则替换"，但重复调用仍会多一次提交与一次时间戳变化——
+             * 那也是"同一件事记两遍"。
+             */
+            const dKey = contentKey(['diary_write', book, args.heading, args.body, date])
+            const dHit = diaryDeduper.lookup(dKey)
+            if (dHit) {
+              return {
+                ok: true,
+                deduped: true,
+                book, date, heading: args.heading,
+                mode: 'duplicate',
+                receipt: `这一小节刚刚已经写过了（${new Date(dHit.at).toLocaleTimeString('zh-CN')}），没有再写一遍。`,
+              }
+            }
             const file = diaryPath(book)
             const raw = readTextSafe(file, book)
             const before = sectionStats(raw, date, args.heading, book)
             const next = upsertDiarySection(raw, { book, heading: args.heading, body: args.body, date })
             writeTextAtomic(file, next)
             commitDiary(`diary: ${book} 本 ${date}「${args.heading}」${before.existed ? '替换' : '追加'}（她写的）`, false)
+            diaryDeduper.remember(dKey)
             return {
               ok: true,
               book,
