@@ -15,6 +15,21 @@ import {
 } from '../../cortico-adapter/src/index.ts'
 import { createBilibiliCapability, type BilibiliCapabilityOptions, type BilibiliReadHandlers } from '../../cap-bilibili/src/index.ts'
 import { listJudgments } from '../../cap-journal/src/judgments-feedback.ts'
+import { fileURLToPath } from 'node:url'
+
+/**
+ * 环境提示词模板（2026-11-14 补）。
+ *
+ * 为什么必须补：宿主 World 契约原文是「工具**定义和用法**由 World 提供；
+ * **使用时机与跨工具指导写入环境提示词**」。我们此前只做了前半句——
+ * 18 把 bili_* 工具注册了、模型也看得见，但 `webUi()` 里没有声明
+ * `role: 'envPrompt'` 的模板，于是 `envPromptVars()` 返回的变量值
+ * **没有任何模板可渲染**，她从来不知道什么时候该刷 B 站。
+ *
+ * 实测：全仓 `grep -c "role: 'envPrompt'"` = 0，而宿主内置的
+ * bilibili/console/qq/minecraft 都有；对应地，77x 次工具调用里 bili_* 为 0。
+ */
+const ENV_PROMPT_FILE = fileURLToPath(new URL('./ENV_PROMPT.md', import.meta.url))
 
 /** Cortico WorldHost 的最小形状（只用 pushEvent 与日志）。 */
 export interface CorticoWorldHost {
@@ -79,6 +94,22 @@ export function createBiliWorld(opts: BiliWorldOptions) {
       return {
         label,
         panels,
+        // 环境提示词模板：缺了它，envPromptVars() 的变量没有落点（见文件头注释）
+        promptDocs: [
+          {
+            key: 'worlds.bili-account.envPrompt',
+            title: 'B 站环境提示词',
+            description: '告诉她手里有哪些 B 站工具、什么时候该用、写操作必须先过待放行队列。',
+            path: ENV_PROMPT_FILE,
+            role: 'envPrompt',
+            vars: [
+              { name: 'bili.policy', description: '当前写档位（动态/评论/弹幕/私信/点赞/收藏）' },
+              { name: 'bili.queue', description: '待主人放行的草稿条数' },
+              { name: 'bili.inbox', description: '收件箱未读条数' },
+              { name: 'bili.kill', description: '急刹开启时的警告行，未开启为空' },
+            ],
+          },
+        ],
         invoke: (panel: string, method: string, args: unknown[]) =>
           invokePanelMethod(cap.panels() as never, panel, method, args),
       }

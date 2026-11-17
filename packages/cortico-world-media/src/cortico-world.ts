@@ -13,6 +13,10 @@ import {
 import { createMediaStudioCapability, type MediaStudioCapabilityOptions } from '../../cap-media-studio/src/index.ts'
 import { homedir } from 'node:os'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+/** 环境提示词模板（同 bili world 的理由：契约要求"使用时机"写进提示词）。 */
+const ENV_PROMPT_FILE = fileURLToPath(new URL('./ENV_PROMPT.md', import.meta.url))
 
 /** 本机 ffmpeg 的默认位置（与 tools/video-build.mjs 用的是同一处）。 */
 export function defaultMediaBinDir(): string {
@@ -112,6 +116,19 @@ export function createMediaWorld(opts: MediaWorldOptions) {
       return {
         label,
         panels,
+        promptDocs: [
+          {
+            key: 'worlds.media-studio.envPrompt',
+            title: '音视频工作室环境提示词',
+            description: '告诉她这间工作室能做什么、什么时候值得出片、出片慢不要反复调。',
+            path: ENV_PROMPT_FILE,
+            role: 'envPrompt',
+            vars: [
+              { name: 'media.assets', description: '可用底图与 CC0 曲目数量' },
+              { name: 'media.toolchain', description: 'ffmpeg 是否可用' },
+            ],
+          },
+        ],
         invoke: (panel: string, method: string, args: unknown[]) =>
           invokePanelMethod(cap.panels() as never, panel, method, args),
       }
