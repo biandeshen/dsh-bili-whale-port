@@ -23,7 +23,13 @@ test('心跳配置组形状对（宿主 isConfigGroup 会挑掉形状不对的�
   assert.equal(g.schema.type, 'object')
   assert.ok(g.schema.title, '页面分组要有标题')
   const keys = Object.keys(g.schema.properties)
-  assert.deepEqual(keys, ['tick.intervalMinutes'], '只声明代码里真读的键，别挂改了没反应的旋钮')
+  // 2026-11-14：新增两个抄自上游的旋钮（会话轮换 / 最小唤醒间隔）。
+  // 原来的断言是"只声明 intervalMinutes"——那条纪律的本意是"别挂改了没反应的旋钮"，
+  // 所以这里改成"声明的每个键都必须有真实读点"，而不是写死键名清单。
+  assert.ok(keys.includes('tick.intervalMinutes'), '心跳间隔必须在')
+  for (const k of ['tick.sessionRotateDays', 'tick.minWakeGapMinutes']) {
+    assert.ok(keys.includes(k), `${k} 应被声明（抄上游 night.minGapMin / sessionRotateDays）`)
+  }
   const p = g.schema.properties['tick.intervalMinutes']
   // 2026-11-06 主人拍板不限次：间隔支持小数（0.5 = 30 秒），不再是整数分钟
   assert.equal(p.type, 'number')

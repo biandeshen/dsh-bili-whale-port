@@ -72,6 +72,15 @@ export interface XiaoYuPersonaOptions extends XiaoyuBotHubOptions {
    */
   tickDelayMs?: (now: Date) => number | null
   /**
+   * 两次**真正叫醒**之间的最小间隔（毫秒）；返回 0/缺省 = 不限。
+   *
+   * 抄上游 `night.minGapMin`（默认 10 分钟，硬下限）：上游原文说
+   * 「窗口挤不下就少醒几次，不自动压缩间隔」——主人要的是"每次至少隔 10 分钟"。
+   * 与我们已有的 `tickDelayMs` 不同：那个是"多久评估一次"（评估不花钱），
+   * 这个是"评估通过后多久才允许真的叫模型"。
+   */
+  tickMinWakeGapMs?: (now: Date) => number
+  /**
    * 上下文阶段预算。**每拍现读**，主人在 WebUI 改了立刻生效，不用重启。
    * 不给就用 XIAOYU_CONTEXT_DEFAULTS。
    */
@@ -132,6 +141,7 @@ export class XiaoYuPersona implements CorticoPersonaShape {
     if (opts.tickDelayMs) {
       this.heartbeat = new LifeHeartbeat({
         baseline: opts.tickDelayMs,
+        ...(opts.tickMinWakeGapMs ? { minWakeGapMs: opts.tickMinWakeGapMs } : {}),
         onFire: () => {
           const core = this.core
           // **在这一拍落下的当下**就把下一拍的真时间抓住。

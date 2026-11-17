@@ -25,9 +25,32 @@
 /** 基线为 null 时，隔这么久回来重读一次策略 */
 const POLICY_RECHECK_MS = 30 * 60_000
 
+/**
+ * 最小唤醒间隔的默认值（分钟）—— 抄上游 `night.minGapMin`。
+ *
+ * 上游原文（Alterssss/dsh-bili-whale `tools/lib/night-plan.mjs:73-86`）：
+ *   「下限 = cfg.minGapMin（默认 10 分钟）… 改成【硬下限】——窗口挤不下就少醒几次，
+ *     不自动压缩间隔（主人要的是"每次至少隔 10 分钟"，不是"尽量隔开"）」
+ *
+ * 为什么我们也要它：本仓的 `tick.intervalMinutes = 0.5`（30 秒）是**评估间隔**，
+ * 不是**唤醒间隔**。评估不投递、不花钱；但一旦 `shouldAct=true` 就真的叫模型。
+ * 实测 11-13 那个 run：4 笔行动 / 20 次调用，而两次行动之间可以只隔 5 分钟——
+ * 上游用 10 分钟硬下限把它压住。
+ *
+ * **这不是配额**（主人 2026-10-30 / 2026-11-06 两次拍板禁过）：
+ * 配额限"她今天能做几件事"，这里只限"两次真的叫醒之间至少隔多久"。
+ * 她一天能醒几次仍由体力与场值自己收敛。
+ */
+export const DEFAULT_MIN_WAKE_GAP_MIN = 10
+
 export interface LifeHeartbeatOptions {
   /** 基准间隔（毫秒）；返回 null = 此刻不心跳 */
   baseline: (now: Date) => number | null
+  /**
+   * 两次**真正投递**之间的最小间隔（毫秒）；返回 0 或未提供 = 不限。
+   * 与 baseline 的区别：baseline 是"多久评估一次"，这个是"评估通过后多久才允许真叫醒"。
+   */
+  minWakeGapMs?: (now: Date) => number
   /** 到点投递（调用方在这里 injectDeferred 进上下文） */
   onFire: () => void
   now?: () => number
@@ -39,6 +62,11 @@ export class LifeHeartbeat {
   private lastActivity: number
   /** 下一拍真正会落的时间（毫秒时间戳）；没排上时为 0 */
   private nextFireAtMs = 0
+  /**
+   * 上一次**真正投递**的时间（毫秒）。0 = 还没投过。
+   * 与 lastActivity 不同：那个是"有人跟她说话"，这个是"她自己被叫醒干活"。
+   */
+  private lastFiredAt = 0
   private readonly now: () => number
 
   private readonly opts: LifeHeartbeatOptions
@@ -92,6 +120,25 @@ export class LifeHeartbeat {
     return base
   }
 
+  /**
+   * 距上次真正投递过了多久；未投过时返回 Infinity（视作"从没醒过，不限"）。
+   * 抄上游 `night-plan.mjs:77-79` 的 minGapMs 语义：硬下限，压不下就少醒。
+   */
+  private sinceLastFireMs(nowMs: number): number {
+    return this.lastFiredAt > 0 ? nowMs - this.lastFiredAt : Number.POSITIVE_INFINITY
+  }
+
+  /** 当前生效的最小唤醒间隔（毫秒）；0 = 不限。每拍重读，改配置立刻生效。 */
+  private minGapMs(now: Date): number {
+    if (!this.opts.minWakeGapMs) return 0
+    try {
+      const v = Number(this.opts.minWakeGapMs(now))
+      return Number.isFinite(v) && v > 0 ? v : 0
+    } catch {
+      return 0
+    }
+  }
+
   private armNext(): void {
     if (!this.running) return
     if (this.timer) clearTimeout(this.timer)
@@ -102,8 +149,13 @@ export class LifeHeartbeat {
       this.timer = setTimeout(() => this.armNext(), POLICY_RECHECK_MS)
       return
     }
-    this.nextFireAtMs = this.now() + delay
-    this.timer = setTimeout(() => this.fire(), delay)
+    // 最小唤醒间隔（抄上游 minGapMin 硬下限）：距离上次真投递还差多少
+    const nowMs = this.now()
+    const gap = this.minGapMs(new Date(nowMs))
+    const remaining = gap > 0 ? gap - this.sinceLastFireMs(nowMs) : 0
+    const wait = remaining > delay ? remaining : delay
+    this.nextFireAtMs = nowMs + wait
+    this.timer = setTimeout(() => this.fire(), wait)
     // 心跳不该拖住进程退出（测试与 CLI 复用同一个包时尤其重要）
     if (typeof this.timer === 'object' && 'unref' in this.timer) (this.timer as any).unref?.()
   }
@@ -114,6 +166,20 @@ export class LifeHeartbeat {
     const delay = this.nextDelay()
     if (delay !== null) {
       const firedAt = this.now()
+      /**
+       * 最小唤醒间隔的**第二道闸**（第一道在 armNext 排期时）。
+       *
+       * 为什么两处都要：armNext 排期时按当时的 lastFiredAt 算了等待，
+       * 但等待期间可能发生"外部事件把 lastActivity 重置 + 定时器到期"这类竞态。
+       * 上游 night-plan 也是在真正出 `atMs` 前再判一次 earliest < endsAt。
+       * 这里同理：到期了但间隔还没到，就把这一拍让出去（不投递），重新排。
+       */
+      const gap = this.minGapMs(new Date(firedAt))
+      if (gap > 0 && this.sinceLastFireMs(firedAt) < gap) {
+        this.armNext()
+        return
+      }
+      this.lastFiredAt = firedAt
       // **下一拍的真时间先算好再投递**：投递方（作息账）要拿它写 nextCheckAt，
       // 拿到的必须是**下一拍**的时间，不是刚刚这一拍（否则账上写的是过去）。
       this.nextFireAtMs = firedAt + delay

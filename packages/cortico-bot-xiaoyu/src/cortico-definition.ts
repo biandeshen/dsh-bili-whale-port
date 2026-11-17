@@ -63,7 +63,10 @@ export function createXiaoyuBotDefinition(homeDir: string) {
       // 部署目录才是她的家（数据、记忆、日记都在里面）；拿不到时才退回包默认家。
       const home = loaded.rootDir ?? homeDir ?? String(loaded.config?.homeDir ?? defaultHomeDir())
       // 心跳间隔从**部署配置**读，且每拍重读：主人在 WebUI 改了立刻生效，不用重启。
-      const tickCfg = loaded.config?.tick as { intervalMinutes?: number | null } | undefined
+      const tickCfg = loaded.config?.tick as {
+        intervalMinutes?: number | null
+        minWakeGapMinutes?: number | null
+      } | undefined
       // 上下文预算同理：每拍现读，WebUI 改完立刻生效。
       const ctxCfg = (loaded.config?.context ?? {}) as Partial<typeof XIAOYU_CONTEXT_DEFAULTS>
       // 记忆分层配置：同样现读（核心常驻上限 / 活跃容量 / 归档阈值）。
@@ -104,6 +107,17 @@ export function createXiaoyuBotDefinition(homeDir: string) {
           return m === null || m === undefined || !Number.isFinite(Number(m)) || Number(m) <= 0
             ? null
             : Math.max(20_000, Number(m) * 60_000)
+        },
+        // 两次真叫醒之间的最小间隔（抄上游 night.minGapMin 的硬下限）。每拍现读。
+        // 0 / null / 非法 → 0（不限），与上游"0 不轮换"的语义一致：显式关掉就是不限。
+        tickMinWakeGapMs: () => {
+          const g = tickCfg?.minWakeGapMinutes
+          if (g === null || g === undefined || !Number.isFinite(Number(g))) {
+            // 配置里没写 → 用默认 10 分钟（上游默认值），而不是静默不限
+            return XIAOYU_TICK_DEFAULTS.minWakeGapMinutes * 60_000
+          }
+          const n = Number(g)
+          return n > 0 ? n * 60_000 : 0
         },
       })
       return {
