@@ -60,6 +60,8 @@
 | [`CREDITS.md`](./CREDITS.md) | 素材与代码来源、许可署名（合规件，不是案卷） |
 
 `evidence/` 是门禁消费的机器产物（带日期的报告与哈希），**不是案卷**，留在原位。
+其中 [`evidence/reviews-2026-11/`](./evidence/reviews-2026-11/) 是**第三方评审案卷 17 份**（2026-11-18 从
+`spark-output/analysis/2026-11-06/` 搬入并首次入库，正文一字未改），索引见该目录 `README.md`。
 `attic/2026-10/`、`attic/2026-11/` 是 76 篇过程文档的归宿，按原日期保留、未改写、未删除。
 
 **2026-11-12 退役三份运维文档**：`DEPLOY.md`、`RUNBOOK.md`、`TERMUX.md` 原样搬进
@@ -83,3 +85,15 @@
 **当前对外口径以 [`specs/10-control-surface.md`](./specs/10-control-surface.md) ⑤ 第 14 条为准**（本仓唯一的跨宿主验证登记处），
 读数见 [`evidence/host-claim-downgrade-2026-11-13.md`](./evidence/host-claim-downgrade-2026-11-13.md)。
 **attic 原文一个字不改**；谁要拿铁律2 当「已经可插拔」的依据，先去看那三条判据跑没跑。
+
+**路径搬家映射（2026-11-18 补）**：第三方评审 17 份原在 `spark-output/analysis/2026-11-06/`（长期未入 git），
+现搬进 [`evidence/reviews-2026-11/`](./evidence/reviews-2026-11/)；同批把根目录那本单仓方案搬进
+[`evidence/one-repo-plan-2026-11-18.md`](./evidence/one-repo-plan-2026-11-18.md)。
+**旧路径 → 新位置的逐条映射表写在该目录的 `README.md` 里**，不在本页——因为 R2 要求活文档里写到的路径必须存在，
+而映射表天生要写一个已不存在的旧路径；`evidence/` 与 `attic/` 正是为此豁免 R2。
+attic 原文（`DEEP-AUDIT-2026-11-05.md:1589` 引的旧评审路径）**一个字不改**。
+
+搬这两处的原因不是好看，是**门禁**：`check-doc-hygiene.mjs` 的 R1 白名单只有 `specs/`、`evidence/`、`attic/`，
+根目录新增日期后缀命名的案卷直接红；R2 又把单仓文档里**引用的源码原文**
+（`tools/lib/paths.mjs:6` 那行 re-export）误判成断链。
+不能为了过门禁去改写被引用的代码行，所以搬进 R2 豁免的 `evidence/`。搬完 R1/R2 均归零。
