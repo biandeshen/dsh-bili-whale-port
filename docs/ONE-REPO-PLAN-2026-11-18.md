@@ -11,7 +11,8 @@
 2. **`Cortico-new` 已清除，回收 991M**（本轮执行，见 §5）。它是一次做了一半、后来在 `reanchor/replay` 上重做并完成的旧副本。
 3. 要真做到「一个仓库」，**推荐路线 2：把宿主以 `git subtree` 并进我们仓的 `host/`**。一个 `.git`、一份 `git log`、一次 clone，磁盘上只剩 `dsh-bili-whale/`。
 4. 路线 1（宿主降为 git 依赖）只做到「一个 clone」，且需要额外写 launcher；**补丁包路线已排除**（实测 171 提交 / 501 文件，远超 `pnpm patch` 可维护规模）。
-5. 本轮出现一次**未解释的并发删除**：`Cortico-up/persona-core` 27 个文件被清空，已恢复并逐字节核验（§5.2）。**#77 仍未获批准，不得当作已完成。**
+5. **本轮我造成了一次数据损坏并已完全复原**：`git worktree remove --force` 跟着 pnpm 的 Windows junction 走进共享源码，清空了 4 个目录 **74 个文件**。根因已查实（§5.2），复原后全量 **922 tests / 921 pass / 1 fail（既有）**。**#77 仍未获批准，不得当作已完成。**
+6. **此后删任何含 `node_modules` 的目录，必须先摘 junction**（§5.2bis）。根治是把 `link:` 绝对路径改相对（S3）。
 
 ---
 
@@ -113,7 +114,10 @@ $ git diff --stat reanchor/base..reanchor/replay | tail -1
 | S3 | `extensions/package.json` 三条 `link:` 绝对路径 → 相对 | S2 | 全仓 grep `link:E:/` = 0 命中 | 单文件还原 |
 | S4 | 加 `host/` 只读门禁 + 内核单份门禁 | S2 | 故意改 `host/` 一行 → 门禁红 | 删门禁 |
 | S5 | 新目录真 clone 一次 → `pnpm install` → 起宿主 | S3 S4 | 11 页签真浏览器全操作台；全量测试 `fail=0` 且 `EXECUTED=DISCOVERED` | 保留旧目录直到此步通过 |
-| S6 | 删 `Cortico/`（956M）与 `Cortico-up/`（23M） | **S5 通过** | 磁盘只剩 `dsh-bili-whale/` | S5 未过不许删 |
+| S6 | **先摘 junction**（§5.2bis），再删 `Cortico/`（956M）与 `Cortico-up/`（23M） | **S5 通过 + junction 已摘** | 磁盘只剩 `dsh-bili-whale/`；删后两仓 `git ls-files --deleted` 均为空 | S5 未过不许删 |
+
+**S6 是本轮事故的重演点**：`Cortico-up/extensions/node_modules` 里那三条 junction 直指我们的源码包。
+**不先摘就删，等于把 §5.2 再犯一次。** 摘除用 `rmdir <junction>`（不带 `/S`）或 `fsutil reparsepoint delete`。
 
 **S1 是硬前置**：内核不归一就 subtree，等于把「两份 persona-core 常量漂移」永久固化进单仓。
 
@@ -204,12 +208,41 @@ $ git worktree list                           → 只剩 Cortico 与 Cortico-up
 $ git -C Cortico-up log --oneline -1          → ca48a69（宿主仓 git 正常）
 ```
 
-### 5.2 一次未解释的并发删除（已恢复，必须记账）
+### 5.2 我造成的一次数据损坏（已完全复原，根因已查实）
 
-移除 worktree 后复查宿主树，发现 `Cortico-up/persona-core` **27 个文件全部消失、目录空**，
-目录 mtime = `Nov 18 11:17`，正落在本轮操作窗口内。而几分钟前同一命令的输出只有 `?? docs/evidence/`。
+**结论：是 `git worktree remove --force Cortico-new` 干的。不是并发、不是别人。**
 
-**此时宿主处于半拆状态**，三处引用悬空：
+移除后复查，两处源码被清空，目录 mtime **都是 `Nov 18 11:17`**（正是该命令执行的那一分钟）：
+
+| 被清空的目录 | 文件数 |
+|---|---:|
+| `Cortico-up/persona-core/` | 27 |
+| `dsh-bili-whale/packages/cortico-bot-xiaoyu/` | 31 |
+| `dsh-bili-whale/packages/cortico-world-bilibili/` | 9 |
+| `dsh-bili-whale/packages/cortico-world-media/` | 7 |
+
+合计 **74 个 tracked 文件**（`git ls-files` 逐包点数：47 + 27）。
+
+**根因：pnpm 在 Windows 上建的是 junction，递归删除会跟着 junction 走进真实源码。**
+
+```
+$ cmd /c "dir /AL Cortico-up\extensions\node_modules"
+<JUNCTION> cortico-bot-xiaoyu     [E:\WorkSpace_Qoder\dsh-bili-whale\packages\cortico-bot-xiaoyu]
+<JUNCTION> cortico-world-bilibili [E:\WorkSpace_Qoder\dsh-bili-whale\packages\cortico-world-bilibili]
+<JUNCTION> cortico-world-media    [E:\WorkSpace_Qoder\dsh-bili-whale\packages\cortico-world-media]
+
+$ cmd /c "dir /AL Cortico-up\node_modules\@xiaoyu"
+<JUNCTION> persona-core [E:\WorkSpace_Qoder\Cortico-up\persona-core]
+```
+
+`Cortico-new` 是同一个仓的工作树，它的 `extensions/package.json` 带着**同样的三条 `link:E:/...` 绝对路径**，
+因此它的 `node_modules` 里也有**指向同一批真实源码的 junction**。
+`git worktree remove --force` 递归删 `Cortico-new` 时**跟着 junction 走了进去**，把共享的目标目录清空了。
+
+→ **被删的集合与 `link:` 目标集合完全吻合**，这就是因果证据，不是巧合。
+→ 讽刺的是：**§1.3 那条「绝对路径 link」缺陷，正是这次数据损坏的放大器。**
+
+**当时的半拆状态**（宿主三处引用悬空，`pnpm install` 与 typecheck 都会失败）：
 
 ```
 package.json:38       "@xiaoyu/persona-core": "workspace:*"
@@ -217,15 +250,36 @@ tsconfig.json:23      include 含 "persona-core/src/**/*.ts"
 pnpm-workspace.yaml:14  - 'persona-core'
 ```
 
-→ `pnpm install` 与 typecheck 都会失败。
+**复原与核验（全部已跑）：**
 
-**处置**：`git checkout -- persona-core` 恢复，16 个 `.ts` 回来，
-`git diff --stat HEAD -- persona-core` **无输出 = 与 HEAD 逐字节一致**，status 回到只有 `?? docs/evidence/`。
+```
+$ git -C Cortico-up checkout -- persona-core
+$ git -C Cortico-up diff --stat HEAD -- persona-core     → 无输出（逐字节一致）
+$ git -C dsh-bili-whale checkout -- packages/
+$ git -C dsh-bili-whale diff --stat HEAD                 → 无输出
+$ git ls-files --deleted                               → 空（两仓都是）
+$ git ls-files -z | xargs -0 ...                       → 687 个 tracked 文件全在位
+$ node scripts/run-mjs-tests.mjs
+  EXECUTED=159/159   tests=922 pass=921 fail=1 skipped=0
+```
 
-**诚实结论**：
-- 我**无法证明**是不是 `git worktree remove --force` 造成的（该命令按 git 语义不应触碰其他工作树），也**不能排除**。目录 mtime 与操作时刻吻合，但没有直接因果证据。
-- 这恰好是 **#77 B 段**想做的事，但 **#77 从未获批准**，且真做必须同步改掉上面三处引用 + 加防分叉门禁。**不能把这次意外当作 #77 已完成。**
-- 已恢复原状。#77 仍挂在待批准。
+那 1 个 fail 是既有的 `live-drift`（两份 persona-core 常量漂移 = #77），**与本次损坏无关，改动前就是红的**。
+
+> 一个自查坑：`git ls-files | while read f; do [ -e "$f" ]...` 报「1 个缺失」，
+> 实为中文路径被 git 引号化（`"spark-output/brief/\345\260..."`）导致的**假阳性**。
+> 权威判据是 `git ls-files --deleted` 与 `-z` 精确复核，两者都为空。**别拿 shell 循环的读数当损坏证据。**
+
+**#77 仍未获批准。** 这次意外清空恰好是 #77 想做的事，但真做必须同步改掉上面三处引用 + 加防分叉门禁。
+**不得把这次事故当作 #77 已完成。** 已恢复原状。
+
+### 5.2bis 安全规程（此后删任何工作树/目录必须照做）
+
+1. **先摘 junction，再删目录。** 枚举：`cmd /c "dir /AL /S <目标>"`；
+   摘除用 `rmdir <junction>`（**不带 `/S`**，只删链接本身）或 `fsutil reparsepoint delete <junction>`。
+2. **绝不**对含 `node_modules` 的工作树直接 `git worktree remove --force`。
+   先 `pnpm install --offline` 之外的手段清链接，或先把 `node_modules` 整体移走。
+3. 删前 `git status --short` 存证；删后**立刻**对**所有共享该 link 目标的仓**跑 `git ls-files --deleted`。
+4. 根治：**把 `link:` 绝对路径改成相对路径**（S3），并让单仓后不再存在跨目录 junction。
 
 ### 5.3 day-watchdog：不能停（原提议撤回）
 
