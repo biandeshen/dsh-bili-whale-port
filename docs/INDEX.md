@@ -73,7 +73,7 @@
 实例：`attic/2026-10/ARCHITECTURE.md` §12.1 引 `emotion-projection.ts`、§12.3 引 `life-generator.ts`，
 两处带的前缀是上游 AMpath 的 `shared` / `server` 两棵目录——**本仓与宿主都没有那两棵**
 （2026-11-13 实测 `ls packages/shared packages/server` 与宿主侧同名目录均不存在）。
-落地的实现分别是本仓 `packages/persona-core/src/emotion-projection.ts` 与 `packages/persona-core/src/life-activities.ts`
+落地的实现分别是本仓 `packages/kernel/persona-core/src/emotion-projection.ts` 与 `packages/kernel/persona-core/src/life-activities.ts`
 （后者改了名，7 类活动与文案轮换在里面）。**attic 原文一个字不改**，映射写在这里。
 
 **读 attic 的第二条口径（2026-11-13 补）：设计裁决 ≠ 验收结论。**

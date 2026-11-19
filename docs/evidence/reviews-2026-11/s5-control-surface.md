@@ -23,7 +23,7 @@
 
 4. **设计交付→落地，诚实数字约 42%（严格口径），不是"批量实施完毕"。** 38 条验收项里 16 条我能在代码里钉死（`文件:行号`）；4 条明确未落地；7 条部分；3 条"落地但入口在别处"；8 条本席位无法核验（标未验证，不计入分母外的乐观）。edge 的 7 个 `critical_missing` 落地 3 个。
 
-5. **最大的一致性风险不是文案，是"同一个配置有两个写入面"。** `draftMode / autoDailyCap / autoWindow / like / fav / dmReply / comment / danmaku / selfDailyCap / shareDailyCap / writeGapSec` 既作为 schema 项出现在设置页（`packages/cap-bilibili/src/index.ts:388-398`），又作为面板控件出现（`packages/cap-bilibili/src/webui/client.ts:662-700,737-746`），两边措辞不同、生效路径未经我核验是否同一条。story-4 的"配置组瘦身"这一条**没做**。
+5. **最大的一致性风险不是文案，是"同一个配置有两个写入面"。** `draftMode / autoDailyCap / autoWindow / like / fav / dmReply / comment / danmaku / selfDailyCap / shareDailyCap / writeGapSec` 既作为 schema 项出现在设置页（`packages/capabilities/cap-bilibili/src/index.ts:388-398`），又作为面板控件出现（`packages/capabilities/cap-bilibili/src/webui/client.ts:662-700,737-746`），两边措辞不同、生效路径未经我核验是否同一条。story-4 的"配置组瘦身"这一条**没做**。
 
 ---
 
@@ -51,7 +51,7 @@
 | s4 | 配额/冷却控件 | **已落地** | `cap-bilibili/src/webui/client.ts:737,738,739,746` |
 | s4 | 连接页粘 cookie + whois 校验 + 降级替换 | **已落地** | `cap-bilibili/src/webui/client.ts:825`（textarea）、`:827`（"没验通也保存…会写明未校验" checkbox）、`:830`（`bindCookie`）、`:850`（`unbindCookie`）、`:866`（`↻ 重新体检`） |
 | s4 | **配置组瘦身（后端一处生效，面板不留重复面）** | **未落地** | 同一批键仍在两处：schema `cap-bilibili/src/index.ts:388-398`（`draftMode/autoDailyCap/autoWindow/like/fav/dmReply/comment/danmaku/selfDailyCap/shareDailyCap/writeGapSec`）与面板控件 `cap-bilibili/src/webui/client.ts:662-700,737-746` |
-| s5 早上一眼看她（P0，关键假设） | 新增"她的一天（新）"屏 | **落地但入口在别处** | `tests/dom/her-day-panel.test.mjs:15` 导入的是 `packages/cap-state-rhythm/src/webui/client.ts`（无新屏/新 pageId）；立绘默认落地页 / 事件卡跳转 / 与 `lifeTick` 实时一致 = **未验证** |
+| s5 早上一眼看她（P0，关键假设） | 新增"她的一天（新）"屏 | **落地但入口在别处** | `tests/dom/her-day-panel.test.mjs:15` 导入的是 `packages/capabilities/cap-state-rhythm/src/webui/client.ts`（无新屏/新 pageId）；立绘默认落地页 / 事件卡跳转 / 与 `lifeTick` 实时一致 = **未验证** |
 | s6 反馈分诊台（P1） | 筛选 tab / 只看 high / 未自对治 / 分页 / 回复 | **已落地** | `cap-journal/src/webui/client.ts:199`（open/resolved）、`:214`（严重度：全部/只看 high）、`:229`（只看她未自对治 checkbox）、`:240,247`（← 上一页 / 下一页 →）、`:255`（↻ 刷新）、`:276`（`replyFeedback`）、`:333`（回复 textarea） |
 | s6 | 4 格去重 + 均值校验 | **未验证** | — |
 | s7 没有坏消息（P1，10 个 micro） | 版本历史每项「回滚到此」+ 确认 | **已落地** | `cap-memory/src/webui/client.ts:342`（`history`）、`:376`（`rollback` + `confirm` + 警示"工作区还有未提交的改动也会一并丢掉"） |
@@ -98,15 +98,15 @@
 
 | 面板文件 | 行数 | actionButton | 裸 ui.button | input | textarea | select | checkbox | segmented | sliderField | 脏守卫接入 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| `packages/cap-bilibili/src/webui/client.ts` | 881 | 21 | 0 | 9 | 2 | 1 | 1 | 1 | 0 | 5 站 |
-| `packages/cap-journal/src/webui/client.ts` | 437 | 5 | 7 | 3 | 2 | 2 | 1 | 3 | 0 | 1 站 |
-| `packages/cap-memory/src/webui/client.ts` | 454 | 13 | 0 | 5 | 2 | 0 | 1 | 1 | 0 | 1 站 |
-| `packages/cap-state-rhythm/src/webui/client.ts` | 497 | 5 | 0 | 5 | 0 | 0 | 0 | 2 | 1 | 1 站 |
-| `packages/cap-vision/src/webui/client.ts` | 175 | 3 | 0 | 0 | 0 | 0 | 1 | 0 | 3 | **0** |
-| `packages/cap-media-studio/src/webui/client.ts` | 122 | 2 | 0 | 1 | 1 | 2 | 0 | 0 | 0 | **0** |
-| `packages/cortico-bot-xiaoyu/src/webui/client.ts` | 22 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `packages/cortico-world-bilibili/src/webui/client.ts` | 23 | 0 | … | | | | | | | 0 |
-| `packages/cortico-world-media/src/webui/client.ts` | 10 | 0 | … | | | | | | | 0 |
+| `packages/capabilities/cap-bilibili/src/webui/client.ts` | 881 | 21 | 0 | 9 | 2 | 1 | 1 | 1 | 0 | 5 站 |
+| `packages/capabilities/cap-journal/src/webui/client.ts` | 437 | 5 | 7 | 3 | 2 | 2 | 1 | 3 | 0 | 1 站 |
+| `packages/capabilities/cap-memory/src/webui/client.ts` | 454 | 13 | 0 | 5 | 2 | 0 | 1 | 1 | 0 | 1 站 |
+| `packages/capabilities/cap-state-rhythm/src/webui/client.ts` | 497 | 5 | 0 | 5 | 0 | 0 | 0 | 2 | 1 | 1 站 |
+| `packages/capabilities/cap-vision/src/webui/client.ts` | 175 | 3 | 0 | 0 | 0 | 0 | 1 | 0 | 3 | **0** |
+| `packages/capabilities/cap-media-studio/src/webui/client.ts` | 122 | 2 | 0 | 1 | 1 | 2 | 0 | 0 | 0 | **0** |
+| `packages/adapters/cortico-bot-xiaoyu/src/webui/client.ts` | 22 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `packages/adapters/cortico-world-bilibili/src/webui/client.ts` | 23 | 0 | … | | | | | | | 0 |
+| `packages/adapters/cortico-world-media/src/webui/client.ts` | 10 | 0 | … | | | | | | | 0 |
 
 三个 `cortico-*` 转接头合计 55 行、**0 控件**（与"转接头不配面板"一致，因此"6 个面板"的说法成立）。
 按钮合计 **56**（49 actionButton + 7 裸按钮）；输入类合计 **50**（23 input + 7 textarea + 5 select + 4 checkbox + 7 segmented + 4 slider）。56 + 50 = 106。
@@ -155,7 +155,7 @@
 | 上下文预算/心跳间隔/Web 端口/记忆容量/反思开关（`tick.*`、`context.*`、`web.port`、`memory.residentCap/activeCap/archiveThreshold`、`reflection.enabled`） | **无（whale 面板 0 控件）** | 宿主 `coreConfigGroup`（`Cortico-up/src/bot.ts:939-943`）schema 设置页，或直接编辑 `config.json` + 重启 | config.json 键清单（本机 dump）+ bot.ts:939-943 |
 | B 站监听开关族：`listen.comment / commentIntervalSec / dm / dmIntervalSec / scope / allDay / onlyOwner` | **无**（106 个控件点里没有对应标签） | **schema 设置页**（`cap-bilibili/src/index.ts:400-406`，带 `x-hot: true` 声明"热生效"）；无面板按钮 | 我枚举了全部 56 按钮标签 + 输入标签（脚本输出），未见"监听/轮询/范围/全天"字样；标：结论依赖标签枚举完整性 |
 | 身份与立绘（`displayName`、persona 素材、`prompts/`） | **无** | 改 `config.json` 的 `displayName`；改 `C:/Users/Administrator/.xiaoyu-home/xiaoyu/prompts/*`；多半需重启（未验证热生效） | `ls $HOME_DIR` = config.json / data / deployment.json / prompts / workspace；`data/persona/` 存在但无面板写控件 |
-| 素材/BGM/输出路径 | **无** | 改 `config.json` 的 `worlds['media-studio']`；宿主有 `src/web/path-picker.ts`（是否接到该键**未验证**） | `packages/cap-media-studio/src/webui/client.ts` 全文 122 行，控件只有 `:41,45` 选曲、`:53` 台词、`:54` 时长、`:59` 试听、`:76` 合成 |
+| 素材/BGM/输出路径 | **无** | 改 `config.json` 的 `worlds['media-studio']`；宿主有 `src/web/path-picker.ts`（是否接到该键**未验证**） | `packages/capabilities/cap-media-studio/src/webui/client.ts` 全文 122 行，控件只有 `:41,45` 选曲、`:53` 台词、`:54` 时长、`:59` 试听、`:76` 合成 |
 | 待放行队列**批量放行** | **无** | 逐条点 `:303`；或 CLI：`scripts/dynamic-approve.mjs`、`scripts/dm-approve.mjs`（目录列举存在）；或 `scripts/ack.mjs` | `grep -rn "批量\|一键放行\|selectAll" packages/*/src/webui/*.ts packages/*/src/index.ts` → 唯一命中是 `cap-bilibili/src/index.ts:724` 的一句成本提示文案，不是功能 |
 | 隔离区/备份/日终快照（`data/quarantine/acceptance-memo-20261105T001715` 等） | **无** | `scripts/ops-*`、直接翻目录 | `find -maxdepth 3 -type d` 列出 `data/quarantine/acceptance-memo-20261105T001{715,833}` |
 | 事故/incidents 的查看 | **无**（主人侧） | 手动读 `data/runs/<run>/incidents/*.json`（当前 **183** 个文件）；宿主 webui 有实时日志通道 `bot.ts:1111 onRunlog: (cb) => core.runlog.onWrite(cb)` | 见 ⑤ |
@@ -212,7 +212,7 @@
 
 ## ⑦ 一致性：5 个具体例子（带行号）
 
-1. **同一档位在两处、两套说法**：schema 标题"动态草稿发布档位""自动发布每日上限（0=不限）""写操作最小冷却间隔（秒）"（`packages/cap-bilibili/src/index.ts:388,389,398`）vs 面板按钮"保存自动发布档位""保存配额与冷却"（`packages/cap-bilibili/src/webui/client.ts:700,746`）。主人无法判断改哪个、另一边会不会覆盖。
+1. **同一档位在两处、两套说法**：schema 标题"动态草稿发布档位""自动发布每日上限（0=不限）""写操作最小冷却间隔（秒）"（`packages/capabilities/cap-bilibili/src/index.ts:388,389,398`）vs 面板按钮"保存自动发布档位""保存配额与冷却"（`packages/capabilities/cap-bilibili/src/webui/client.ts:700,746`）。主人无法判断改哪个、另一边会不会覆盖。
 2. **养成风 vs 后台风同屏混用**：`cap-bilibili/src/webui/client.ts:221` 描述文案"动态草稿、私信草稿、待审评论、待审弹幕都在这里。改字后自动续签令牌，可直接放行。"、`:294`"已保存并续签令牌"、`:453`"保存跳过阈值（秒）"、`cap-memory/src/webui/client.ts:173`"同步这张卡" —— 与 `:159`"👉 让她回这条"、`cap-state-rhythm:183`"⚡ 立即戳醒她"、`cap-memory:239`"你想让她记住什么？"的养成口吻并列出现。**"令牌""阈值""同步"这三个工程词直接进了主人界面。**
 3. **同一含义两个名字**：`cap-bilibili/src/webui/client.ts:572`"🛑 一键急刹（停止一切对外写）" vs `:645`"解除 412 风控暂停" —— 都是"停一停对外写"，一个叫急刹、一个叫熔断/暂停；且 `:572` 把当前状态写进按钮标签（label 会随状态变化），与全仓"按钮=动作、状态=pill"的口径不一致。
 4. **枚举中英混排**：`cap-journal/src/webui/client.ts:127` 把 `keep/drop` 渲染成"收/不收"（全中文），但 `:214` 的严重度分段直接露英文"只看 **high**"，`:199` 的 `open/resolved` 却译成"未解决/已解决"。同一面板三种口径。

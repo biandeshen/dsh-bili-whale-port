@@ -109,12 +109,12 @@
    结论一致：**整棵删不动**。判据与原始输出落盘在
    [`docs/evidence/tools-retention-2026-11-13.md`](docs/evidence/tools-retention-2026-11-13.md)。
 2. **能力包侧还有两处功能缺口，删了 tools 就等于把这两条能力一起删掉**：
-   - **带图动态发不出去**：`bili_dynamic` 工具收 `imagePath`（`packages/cap-bilibili/src/index.ts:864/870/876`）并交给闸门，
+   - **带图动态发不出去**：`bili_dynamic` 工具收 `imagePath`（`packages/capabilities/cap-bilibili/src/index.ts:864/870/876`）并交给闸门，
      但默认执行器 `:330-333` 调 `executeBiliWrite(kind, { target, body })` 时**把 imagePath 丢了**；
      再往下 `client/bili-write.ts:343-346` 与 `client/bili-write-extra.ts:42-45` 的入参类型里**根本没有图片字段**
      （`grep -n "image\|pictures" client/bili-write.ts` → 0）。真能发图文动态的只有
      `tools/drafts/publishers/bilibili-dynamic.mjs` 的 `postImageDynamic`。
-   - **批量放行只有一个入口**：cap-bilibili 里没有 `releaseAll`（`grep -rn "releaseAll\|'--all'" packages/cap-bilibili/src` → 0），
+   - **批量放行只有一个入口**：cap-bilibili 里没有 `releaseAll`（`grep -rn "releaseAll\|'--all'" packages/capabilities/cap-bilibili/src` → 0），
      `tools/commands/reply-draft.mjs:120-123` 的 `release --all` 是唯一的批量放行路径。
 3. **没有活代码引用的只有 7 个**：`go-rebuild`、`poll-policy`（原来只被已删的 `core/api/routes.js`、`core/scheduler.js` 引，
    本批之后变成孤儿）、`proc`（T0，谁都不引）、`state-lock` 与 `credentials/` 三件（T3，只有测试引）。
@@ -145,22 +145,22 @@
   core/panel/adapters（`walk()` 遇到不存在的目录是静默返回空的，不缩名单就等于让调用点数悄悄变小）。
   后者的 JSON 现在带 `scanDirs`，人读输出多两行口径。
 - **署名义务没跟着删**：`core/ports/temporal.mjs` 是 AMpath 纯函数借用件，删了；但
-  `packages/persona-core/` 仍是 AMpath 移植（`types`/`effect-bus`/`causal-chain`/`memory`/`npc-state-machine` 五份原样搬或抽符号，
+  `packages/kernel/persona-core/` 仍是 AMpath 移植（`types`/`effect-bus`/`causal-chain`/`memory`/`npc-state-machine` 五份原样搬或抽符号，
   2026-11-12 实测五份都在），**私有仓、无 LICENSE，对外发布前必须重写或取得授权**这条义务照旧。
   CREDITS / NOTICE / CURRENT 三处都改成这个口径，并记下一个真实缺口：逐文件「来源与取舍」对照表只在宿主侧
-  `Cortico-up/persona-core/README.md:5-44`，本仓 `packages/persona-core/README.md` 只有模块职责表。
+  `Cortico-up/persona-core/README.md:5-44`，本仓 `packages/kernel/persona-core/README.md` 只有模块职责表。
   whale-girl 16 张素材随面板退役，CC BY-NC-SA 4.0 / ZipZipPipe / 上善无形 的署名义务在 CREDITS 与 NOTICE 里保留原文。
 - **specs 关掉两条**：`07-account-and-credentials.md` ⑤1（旧面板明文存凭据）与 `10-control-surface.md` ⑤11（tank.html）
   划掉并标 **已关闭（2026-11-12）**，各带复现命令；⑤2 的 FakeEl 计数 10→9，preflight 行号锚点 `:43-46`→`:44-47`。
 - **两笔旧账按主人拍板标明**：
   ① 召回四因子 `0.40/0.30/0.15/0.15` 在 `specs/02` 的 ①、②、⑤3 三处都标成**数值无外部依据、本仓自定**
   （名义出处 `attic/2026-10/BLUEPRINT.md:156`「搬 AMpath `computeWarmScore`」，但同一行写着 AMpath 的 `retrieval.ts` **未搬**，
-  本仓那份是自写的）；`packages/persona-core/src/retrieval.ts:60` 的常量注释同步加一句，别让它看着像调好的。
+  本仓那份是自写的）；`packages/kernel/persona-core/src/retrieval.ts:60` 的常量注释同步加一句，别让它看着像调好的。
   顺手纠一个假判据：⑤3 原写「仓内无 AMpath（`grep -rn AMpath packages` → 0）」——那个 0 只证明*字符串*没出现，
   **不证明仓内没有 AMpath 代码**（persona-core 五份就是移植件）。
   ② `attic/2026-10/ARCHITECTURE.md` §12.1/§12.3 引的 `emotion-projection.ts`、`life-generator.ts` 带的是
   **上游 AMpath 的 `shared`/`server` 目录前缀**，本仓与宿主都没有那两棵（实测）；落地实现是
-  `packages/persona-core/src/emotion-projection.ts` 与 `packages/persona-core/src/life-activities.ts`（改了名）。
+  `packages/kernel/persona-core/src/emotion-projection.ts` 与 `packages/kernel/persona-core/src/life-activities.ts`（改了名）。
   **attic 原文一个字不改**，映射写在 `docs/INDEX.md` 的 attic 段当读法口径。
 - **本文自身三处死引用补正**：头部 `docs/INDEX.md §4`（该节已随 `1f90099` 删除，规矩五条搬进本文头部）、
   `DECOUPLING-STATUS-2026-11-02.md` 链接改指 attic、上游 0.4.5 那条的 `RISK-PROTECTION.md`

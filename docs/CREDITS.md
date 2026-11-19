@@ -22,11 +22,11 @@
 
 - 上游 [Alterssss/dsh-bili-whale](https://github.com/Alterssss/dsh-bili-whale)（MIT）
 - 时间线分页契约参考内部经验（自实现）。
-- **AMpath（人格内核移植来源）**：私有仓库、**无 LICENSE**。本仓 `packages/persona-core/` 移植自其
+- **AMpath（人格内核移植来源）**：私有仓库、**无 LICENSE**。本仓 `packages/kernel/persona-core/` 移植自其
   `codex/ampath-unified-candidate` 分支（2026-10-26），其中 `types.ts`、`effect-bus.ts`、`causal-chain.ts`、
   `memory.ts`、`npc-state-machine.ts` 五份是原样搬或只抽依赖符号（2026-11-12 实测五份都在）。
   **仅供本地自用，对外发布前必须重写或取得授权**——这条义务**没有**随下面那次删除而消失。
   逐文件「来源与取舍」对照表在宿主侧 `Cortico-up/persona-core/README.md:5-44`，
-  本仓 `packages/persona-core/README.md` 只有模块职责表、缺那张对照表（待补的署名缺口）。
+  本仓 `packages/kernel/persona-core/README.md` 只有模块职责表、缺那张对照表（待补的署名缺口）。
 - **AMpath 纯函数借用件**：曾是一份 `temporal.mjs`，落在旧 `core/ports/` 下（时间线分页契约思路；原文 `git show 7bf9198:core/ports/temporal.mjs`），
   **2026-11-12 随 `core/` 整棵树删除**。删掉的只是这一份借用件，不是上面那条移植义务。

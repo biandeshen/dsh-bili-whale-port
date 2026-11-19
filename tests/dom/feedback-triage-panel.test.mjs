@@ -10,7 +10,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { mountPanel, settle } from '../helpers/panel-harness.mjs'
-import { feedbackTriagePanel } from '../../packages/cap-journal/src/webui/client.ts'
+import { feedbackTriagePanel } from '../../packages/capabilities/cap-journal/src/webui/client.ts'
 
 function mkItem(over = {}) {
   return {

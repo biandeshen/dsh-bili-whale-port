@@ -12,7 +12,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { mountPanel, settle } from '../helpers/panel-harness.mjs'
-import { preferencesPanel } from '../../packages/cap-bilibili/src/webui/client.ts'
+import { preferencesPanel } from '../../packages/capabilities/cap-bilibili/src/webui/client.ts'
 
 const HITS = {
   ok: true,

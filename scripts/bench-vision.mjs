@@ -10,8 +10,8 @@
  *
  * 只读：不改仓库状态、不联网、不碰 B 站。
  */
-import { analyzeVideo } from '../packages/cap-vision/src/frame-pipeline.ts'
-import { resolveFfmpeg } from '../packages/cap-vision/src/ffmpeg.ts'
+import { analyzeVideo } from '../packages/capabilities/cap-vision/src/frame-pipeline.ts'
+import { resolveFfmpeg } from '../packages/capabilities/cap-vision/src/ffmpeg.ts'
 
 const arg = (k, d = '') => {
   const hit = process.argv.slice(2).find((a) => a.startsWith(`--${k}=`))

@@ -1,0 +1,11 @@
+{
+  "name": "@xiaoyu/fs-atomic",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "原子写盘（先写临时文件再改名，失败重试）。任何往她家里落盘的能力包都用它。",
+  "exports": {
+    ".": "./src/atomic-write.ts",
+    "./*": "./src/*.ts"
+  }
+}

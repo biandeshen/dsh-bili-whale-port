@@ -60,9 +60,9 @@ function feedFetch() {
   }
 }
 
-const botDefinition = (await import('../packages/cortico-bot-xiaoyu/src/cortico-definition.ts')).default
-const worldDefinition = (await import('../packages/cortico-world-bilibili/src/index.ts')).default
-const { resetReadDedupe } = await import('../packages/cortico-adapter/src/index.ts')
+const botDefinition = (await import('../packages/adapters/cortico-bot-xiaoyu/src/cortico-definition.ts')).default
+const worldDefinition = (await import('../packages/adapters/cortico-world-bilibili/src/index.ts')).default
+const { resetReadDedupe } = await import('../packages/adapters/cortico-adapter/src/index.ts')
 
 /** 每次一套全新的家：状态账、记忆卡、命中统计全落临时目录。 */
 function setup(t) {

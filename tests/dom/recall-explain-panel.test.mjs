@@ -8,7 +8,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { mountPanel, settle } from '../helpers/panel-harness.mjs'
-import { memoryCenterPanel } from '../../packages/cap-memory/src/webui/client.ts'
+import { memoryCenterPanel } from '../../packages/capabilities/cap-memory/src/webui/client.ts'
 
 const FACTORS = {
   keyword: 0.8, vivid: 0.5, mood: 0.9, recency: 0.6,

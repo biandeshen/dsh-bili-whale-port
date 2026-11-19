@@ -4,7 +4,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { beforeEach } from 'node:test'
-import { toCorticoToolDef, resetReadDedupe } from '../packages/cortico-adapter/src/index.ts'
+import { toCorticoToolDef, resetReadDedupe } from '../packages/adapters/cortico-adapter/src/index.ts'
 
 const big = (tag) => 'x'.repeat(2000) + tag   // 过 READ_DEDUPE_MIN_BYTES
 function mk(over = {}) {

@@ -38,7 +38,7 @@
 
 1. 「万物皆扩展」**半真**：6 个 `cap-*` 入口实测可被宿主加载（8/8 OK）；生产跨包依赖边共 **61 条**，其中 persona-core 41、**cortico-adapter 12（6 包 ×2 行，全在 `src/webui/client.ts`）**、兄弟 cap 5、跳出 `packages/` 抓仓根 `vendor/` 3。换转接头服务端 0 行，带面板与数据家约定约 **18–20 处**。（已验证）
 2. **包边界不是模块边界**：100% 靠 `../../peer/src/文件.ts` 深链；11 个 manifest 声明 `@xiaoyu/*: workspace:*` 但代码零处使用；宿主 `extensions/package.json` 写死 `link:E:/WorkSpace_Qoder/...`。（已验证）
-3. **最大架构债＝内核双份**：`Cortico-up/persona-core/src`（16 .ts）与本仓 `packages/persona-core/src`（21 .ts）`diff -rq` 报 20 条差异，15 文件字节级不同、5 文件本仓独有（含契约本体 `capability.ts`），**两份同时被解析**。（已验证——这条能解释席位六实测到的 `gitSha` 全 null 为什么没有防护）
+3. **最大架构债＝内核双份**：`Cortico-up/persona-core/src`（16 .ts）与本仓 `packages/kernel/persona-core/src`（21 .ts）`diff -rq` 报 20 条差异，15 文件字节级不同、5 文件本仓独有（含契约本体 `capability.ts`），**两份同时被解析**。（已验证——这条能解释席位六实测到的 `gitSha` 全 null 为什么没有防护）
 4. 「无 node_modules」＝借宿主的（`build-webui.mjs:24` 首选 `Cortico-up/node_modules/esbuild`）。无 `engines` 字段，Node 20+/22+/22.15+ 三处口径互斥。（已验证）
 5. `legacy/` 在本仓不存在（`git ls-files legacy`=0）；有 legacy 的是宿主。`tools/` 活、`core`/`panel`/`adapters` 半死、`vendor` 活。（已验证）
 

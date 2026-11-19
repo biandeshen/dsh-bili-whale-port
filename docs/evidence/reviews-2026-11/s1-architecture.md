@@ -32,14 +32,14 @@
 命令：对 8 个入口逐个 `node --experimental-strip-types --input-type=module -e "await import('./<entry>')"`，cwd = 本仓根，无任何宿主注入。
 
 ```
-packages/persona-core/src/capability.ts        => OK
-packages/cap-state-rhythm/src/index.ts         => OK
-packages/cap-memory/src/index.ts               => OK
-packages/cap-journal/src/index.ts              => OK
-packages/cap-vision/src/index.ts               => OK
-packages/cap-bilibili/src/index.ts             => OK
-packages/cap-media-studio/src/index.ts         => OK
-packages/cortico-bot-xiaoyu/src/index.ts       => OK
+packages/kernel/persona-core/src/capability.ts        => OK
+packages/capabilities/cap-state-rhythm/src/index.ts         => OK
+packages/capabilities/cap-memory/src/index.ts               => OK
+packages/capabilities/cap-journal/src/index.ts              => OK
+packages/capabilities/cap-vision/src/index.ts               => OK
+packages/capabilities/cap-bilibili/src/index.ts             => OK
+packages/capabilities/cap-media-studio/src/index.ts         => OK
+packages/adapters/cortico-bot-xiaoyu/src/index.ts       => OK
 ```
 8/8。判定强度限制：这只证明 **import 图可解析＋模块顶层可求值**，不证明 `createXxxCapability()` 起来后能用（没构造、没做 IO、没跑工具）。而且 `cortico-bot-xiaoyu` 也 OK —— 说明「转接头对宿主的可加载性」在这里没有被真正测到（它 imports `cortico-adapter`，而 adapter 自己声明「不 import cortico/*」，见 E4）。
 
@@ -59,12 +59,12 @@ packages/cortico-bot-xiaoyu/src/index.ts       => OK
 
 `cortico-adapter` 的 12 行原文（`grep -rn "cortico-adapter" packages/cap-*/`，12 条命中）：
 ```
-packages/cap-bilibili/src/webui/client.ts:8,9        PanelCtx + call,actionButton,createDirtyGuard
-packages/cap-journal/src/webui/client.ts:12,13       PanelCtx + call,actionButton,createDirtyGuard
-packages/cap-media-studio/src/webui/client.ts:7,8    PanelCtx + call,actionButton
-packages/cap-memory/src/webui/client.ts:7,8          PanelCtx + call,actionButton,textField,createDirtyGuard,debounce
-packages/cap-state-rhythm/src/webui/client.ts:8,9    PanelCtx + call,actionButton,sliderField,createDirtyGuard
-packages/cap-vision/src/webui/client.ts:8,9          PanelCtx + call,actionButton,sliderField
+packages/capabilities/cap-bilibili/src/webui/client.ts:8,9        PanelCtx + call,actionButton,createDirtyGuard
+packages/capabilities/cap-journal/src/webui/client.ts:12,13       PanelCtx + call,actionButton,createDirtyGuard
+packages/capabilities/cap-media-studio/src/webui/client.ts:7,8    PanelCtx + call,actionButton
+packages/capabilities/cap-memory/src/webui/client.ts:7,8          PanelCtx + call,actionButton,textField,createDirtyGuard,debounce
+packages/capabilities/cap-state-rhythm/src/webui/client.ts:8,9    PanelCtx + call,actionButton,sliderField,createDirtyGuard
+packages/capabilities/cap-vision/src/webui/client.ts:8,9          PanelCtx + call,actionButton,sliderField
 ```
 → 新宿主必须提供一个导出 **6 个符号**（`PanelCtx` 类型、`call`、`actionButton`、`createDirtyGuard`、`textField`、`sliderField`、`debounce`，去重后 7 个）的同名模块。这是「换转接头改几行」的真实代价下界。
 
@@ -74,11 +74,11 @@ packages/cap-vision/src/webui/client.ts:8,9          PanelCtx + call,actionButto
 
 `grep -rn "webui" packages/cap-*/src/index.ts packages/cap-*/src/*.ts` 过滤 import/from → **空输出**。即 6 个能力包的 `src/index.ts` 都不 import 自己的 `webui/client.ts`。
 但 `grep -n -i cortico` 在非 webui 生产文件里的命中，多数是注释（`cap-state-rhythm/src/index.ts:684,700`、`cap-vision/src/index.ts:13` 的「严禁 import cortico/*」自述铁律【仅自述】、`cap-memory/src/workspace.ts:2` / `workspace-git.ts:2` 的「自 cormini 抄入并去掉 cortico/* 依赖」、`cap-state-rhythm/src/dream-tick.ts:37` / `dream-reflection.ts:22` 的「模型调用在 cortico-bot-xiaoyu 那边，那里才有 CoreApi」）。
-**唯一非注释的宿主耦合**：`packages/cap-bilibili/src/platform/paths.mjs:75,82,108` 读 `process.env.CORTICO_HOME` / `CORTICO_BOT`，且把 bot 名默认成字面量 `'xiaoyu'`。这是宿主命名约定渗进能力包，3 个代码点。
+**唯一非注释的宿主耦合**：`packages/capabilities/cap-bilibili/src/platform/paths.mjs:75,82,108` 读 `process.env.CORTICO_HOME` / `CORTICO_BOT`，且把 bot 名默认成字面量 `'xiaoyu'`。这是宿主命名约定渗进能力包，3 个代码点。
 
 ### E4 `cortico-adapter` 是「假适配层」：它不含业务，也不真的对齐宿主类型
 
-`packages/cortico-adapter` 全树只有 3 个文件（`package.json`、`src/index.ts`、`src/webui-helpers.ts`），import specifier 总数 **0**（`grep -rhoE ... packages/cortico-adapter/` → `total_specifiers: 0`）。
+`packages/cortico-adapter` 全树只有 3 个文件（`package.json`、`src/index.ts`、`src/webui-helpers.ts`），import specifier 总数 **0**（`grep -rhoE ... packages/adapters/cortico-adapter/` → `total_specifiers: 0`）。
 `src/index.ts:7-8` 注释自陈：「这里用本地声明的最小结构类型（不 import cortico/*），这样本包自身仍是宿主无关的；真正的类型一致性由 cortico-* 转接头在编译期对齐」。
 `src/index.ts:11,20` 用注释指回宿主行号：「见 Cortico src/core/types.ts:182,261」「见 Cortico src/core/types.ts:790」。
 → 后果是可反驳的：适配层的 `CorticoToolDef` / `CorticoPanelDecl` 与宿主真实形状漂移时，本仓 TS 不会报错，只有运行时炸。`handler: (... ctx: any)`、`execute: (args: any)`（`index.ts:17,35,43`）把参数面全退化成 `any`。
@@ -126,7 +126,7 @@ $ grep -n persona-core Cortico-up/package.json  -> :38 "@xiaoyu/persona-core": "
 - 声明但不可解析：11 个包声明 `@xiaoyu/*: workspace:*`；本仓无 `node_modules`；代码里 0 处 bare specifier。`cap-media-studio`、`cap-vision`、`cap-state-rhythm`、`cortico-world-*`、`cortico-adapter` 的 deps 名单和真实深链目标还**不一致**（例：`cap-bilibili` 生产代码 import `cap-vision`，但 `cap-bilibili/package.json` 只声明 `@xiaoyu/persona-core`；`cap-media-studio` import `cap-bilibili`，声明里也只有 persona-core）。→ manifest 与真实依赖图脱钩，且脱钩方向是**少报**。
 - 实际需要第三方：`tsx`（`package.json:gates` 第 3 段 `--root ../Cortico-up --import tsx`）、`esbuild`（`scripts/build-webui.mjs:24`，第一候选就是宿主的 node_modules）。`dist/` 已产出：`ls -d packages/*/dist | wc -l` → 9。
 - vendor 卫生（正面）：`vendor/dsh-video-studio/LICENSE` = MIT, Copyright (c) 2026 litao；`vendor/dsh-autocut/LICENSE` = MIT。`VENDOR.md` 钉住了来源 `npm dsh-video-studio@0.4.3`、上游 tarball sha256 `588e760d…361dd`、逐文件 `SHA256SUMS`、以及「未取用清单 + 为什么不取（宿主/面板耦合部分）」。这块是**做得对的**。
-- vendor 反例（两处）：① 同一上游有两个存放位置——仓根 `vendor/dsh-video-studio/` 与包内 `packages/cap-media-studio/src/vendor/video/studio.mjs`；后者是 shim（`:9,10,11` 出现 vendor 路径），但 `src/index.ts:13-15` 和 `src/render.ts:9,10,19` **绕过 shim 直接从 packages/ 外面 5 层抓根 vendor**，等于同一个包内混用两条 vendor 通道。② 包内还另有 `packages/cap-vision/src/vendor/see-now/`（10 个 .js + `LICENSE` + `NOTICE` + `VENDORED.md`）——第二份 vendoring 的 license 条款我**没读**，见⑤。
+- vendor 反例（两处）：① 同一上游有两个存放位置——仓根 `vendor/dsh-video-studio/` 与包内 `packages/capabilities/cap-media-studio/src/vendor/video/studio.mjs`；后者是 shim（`:9,10,11` 出现 vendor 路径），但 `src/index.ts:13-15` 和 `src/render.ts:9,10,19` **绕过 shim 直接从 packages/ 外面 5 层抓根 vendor**，等于同一个包内混用两条 vendor 通道。② 包内还另有 `packages/capabilities/cap-vision/src/vendor/see-now/`（10 个 .js + `LICENSE` + `NOTICE` + `VENDORED.md`）——第二份 vendoring 的 license 条款我**没读**，见⑤。
 - 无 `engines`：`grep -H engines packages/*/package.json package.json` → 无任何命中。
 
 ### E8 加载器与运行时
@@ -170,7 +170,7 @@ $ grep -n persona-core Cortico-up/package.json  -> :38 "@xiaoyu/persona-core": "
 1. **live 进程实际加载哪份 persona-core**：我只证明了「本仓那份被能力包相对引用」＋「宿主那份被 `@xiaoyu/persona-core` bare specifier 解析到、且 `node_modules/@xiaoyu/persona-core` 存在」。没读 live 的模块解析记录、没读 `Cortico-up` 里 world 代码的 import、没读 `~/.xiaoyu-home` 的 `deployment.json`。→ D1 的**影响半径**（到底有几处真在用 B 版）未量化。
 2. **测试套件的通过状态**：纪律是只读，我没有跑 `node scripts/run-mjs-tests.mjs` / `pnpm gates`。所有「能加载」结论仅为 E1 的 8 次模块求值。109 个 `tests/` 文件的真实绿灯数 = 未知。
 3. **任务描述里 `legacy/bili-account-retired/` 那次 ERR_MODULE_NOT_FOUND 事故**：本仓现在既无 `legacy/` 目录也无 0 个 git 跟踪文件；我没有去翻 git log 找那次 rename，所以「20 个宿主测试文件受影响」既没证实也没证伪，且**它可能是 Cortico-up 侧的事**。
-4. **包内 vendor 的 license**：`packages/cap-vision/src/vendor/see-now/LICENSE` 与 `NOTICE` 存在但我没打开；`vendor/dsh-autocut` 我只读了 LICENSE 头 5 行（MIT）和 VENDOR.md 未读；`packages/cap-media-studio/src/vendor/` 6 个 .mjs 的上游与许可完全没查（它们不是 npm tarball 形态，可能是自写）。→ D6 里「许可风险」这一支是**无证据**。
+4. **包内 vendor 的 license**：`packages/capabilities/cap-vision/src/vendor/see-now/LICENSE` 与 `NOTICE` 存在但我没打开；`vendor/dsh-autocut` 我只读了 LICENSE 头 5 行（MIT）和 VENDOR.md 未读；`packages/capabilities/cap-media-studio/src/vendor/` 6 个 .mjs 的上游与许可完全没查（它们不是 npm tarball 形态，可能是自写）。→ D6 里「许可风险」这一支是**无证据**。
 5. **`check-hashes.mjs` / `check-consumers.mjs` 的实际覆盖范围**：我读了 `check-live-drift.mjs` 的注释和 `check-state-roots.mjs:28`，没读这两个脚本。所以「包内 vendor 不在哈希保护内」是推测，不是结论。
 6. **`dist/` 是否入 git**：`ls -d packages/*/dist` → 9 个存在，但 `.gitignore` 内容我没读，无法判断是构建残留还是入库产物。D11 因此只到「代码会改写 manifest」这一层。
 7. ~~**`tools/lib` 与 `packages/cap-*/src` 之间有没有语义重复实现**~~ → **已查明（撤回原疑点，改判）**：不是重复，是**单向转发壳**。实测：`tools/lib/*.mjs` 共 39 个，其中 6 个是转发壳、33 个是真身；全仓 `tools/` 里 11 个文件 import `../../packages/`；**反向边 `packages/ → tools/` = 0 条**。6 个壳的目标（`grep -h "export \* from" tools/lib/*.mjs`）：`cap-bilibili/src/platform/{traffic,plain-outbound,paths,kill,api}.mjs` ＋ `cap-media-studio/src/vendor/proc.mjs`。壳的自陈（`tools/lib/traffic.mjs:2-3`）：「真身已收编进 packages/…（独立化 A2，2026-11-04）。本壳保证 tools/ 的 CLI 薄壳、scripts/ 与 tests/ 的既有引用零破坏」。**方向正确**（老层依赖新层，不是复制）。仍遗留的量化事实：`tools/lib` 33/39 = **85% 的真身还没搬进任何包**，D7 的依据由这个数替代原先的猜测。

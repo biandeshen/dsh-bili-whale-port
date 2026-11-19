@@ -19,9 +19,9 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { readCostToday } from '../packages/cap-state-rhythm/src/cost-today.ts'
-import { stallScheduleMs, STALL_STEP_MAX } from '../packages/cortico-bot-xiaoyu/src/stall-backoff.ts'
-import { readStallState, writeStallState, clearStallState } from '../packages/cortico-bot-xiaoyu/src/stall-state.ts'
+import { readCostToday } from '../packages/capabilities/cap-state-rhythm/src/cost-today.ts'
+import { stallScheduleMs, STALL_STEP_MAX } from '../packages/adapters/cortico-bot-xiaoyu/src/stall-backoff.ts'
+import { readStallState, writeStallState, clearStallState } from '../packages/adapters/cortico-bot-xiaoyu/src/stall-state.ts'
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stall-demo-'))
 const file = path.join(dir, 'usage.jsonl')

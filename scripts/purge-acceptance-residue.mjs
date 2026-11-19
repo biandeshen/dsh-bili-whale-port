@@ -22,7 +22,7 @@ import path from 'node:path'
 import os from 'node:os'
 // 她的工作区仓库就是记忆与日记共用的那份历史；搬走测试卡要在这份历史里留一笔，
 // 所以复用能力包里那套 git（自己拼 git 命令等于第二套真相）。
-import { WorkspaceGit, AUTHOR_OPERATOR } from '../packages/cap-memory/src/workspace-git.ts'
+import { WorkspaceGit, AUTHOR_OPERATOR } from '../packages/capabilities/cap-memory/src/workspace-git.ts'
 
 const GO = process.argv.includes('--go')
 const HOME = path.join(process.env.USERPROFILE || os.homedir(), '.xiaoyu-home', 'xiaoyu')

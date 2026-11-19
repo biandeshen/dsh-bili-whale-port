@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { appendFeedback, listFeedback, replyFeedbackByOwner } from '../../packages/cap-journal/src/judgments-feedback.ts'
+import { appendFeedback, listFeedback, replyFeedbackByOwner } from '../../packages/capabilities/cap-journal/src/judgments-feedback.ts'
 
 function mkfile(name) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fb-triage-'))

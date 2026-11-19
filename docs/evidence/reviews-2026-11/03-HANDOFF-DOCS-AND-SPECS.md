@@ -93,6 +93,6 @@ TTS、ffmpeg、竖屏合成、双封面、送待放行队列。
 ## 五、边界与在飞事项
 
 - 本轮**纯文档 + 门禁**，不许改 `packages/` 行为。唯一例外：第 1 条命令名之类的门禁脚本自身。
-- 我 19:30 看到的现场（若仍是这些请一并交代，别让人来问）：`M packages/cortico-adapter/src/index.ts`、`?? tests/read-dedupe.test.mjs`、`?? spark-output/analysis/`。前两项是 `diary_read` 去重这条线的在飞工作，**要么提交要么说明为什么停在这里**。
+- 我 19:30 看到的现场（若仍是这些请一并交代，别让人来问）：`M packages/adapters/cortico-adapter/src/index.ts`、`?? tests/read-dedupe.test.mjs`、`?? spark-output/analysis/`。前两项是 `diary_read` 去重这条线的在飞工作，**要么提交要么说明为什么停在这里**。
 - 删 `Cortico` 第二宿主克隆这件事**我没有授权给你**，主人还没给那个字。别动它。
 - 做完回报到主任务本会话，第三方只读复核，不补写。

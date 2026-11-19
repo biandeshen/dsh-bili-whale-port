@@ -141,7 +141,7 @@ node tools/video-build.mjs --image "D:/AI/养鱼/assets/daily/daily-04-goodnight
 
 - **行为冻结**：改调度/预算/路由前先对 `docs/attic/2026-10/BASELINE.md`；快照不一致必须 `--update` 并在提交信息说明原因。
 - **凭据**：只进 `~/.bili-ai/`（旧家只读兜底）与 `~/.xiaoyu-home/`，任何端点不回显；宿主 WebUI 只听 127.0.0.1，禁外暴（远程走 Tailscale）。
-- **AMpath 借用**：私有仓库、无 LICENSE。旧 `core/ports/` 下那份 `temporal.mjs` 纯函数借用件 **2026-11-12 随 `core/` 删除**（原文 `git show 7bf9198:core/ports/temporal.mjs`）；但 `packages/persona-core/` 仍是 AMpath 移植件，**"对外发布前必须重写或取得授权"这条义务照旧成立**（见 [CREDITS.md](./CREDITS.md) 与 [NOTICE.md](../NOTICE.md)）。
+- **AMpath 借用**：私有仓库、无 LICENSE。旧 `core/ports/` 下那份 `temporal.mjs` 纯函数借用件 **2026-11-12 随 `core/` 删除**（原文 `git show 7bf9198:core/ports/temporal.mjs`）；但 `packages/kernel/persona-core/` 仍是 AMpath 移植件，**"对外发布前必须重写或取得授权"这条义务照旧成立**（见 [CREDITS.md](./CREDITS.md) 与 [NOTICE.md](../NOTICE.md)）。
 - **上游纪律**：写操作仍强制 `--dry/--go`；MCP 包装层不得绕过 `tools/bili.mjs`。
 
 ## 她的东西放在哪三个盘（2026-11-02 实测登记）

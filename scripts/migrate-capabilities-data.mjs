@@ -14,7 +14,7 @@ import path from 'node:path'
 import os from 'node:os'
 import crypto from 'node:crypto'
 import { fileURLToPath } from 'node:url'
-import { MemoryCardStore } from '../packages/cap-memory/src/index.ts'
+import { MemoryCardStore } from '../packages/capabilities/cap-memory/src/index.ts'
 
 export function runDataMigration(opts) {
   const mode = opts.apply ? 'apply' : 'dry'

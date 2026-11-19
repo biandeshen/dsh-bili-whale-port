@@ -16,10 +16,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
-import { liveCredentials, checkLogin } from '../packages/cap-bilibili/src/client/bili-read.ts'
-import { pullInbox } from '../packages/cap-bilibili/src/client/bili-inbox.ts'
-import { readLegacyIdentity } from '../packages/cortico-world-bilibili/src/legacy-identity.ts'
-import { deployHome } from '../packages/cap-bilibili/src/platform/paths.mjs'
+import { liveCredentials, checkLogin } from '../packages/capabilities/cap-bilibili/src/client/bili-read.ts'
+import { pullInbox } from '../packages/capabilities/cap-bilibili/src/client/bili-inbox.ts'
+import { readLegacyIdentity } from '../packages/adapters/cortico-world-bilibili/src/legacy-identity.ts'
+import { deployHome } from '../packages/capabilities/cap-bilibili/src/platform/paths.mjs'
 
 const home = deployHome()
 // 转接头用的就是 `<部署目录>/.env`（botDir=家/xiaoyu）；两个摆法都探一下，别赌
@@ -75,7 +75,7 @@ console.log('\n没有写盘、没有叫醒她、没有调模型——这条链�
  * 而赞那一路线上返回的是 `items[].notices[]` 两层，最容易出现"外层有东西、内层没数到"。
  */
 if (process.argv.includes('--raw')) {
-  const { readFetcher, readHeaders } = await import('../packages/cap-bilibili/src/client/bili-read.ts')
+  const { readFetcher, readHeaders } = await import('../packages/capabilities/cap-bilibili/src/client/bili-read.ts')
   const get = async (u) => (await readFetcher(ctx)(u, { headers: readHeaders(ctx) })).json()
   console.log('\n# 原始形状')
   for (const kind of ['reply', 'at', 'like']) {

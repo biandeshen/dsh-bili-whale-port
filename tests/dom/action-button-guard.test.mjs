@@ -7,7 +7,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { mountPanel, settle } from '../helpers/panel-harness.mjs'
-import { actionButton, createDirtyGuard, debounce } from '../../packages/cortico-adapter/src/webui-helpers.ts'
+import { actionButton, createDirtyGuard, debounce } from '../../packages/shared/webui-helpers/src/webui-helpers.ts'
 
 test('busy：请求在飞的当口按钮是禁用的，连点第二下不会发第二次请求', async () => {
   let gate

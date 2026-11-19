@@ -20,8 +20,8 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
-import { configPath, deployHome } from '../packages/cap-bilibili/src/platform/paths.mjs'
-import { DEFAULT_WATCH_PREFS } from '../packages/cap-bilibili/src/client/inbox.ts'
+import { configPath, deployHome } from '../packages/capabilities/cap-bilibili/src/platform/paths.mjs'
+import { DEFAULT_WATCH_PREFS } from '../packages/capabilities/cap-bilibili/src/client/inbox.ts'
 
 const GO = process.argv.includes('--go')
 const STAMP = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')

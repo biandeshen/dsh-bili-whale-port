@@ -15,7 +15,7 @@ import { composeDraft } from './draft-dynamic.mjs'
  * 停在 B14 之前的旧常量）。反事实必须用**和线上同一份**人格函数，否则算出来的差异
  * 不是"人格带来的"，是"两份代码不一样带来的"。
  */
-const { buildVoiceBrief } = await import('../packages/persona-core/src/voice-brief.ts')
+const { buildVoiceBrief } = await import('../packages/kernel/persona-core/src/voice-brief.ts')
 
 const argv = process.argv.slice(2)
 const arg = (k, d) => { const i = argv.indexOf('--' + k); return i >= 0 ? argv[i + 1] : d }

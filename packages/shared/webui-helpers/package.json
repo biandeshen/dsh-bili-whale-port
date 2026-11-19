@@ -1,0 +1,11 @@
+{
+  "name": "@xiaoyu/webui-helpers",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "浏览器端面板的共享辅助（只依赖宿主 ui 契约，不 import 任何 Node 模块）。能力包与转接头都用它。",
+  "exports": {
+    ".": "./src/webui-helpers.ts",
+    "./*": "./src/*.ts"
+  }
+}

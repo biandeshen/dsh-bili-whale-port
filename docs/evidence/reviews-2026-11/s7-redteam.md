@@ -75,7 +75,7 @@
 - 代码现状我亲自读到：`persona-core/src/rhythm.ts:74 const CHECK_PROB = 0.35`、`:101-102 NEXT_CHECK_MIN/MAX = 30s/90s`、`:53 MIN_GAP_MS = 0`、`:61 MAX_ACTIONS_PER_DAY = +∞`、`:130-131` tired 门、`:157 if (rng() >= urge * CHECK_PROB) return {act:false, reason:"content"}`。
 - **② 每天投递量上界**：`86400/30 = 2880` 拍/天；每拍投递概率 = `urge × 0.35`，urge 上限 1 → **期望投递上界 1008 次/天**（≈42 次/小时）。
 - **实测对不上（关键反证）**：`data/usage.jsonl` 按小时统计 **distinct generationId**：`13:86 / 14:65 / 15:116 / 16:125 / 17:122 / 18:98 / 19:117 / 20:37`，全天 generation **1433**、attempt **3237**（`ordinal` 分布 `{0:1433,1:602,2:601,3:601}` → **单次 generation 最多重试 4 次，一次投递被放大 2.26 倍**）。白天成功时段（08–13 点）同样有 **120–167 次 generation/小时**。→ **实测约 120 次/小时 = 每 30 秒一拍必有 1 次模型调用，是 42/小时上界的 2.9 倍**。要么 `shouldAct=false 不投递`（`cortico-persona.ts:169` 那条）在数据上不成立，要么**每拍都无条件起一次 generation**（决定动不动本身就要问模型）。我用现有证据**无法在两者间定论**（没读 `life-heartbeat.ts` 与 `injectDeferred` 的实际触发条件），但"概率门是节流器"这个说法**已被小时曲线否掉**：3 倍于上界，且 30 秒排拍与 generation/hour 的 1:1 对应太整齐。
-- **③ 未同步的旧口径**：我 grep `-E "4[–\-]6 ?次|每天 ?[3456] ?次|每日 ?[3456] ?次"` 覆盖 `docs spark-output packages scripts tools` → 只有 2 处命中：`docs/PLUGIN-RADAR-2026-10-30.md:11`（"不要抄它的每日 3 次上限（主人 10-30 已裁决无上限）"，方向一致，不算漂移）与 `packages/persona-core/src/rhythm.ts:65`（**引用并否定** B14 的"每天 4–6 次"）。→ **"4–6 次/天"作为承诺口径已不在仓库文档里存在；漂移发生在回执话术，不在文件**。这条我原以为会挖出一堆过时文档，结果没有：**判我原本的怀疑站不住**。
+- **③ 未同步的旧口径**：我 grep `-E "4[–\-]6 ?次|每天 ?[3456] ?次|每日 ?[3456] ?次"` 覆盖 `docs spark-output packages scripts tools` → 只有 2 处命中：`docs/PLUGIN-RADAR-2026-10-30.md:11`（"不要抄它的每日 3 次上限（主人 10-30 已裁决无上限）"，方向一致，不算漂移）与 `packages/kernel/persona-core/src/rhythm.ts:65`（**引用并否定** B14 的"每天 4–6 次"）。→ **"4–6 次/天"作为承诺口径已不在仓库文档里存在；漂移发生在回执话术，不在文件**。这条我原以为会挖出一堆过时文档，结果没有：**判我原本的怀疑站不住**。
 
 ---
 
@@ -111,7 +111,7 @@
 
 → **"新 WriteGate 产线零真实写"成立**（三种独立口径都是 0）；旧路径那 1 条 `ok:true` 我未逐字节展开（席位四已给 dyn_id 与图片 URL，我不引用作我自己的证据）。
 
-**`dbafa7f` 把默认值改成了什么（我读 git）**：提交标题 `fix(gate): 撕掉嘴上封条——发布策略默认开（主人既有授权的执行欠账）`（2026-11-06 08:13:18），改动 `packages/cap-bilibili/src/domain/write-gate.ts`，**默认 `draftMode: 'review' → 'auto'`**；同时把 4 个测试改为**显式写一份 `draftMode:'review'` 的 policy.json**（即：测试不再依赖默认档，默认档从"人工放行"变成"自动放行"）。
+**`dbafa7f` 把默认值改成了什么（我读 git）**：提交标题 `fix(gate): 撕掉嘴上封条——发布策略默认开（主人既有授权的执行欠账）`（2026-11-06 08:13:18），改动 `packages/capabilities/cap-bilibili/src/domain/write-gate.ts`，**默认 `draftMode: 'review' → 'auto'`**；同时把 4 个测试改为**显式写一份 `draftMode:'review'` 的 policy.json**（即：测试不再依赖默认档，默认档从"人工放行"变成"自动放行"）。
 
 **线上 `data/bilibili/policy.json` 真实内容（原文）**：
 
@@ -134,7 +134,7 @@
 **判定：站不住一半 —— 前半句（VISION.md 那句话）成立；后半句（"全库无 feed 打分实现"）我给不出证据，措辞必须收回并降级。**
 
 - **成立的部分**：`VISION.md:30` 原文确实写着「`preferences.like` 是 feed 打分里权重最高的单项 | 「你给她的视角」—— 她看什么，由你决定」。这是可复核的文件事实。
-- **我做错/证据不足的部分**：我对 `packages/cap-bilibili/src` 做 `grep -lE "\bscore\(|\bsort\(|\brank"` **命中 8 个文件**（`client/bili-debrief.ts`、`bili-inbox.ts`、`bili-read.ts`、`bili-write.ts`、`inbox.ts`、`domain/inbox-listener.ts`、`read-quota.ts`、`write-gate.ts`）。**命中不等于 feed 排序**（很可能是收件箱排序/时间戳比较），但我**没有逐行确认任何一处是否构成"按偏好给 feed 打分"**，因此我说"全库无 feed 打分实现"**超出了我的证据**。诚实档位：`部分成立 → 待逐行核`；若下一轮在这 8 个文件里找到 feed 侧打分/排序，我这句就是**错的**，错在把"关键词文件级命中"当成了"实现不存在"。
+- **我做错/证据不足的部分**：我对 `packages/capabilities/cap-bilibili/src` 做 `grep -lE "\bscore\(|\bsort\(|\brank"` **命中 8 个文件**（`client/bili-debrief.ts`、`bili-inbox.ts`、`bili-read.ts`、`bili-write.ts`、`inbox.ts`、`domain/inbox-listener.ts`、`read-quota.ts`、`write-gate.ts`）。**命中不等于 feed 排序**（很可能是收件箱排序/时间戳比较），但我**没有逐行确认任何一处是否构成"按偏好给 feed 打分"**，因此我说"全库无 feed 打分实现"**超出了我的证据**。诚实档位：`部分成立 → 待逐行核`；若下一轮在这 8 个文件里找到 feed 侧打分/排序，我这句就是**错的**，错在把"关键词文件级命中"当成了"实现不存在"。
 - **线上数据侧**：`data/bilibili/watch-prefs.json` 实际内容我读到开头 —— `{"like":["助眠/ASMR","白噪音/雨声","轻音乐", …]}`（`find` 确认只有这一份 `watch-prefs.json`，就在 `data/bilibili/`）。所以"主人给的偏好**存在且有内容**"这一半成立；它到底被谁消费，我没查出正向证据。
 - **我原先引用的位置**（`src/index.ts:602`、`:660` 只读 dislike 与时长阈值）：**本轮我未重新核验那两行**（预算），判**未亲验**——不拿它当证据。
 

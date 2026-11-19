@@ -15,7 +15,7 @@
 复核说「23:37 我起的实例跑的是修复前代码」。实测不成立：
 
 ```
-$ stat -c '%y %n' packages/cortico-world-bilibili/src/cortico-world.ts
+$ stat -c '%y %n' packages/adapters/cortico-world-bilibili/src/cortico-world.ts
 2026-11-13 23:35:04.068644700 +0800          ← 修复落盘
 $ grep -n "启动: xiaoyu" ~/.dsh/bili-whale/control/cortico.log | tail -1
 31353:  启动: xiaoyu                            ← 23:36:59 启动，晚于修复
@@ -55,7 +55,7 @@ $ grep -c "host.log is not a function" …/cortico.log
 
 ## 二、P2 交付
 
-### 2.1 新文件：`packages/cap-state-rhythm/src/liveness.ts`
+### 2.1 新文件：`packages/capabilities/cap-state-rhythm/src/liveness.ts`
 
 四种状态，每种都带「多久了」：
 
@@ -74,9 +74,9 @@ $ grep -c "host.log is not a function" …/cortico.log
 
 ### 2.2 面板落点
 
-`packages/cap-state-rhythm/src/index.ts` 的 `day.get` 返回新增 `liveness` 字段（在 `cost` 旁边）；
-`packages/cap-state-rhythm/src/webui/client.ts` 在立绘区**成本行上面**渲染，异常态用红色加粗。
-位置可 `grep -n "liveness" packages/cap-state-rhythm/src/webui/client.ts`。
+`packages/capabilities/cap-state-rhythm/src/index.ts` 的 `day.get` 返回新增 `liveness` 字段（在 `cost` 旁边）；
+`packages/capabilities/cap-state-rhythm/src/webui/client.ts` 在立绘区**成本行上面**渲染，异常态用红色加粗。
+位置可 `grep -n "liveness" packages/capabilities/cap-state-rhythm/src/webui/client.ts`。
 
 ### 2.3 真宿主验证（不是 FakeEl、不是单测）
 
@@ -97,9 +97,9 @@ $ grep -c "host.log is not a function" …/cortico.log
 
 复核说的三点里，第 2、3 点在 2026-11-06 那批就做了，本轮只补了第 1 点（可见面）：
 
-- 402 分类：`packages/cap-state-rhythm/src/cost-today.ts:37` `verdict: 'ok' | 'stalled-auth' | 'throttled' | 'quiet'`，
+- 402 分类：`packages/capabilities/cap-state-rhythm/src/cost-today.ts:37` `verdict: 'ok' | 'stalled-auth' | 'throttled' | 'quiet'`，
   402 与 429 分开，`last402At` / `stalledMinutes` 都在返回值里。
-- 长间隔重试：`packages/cortico-bot-xiaoyu/src/cortico-persona.ts:178-200`，
+- 长间隔重试：`packages/adapters/cortico-bot-xiaoyu/src/cortico-persona.ts:178-200`，
   1/2/4/8/16/30 分钟（`STALL_STEP_MAX` 封顶），恢复后 `st.until=0` 立刻回原节奏。
   注释里写明「被拆掉的变相配额不许借这个口子还魂」——它节流的是**对着死端点的重试**，不是行动次数。
 - 缺口：这份退避状态在 `this` 上，重启清零（最坏退化成"照原节奏撞几下"），已在注释里声明。
@@ -161,7 +161,7 @@ $ CORTICO_HOME=<tmp> CORTICO_BOT=mybot node bin/cortico.mjs mybot --port=7797 --
 >
 > - **删完怎么验**：① `Cortico-up/src` 里 `grep -rn "persona-core"` 为 0（现在就是 0，运行时不引用它）；
 >   ② 宿主 `node --import tsx --test` 用例数从 229 降到 139，**那 90 个是本仓已有同源版本的旧副本测试**
->   （本仓 `packages/persona-core/tests` 90 例全绿，其中 3 份比宿主那份更新），不是测试变少；
+>   （本仓 `packages/kernel/persona-core/tests` 90 例全绿，其中 3 份比宿主那份更新），不是测试变少；
 >   ③ 宿主 `bin/cortico.mjs --list` 仍能列出 `xiaoyu` 与 4 个世界。
 > - **失败怎么回滚**：动手前 `git -C Cortico-up bundle create ../Cortico-up-persona-core-<date>.bundle --all`
 >   + `git -C Cortico-up tag persona-core-before-removal`；失败时 `git checkout persona-core-before-removal -- persona-core`

@@ -11,7 +11,7 @@
 | **ffmpeg** | 抽帧 / 看画面（`tools/lib/ffmpeg.mjs` 只是**定位并调用**它） | **LGPL v2.1+**（若用 GPL 构建则为 GPL）。本项目**不打包** ffmpeg：请自行安装，或使用发布页附带的 LGPL 构建（附其 LICENSE 与源码链接：https://ffmpeg.org）|
 | **Node.js** | 运行环境 | MIT |
 | **鲸鱼娘序列帧**（原 `panel/assets/whale-girl/`，**2026-11-12 已随旧面板删除**） | 曾是鱼缸页的角色立绘（15 状态）；现在的鱼缸界面不用这套素材 | **CC BY-NC-SA 4.0** · 署名 ZipZipPipe / 上善无形 · **仅个人非商用**。来源 [vlln/whale-girl](https://github.com/vlln/whale-girl)（`lib/assets/characters/whale-girl/`）。本仓已不含该素材，此条留档以便将来重新引入时把义务一并带回 |
-| **AMpath**（本仓 `packages/persona-core/`，宿主侧同源副本在 `Cortico-up/persona-core/`） | 人格内核（场值、因果链、记忆衰减）的移植来源 | 移植自其 `codex/ampath-unified-candidate` 分支（2026-10-26）；`types/effect-bus/causal-chain/memory/npc-state-machine` 五份为原样搬或抽符号。**AMpath 为私有仓库、无 LICENSE：仅供本地自用，对外发布前必须重写或取得授权。** 逐文件对照表目前只在宿主侧 `Cortico-up/persona-core/README.md:5-44`；本仓 `packages/persona-core/README.md` 只有模块职责表、**没有那张对照表**（2026-11-12 实测，待补的署名缺口）。另有一份纯函数借用件曾落在 `core/ports/`，已随该树于 2026-11-12 删除 |
+| **AMpath**（本仓 `packages/kernel/persona-core/`，宿主侧同源副本在 `Cortico-up/persona-core/`） | 人格内核（场值、因果链、记忆衰减）的移植来源 | 移植自其 `codex/ampath-unified-candidate` 分支（2026-10-26）；`types/effect-bus/causal-chain/memory/npc-state-machine` 五份为原样搬或抽符号。**AMpath 为私有仓库、无 LICENSE：仅供本地自用，对外发布前必须重写或取得授权。** 逐文件对照表目前只在宿主侧 `Cortico-up/persona-core/README.md:5-44`；本仓 `packages/kernel/persona-core/README.md` 只有模块职责表、**没有那张对照表**（2026-11-12 实测，待补的署名缺口）。另有一份纯函数借用件曾落在 `core/ports/`，已随该树于 2026-11-12 删除 |
 
 ## 免责
 

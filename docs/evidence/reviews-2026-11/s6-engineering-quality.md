@@ -52,7 +52,7 @@
    }
    ...tests: pick('tests'), pass: pick('pass'), fail: pick('fail'),
    ```
-   `node --test` 的汇总行里有 `ℹ skipped N`，**runner 没有 pick('skipped')**。所以"860 pass / 0 fail"里混进了多少 skip，从门禁产物上无法回答。静态兜底：源码里 skip 标记（`skip: true` / `t.skip(` / `describe.skip`）只出现在 **3 个文件共 5 处**（`packages/cap-media-studio/tests/media-studio.test.mjs` ×2、`packages/cap-vision/tests/subtitle-strip.test.mjs` ×2、`tests/media-studio.test.mjs` ×1）。**判断：skip 规模很小，但"门禁不自报 skip"是真实盲区**（成本低即可补，非阻塞项）。
+   `node --test` 的汇总行里有 `ℹ skipped N`，**runner 没有 pick('skipped')**。所以"860 pass / 0 fail"里混进了多少 skip，从门禁产物上无法回答。静态兜底：源码里 skip 标记（`skip: true` / `t.skip(` / `describe.skip`）只出现在 **3 个文件共 5 处**（`packages/capabilities/cap-media-studio/tests/media-studio.test.mjs` ×2、`packages/capabilities/cap-vision/tests/subtitle-strip.test.mjs` ×2、`tests/media-studio.test.mjs` ×1）。**判断：skip 规模很小，但"门禁不自报 skip"是真实盲区**（成本低即可补，非阻塞项）。
 2. 我跑的是工作区当前状态（含 6 个未提交修改 + 5 个未跟踪新文件），不是干净的 HEAD。仓库内最新一份**落盘**证据是 `docs/evidence/gates-2026-11-05.json`：`gitSha=6feec267…`、`discovered=120 / executed=120 / tests=671 / pass=671 / fail=0 / exit=0`。**证据落后于代码 31 个测试文件、189 个用例**——今天（11-06）没有新的 gates 报告落盘。
 
 ### 2.2 三类分布（按文件计，方法透明）
@@ -86,7 +86,7 @@
   assert.ok(s.includes("go-gate.mjs"), `${f} 必须保留 go-gate`)
   ```
   问题两条：(a) `30 * DAY` 写成 `30*DAY` 就红——**无意义假红**；(b) 行为改坏但字面量还在就**不红**。而且第 29 行断言的 `go-gate.mjs` **在仓库里不存在**（`docs/ARCHITECTURE-2026-11.md:133` 也引用 `tools/go-gate.mjs`，我的扫描把它列为 MISSING）。→ 这一条属"门禁指向不存在的实现"，是本席位找到的最实的一个小洞（非阻塞，但应改成行为断言）。
-- `packages/cap-bilibili/tests/bili-profile.test.mjs:192-197`——正向例子：遍历自身源码，断言 `MIXIN_TAB = [` 字面量**只有一处且必须在 `platform/wbi.ts`**。这是防复制粘贴漂移的合理形式。
+- `packages/capabilities/cap-bilibili/tests/bili-profile.test.mjs:192-197`——正向例子：遍历自身源码，断言 `MIXIN_TAB = [` 字面量**只有一处且必须在 `platform/wbi.ts`**。这是防复制粘贴漂移的合理形式。
 
 **综合判定**：不存在"成建制假绿"。③ 类 ≈2–3%，其中 2 处是正当适应度函数，1 处（perm-tier）是应改造的易碎断言。②类只有 5 个文件，**mock 泛滥这一典型 vibe-coding 病在本仓基本不成立**——反证是：151 个测试里 `assert.*` 调用共 **3305** 处（平均每文件 21.9 处），且 39 个文件真起子进程。
 
@@ -207,7 +207,7 @@
 
 - 评审开始时 `ls -1 scripts/` = **51**；21:10 另一会话新建 `scripts/verify-inbox-live.mjs`（5,910 B，`git status` 为 `??`），我再数 = **52**。
 - `git status --porcelain` 从评审开始的 11 条增长到 `?? scripts/verify-inbox-live.mjs` 出现后的 12 条。
-- 工作区在我跑全量测试时处于**未提交状态**（6 个 ` M`：`packages/cap-bilibili/src/index.ts`、`packages/cap-bilibili/tests/bili-connection.test.mjs`、`packages/cortico-bot-xiaoyu/src/cortico-persona.ts`、`packages/cortico-world-bilibili/src/index.ts` 等 + 5 个新增文件，其中含新测试 `tests/inbox-listener.test.mjs`、`packages/cortico-bot-xiaoyu/tests/rhythm-outlets.test.mjs`）。
+- 工作区在我跑全量测试时处于**未提交状态**（6 个 ` M`：`packages/capabilities/cap-bilibili/src/index.ts`、`packages/capabilities/cap-bilibili/tests/bili-connection.test.mjs`、`packages/adapters/cortico-bot-xiaoyu/src/cortico-persona.ts`、`packages/adapters/cortico-world-bilibili/src/index.ts` 等 + 5 个新增文件，其中含新测试 `tests/inbox-listener.test.mjs`、`packages/adapters/cortico-bot-xiaoyu/tests/rhythm-outlets.test.mjs`）。
 - **判定：任务书提出的"未提交改动被并行会话吞掉"的风险在本机是活跃的、非理论的。** 现有防线只有 git 本身；没有任何 lock/sign-off 文件（`control/` 里没有 worktree-lock 之类的东西，实测 40 个条目中无此类）。
 - 顺带一条与作者自省的记录：commit `2793789 fix(tools): 库里不再杀进程——attemptWrite 抛可捕获的 WriteRefusedError` + `a125397 fix(hygiene): 验收脚本不许再拿线上实例跑写路径（我把她弄脏的那次是我的错）` + `265e7c5 … 清出去 + 两道防复发` → **说明"验收脚本污染真实数据"确实发生过并被清理**，这正是任务书里 `pre-purge` 一类快照的历史来源（清理脚本 `purge-acceptance-residue.mjs` 存在，184 行）；只是残留在本次实测中已被清干净，找不到。
 
@@ -224,7 +224,7 @@
 
 | # | 反复出现的坑 | 出现过几次（证据） | 是否根治 | 现在靠什么防 | 本席位评估 |
 |---|---|---|---|---|---|
-| 1 | **协作者接口形状假设错**（`core.log` 是 Logger 对象不是 `(level,msg)` 函数） | **至少 4 次**，跨 4 个位置：①`311c7c7 fix(bot): 修掉 08:24 那次线上崩机——core.log 是 Logger 对象，不是 (level,msg) 函数`；②`d5db2c1 fix(reflect): core.log 是 Logger 对象不是函数——反思路径整条被它炸掉`（两条不同路径确认）；③`645dfd9 fix(bot): 她"醒着却不动"的真正原因——onDelivery 的宿主形状假设错了 + 做梦从没跑过`；④`07ff556 … 存档点那行渲染成 undefined`（`GitStatus.tags: string[] → checkpoints: CheckpointInfo[]`），同形状类。`git log --grep=core.log` = 2 提交、`docs/` = 2 文件 | **部分根治**：类型层修，但机制上 `cortico-adapter` 包 460 行、**0 个测试文件**（实测），宿主契约仍主要靠线上崩了才发现 | 事后补的**契约测试**目录 `tests/contract/`（39 个文件，如 `host-contract.test.mjs`、`m1a-observability.test.mjs`）+ `packages/cortico-bot-xiaoyu/tests/host-contract.test.mjs`；`check-consumers.mjs` 防"写了没接线"；`07ff556` 记录做了变异验证 | 本项目**代价最高的一类**。建议方向明确：给 adapter 边界加一份"宿主返回形状"的 fixture 快照，而不是逐处补断言 |
+| 1 | **协作者接口形状假设错**（`core.log` 是 Logger 对象不是 `(level,msg)` 函数） | **至少 4 次**，跨 4 个位置：①`311c7c7 fix(bot): 修掉 08:24 那次线上崩机——core.log 是 Logger 对象，不是 (level,msg) 函数`；②`d5db2c1 fix(reflect): core.log 是 Logger 对象不是函数——反思路径整条被它炸掉`（两条不同路径确认）；③`645dfd9 fix(bot): 她"醒着却不动"的真正原因——onDelivery 的宿主形状假设错了 + 做梦从没跑过`；④`07ff556 … 存档点那行渲染成 undefined`（`GitStatus.tags: string[] → checkpoints: CheckpointInfo[]`），同形状类。`git log --grep=core.log` = 2 提交、`docs/` = 2 文件 | **部分根治**：类型层修，但机制上 `cortico-adapter` 包 460 行、**0 个测试文件**（实测），宿主契约仍主要靠线上崩了才发现 | 事后补的**契约测试**目录 `tests/contract/`（39 个文件，如 `host-contract.test.mjs`、`m1a-observability.test.mjs`）+ `packages/adapters/cortico-bot-xiaoyu/tests/host-contract.test.mjs`；`check-consumers.mjs` 防"写了没接线"；`07ff556` 记录做了变异验证 | 本项目**代价最高的一类**。建议方向明确：给 adapter 边界加一份"宿主返回形状"的 fixture 快照，而不是逐处补断言 |
 | 2 | **退役目录搬移 → 测试 import 老路径**（`ERR_MODULE_NOT_FOUND`） | `git log --grep=退役` = **9** 提交、`docs/` = 15 文件；`git log --grep=retired` = 1；`ERR_MODULE_NOT_FOUND` 字面在 commit message = **0**（该次事故记在 docs 而非 commit 标题） | **当前已根治**：407 个 .ts/.mjs 全量静态解析 → **仅 2 处不可解析**，都在 `spark-output/flow-web/day-client.design.ts:12-13`（非生产代码） | `check-mjs-syntax.mjs`(326 文件) + 测试真跑（runner 会因模块加载失败让该文件 exit≠0，且 `NOT_RUN=` 显式列出） | 状态良好。`check-consumers` 仍会把 `legacy/bili-account-retired/*.ts` 当调用点计入"有生产调用"（实测输出 5 行 OK 指向 `legacy/`，而 `legacy/` 不在本仓、在 `../Cortico-up/legacy`）→ **轻微不一致**，属可绕过的小问题 |
 | 3 | **前端资产哈希/缓存 → 面板空白、404** | 相关提交实测：`5824a45 fix(webui): styles.css 404 修复与全面板带样式复验`、`f1f0bf1 fix(vision): 面板五轮浏览器复验的四个真 bug`、`96f9b60 … 真浏览器联调修四处契约不匹配`、`13e1f90 chore(webui): 跟上批次 10 的面板产物与内容哈希版本`、`18a5231`、`ff58abc`、`d43c2b5 feat(build): A4 版本缓存自动化——产物哈希写进 patch 版本位`（`docs/` 命中"面板空白" = 1 文件） | **基本根治**：哈希写进 patch 版本位 + 产物随源码提交 | `check-live-drift.mjs` 的 9 项 `… webui 产物是新的：NNNNN B，闭包 K 个文件`（我实跑全绿） | 有专门的漂移检查覆盖，属做得好的部分 |
 | 4 | **Windows 文件占用 EPERM → 门禁随机红** | `git log --grep=EPERM` = **4** 提交、`docs/` = 2 文件；关键提交 `913ec7b feat(memory): 核心常驻退位审阅台 + 写盘改名重试（Windows EPERM 门禁随机红）`；`07ff556` 正文另记"**顺带修两处门禁随机红**：面板/启动器测试随机抢端口（撞上 OFM 代理 18910）→ 先探端口；心跳噪声测试靠墙钟睡觉 → 改成等真的排进来至少一拍"；`0d721e5 test(panel): 修掉一个假红——并发时没人读 stderr，面板子进程被管道卡住` | **未完全根治**：加了 rename 重试，但**放弃重试后 tmp 不回收**——实测残留 `fields.json.330848.rn4uzg.tmp`（59,286 B，11-01 13:32 至今 5 天） | rename 重试 + 端口先探 + 用真事件替代墙钟等待 | 第五类由此浮现（见下行 #5）。建议：捕获 EPERM 放弃时把 tmp 移到 `.trash/` 或直接 `rm` 已存在同 pid 的 tmp |
@@ -244,7 +244,7 @@
 
 **这 34 个的性质要分开看，不能一概论罪**：
 
-- **属"历史提案/点状快照"的（合理）**：`docs/ARCHITECTURE-DECOUPLING-2026-11-01.md:316` 引 `docs/evidence/gates-before-A.json`、`:869` 引 `scripts/migrate-drafts.mjs`；`docs/ARCHITECTURE-TARGET-2026-11-03.md:291-295` 引 `packages/cap-memory/src/memory-ops.ts`、`packages/cap-bilibili/src/client/dm.ts`、`src/config.ts`（目标态，本就该"尚未存在"）。这类带日期后缀的审计/提案文档占多数。
+- **属"历史提案/点状快照"的（合理）**：`docs/ARCHITECTURE-DECOUPLING-2026-11-01.md:316` 引 `docs/evidence/gates-before-A.json`、`:869` 引 `scripts/migrate-drafts.mjs`；`docs/ARCHITECTURE-TARGET-2026-11-03.md:291-295` 引 `packages/capabilities/cap-memory/src/memory-ops.ts`、`packages/capabilities/cap-bilibili/src/client/dm.ts`、`src/config.ts`（目标态，本就该"尚未存在"）。这类带日期后缀的审计/提案文档占多数。
 - **属"当前状态文档说了不存在的东西"（应修）**：
   - `docs/README.md:169,178,224,251` → `scripts/merge-issue-ids.mjs`、`scripts/check-issue-ids.mjs`、`scripts/check-docs-owner.mjs`、`scripts/check-docs-index.mjs` **4 个门禁脚本不存在**。这是最伤"可交接性"的一类：新读者会照着 README 去跑不存在的门。
   - `docs/ARCHITECTURE.md:257` → `docs/PORT-LEDGER.md` 不存在；`:423` → `packages/shared/src/field-engine/emotion-projection.ts`、`:459` → `packages/server/src/engine/business/life-generator.ts`（`packages/shared`、`packages/server` 两个目录本仓**根本不存在**——实测 `ls packages` 只有 11 个 cap-*/cortico-*/persona-core）。这两条像是从**另一代架构**（旧 monorepo）留下的正文。

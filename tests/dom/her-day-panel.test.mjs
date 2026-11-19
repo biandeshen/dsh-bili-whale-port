@@ -9,7 +9,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { mountPanel, settle } from '../helpers/panel-harness.mjs'
-import { dayPanel } from '../../packages/cap-state-rhythm/src/webui/client.ts'
+import { dayPanel } from '../../packages/capabilities/cap-state-rhythm/src/webui/client.ts'
 
 const now = Date.now()
 

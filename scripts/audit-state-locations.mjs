@@ -31,7 +31,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { legacyStateDir, stateDir, whaleHome } from '../tools/lib/paths.mjs'
 import { kinds, resolve } from '../tools/lib/state-roots.mjs'
-import { deployHome } from '../packages/cap-bilibili/src/platform/paths.mjs'
+import { deployHome } from '../packages/capabilities/cap-bilibili/src/platform/paths.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const asJson = process.argv.includes('--json')

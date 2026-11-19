@@ -40,7 +40,7 @@
 
 ### 2.2 死代码 / 同类问题系统性扫描（不限本次改动）
 
-扫描方法：对 `packages/persona-core/src`、`packages/cap-state-rhythm/src`、`packages/cortico-bot-xiaoyu/src` 的导出函数统计"非定义处调用点数"（排除 `dist`）。
+扫描方法：对 `packages/kernel/persona-core/src`、`packages/capabilities/cap-state-rhythm/src`、`packages/adapters/cortico-bot-xiaoyu/src` 的导出函数统计"非定义处调用点数"（排除 `dist`）。
 
 | 符号 | 位置 | 非定义调用者 | 判定 |
 |---|---|---|---|

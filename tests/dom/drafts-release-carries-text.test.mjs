@@ -9,7 +9,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { mountPanel, settle, pendingItem } from '../helpers/panel-harness.mjs'
-import { draftsQueuePanel } from '../../packages/cap-bilibili/src/webui/client.ts'
+import { draftsQueuePanel } from '../../packages/capabilities/cap-bilibili/src/webui/client.ts'
 
 /** 造一个"队列"后端：updateDraft 会清洗+重算哈希+续签令牌，release 只认队列里那份。 */
 const hashOf = (text) => `hash-of-${String(text ?? '').trim().length}`

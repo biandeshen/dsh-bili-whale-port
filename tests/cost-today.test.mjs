@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { readCostToday, costSummary } from '../packages/cap-state-rhythm/src/cost-today.ts'
+import { readCostToday, costSummary } from '../packages/capabilities/cap-state-rhythm/src/cost-today.ts'
 
 function write(dir, rows) {
   fs.writeFileSync(path.join(dir, 'usage.jsonl'), rows.map((r) => JSON.stringify(r)).join('\n') + '\n', 'utf8')

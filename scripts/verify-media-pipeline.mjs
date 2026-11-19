@@ -21,9 +21,9 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { renderVideoSlice } from '../packages/cap-media-studio/src/render.ts'
-import { defaultMediaBinDir } from '../packages/cortico-world-media/src/cortico-world.ts'
-import { deployHome } from '../packages/cap-bilibili/src/platform/paths.mjs'
+import { renderVideoSlice } from '../packages/capabilities/cap-media-studio/src/render.ts'
+import { defaultMediaBinDir } from '../packages/adapters/cortico-world-media/src/cortico-world.ts'
+import { deployHome } from '../packages/capabilities/cap-bilibili/src/platform/paths.mjs'
 
 const argv = process.argv.slice(2)
 const flag = (name, dflt) => {

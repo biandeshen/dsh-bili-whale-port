@@ -12,11 +12,11 @@
 
 | 文件 | packages 源码 | 活脚本(npm/gates) | 入口 | 其余脚本 | 测试 | 文档/注释 | 待人工确认 |
 |---|---|---|---|---|---|---|---|
-| `vendor/dsh-video-studio/cover.js` | packages/cap-media-studio/src/vendor/video/studio.mjs | — | — | vendor/dsh-video-studio/render.js | — | — | tests/vendor-video-studio.test.mjs |
-| `vendor/dsh-video-studio/ffmpeg.js` | packages/cap-media-studio/src/vendor/video/studio.mjs | — | — | vendor/dsh-video-studio/cover.js<br>vendor/dsh-video-studio/media.js<br>vendor/dsh-video-studio/render.js | — | docs/specs/09-media-output.md<br>vendor/dsh-video-studio/VENDOR.md | tests/vendor-video-studio.test.mjs |
+| `vendor/dsh-video-studio/cover.js` | packages/capabilities/cap-media-studio/src/vendor/video/studio.mjs | — | — | vendor/dsh-video-studio/render.js | — | — | tests/vendor-video-studio.test.mjs |
+| `vendor/dsh-video-studio/ffmpeg.js` | packages/capabilities/cap-media-studio/src/vendor/video/studio.mjs | — | — | vendor/dsh-video-studio/cover.js<br>vendor/dsh-video-studio/media.js<br>vendor/dsh-video-studio/render.js | — | docs/specs/09-media-output.md<br>vendor/dsh-video-studio/VENDOR.md | tests/vendor-video-studio.test.mjs |
 | `vendor/dsh-video-studio/fonts.js` | — | — | — | vendor/dsh-video-studio/cover.js<br>vendor/dsh-video-studio/render.js | — | docs/specs/09-media-output.md | tests/vendor-video-studio.test.mjs |
 | `vendor/dsh-video-studio/media.js` | — | — | — | vendor/dsh-video-studio/cover.js<br>vendor/dsh-video-studio/render.js | — | — | tests/vendor-video-studio.test.mjs |
-| `vendor/dsh-video-studio/render.js` | packages/cap-media-studio/src/vendor/video/studio.mjs | — | — | — | — | — | tests/vendor-video-studio.test.mjs |
+| `vendor/dsh-video-studio/render.js` | packages/capabilities/cap-media-studio/src/vendor/video/studio.mjs | — | — | — | — | — | tests/vendor-video-studio.test.mjs |
 | `vendor/dsh-video-studio/subtitles.js` | — | — | — | vendor/dsh-video-studio/render.js | — | vendor/dsh-video-studio/render.js | tests/vendor-video-studio.test.mjs |
 
 ## T2a —— 5 文件
@@ -80,15 +80,15 @@
 | `tools/commands/comments.mjs` | — | — | — | tools/bili.mjs<br>tools/commands/ai-share.mjs | — | — | — |
 | `tools/commands/danmaku-await.mjs` | — | — | — | tools/bili.mjs | — | — | core/scheduler.js |
 | `tools/commands/danmaku.mjs` | — | — | — | tools/bili.mjs | tests/contract/go-gate.test.mjs | docs/evidence/PERM-TIER-2026-10-31.md | — |
-| `tools/commands/debrief.mjs` | — | — | — | tools/bili.mjs | tests/debrief-capability.test.mjs<br>tests/debrief-sampling.test.mjs | docs/attic/2026-11/team-2026-11-01/security.md<br>packages/cap-bilibili/src/client/bili-debrief.ts | — |
+| `tools/commands/debrief.mjs` | — | — | — | tools/bili.mjs | tests/debrief-capability.test.mjs<br>tests/debrief-sampling.test.mjs | docs/attic/2026-11/team-2026-11-01/security.md<br>packages/capabilities/cap-bilibili/src/client/bili-debrief.ts | — |
 | `tools/commands/deps.mjs` | — | — | — | tools/bili.mjs | tests/integration.test.mjs | docs/RUNBOOK.md | — |
 | `tools/commands/diary.mjs` | — | — | — | tools/bili.mjs | — | docs/attic/2026-11/team-2026-11-01/round3/config-surface.md | — |
 | `tools/commands/dm-await.mjs` | — | — | — | tools/bili.mjs | tests/dm-history.test.mjs | docs/attic/2026-11/team-2026-11-03/02-capability-matrix.md | — |
 | `tools/commands/dm-draft.mjs` | — | — | — | tools/bili.mjs | — | docs/evidence/M3-DM-REPLY-2026-10-29.md | — |
 | `tools/commands/dm.mjs` | — | — | — | tools/bili.mjs<br>tools/commands/notify.mjs | tests/dm-out-causal.test.mjs<br>tests/integration.test.mjs | tests/dm-out-causal.test.mjs | — |
 | `tools/commands/dynamic-image.mjs` | — | — | — | tools/bili.mjs | — | docs/attic/2026-11/team-2026-11-01/round3/config-surface.md | — |
-| `tools/commands/dynamic.mjs` | — | — | — | tools/bili.mjs | tests/dynamic-recent.test.mjs | docs/attic/2026-10/ARCHITECTURE.md<br>packages/cap-bilibili/src/platform/wbi.ts | — |
-| `tools/commands/edit-dynamic.mjs` | — | — | — | tools/bili.mjs | tests/edit-dynamic.test.mjs | docs/attic/2026-11/team-2026-11-03/02-capability-matrix.md<br>packages/cap-bilibili/src/client/bili-write-extra.ts | — |
+| `tools/commands/dynamic.mjs` | — | — | — | tools/bili.mjs | tests/dynamic-recent.test.mjs | docs/attic/2026-10/ARCHITECTURE.md<br>packages/capabilities/cap-bilibili/src/platform/wbi.ts | — |
+| `tools/commands/edit-dynamic.mjs` | — | — | — | tools/bili.mjs | tests/edit-dynamic.test.mjs | docs/attic/2026-11/team-2026-11-03/02-capability-matrix.md<br>packages/capabilities/cap-bilibili/src/client/bili-write-extra.ts | — |
 | `tools/commands/fav.mjs` | — | — | — | tools/bili.mjs | tests/contract/go-gate.test.mjs | docs/attic/2026-11/team-2026-11-01/round3/config-surface.md<br>docs/attic/2026-11/team-2026-11-01/security.md<br>…另 1 | — |
 | `tools/commands/feed.mjs` | — | — | — | tools/bili.mjs | tests/feed-seen.test.mjs | docs/attic/2026-10/ISSUES.md<br>docs/attic/2026-11/team-2026-11-01/round2/content.md<br>…另 5 | — |
 | `tools/commands/feedback.mjs` | — | — | — | panel/feedback.mjs<br>tools/bili.mjs | tests/contract/feedback.test.mjs | docs/attic/2026-11/ARCHITECTURE-2026-11.md<br>docs/attic/2026-11/team-2026-11-01/round2/judgment-loop-design.md<br>…另 1 | — |
@@ -106,7 +106,7 @@
 | `tools/commands/video-content.mjs` | — | — | — | tools/bili.mjs | — | tools/commands/subtitles.mjs | — |
 | `tools/commands/whale-night.mjs` | — | — | — | tools/bili.mjs | tests/integration.test.mjs | docs/attic/2026-11/team-2026-11-01/round3/config-surface.md<br>docs/DEPLOY.md<br>…另 1 | — |
 | `tools/diagnostics/fetch-covers.mjs` | — | — | — | tools/bili.mjs | — | — | — |
-| `tools/diagnostics/whois.mjs` | — | — | — | tools/bili.mjs | — | packages/cap-bilibili/src/platform/wbi.ts | — |
+| `tools/diagnostics/whois.mjs` | — | — | — | tools/bili.mjs | — | packages/capabilities/cap-bilibili/src/platform/wbi.ts | — |
 | `tools/drafts/compose.mjs` | — | — | — | scripts/draft-dynamic.mjs | tests/contract/outbound-plain.test.mjs | docs/attic/2026-11/DECOUPLING-STATUS-2026-11-02.md | — |
 | `tools/drafts/publishers/bilibili-dynamic.mjs` | — | — | — | scripts/dynamic-approve.mjs<br>tools/commands/dynamic-image.mjs<br>tools/commands/dynamic.mjs | tests/drafts-publisher.test.mjs | docs/attic/2026-10/MODULARITY-2026-10-30.md<br>docs/attic/2026-11/team-2026-11-01/platform.md<br>…另 1 | — |
 | `tools/drafts/store.mjs` | — | — | — | scripts/draft-dynamic.mjs<br>scripts/dynamic-approve.mjs | tests/contract/state-roots.test.mjs | — | — |
@@ -121,11 +121,11 @@
 | `tools/lib/credentials/mimo.mjs` | — | — | — | tools/lib/credentials/index.mjs | — | — | — |
 | `tools/lib/dm-drafts.mjs` | — | — | — | scripts/dm-approve.mjs<br>tools/commands/dm-draft.mjs | tests/contract/dm-approve.test.mjs<br>tests/contract/outbound-plain.test.mjs<br>tests/dm-drafts.test.mjs | docs/evidence/M3-DM-REPLY-2026-10-29.md | — |
 | `tools/lib/dm-history.mjs` | — | — | — | tools/commands/dm-await.mjs | — | docs/attic/2026-11/team-2026-11-03/02-capability-matrix.md | — |
-| `tools/lib/dm-send-core.mjs` | — | — | — | scripts/dm-approve.mjs<br>tools/commands/dm.mjs | — | docs/attic/2026-11/team-2026-11-01/TEAM-DIGEST-2026-11-01.md<br>packages/cap-bilibili/src/client/bili-write-extra.ts<br>…另 1 | — |
+| `tools/lib/dm-send-core.mjs` | — | — | — | scripts/dm-approve.mjs<br>tools/commands/dm.mjs | — | docs/attic/2026-11/team-2026-11-01/TEAM-DIGEST-2026-11-01.md<br>packages/capabilities/cap-bilibili/src/client/bili-write-extra.ts<br>…另 1 | — |
 | `tools/lib/feed-feedback.mjs` | — | — | — | scripts/wordlist-hit-check.mjs<br>tools/commands/feed.mjs | tests/contract/feed-feedback.test.mjs | docs/attic/2026-11/team-2026-11-01/round2/devils-advocate-2.md<br>docs/attic/2026-11/team-2026-11-01/round2/self-correction.md<br>…另 1 | — |
 | `tools/lib/feed-quality.mjs` | — | — | — | tools/commands/feed.mjs | tests/contract/feed-quality.test.mjs<br>tests/contract/judgment-loop.test.mjs<br>tests/feed-dislike.test.mjs | docs/attic/2026-10/ISSUES.md<br>docs/evidence/D-31-RULING-2026-10-29.md | — |
 | `tools/lib/feedback.mjs` | — | — | — | tools/commands/quota.mjs | tests/updates.test.mjs | CHANGELOG.md | tests/contract/feedback.test.mjs |
-| `tools/lib/ffmpeg.mjs` | — | — | — | tools/commands/bili-watch.mjs<br>tools/commands/debrief.mjs<br>tools/commands/deps.mjs | — | NOTICE.md<br>packages/cap-vision/src/vendor/see-now/VENDORED.md | — |
+| `tools/lib/ffmpeg.mjs` | — | — | — | tools/commands/bili-watch.mjs<br>tools/commands/debrief.mjs<br>tools/commands/deps.mjs | — | NOTICE.md<br>packages/capabilities/cap-vision/src/vendor/see-now/VENDORED.md | — |
 | `tools/lib/go-gate.mjs` | — | — | — | tools/commands/comment.mjs<br>tools/commands/danmaku.mjs<br>tools/commands/fav.mjs<br>tools/commands/like.mjs | tests/contract/go-gate.test.mjs<br>tests/contract/state-home.test.mjs | docs/attic/2026-10/CLOSEOUT.md<br>docs/attic/2026-11/ARCHITECTURE-2026-11.md<br>…另 3 | tests/perm-tier.test.mjs |
 | `tools/lib/go-rebuild.mjs` | — | — | — | core/api/routes.js | tests/contract/m1e-approval.test.mjs | docs/attic/2026-11/ARCHITECTURE-2026-11.md<br>docs/attic/2026-11/team-2026-11-01/security.md<br>…另 1 | — |
 | `tools/lib/judgment.mjs` | — | — | — | tools/commands/feed.mjs<br>tools/commands/judgment.mjs | tests/contract/judgment.test.mjs | tools/commands/judgment.mjs | — |
@@ -187,7 +187,7 @@
 | `core/ports/temporal.mjs` | — | — | — | — | — | docs/attic/2026-11/ARCHITECTURE-TARGET-2026-11-03.md<br>docs/attic/2026-11/team-2026-11-01/round3/four-questions-decisions.md<br>…另 3 | — |
 | `panel/assets/whale-girl/manifest.json` | — | — | — | — | — | scripts/audit-legacy-refs.mjs | scripts/purge-acceptance-residue.mjs |
 | `tools/docs/comment-add.md` | — | — | — | — | — | docs/attic/2026-11/team-2026-11-01/platform.md | — |
-| `tools/docs/dynamic-publish.md` | — | — | — | — | — | docs/attic/2026-11/team-2026-11-01/platform.md<br>packages/cap-bilibili/src/client/bili-write-extra.ts | — |
+| `tools/docs/dynamic-publish.md` | — | — | — | — | — | docs/attic/2026-11/team-2026-11-01/platform.md<br>packages/capabilities/cap-bilibili/src/client/bili-write-extra.ts | — |
 | `tools/docs/rich-text-nodes.md` | — | — | — | — | — | docs/attic/2026-11/team-2026-11-01/platform.md | — |
 | `tools/templates/config.example.json` | — | — | — | — | — | docs/attic/2026-11/team-2026-11-01/security.md | — |
 | `vendor/dsh-autocut/LICENSE` | — | — | — | — | — | vendor/dsh-autocut/VENDOR.md | — |

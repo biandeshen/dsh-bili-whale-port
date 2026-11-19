@@ -38,14 +38,39 @@ async function loadEsbuild() {
   throw new Error('找不到 esbuild（试过 ESBUILD_LIB / Cortico-up/node_modules/esbuild 与本仓 node_modules/esbuild）')
 }
 
+/**
+ * 找到所有"带浏览器面板"的包。
+ *
+ * 2026-11-19 #90 分层后 packages 不再平铺（kernel/ capabilities/ adapters/ shared/），
+ * 所以不能只 readdir 一层——那样一个都找不到，构建会"成功"但什么都没产出。
+ * 这里按两层找：packages/<层>/<包>/，并保留对旧平铺布局的容忍（万一还没搬完）。
+ */
 function targets() {
   const only = process.argv.slice(2).filter((a) => !a.startsWith('-'))
-  const names = fs
-    .readdirSync(PACKAGES_DIR, { withFileTypes: true })
-    .filter((d) => d.isDirectory())
-    .map((d) => d.name)
-  const picked = only.length ? names.filter((n) => only.includes(n)) : names
-  return picked.filter((n) => fs.existsSync(path.join(PACKAGES_DIR, n, 'src', 'webui', 'client.ts')))
+  const found = []
+  for (const layer of fs.readdirSync(PACKAGES_DIR, { withFileTypes: true })) {
+    if (!layer.isDirectory()) continue
+    const layerDir = path.join(PACKAGES_DIR, layer.name)
+    const hasPkgJson = fs.existsSync(path.join(layerDir, 'package.json'))
+    if (hasPkgJson) { found.push(layer.name); continue } // 旧平铺布局
+    for (const pkg of fs.readdirSync(layerDir, { withFileTypes: true })) {
+      if (pkg.isDirectory() && fs.existsSync(path.join(layerDir, pkg.name, 'package.json'))) found.push(pkg.name)
+    }
+  }
+  const picked = only.length ? found.filter((n) => only.includes(n)) : found
+  return picked.filter((n) => fs.existsSync(path.join(pkgDirOf(n), 'src', 'webui', 'client.ts')))
+}
+
+/** 包名 → 包目录（分层或平铺都认）。 */
+function pkgDirOf(name) {
+  const flat = path.join(PACKAGES_DIR, name)
+  if (fs.existsSync(path.join(flat, 'package.json'))) return flat
+  for (const layer of fs.readdirSync(PACKAGES_DIR, { withFileTypes: true })) {
+    if (!layer.isDirectory()) continue
+    const p = path.join(PACKAGES_DIR, layer.name, name)
+    if (fs.existsSync(path.join(p, 'package.json'))) return p
+  }
+  throw new Error(`找不到包 ${name}`)
 }
 
 const esbuild = await loadEsbuild()
@@ -54,7 +79,7 @@ const built = []
 const dev = process.argv.includes('--dev')
 
 for (const name of targets()) {
-  const pkgDir = path.join(PACKAGES_DIR, name)
+  const pkgDir = pkgDirOf(name)
   const entry = path.join(pkgDir, 'src', 'webui', 'client.ts')
   const outfile = path.join(pkgDir, 'dist', 'webui.js')
   fs.mkdirSync(path.dirname(outfile), { recursive: true })

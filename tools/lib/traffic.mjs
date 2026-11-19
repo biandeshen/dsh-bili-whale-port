@@ -3,4 +3,4 @@
  * 本壳保证 tools/ 的 CLI 薄壳、scripts/ 与 tests/ 的既有引用零破坏。
  * 新代码（包内）一律 import 真身；本壳仅在底座 CLI 侧排障时使用。
  */
-export * from '../../packages/cap-bilibili/src/platform/traffic.mjs'
+export * from '../../packages/capabilities/cap-bilibili/src/platform/traffic.mjs'

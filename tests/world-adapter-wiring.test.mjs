@@ -29,9 +29,9 @@ if (!process.env.NODE_TEST_CONTEXT) process.env.NODE_TEST_CONTEXT = '1'
 const SEEN = 'BV1seen00001'
 const UP = '雨声实验室'
 
-const adapterMod = await import('../packages/cortico-world-bilibili/src/index.ts')
-const { liveCredentials } = await import('../packages/cap-bilibili/src/client/bili-read.ts')
-const { resetReadDedupe } = await import('../packages/cortico-adapter/src/index.ts')
+const adapterMod = await import('../packages/adapters/cortico-world-bilibili/src/index.ts')
+const { liveCredentials } = await import('../packages/capabilities/cap-bilibili/src/client/bili-read.ts')
+const { resetReadDedupe } = await import('../packages/adapters/cortico-adapter/src/index.ts')
 
 /** 一个她用过 30 天的家：有凭据、有看片史。 */
 function home(t) {

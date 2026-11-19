@@ -7,7 +7,7 @@
 实测（本会话自己跑，非引用）：
 
 **成立的部分（比我自己上一条说的更好）**
-- `packages/cortico-adapter/src/*.ts` 里 **import 语句 0 条** —— 它是纯类型 + 纯 helper，不反向依赖任何宿主。
+- `packages/adapters/cortico-adapter/src/*.ts` 里 **import 语句 0 条** —— 它是纯类型 + 纯 helper，不反向依赖任何宿主。
 - 面板拿 UI 是**注入**的，不是 import 的：`PanelCtx` 携带 `ui`，helper 一律收 `ctx: PanelCtx`（`cortico-adapter/src/webui-helpers.ts:55`、`:73`、`:104`）。
 - 契约本体 `XiaoyuCapability` 在**你这份** `persona-core/src/capability.ts`，明写三条铁律：能力包平级实现本接口；**能力包内部严禁 import `cortico/*`**；每个能力包必须同时声明 store + context/event + tools + panel（不许有只读黑盒）。
 - 能力包与转接头代码里**搜不到任何直接发起模型调用的地方**（`core.complete/chat/llm/generate`、`invokeModel`、`submitMessage` 全 0 命中）→ 模型由宿主发起，她只提供上下文与工具。这一条做对了，插件就不该自己抓 LLM。
@@ -29,7 +29,7 @@
 ## 三、「换底座」的四步，每步都能证一件事
 
 **第 1 步｜内核唯一化（收益最大，也最需要你先点头）**
-`Cortico-up/persona-core/src`（16 个 .ts）与 `packages/persona-core/src`（21 个 .ts）两份同时被解析，15 文件字节级不同，契约本体只在你这份里。
+`Cortico-up/persona-core/src`（16 个 .ts）与 `packages/kernel/persona-core/src`（21 个 .ts）两份同时被解析，15 文件字节级不同，契约本体只在你这份里。
 - 判据：删掉/停掉宿主那份后，全量门禁仍绿、7799 行为不变。
 - 代价说清：宿主仓是 `Pal-AI-Lab/Cortico` 的 fork（作者 Phant，你有 233 次提交），删它的目录要么在你 fork 里长期背着差异，要么去说服上游。**这是本路线唯一一处要碰别人仓的活，需要你先选：fork 里删 / 提 PR / 暂时只做"解析优先级"让引擎永远选中你这份。**
 - 做完能证明：底座不再自带一个她的版本。

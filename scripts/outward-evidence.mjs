@@ -16,7 +16,7 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
-import { actionLedgerPaths, dayEvidencePaths } from '../packages/cap-bilibili/src/platform/paths.mjs'
+import { actionLedgerPaths, dayEvidencePaths } from '../packages/capabilities/cap-bilibili/src/platform/paths.mjs'
 
 const argv = process.argv.slice(2)
 const argOf = (name, dflt) => {

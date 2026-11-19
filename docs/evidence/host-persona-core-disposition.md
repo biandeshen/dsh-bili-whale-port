@@ -1,6 +1,6 @@
 # 宿主 `persona-core/` 副本处置表（#88 · 2026-11-19）
 
-本仓 `packages/persona-core/src/` 与宿主 `Cortico-up/persona-core/src/` 是**两份同包名、不同内容**的实现。
+本仓 `packages/kernel/persona-core/src/` 与宿主 `Cortico-up/persona-core/src/` 是**两份同包名、不同内容**的实现。
 后者是严格子集（少 `atomic-write.ts` / `capability.ts` / `cortico-defaults.ts` / `temporal.ts` / `tz.ts` / `write-dedupe.ts`），
 且 `rhythm.ts` 的节奏常量仍是改 B14 之前的旧值：
 
@@ -29,12 +29,12 @@
 
 | 宿主测试 | 断言在讲什么 | 本仓对应 | 覆盖情况 |
 |---|---|---|---|
-| `tests/feed-hygiene.test.mjs` | `watchedFromMemories` 的近 7 天/同 UP 计数 | `packages/cap-state-rhythm/tests/feed-hygiene.test.mjs` | **已移植**（5252 B vs 2369 B，更全） |
-| `tests/life-stages.test.mjs` | 五阶段顺序/睡着判定/扣成本/记账时序 | `packages/cap-state-rhythm/tests/life-stages.test.mjs` | **已移植**（5636 B vs 5860 B） |
-| `tests/memory-void.test.mjs` | 作废/恢复/召回剔除 | `packages/cap-memory/tests/memory-void.test.mjs` | **已移植**（5310 B vs 6273 B） |
-| `tests/naming.test.mjs` | 称呼/情绪标签/voice-brief | `packages/persona-core/tests/naming.test.mjs` | **已移植**（4613 B vs 3274 B，覆盖更宽） |
+| `tests/feed-hygiene.test.mjs` | `watchedFromMemories` 的近 7 天/同 UP 计数 | `packages/capabilities/cap-state-rhythm/tests/feed-hygiene.test.mjs` | **已移植**（5252 B vs 2369 B，更全） |
+| `tests/life-stages.test.mjs` | 五阶段顺序/睡着判定/扣成本/记账时序 | `packages/capabilities/cap-state-rhythm/tests/life-stages.test.mjs` | **已移植**（5636 B vs 5860 B） |
+| `tests/memory-void.test.mjs` | 作废/恢复/召回剔除 | `packages/capabilities/cap-memory/tests/memory-void.test.mjs` | **已移植**（5310 B vs 6273 B） |
+| `tests/naming.test.mjs` | 称呼/情绪标签/voice-brief | `packages/kernel/persona-core/tests/naming.test.mjs` | **已移植**（4613 B vs 3274 B，覆盖更宽） |
 | `tests/approval-reason.test.mjs` | 拒稿理由一路走到记忆、无理由不编造 | `tests/contract/approval-reason.test.mjs` | 本仓证 dsh 侧落账；**宿主侧的"结算成记忆"那半段随 legacy 一起退役** |
-| `tests/causal-ledger.test.mjs` | `countCausalActions`：只数 kind=action、按自然日、坏行跳过 | `packages/cap-state-rhythm/tests/action-ledger.test.mjs` | **等价移植**（本仓读 `actions.ndjson`，语义相同） |
+| `tests/causal-ledger.test.mjs` | `countCausalActions`：只数 kind=action、按自然日、坏行跳过 | `packages/capabilities/cap-state-rhythm/tests/action-ledger.test.mjs` | **等价移植**（本仓读 `actions.ndjson`，语义相同） |
 | `tests/draft-rework.test.mjs` | 拒稿后可重出（宿主侧话术） | `tests/draft-rework.test.mjs` | 本仓那份已覆盖闸门行为；宿主侧话术随 legacy 退役 |
 
 ### 宿主 `persona-core/tests/`（9 个文件，随目录一起删）
@@ -43,8 +43,8 @@
 
 | 宿主测试 | 本仓对应 | 宿主独有行 |
 |---|---|---|
-| `adapter.test.mjs` | `packages/cap-state-rhythm/tests/state-rhythm.test.mjs` | 12 条用例**逐条同名**，0 |
-| `budget.test.mjs` | `packages/persona-core/tests/budget.test.mjs` | 0 |
+| `adapter.test.mjs` | `packages/capabilities/cap-state-rhythm/tests/state-rhythm.test.mjs` | 12 条用例**逐条同名**，0 |
+| `budget.test.mjs` | `packages/kernel/persona-core/tests/budget.test.mjs` | 0 |
 | `conversation-assessment.test.mjs` | 同名 | 0 |
 | `core.test.mjs` | 同名（204 行 vs 204 行） | 0 |
 | `emotion.test.mjs` | 同名 | 0 |
@@ -96,7 +96,7 @@ test('rhy：评估间隔带抖动，不是整点', ...)
 `scripts/check-live-drift.mjs` 的 `checkPersonaCore()` 已经能抓"两份不一致"，
 但它靠扫描字符串 `Cortico-up` 判 `linked`，会被**文档注释**误触发：
 
-- `packages/cortico-bot-xiaoyu/src/session-rotation.ts:19` 在注释里写了
+- `packages/adapters/cortico-bot-xiaoyu/src/session-rotation.ts:19` 在注释里写了
   `` `Cortico-up/src/core/types.ts:530` `` 作为出处引用 → 被判成"我们的链引了宿主树"
   → 走"必须逐字对齐"分支 → 报出那条节奏常量假警。
 

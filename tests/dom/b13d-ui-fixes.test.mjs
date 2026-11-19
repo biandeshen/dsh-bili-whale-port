@@ -12,9 +12,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { mountPanel, settle } from '../helpers/panel-harness.mjs'
-import { journalBoardPanel } from '../../packages/cap-journal/src/webui/client.ts'
-import { memoryCenterPanel } from '../../packages/cap-memory/src/webui/client.ts'
-import { inboxPanel } from '../../packages/cap-bilibili/src/webui/client.ts'
+import { journalBoardPanel } from '../../packages/capabilities/cap-journal/src/webui/client.ts'
+import { memoryCenterPanel } from '../../packages/capabilities/cap-memory/src/webui/client.ts'
+import { inboxPanel } from '../../packages/capabilities/cap-bilibili/src/webui/client.ts'
 
 // ── ① ② 日记：翻页 + 只读/编辑分离 ──
 

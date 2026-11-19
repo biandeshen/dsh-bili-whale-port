@@ -9,7 +9,7 @@
 ## ① 核心判断
 
 1. **检索没有任何质量评测基线，四因子权重是"拍出来的"，且出处是一条无法复核的引用。**
-   `retrieval.ts` 全仓只有 11 个测试（`packages/persona-core/tests/retrieval.test.mjs`），全部用 2~3 条**手工合成**记忆验证"确定性/算术/槽位规则"，**不存在任何"查询 → 期望命中卡片 id"的标注集**，也不存在 recall@k / precision 类脚本。`git log -S"0.40"` 显示权重自地基提交 `8d7fc8e` 起未调过一次；唯一出处是 `docs/BLUEPRINT.md:156`「搬 `computeWarmScore` 四项权重」——而 AMpath 源码**不在本仓**（`vendor/` 仅 dsh-autocut、dsh-video-studio，全仓 grep `computeWarmScore` 只命中这行文档）。
+   `retrieval.ts` 全仓只有 11 个测试（`packages/kernel/persona-core/tests/retrieval.test.mjs`），全部用 2~3 条**手工合成**记忆验证"确定性/算术/槽位规则"，**不存在任何"查询 → 期望命中卡片 id"的标注集**，也不存在 recall@k / precision 类脚本。`git log -S"0.40"` 显示权重自地基提交 `8d7fc8e` 起未调过一次；唯一出处是 `docs/BLUEPRINT.md:156`「搬 `computeWarmScore` 四项权重」——而 AMpath 源码**不在本仓**（`vendor/` 仅 dsh-autocut、dsh-video-studio，全仓 grep `computeWarmScore` 只命中这行文档）。
    判定：**权重 0.40/0.30/0.15/0.15 = 无依据**（不是"测出来的"，甚至不是"从这个项目拍出来的"，是**继承自一个读不到的外部项目**）。
 
 2. **关键词因子的归一化方式会系统性放大"单点罕见词命中"，且 60% 的分数与查询无关。**
@@ -34,9 +34,9 @@
 
 | 检查 | 命令 | 结果 |
 |---|---|---|
-| 评测集 | `ls packages/persona-core/tests/fixtures` | 仅 `fields-real-20261029.json`（场值快照，与检索无关），**无 query→期望卡片 的 fixture** |
-| 检索测试面 | `Read packages/persona-core/tests/retrieval.test.mjs` | 11 个 test，池子规模 2~3 条合成记忆；断言是"顺序稳定""分数=四贡献分之和""意外槽资格"，**无一条断言"该命中的那张有没有被命中"** |
-| 权重出处 | `git log --oneline -S"0.40" -- packages/persona-core/src/retrieval.ts docs` | 命中 8 条，全是搬运/摊开展示/文档转述，**无调参提交、无 before/after 指标** |
+| 评测集 | `ls packages/kernel/persona-core/tests/fixtures` | 仅 `fields-real-20261029.json`（场值快照，与检索无关），**无 query→期望卡片 的 fixture** |
+| 检索测试面 | `Read packages/kernel/persona-core/tests/retrieval.test.mjs` | 11 个 test，池子规模 2~3 条合成记忆；断言是"顺序稳定""分数=四贡献分之和""意外槽资格"，**无一条断言"该命中的那张有没有被命中"** |
+| 权重出处 | `git log --oneline -S"0.40" -- packages/kernel/persona-core/src/retrieval.ts docs` | 命中 8 条，全是搬运/摊开展示/文档转述，**无调参提交、无 before/after 指标** |
 | 权重出处（引用链） | `grep -rn computeWarmScore .` | 只命中 `docs/BLUEPRINT.md:156`；AMpath 源码不在仓内、未 vendor |
 | 文档复述 | `docs/ARCHITECTURE.md:210`、`docs/DEEP-AUDIT-2026-11-05.md:119,301` | 三处**原样转述同一个公式**，均未给出测得依据 |
 | 唯一相关旋钮 | `cap-memory/src/index.ts:344-383` `recallExplain` | 四因子底账面板，`writable: false`，**是给人看的诊断台，不是门禁**，无 CI 调用 |
@@ -45,9 +45,9 @@
 ```bash
 cd /e/WorkSpace_Qoder/dsh-bili-whale
 grep -rn "computeWarmScore" .                                  # 出处只有一行文档
-git log --oneline -S"0.40" -- packages/persona-core/src/retrieval.ts docs
-node --test packages/persona-core/tests/retrieval.test.mjs      # 11 tests 全绿≠检索质量合格
-ls packages/persona-core/tests/fixtures                         # 无检索标注集
+git log --oneline -S"0.40" -- packages/kernel/persona-core/src/retrieval.ts docs
+node --test packages/kernel/persona-core/tests/retrieval.test.mjs      # 11 tests 全绿≠检索质量合格
+ls packages/kernel/persona-core/tests/fixtures                         # 无检索标注集
 ```
 
 ### Q2 关键词打分的失效模式（逐条定位到行）
@@ -68,7 +68,7 @@ ls packages/persona-core/tests/fixtures                         # 无检索标�
 grep -rn "83%\|67%\|0/0/0\|复述旧\|指标极性" docs spark-output tests scripts   # → 无输出
 grep -rn "机器判\|人工判" docs | head                                          # 只命中 G3b 跨代码窗口议题，与检索极性无关
 ```
-即：那次数值我**在本仓找不到落点**（判定：**无证据**——不是"有但没上门禁"，而是"本仓现在查不到这条记录"）。检索侧唯一被钉住的极性相关行为是"voided 不进召回"，`packages/cap-memory/tests/memory.test.mjs:86` 有断言，覆盖的是**作废机制**，不是**"复述 vs 撤回"的语言区分**。
+即：那次数值我**在本仓找不到落点**（判定：**无证据**——不是"有但没上门禁"，而是"本仓现在查不到这条记录"）。检索侧唯一被钉住的极性相关行为是"voided 不进召回"，`packages/capabilities/cap-memory/tests/memory.test.mjs:86` 有断言，覆盖的是**作废机制**，不是**"复述 vs 撤回"的语言区分**。
 
 ### Q3 写入把关：谁能进核心常驻
 
@@ -184,7 +184,7 @@ grep -rn "activeCap" packages scripts tests | grep -v node_modules     # 空旋�
 ## ⑤ 最该先做的 3 件事
 
 1. **建 30 题记忆检索评测集，并把它接进现有 mjs 测试跑分。**
-   产物：`packages/persona-core/tests/fixtures/recall-eval.json`（`{query, mood?, expectIds[]}`）＋一个 `recall@3 / precision@3` 断言，**从当前线上 75 张卡里取真实卡片做池子**（不要用合成 2 条）。
+   产物：`packages/kernel/persona-core/tests/fixtures/recall-eval.json`（`{query, mood?, expectIds[]}`）＋一个 `recall@3 / precision@3` 断言，**从当前线上 75 张卡里取真实卡片做池子**（不要用合成 2 条）。
    通过标准写清楚：**先冻结当前分数作为基线**，不要求一次达标。这一条不做，后面每一条都是猜。
    必含题型（每型都对应 Q2 已定位的失效）：同义改写、错别字、中英混排、**否定句**、**"X 已被撤回" vs "X 本身"**。
 

@@ -25,8 +25,37 @@ const asJson = process.argv.includes('--json')
 const strict = process.argv.includes('--strict')
 const only = (process.argv.find((a) => a.startsWith('--package=')) || '').split('=')[2] || ''
 
-const PKGS = fs.readdirSync(path.join(ROOT, 'packages'))
-  .filter((d) => fs.existsSync(path.join(ROOT, 'packages', d, 'src', 'index.ts')))
+/**
+ * 包名 → 包目录。#90 分层后 packages 下是 kernel/ capabilities/ adapters/ shared/ 四层，
+ * 平铺布局也仍然认（迁移中/新增层时不用改这里）。
+ */
+function pkgDirOf(name) {
+  const flat = path.join(ROOT, 'packages', name)
+  if (fs.existsSync(path.join(flat, 'package.json'))) return flat
+  for (const layer of fs.readdirSync(path.join(ROOT, 'packages'), { withFileTypes: true })) {
+    if (!layer.isDirectory()) continue
+    const p = path.join(ROOT, 'packages', layer.name, name)
+    if (fs.existsSync(path.join(p, 'package.json'))) return p
+  }
+  return null
+}
+
+/** 所有带 src/index.ts 的包名（分层 + 平铺）。 */
+function allPackages() {
+  const names = []
+  for (const layer of fs.readdirSync(path.join(ROOT, 'packages'), { withFileTypes: true })) {
+    if (!layer.isDirectory()) continue
+    const layerDir = path.join(ROOT, 'packages', layer.name)
+    if (fs.existsSync(path.join(layerDir, 'package.json'))) { names.push(layer.name); continue }
+    for (const pkg of fs.readdirSync(layerDir, { withFileTypes: true })) {
+      if (pkg.isDirectory() && fs.existsSync(path.join(layerDir, pkg.name, 'package.json'))) names.push(pkg.name)
+    }
+  }
+  return names
+}
+
+const PKGS = allPackages()
+  .filter((d) => fs.existsSync(path.join(pkgDirOf(d), 'src', 'index.ts')))
   .filter((d) => !only || d === only)
 
 const lineOf = (text, idx) => text.slice(0, idx).split('\n').length
@@ -164,13 +193,14 @@ const problems = []
 /** 本地可逆写（不要求弹确认），单独列出来供人核对"改完有没有回读"，不计入违规。 */
 const localWrites = []
 for (const pkg of PKGS) {
-  const indexPath = path.join(ROOT, 'packages', pkg, 'src', 'index.ts')
-  const clientPath = path.join(ROOT, 'packages', pkg, 'src', 'webui', 'client.ts')
+  const dir = pkgDirOf(pkg)
+  const indexPath = path.join(dir, 'src', 'index.ts')
+  const clientPath = path.join(dir, 'src', 'webui', 'client.ts')
   /**
    * 服务端方法不能只从 `src/index.ts` 找：`cap-vision` 的面板是在别的文件里定义的，
    * 只扫入口会把它的方法清单看成"不存在"，于是 R5 报出一片假违规（2026-11-06 第一版踩到 4 处）。
    */
-  const srcFiles = walk(path.join(ROOT, 'packages', pkg, 'src'), (name) => name.endsWith('.ts'))
+  const srcFiles = walk(path.join(dir, 'src'), (name) => name.endsWith('.ts'))
   const serverSrc = srcFiles.map((f) => fs.readFileSync(f, 'utf8')).join('\n')
   const server = serverPanels(serverSrc)
   const clientSrc = fs.existsSync(clientPath) ? fs.readFileSync(clientPath, 'utf8') : ''
@@ -260,7 +290,7 @@ else {
     for (const x of list) console.log(`  ${x.where}  ${x.detail}`)
   }
   console.log(`\n## R8 本地可逆写（不要求弹确认，共 ${localWrites.length} 个）—— 只用来核对"改完有没有回读"`)
-  for (const w of localWrites) console.log(`  ${w.pkg} · ${rel(path.join(ROOT, 'packages', w.pkg, 'src', 'webui', 'client.ts'))}:${w.line} 「${w.label}」→ ${w.name}`)
+  for (const w of localWrites) console.log(`  ${w.pkg} · ${rel(path.join(pkgDirOf(w.pkg), 'src', 'webui', 'client.ts'))}:${w.line} 「${w.label}」→ ${w.name}`)
   console.log(`\n口径：正则会漏跨行写法，"没报"不等于"没问题"；每条都给了文件行号，抽查比信数重要。`)
 }
 if (strict && problems.length) process.exitCode = 1

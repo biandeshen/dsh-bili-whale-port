@@ -155,7 +155,7 @@ tools/lib 总文件数：42
 链路逐层核过：
 
 ```
-grep -n "imagePath" packages/cap-bilibili/src/index.ts
+grep -n "imagePath" packages/capabilities/cap-bilibili/src/index.ts
 → 864:  imagePath: { type: 'string', description: '可选配图路径' }
 → 870:  async execute(args: { text: string; imagePath?: string; intent?: 'self' | 'share' })
 → 876:  imagePath: args.imagePath,          ← 交给闸门了
@@ -165,7 +165,7 @@ grep -n "imagePath" packages/cap-bilibili/src/index.ts
 但默认执行器把它丢了：
 
 ```
-sed -n '330,333p' packages/cap-bilibili/src/index.ts
+sed -n '330,333p' packages/capabilities/cap-bilibili/src/index.ts
 →    const out = await executeBiliWrite(
 →      action.kind,
 →      { target: action.target, body: action.body },     ← 没有 imagePath
@@ -175,19 +175,19 @@ sed -n '330,333p' packages/cap-bilibili/src/index.ts
 再往下客户端**根本没有图片字段**：
 
 ```
-sed -n '343,346p' packages/cap-bilibili/src/client/bili-write.ts
+sed -n '343,346p' packages/capabilities/cap-bilibili/src/client/bili-write.ts
 → export async function executeBiliWrite(
 →   kind: 'like' | 'fav' | 'comment' | 'danmaku' | 'dynamic' | 'edit-dynamic' | 'dm',
 →   action: { target: {...}; body: string },
 →   ctx: BiliWriteContext,
 
-sed -n '42,45p' packages/cap-bilibili/src/client/bili-write-extra.ts
+sed -n '42,45p' packages/capabilities/cap-bilibili/src/client/bili-write-extra.ts
 → export async function executeDynamic(
 →   action: { target: { bvid?: string; dynId?: string }; body: string },
 →   ctx: BiliWriteContext,
 
-grep -n "image\|pictures" packages/cap-bilibili/src/client/bili-write.ts   → 0 命中
-grep -rn "imagePath\|image" packages/cap-bilibili/src/client/bili-write-extra.ts → 0 命中
+grep -n "image\|pictures" packages/capabilities/cap-bilibili/src/client/bili-write.ts   → 0 命中
+grep -rn "imagePath\|image" packages/capabilities/cap-bilibili/src/client/bili-write-extra.ts → 0 命中
 ```
 
 真能发图文动态的只有 tools 侧：
@@ -209,7 +209,7 @@ sed -n '1,25p' tools/commands/dynamic-image.mjs
 ### 3.2 批量放行：只有一个入口
 
 ```
-grep -rn "releaseAll\|release --all\|'--all'" packages/cap-bilibili/src   → 0 命中
+grep -rn "releaseAll\|release --all\|'--all'" packages/capabilities/cap-bilibili/src   → 0 命中
 grep -n "all" tools/commands/reply-draft.mjs
 → 120:  const all = argv.includes('--all')
 → 122:  if (!ids.length && !all) { console.error('用法: release --id <id>... | --all [--dry]'); process.exit(2) }

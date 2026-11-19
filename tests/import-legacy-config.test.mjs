@@ -9,7 +9,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { DEFAULT_WATCH_PREFS } from '../packages/cap-bilibili/src/client/inbox.ts'
+import { DEFAULT_WATCH_PREFS } from '../packages/capabilities/cap-bilibili/src/client/inbox.ts'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const SCRIPT = path.join(ROOT, 'scripts', 'import-legacy-config.mjs')

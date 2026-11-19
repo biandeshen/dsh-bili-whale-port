@@ -1,7 +1,7 @@
 {
-  "at": "2026-11-19T03:37:09.453Z",
+  "at": "2026-11-19T04:25:53.238Z",
   "root": "E:\\WorkSpace_Qoder\\dsh-bili-whale",
-  "gitSha": "613ffd51c7b5e6456030762914bba36e4c8af1b2",
+  "gitSha": "cbdeeb4cf11e8e3e6179ac70975a4b3a833f89da",
   "node": "v24.16.0",
   "exit": 0,
   "discovered": 167,
@@ -18,7 +18,29 @@
   "notRun": [],
   "files": [
     {
-      "file": "packages\\cap-bilibili\\tests\\auto-publish-tiers.test.mjs",
+      "file": "packages\\adapters\\cortico-adapter\\tests\\host-log.test.mjs",
+      "exit": 0,
+      "tests": 5,
+      "pass": 5,
+      "fail": 0,
+      "skipped": 0,
+      "todo": 0,
+      "cancelled": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\adapters\\cortico-bot-xiaoyu\\tests\\bot-hub.test.mjs",
+      "exit": 0,
+      "tests": 1,
+      "pass": 1,
+      "fail": 0,
+      "skipped": 0,
+      "todo": 0,
+      "cancelled": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\adapters\\cortico-bot-xiaoyu\\tests\\context-config.test.mjs",
       "exit": 0,
       "tests": 7,
       "pass": 7,
@@ -29,10 +51,10 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-bilibili\\tests\\b15-autonomous-tools.test.mjs",
+      "file": "packages\\adapters\\cortico-bot-xiaoyu\\tests\\dream-reflection.test.mjs",
       "exit": 0,
-      "tests": 5,
-      "pass": 5,
+      "tests": 13,
+      "pass": 13,
       "fail": 0,
       "skipped": 0,
       "todo": 0,
@@ -40,10 +62,10 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-bilibili\\tests\\bili-connection.test.mjs",
+      "file": "packages\\adapters\\cortico-bot-xiaoyu\\tests\\heartbeat-noise.test.mjs",
       "exit": 0,
-      "tests": 10,
-      "pass": 10,
+      "tests": 9,
+      "pass": 9,
       "fail": 0,
       "skipped": 0,
       "todo": 0,
@@ -51,10 +73,10 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-bilibili\\tests\\bili-credentials.test.mjs",
+      "file": "packages\\adapters\\cortico-bot-xiaoyu\\tests\\host-contract.test.mjs",
       "exit": 0,
-      "tests": 5,
-      "pass": 5,
+      "tests": 3,
+      "pass": 3,
       "fail": 0,
       "skipped": 0,
       "todo": 0,
@@ -62,7 +84,29 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-bilibili\\tests\\bili-debrief.test.mjs",
+      "file": "packages\\adapters\\cortico-bot-xiaoyu\\tests\\host-log-shape.test.mjs",
+      "exit": 0,
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "skipped": 0,
+      "todo": 0,
+      "cancelled": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\adapters\\cortico-bot-xiaoyu\\tests\\memory-config.test.mjs",
+      "exit": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "skipped": 0,
+      "todo": 0,
+      "cancelled": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\adapters\\cortico-bot-xiaoyu\\tests\\rhythm-outlets.test.mjs",
       "exit": 0,
       "tests": 2,
       "pass": 2,
@@ -73,7 +117,128 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-bilibili\\tests\\bili-profile.test.mjs",
+      "file": "packages\\adapters\\cortico-bot-xiaoyu\\tests\\session-rotation.test.mjs",
+      "exit": 0,
+      "tests": 10,
+      "pass": 10,
+      "fail": 0,
+      "skipped": 0,
+      "todo": 0,
+      "cancelled": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\adapters\\cortico-bot-xiaoyu\\tests\\stall-stoploss.test.mjs",
+      "exit": 0,
+      "tests": 9,
+      "pass": 9,
+      "fail": 0,
+      "skipped": 0,
+      "todo": 0,
+      "cancelled": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\adapters\\cortico-bot-xiaoyu\\tests\\storage-prompt-docs.test.mjs",
+      "exit": 0,
+      "tests": 5,
+      "pass": 5,
+      "fail": 0,
+      "skipped": 0,
+      "todo": 0,
+      "cancelled": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\adapters\\cortico-bot-xiaoyu\\tests\\tick-accounting.test.mjs",
+      "exit": 0,
+      "tests": 1,
+      "pass": 1,
+      "fail": 0,
+      "skipped": 0,
+      "todo": 0,
+      "cancelled": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\adapters\\cortico-bot-xiaoyu\\tests\\tick-config.test.mjs",
+      "exit": 0,
+      "tests": 6,
+      "pass": 6,
+      "fail": 0,
+      "skipped": 0,
+      "todo": 0,
+      "cancelled": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\adapters\\cortico-world-bilibili\\tests\\env-prompt.test.mjs",
+      "exit": 0,
+      "tests": 5,
+      "pass": 5,
+      "fail": 0,
+      "skipped": 0,
+      "todo": 0,
+      "cancelled": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\capabilities\\cap-bilibili\\tests\\auto-publish-tiers.test.mjs",
+      "exit": 0,
+      "tests": 7,
+      "pass": 7,
+      "fail": 0,
+      "skipped": 0,
+      "todo": 0,
+      "cancelled": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\capabilities\\cap-bilibili\\tests\\b15-autonomous-tools.test.mjs",
+      "exit": 0,
+      "tests": 5,
+      "pass": 5,
+      "fail": 0,
+      "skipped": 0,
+      "todo": 0,
+      "cancelled": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\capabilities\\cap-bilibili\\tests\\bili-connection.test.mjs",
+      "exit": 0,
+      "tests": 10,
+      "pass": 10,
+      "fail": 0,
+      "skipped": 0,
+      "todo": 0,
+      "cancelled": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\capabilities\\cap-bilibili\\tests\\bili-credentials.test.mjs",
+      "exit": 0,
+      "tests": 5,
+      "pass": 5,
+      "fail": 0,
+      "skipped": 0,
+      "todo": 0,
+      "cancelled": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\capabilities\\cap-bilibili\\tests\\bili-debrief.test.mjs",
+      "exit": 0,
+      "tests": 2,
+      "pass": 2,
+      "fail": 0,
+      "skipped": 0,
+      "todo": 0,
+      "cancelled": 0,
+      "ran": true
+    },
+    {
+      "file": "packages\\capabilities\\cap-bilibili\\tests\\bili-profile.test.mjs",
       "exit": 0,
       "tests": 8,
       "pass": 8,
@@ -84,7 +249,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-bilibili\\tests\\bili-read.test.mjs",
+      "file": "packages\\capabilities\\cap-bilibili\\tests\\bili-read.test.mjs",
       "exit": 0,
       "tests": 1,
       "pass": 1,
@@ -95,7 +260,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-bilibili\\tests\\bili-watch.test.mjs",
+      "file": "packages\\capabilities\\cap-bilibili\\tests\\bili-watch.test.mjs",
       "exit": 0,
       "tests": 4,
       "pass": 4,
@@ -106,7 +271,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-bilibili\\tests\\bili-write.test.mjs",
+      "file": "packages\\capabilities\\cap-bilibili\\tests\\bili-write.test.mjs",
       "exit": 0,
       "tests": 1,
       "pass": 1,
@@ -117,7 +282,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-bilibili\\tests\\bilibili-capability.test.mjs",
+      "file": "packages\\capabilities\\cap-bilibili\\tests\\bilibili-capability.test.mjs",
       "exit": 0,
       "tests": 1,
       "pass": 1,
@@ -128,7 +293,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-bilibili\\tests\\feed-source-fails.test.mjs",
+      "file": "packages\\capabilities\\cap-bilibili\\tests\\feed-source-fails.test.mjs",
       "exit": 0,
       "tests": 4,
       "pass": 4,
@@ -139,7 +304,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-bilibili\\tests\\inbox-listener.test.mjs",
+      "file": "packages\\capabilities\\cap-bilibili\\tests\\inbox-listener.test.mjs",
       "exit": 0,
       "tests": 14,
       "pass": 14,
@@ -150,7 +315,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-bilibili\\tests\\pref-hits.test.mjs",
+      "file": "packages\\capabilities\\cap-bilibili\\tests\\pref-hits.test.mjs",
       "exit": 0,
       "tests": 3,
       "pass": 3,
@@ -161,7 +326,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-bilibili\\tests\\read-quota-stale-queue.test.mjs",
+      "file": "packages\\capabilities\\cap-bilibili\\tests\\read-quota-stale-queue.test.mjs",
       "exit": 0,
       "tests": 11,
       "pass": 11,
@@ -172,7 +337,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-bilibili\\tests\\write-dm-dynamic.test.mjs",
+      "file": "packages\\capabilities\\cap-bilibili\\tests\\write-dm-dynamic.test.mjs",
       "exit": 0,
       "tests": 13,
       "pass": 13,
@@ -183,7 +348,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-journal\\tests\\journal.test.mjs",
+      "file": "packages\\capabilities\\cap-journal\\tests\\journal.test.mjs",
       "exit": 0,
       "tests": 1,
       "pass": 1,
@@ -194,7 +359,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-media-studio\\tests\\media-studio.test.mjs",
+      "file": "packages\\capabilities\\cap-media-studio\\tests\\media-studio.test.mjs",
       "exit": 0,
       "tests": 3,
       "pass": 3,
@@ -205,7 +370,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-media-studio\\tests\\portrait.test.mjs",
+      "file": "packages\\capabilities\\cap-media-studio\\tests\\portrait.test.mjs",
       "exit": 0,
       "tests": 4,
       "pass": 4,
@@ -216,7 +381,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-media-studio\\tests\\preview-audio.test.mjs",
+      "file": "packages\\capabilities\\cap-media-studio\\tests\\preview-audio.test.mjs",
       "exit": 0,
       "tests": 3,
       "pass": 3,
@@ -227,7 +392,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-media-studio\\tests\\tts-usage.test.mjs",
+      "file": "packages\\capabilities\\cap-media-studio\\tests\\tts-usage.test.mjs",
       "exit": 0,
       "tests": 5,
       "pass": 5,
@@ -238,7 +403,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-memory\\tests\\core-cap.test.mjs",
+      "file": "packages\\capabilities\\cap-memory\\tests\\core-cap.test.mjs",
       "exit": 0,
       "tests": 6,
       "pass": 6,
@@ -249,7 +414,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-memory\\tests\\core-review.test.mjs",
+      "file": "packages\\capabilities\\cap-memory\\tests\\core-review.test.mjs",
       "exit": 0,
       "tests": 3,
       "pass": 3,
@@ -260,7 +425,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-memory\\tests\\git-history.test.mjs",
+      "file": "packages\\capabilities\\cap-memory\\tests\\git-history.test.mjs",
       "exit": 0,
       "tests": 1,
       "pass": 1,
@@ -271,7 +436,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-memory\\tests\\memory-view.test.mjs",
+      "file": "packages\\capabilities\\cap-memory\\tests\\memory-view.test.mjs",
       "exit": 0,
       "tests": 1,
       "pass": 1,
@@ -282,7 +447,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-memory\\tests\\memory-void.test.mjs",
+      "file": "packages\\capabilities\\cap-memory\\tests\\memory-void.test.mjs",
       "exit": 0,
       "tests": 7,
       "pass": 7,
@@ -293,7 +458,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-memory\\tests\\memory.test.mjs",
+      "file": "packages\\capabilities\\cap-memory\\tests\\memory.test.mjs",
       "exit": 0,
       "tests": 1,
       "pass": 1,
@@ -304,7 +469,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-memory\\tests\\recall-explain.test.mjs",
+      "file": "packages\\capabilities\\cap-memory\\tests\\recall-explain.test.mjs",
       "exit": 0,
       "tests": 3,
       "pass": 3,
@@ -315,7 +480,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-state-rhythm\\tests\\action-ledger.test.mjs",
+      "file": "packages\\capabilities\\cap-state-rhythm\\tests\\action-ledger.test.mjs",
       "exit": 0,
       "tests": 5,
       "pass": 5,
@@ -326,7 +491,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-state-rhythm\\tests\\day-panel.test.mjs",
+      "file": "packages\\capabilities\\cap-state-rhythm\\tests\\day-panel.test.mjs",
       "exit": 0,
       "tests": 5,
       "pass": 5,
@@ -337,7 +502,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-state-rhythm\\tests\\dream-tick.test.mjs",
+      "file": "packages\\capabilities\\cap-state-rhythm\\tests\\dream-tick.test.mjs",
       "exit": 0,
       "tests": 2,
       "pass": 2,
@@ -348,7 +513,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-state-rhythm\\tests\\feed-hygiene.test.mjs",
+      "file": "packages\\capabilities\\cap-state-rhythm\\tests\\feed-hygiene.test.mjs",
       "exit": 0,
       "tests": 5,
       "pass": 5,
@@ -359,7 +524,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-state-rhythm\\tests\\idempotent-writes.test.mjs",
+      "file": "packages\\capabilities\\cap-state-rhythm\\tests\\idempotent-writes.test.mjs",
       "exit": 0,
       "tests": 3,
       "pass": 3,
@@ -370,7 +535,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-state-rhythm\\tests\\life-do.test.mjs",
+      "file": "packages\\capabilities\\cap-state-rhythm\\tests\\life-do.test.mjs",
       "exit": 0,
       "tests": 8,
       "pass": 8,
@@ -381,7 +546,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-state-rhythm\\tests\\life-heartbeat.test.mjs",
+      "file": "packages\\capabilities\\cap-state-rhythm\\tests\\life-heartbeat.test.mjs",
       "exit": 0,
       "tests": 5,
       "pass": 5,
@@ -392,7 +557,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-state-rhythm\\tests\\life-stages.test.mjs",
+      "file": "packages\\capabilities\\cap-state-rhythm\\tests\\life-stages.test.mjs",
       "exit": 0,
       "tests": 6,
       "pass": 6,
@@ -403,7 +568,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-state-rhythm\\tests\\life-tick.test.mjs",
+      "file": "packages\\capabilities\\cap-state-rhythm\\tests\\life-tick.test.mjs",
       "exit": 0,
       "tests": 5,
       "pass": 5,
@@ -414,7 +579,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-state-rhythm\\tests\\liveness.test.mjs",
+      "file": "packages\\capabilities\\cap-state-rhythm\\tests\\liveness.test.mjs",
       "exit": 0,
       "tests": 8,
       "pass": 8,
@@ -425,7 +590,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-state-rhythm\\tests\\min-wake-gap.test.mjs",
+      "file": "packages\\capabilities\\cap-state-rhythm\\tests\\min-wake-gap.test.mjs",
       "exit": 0,
       "tests": 6,
       "pass": 6,
@@ -436,7 +601,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-state-rhythm\\tests\\mode-expiry.test.mjs",
+      "file": "packages\\capabilities\\cap-state-rhythm\\tests\\mode-expiry.test.mjs",
       "exit": 0,
       "tests": 5,
       "pass": 5,
@@ -447,7 +612,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-state-rhythm\\tests\\single-energy.test.mjs",
+      "file": "packages\\capabilities\\cap-state-rhythm\\tests\\single-energy.test.mjs",
       "exit": 0,
       "tests": 3,
       "pass": 3,
@@ -458,7 +623,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-state-rhythm\\tests\\sleep-window.test.mjs",
+      "file": "packages\\capabilities\\cap-state-rhythm\\tests\\sleep-window.test.mjs",
       "exit": 0,
       "tests": 6,
       "pass": 6,
@@ -469,7 +634,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-state-rhythm\\tests\\state-rhythm.test.mjs",
+      "file": "packages\\capabilities\\cap-state-rhythm\\tests\\state-rhythm.test.mjs",
       "exit": 0,
       "tests": 13,
       "pass": 13,
@@ -480,7 +645,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-vision\\tests\\capability.test.mjs",
+      "file": "packages\\capabilities\\cap-vision\\tests\\capability.test.mjs",
       "exit": 0,
       "tests": 7,
       "pass": 7,
@@ -491,7 +656,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-vision\\tests\\frame-pipeline.test.mjs",
+      "file": "packages\\capabilities\\cap-vision\\tests\\frame-pipeline.test.mjs",
       "exit": 0,
       "tests": 5,
       "pass": 5,
@@ -502,7 +667,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-vision\\tests\\stats-rerun.test.mjs",
+      "file": "packages\\capabilities\\cap-vision\\tests\\stats-rerun.test.mjs",
       "exit": 0,
       "tests": 4,
       "pass": 4,
@@ -513,7 +678,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cap-vision\\tests\\subtitle-strip.test.mjs",
+      "file": "packages\\capabilities\\cap-vision\\tests\\subtitle-strip.test.mjs",
       "exit": 0,
       "tests": 3,
       "pass": 3,
@@ -524,150 +689,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cortico-adapter\\tests\\host-log.test.mjs",
-      "exit": 0,
-      "tests": 5,
-      "pass": 5,
-      "fail": 0,
-      "skipped": 0,
-      "todo": 0,
-      "cancelled": 0,
-      "ran": true
-    },
-    {
-      "file": "packages\\cortico-bot-xiaoyu\\tests\\bot-hub.test.mjs",
-      "exit": 0,
-      "tests": 1,
-      "pass": 1,
-      "fail": 0,
-      "skipped": 0,
-      "todo": 0,
-      "cancelled": 0,
-      "ran": true
-    },
-    {
-      "file": "packages\\cortico-bot-xiaoyu\\tests\\context-config.test.mjs",
-      "exit": 0,
-      "tests": 7,
-      "pass": 7,
-      "fail": 0,
-      "skipped": 0,
-      "todo": 0,
-      "cancelled": 0,
-      "ran": true
-    },
-    {
-      "file": "packages\\cortico-bot-xiaoyu\\tests\\dream-reflection.test.mjs",
-      "exit": 0,
-      "tests": 13,
-      "pass": 13,
-      "fail": 0,
-      "skipped": 0,
-      "todo": 0,
-      "cancelled": 0,
-      "ran": true
-    },
-    {
-      "file": "packages\\cortico-bot-xiaoyu\\tests\\heartbeat-noise.test.mjs",
-      "exit": 0,
-      "tests": 9,
-      "pass": 9,
-      "fail": 0,
-      "skipped": 0,
-      "todo": 0,
-      "cancelled": 0,
-      "ran": true
-    },
-    {
-      "file": "packages\\cortico-bot-xiaoyu\\tests\\host-contract.test.mjs",
-      "exit": 0,
-      "tests": 3,
-      "pass": 3,
-      "fail": 0,
-      "skipped": 0,
-      "todo": 0,
-      "cancelled": 0,
-      "ran": true
-    },
-    {
-      "file": "packages\\cortico-bot-xiaoyu\\tests\\host-log-shape.test.mjs",
-      "exit": 0,
-      "tests": 4,
-      "pass": 4,
-      "fail": 0,
-      "skipped": 0,
-      "todo": 0,
-      "cancelled": 0,
-      "ran": true
-    },
-    {
-      "file": "packages\\cortico-bot-xiaoyu\\tests\\memory-config.test.mjs",
-      "exit": 0,
-      "tests": 3,
-      "pass": 3,
-      "fail": 0,
-      "skipped": 0,
-      "todo": 0,
-      "cancelled": 0,
-      "ran": true
-    },
-    {
-      "file": "packages\\cortico-bot-xiaoyu\\tests\\rhythm-outlets.test.mjs",
-      "exit": 0,
-      "tests": 2,
-      "pass": 2,
-      "fail": 0,
-      "skipped": 0,
-      "todo": 0,
-      "cancelled": 0,
-      "ran": true
-    },
-    {
-      "file": "packages\\cortico-bot-xiaoyu\\tests\\session-rotation.test.mjs",
-      "exit": 0,
-      "tests": 10,
-      "pass": 10,
-      "fail": 0,
-      "skipped": 0,
-      "todo": 0,
-      "cancelled": 0,
-      "ran": true
-    },
-    {
-      "file": "packages\\cortico-bot-xiaoyu\\tests\\stall-stoploss.test.mjs",
-      "exit": 0,
-      "tests": 9,
-      "pass": 9,
-      "fail": 0,
-      "skipped": 0,
-      "todo": 0,
-      "cancelled": 0,
-      "ran": true
-    },
-    {
-      "file": "packages\\cortico-bot-xiaoyu\\tests\\storage-prompt-docs.test.mjs",
-      "exit": 0,
-      "tests": 5,
-      "pass": 5,
-      "fail": 0,
-      "skipped": 0,
-      "todo": 0,
-      "cancelled": 0,
-      "ran": true
-    },
-    {
-      "file": "packages\\cortico-bot-xiaoyu\\tests\\tick-accounting.test.mjs",
-      "exit": 0,
-      "tests": 1,
-      "pass": 1,
-      "fail": 0,
-      "skipped": 0,
-      "todo": 0,
-      "cancelled": 0,
-      "ran": true
-    },
-    {
-      "file": "packages\\cortico-bot-xiaoyu\\tests\\tick-config.test.mjs",
+      "file": "packages\\kernel\\persona-core\\tests\\activity-decision.test.mjs",
       "exit": 0,
       "tests": 6,
       "pass": 6,
@@ -678,29 +700,7 @@
       "ran": true
     },
     {
-      "file": "packages\\cortico-world-bilibili\\tests\\env-prompt.test.mjs",
-      "exit": 0,
-      "tests": 5,
-      "pass": 5,
-      "fail": 0,
-      "skipped": 0,
-      "todo": 0,
-      "cancelled": 0,
-      "ran": true
-    },
-    {
-      "file": "packages\\persona-core\\tests\\activity-decision.test.mjs",
-      "exit": 0,
-      "tests": 6,
-      "pass": 6,
-      "fail": 0,
-      "skipped": 0,
-      "todo": 0,
-      "cancelled": 0,
-      "ran": true
-    },
-    {
-      "file": "packages\\persona-core\\tests\\activity-owner-placeholder.test.mjs",
+      "file": "packages\\kernel\\persona-core\\tests\\activity-owner-placeholder.test.mjs",
       "exit": 0,
       "tests": 2,
       "pass": 2,
@@ -711,7 +711,7 @@
       "ran": true
     },
     {
-      "file": "packages\\persona-core\\tests\\budget.test.mjs",
+      "file": "packages\\kernel\\persona-core\\tests\\budget.test.mjs",
       "exit": 0,
       "tests": 7,
       "pass": 7,
@@ -722,7 +722,7 @@
       "ran": true
     },
     {
-      "file": "packages\\persona-core\\tests\\capability.test.mjs",
+      "file": "packages\\kernel\\persona-core\\tests\\capability.test.mjs",
       "exit": 0,
       "tests": 3,
       "pass": 3,
@@ -733,7 +733,7 @@
       "ran": true
     },
     {
-      "file": "packages\\persona-core\\tests\\conversation-assessment.test.mjs",
+      "file": "packages\\kernel\\persona-core\\tests\\conversation-assessment.test.mjs",
       "exit": 0,
       "tests": 9,
       "pass": 9,
@@ -744,7 +744,7 @@
       "ran": true
     },
     {
-      "file": "packages\\persona-core\\tests\\core.test.mjs",
+      "file": "packages\\kernel\\persona-core\\tests\\core.test.mjs",
       "exit": 0,
       "tests": 23,
       "pass": 23,
@@ -755,7 +755,7 @@
       "ran": true
     },
     {
-      "file": "packages\\persona-core\\tests\\decision-distribution.test.mjs",
+      "file": "packages\\kernel\\persona-core\\tests\\decision-distribution.test.mjs",
       "exit": 0,
       "tests": 4,
       "pass": 4,
@@ -766,7 +766,7 @@
       "ran": true
     },
     {
-      "file": "packages\\persona-core\\tests\\emotion.test.mjs",
+      "file": "packages\\kernel\\persona-core\\tests\\emotion.test.mjs",
       "exit": 0,
       "tests": 4,
       "pass": 4,
@@ -777,7 +777,7 @@
       "ran": true
     },
     {
-      "file": "packages\\persona-core\\tests\\life-activities.test.mjs",
+      "file": "packages\\kernel\\persona-core\\tests\\life-activities.test.mjs",
       "exit": 0,
       "tests": 5,
       "pass": 5,
@@ -788,7 +788,7 @@
       "ran": true
     },
     {
-      "file": "packages\\persona-core\\tests\\naming.test.mjs",
+      "file": "packages\\kernel\\persona-core\\tests\\naming.test.mjs",
       "exit": 0,
       "tests": 6,
       "pass": 6,
@@ -799,7 +799,7 @@
       "ran": true
     },
     {
-      "file": "packages\\persona-core\\tests\\retrieval.test.mjs",
+      "file": "packages\\kernel\\persona-core\\tests\\retrieval.test.mjs",
       "exit": 0,
       "tests": 11,
       "pass": 11,
@@ -810,7 +810,7 @@
       "ran": true
     },
     {
-      "file": "packages\\persona-core\\tests\\rhythm.test.mjs",
+      "file": "packages\\kernel\\persona-core\\tests\\rhythm.test.mjs",
       "exit": 0,
       "tests": 11,
       "pass": 11,
@@ -821,7 +821,7 @@
       "ran": true
     },
     {
-      "file": "packages\\persona-core\\tests\\voice-brief.test.mjs",
+      "file": "packages\\kernel\\persona-core\\tests\\voice-brief.test.mjs",
       "exit": 0,
       "tests": 11,
       "pass": 11,
@@ -832,7 +832,7 @@
       "ran": true
     },
     {
-      "file": "packages\\persona-core\\tests\\write-dedupe-and-gate.test.mjs",
+      "file": "packages\\shared\\write-dedupe\\tests\\write-dedupe-and-gate.test.mjs",
       "exit": 0,
       "tests": 9,
       "pass": 9,

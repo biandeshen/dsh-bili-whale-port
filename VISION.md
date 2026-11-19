@@ -44,7 +44,7 @@
 
 接口已做宿主无关设计（能力包严禁 import `cortico/*`；UI 经 `PanelCtx` 注入；模型由宿主发起）。**但目前只有一个真实宿主被验证过：Cortico。** 在未通过最小宿主验证之前，不宣称『可安装到任意底座』。
 
-三条宣称里**有一条实测不成立**：配音那一路（`packages/cap-media-studio/src/vendor/tts.mjs:41`）自己打模型 API，
+三条宣称里**有一条实测不成立**：配音那一路（`packages/capabilities/cap-media-studio/src/vendor/tts.mjs:41`）自己打模型 API，
 不经宿主 —— 换宿主之后它照样自己花钱。另两处真耦合在装载层：宿主用**绝对路径 link** 指到本仓、
 面板构建**借隔壁 Cortico 检出的 esbuild**。逐条读数与判据见
 [docs/evidence/host-claim-downgrade-2026-11-13.md](docs/evidence/host-claim-downgrade-2026-11-13.md)，

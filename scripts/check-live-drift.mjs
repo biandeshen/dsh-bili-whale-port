@@ -35,11 +35,22 @@ const bad = (n, d) => { lines.push(`✗ ${n}${d ? '：' + d : ''}`); failed += 1
 // ── 1) 人设正本 vs 部署副本 ────────────────────────────────────────────────
 function checkPrompts() {
   const liveDir = path.join(DEPLOY, BOT, 'prompts')
-  // 扫"哪个包带 persona/*.md"，不把包名写死：正本将来搬家或再加一份人设，这里不用跟着改
-  const srcDirs = fs.readdirSync(path.join(REPO, 'packages'))
-    .map((n) => path.join(REPO, 'packages', n, 'persona'))
-    .filter((d) => fs.existsSync(d) && fs.readdirSync(d).some((f) => f.endsWith('.md')))
-  if (!srcDirs.length) { bad('找不到任何人设正本目录（packages/*/persona/*.md）', '门禁本身要修'); return }
+  // 扫"哪个包带 persona/*.md"，不把包名写死：正本将来搬家或再加一份人设，这里不用跟着改。
+  // 2026-11-19 #90 分层后 packages 不再平铺（kernel/ capabilities/ adapters/ shared/），
+  // 所以这里递归找，而不是 `packages/*/persona`——那样分层之后一个都找不到，门禁自己对但报不到正本。
+  const srcDirs = []
+  const findPersonaDirs = (dir) => {
+    let entries
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }) } catch { return }
+    for (const e of entries) {
+      if (!e.isDirectory() || e.name === 'node_modules' || e.name === 'dist') continue
+      const p = path.join(dir, e.name)
+      if (e.name === 'persona' && fs.readdirSync(p).some((f) => f.endsWith('.md'))) { srcDirs.push(p); continue }
+      findPersonaDirs(p)
+    }
+  }
+  findPersonaDirs(path.join(REPO, 'packages'))
+  if (!srcDirs.length) { bad('找不到任何人设正本目录（packages/**/persona/*.md）', '门禁本身要修'); return }
   if (!fs.existsSync(liveDir)) { bad('部署 prompts 目录不存在', `${liveDir}（她正在用旧家还是新家？）`); return }
   for (const srcDir of srcDirs) {
     for (const name of fs.readdirSync(srcDir).filter((f) => f.endsWith('.md'))) {
@@ -84,7 +95,7 @@ function checkPrompts() {
  */
 function checkPersonaCore() {
   const hostRoot = process.env.CORTICO_ROOT || path.join(REPO, '..', 'Cortico-up')
-  const mine = path.join(REPO, 'packages', 'persona-core')
+  const mine = path.join(REPO, 'packages', 'kernel', 'persona-core')
   const theirs = path.join(hostRoot, 'persona-core')
   if (!fs.existsSync(theirs)) {
     ok('宿主 persona-core 不存在', '只有一份，链路唯一')
@@ -144,7 +155,7 @@ function checkPersonaCore() {
       const st = JSON.parse(fs.readFileSync(fields, 'utf8'))
       const spent = st?.budget?.spent ?? {}
       const day = st?.budget?.day
-      const caps = readSourceCaps(path.join(REPO, 'packages', 'persona-core', 'src', 'budget.ts'))
+      const caps = readSourceCaps(path.join(REPO, 'packages', 'kernel', 'persona-core', 'src', 'budget.ts'))
       const frozen = Object.entries(spent).filter(([k, v]) => {
         const src = String(k).split('|')[0]
         const cap = caps[src]

@@ -26,7 +26,7 @@ attic 那份**不改写**（attic 的规矩是考古、原样保留）。处置�
 
 ```
 $ grep -rn -E "['\"]cortico/" packages/ --include=*.ts --include=*.mjs --include=*.js
-packages/persona-core/src/capability.ts:6: * 2. 能力包内部严禁直接 import 'cortico/*'，仅由外层薄转接头适配到具体宿主插座；
+packages/kernel/persona-core/src/capability.ts:6: * 2. 能力包内部严禁直接 import 'cortico/*'，仅由外层薄转接头适配到具体宿主插座；
 exit=0   命中行数=1
 ```
 
@@ -38,7 +38,7 @@ exit=0   命中行数=1
 
 ### 宣称 B：UI 经 `PanelCtx` 注入 —— **成立，但有一条要说清的边**
 
-`PanelCtx` 定义（`packages/cortico-adapter/src/webui-helpers.ts:55-63`）：
+`PanelCtx` 定义（`packages/adapters/cortico-adapter/src/webui-helpers.ts:55-63`）：
 
 ```ts
 export interface PanelCtx {
@@ -57,21 +57,21 @@ export interface PanelCtx {
 ```
 $ grep -rn -E "from ['\"].*cortico-adapter/src/webui-helpers" packages/cap-*/src/webui/client.ts
 （12 行，每个包 2 行：一行 import type { PanelCtx }，一行 import { call, actionButton, ... }）
-packages/cap-bilibili/src/webui/client.ts:8,9
-packages/cap-journal/src/webui/client.ts:12,13
-packages/cap-media-studio/src/webui/client.ts:12,13
-packages/cap-memory/src/webui/client.ts:7,8
-packages/cap-state-rhythm/src/webui/client.ts:8,9
-packages/cap-vision/src/webui/client.ts:8,9
+packages/capabilities/cap-bilibili/src/webui/client.ts:8,9
+packages/capabilities/cap-journal/src/webui/client.ts:12,13
+packages/capabilities/cap-media-studio/src/webui/client.ts:12,13
+packages/capabilities/cap-memory/src/webui/client.ts:7,8
+packages/capabilities/cap-state-rhythm/src/webui/client.ts:8,9
+packages/capabilities/cap-vision/src/webui/client.ts:8,9
 exit=0   行数=12
 ```
 
 这条边**不违反宣称 A**（引的是本仓相对路径，不是 `cortico/*` 模块说明符），而且被引的那个包本身宿主无关：
 
 ```
-$ grep -rn -E "^\s*(import|export)\s.*from|require\(|import\(" packages/cortico-adapter/src/
+$ grep -rn -E "^\s*(import|export)\s.*from|require\(|import\(" packages/adapters/cortico-adapter/src/
 exit=1        # 零命中：两个文件 517 行，一条 import/require 都没有
-$ wc -l packages/cortico-adapter/src/*.ts
+$ wc -l packages/adapters/cortico-adapter/src/*.ts
   146 index.ts
   371 webui-helpers.ts
   517 total
@@ -88,10 +88,10 @@ $ wc -l packages/cortico-adapter/src/*.ts
 ## ③ 反例：配音这一路自己发起模型调用
 
 ```
-$ grep -rn -E "https\.request|http\.request|fetch\(|httpsPost\(" packages/cap-*/src packages/persona-core/src | grep -v webui/client.ts
-packages/cap-media-studio/src/vendor/tts.mjs:41:  const r = await httpsPost('https://api.xiaomimimo.com/v1/chat/completions', payload, {
-packages/cap-media-studio/src/vendor/tts.mjs:62:function httpsPost(url, payload, headers, timeoutMs = 180_000) {
-packages/cap-media-studio/src/vendor/tts.mjs:64:    const req = https.request(new URL(url), { method: 'POST', headers }, (res) => {
+$ grep -rn -E "https\.request|http\.request|fetch\(|httpsPost\(" packages/cap-*/src packages/kernel/persona-core/src | grep -v webui/client.ts
+packages/capabilities/cap-media-studio/src/vendor/tts.mjs:41:  const r = await httpsPost('https://api.xiaomimimo.com/v1/chat/completions', payload, {
+packages/capabilities/cap-media-studio/src/vendor/tts.mjs:62:function httpsPost(url, payload, headers, timeoutMs = 180_000) {
+packages/capabilities/cap-media-studio/src/vendor/tts.mjs:64:    const req = https.request(new URL(url), { method: 'POST', headers }, (res) => {
 （其余命中全是 cap-bilibili 打 B 站平台 API：bili-debrief.ts:87,128,150 / bili-read.ts:267,308,312 /
   bili-watch.ts:65,90 / platform/api.mjs:166 / platform/traffic.mjs:33,225,226 —— 那是平台读写，不是模型）
 ```
@@ -100,11 +100,11 @@ packages/cap-media-studio/src/vendor/tts.mjs:64:    const req = https.request(ne
 
 | 跳 | 位置 | 内容 |
 |---|---|---|
-| 1 | `packages/cap-media-studio/src/index.ts:226` | `const pipeline = opts.renderPipeline ?? renderVideoSlice` —— 能力包自己的工具，默认走真管线 |
-| 2 | `packages/cap-media-studio/src/render.ts:10` | `import { ttsPlan, synthesize, describeTts } from './vendor/tts.mjs'` |
-| 3 | `packages/cap-media-studio/src/vendor/tts.mjs:96` | `if (p === 'mimo') await mimoTts({ ... })`（`plan.order` 默认 `['mimo','edge']`，见 `:20`） |
-| 4 | `packages/cap-media-studio/src/vendor/tts.mjs:41` | 直接 POST `https://api.xiaomimimo.com/v1/chat/completions` |
-| key | `packages/cap-media-studio/src/vendor/mimo.mjs:27` | `loadMimoKey({ env = process.env, candidates = defaultCandidates() })`；缺 key 的报错文案写着来源＝`~/.local/share/mimocode/auth.json` 或 `MIMO_API_KEY`（`tts.mjs:32`） |
+| 1 | `packages/capabilities/cap-media-studio/src/index.ts:226` | `const pipeline = opts.renderPipeline ?? renderVideoSlice` —— 能力包自己的工具，默认走真管线 |
+| 2 | `packages/capabilities/cap-media-studio/src/render.ts:10` | `import { ttsPlan, synthesize, describeTts } from './vendor/tts.mjs'` |
+| 3 | `packages/capabilities/cap-media-studio/src/vendor/tts.mjs:96` | `if (p === 'mimo') await mimoTts({ ... })`（`plan.order` 默认 `['mimo','edge']`，见 `:20`） |
+| 4 | `packages/capabilities/cap-media-studio/src/vendor/tts.mjs:41` | 直接 POST `https://api.xiaomimimo.com/v1/chat/completions` |
+| key | `packages/capabilities/cap-media-studio/src/vendor/mimo.mjs:27` | `loadMimoKey({ env = process.env, candidates = defaultCandidates() })`；缺 key 的报错文案写着来源＝`~/.local/share/mimocode/auth.json` 或 `MIMO_API_KEY`（`tts.mjs:32`） |
 
 **为什么这条必须写进降级文而不是悄悄放过**：
 
@@ -200,13 +200,13 @@ cd E:/WorkSpace_Qoder/dsh-bili-whale
 # A：能力包不引 cortico/*（唯一命中应是注释）
 grep -rn -E "['\"]cortico/" packages/ --include=*.ts --include=*.mjs --include=*.js
 # B：adapter 自身零 import + UI 注入边
-grep -rn -E "^\s*(import|export)\s.*from|require\(|import\(" packages/cortico-adapter/src/   # exit=1
+grep -rn -E "^\s*(import|export)\s.*from|require\(|import\(" packages/adapters/cortico-adapter/src/   # exit=1
 grep -rn -E "from ['\"].*cortico-adapter/src/webui-helpers" packages/cap-*/src/webui/client.ts  # 12 行
 # C：模型发起反例
 grep -rn "api.xiaomimimo.com" packages/
-sed -n '226p' packages/cap-media-studio/src/index.ts
-sed -n '10p'   packages/cap-media-studio/src/render.ts
-sed -n '41p;96p' packages/cap-media-studio/src/vendor/tts.mjs
+sed -n '226p' packages/capabilities/cap-media-studio/src/index.ts
+sed -n '10p'   packages/capabilities/cap-media-studio/src/render.ts
+sed -n '41p;96p' packages/capabilities/cap-media-studio/src/vendor/tts.mjs
 # D：装载层三处
 cat E:/WorkSpace_Qoder/Cortico-up/extensions/package.json
 sed -n '19,33p' scripts/build-webui.mjs
@@ -234,8 +234,8 @@ grep -rn '"engines"' --include=package.json . | grep -v node_modules   # 零命�
      那四条 `node --test tests/planner.test.mjs ...` 命令**本身没死**（四个文件都还在，逐个 `-f` 核过），死的只是计数。
    - `## 0.4.6 新东西` 整节是版本公告体，与「文档只写现在是怎么设计的」这条体制不合（INDEX §2 规矩 1 只管 `docs/`，管不到 README）。
    - **一条澄清（别当死路径修）**：`~/.dsh/bili-whale.config.json`（`:35`、`:181`）**不是死路径**——
-     `packages/cap-bilibili/src/platform/paths.mjs:29` 的优先级链仍是 `WHALE_HOME → DSH_HOME → <HOME>/.dsh`；
-     ffmpeg 查找顺序第 ③④ 位也仍是 `<仓库>/bin` 与 `~/.dsh/bili-whale/bin`（`packages/cap-vision/src/ffmpeg.ts:7`）。
+     `packages/capabilities/cap-bilibili/src/platform/paths.mjs:29` 的优先级链仍是 `WHALE_HOME → DSH_HOME → <HOME>/.dsh`；
+     ffmpeg 查找顺序第 ③④ 位也仍是 `<仓库>/bin` 与 `~/.dsh/bili-whale/bin`（`packages/capabilities/cap-vision/src/ffmpeg.ts:7`）。
      `.dsh` 这个**目录名**是遗留兼容，不是「DSH 宿主还在」的证据。
 
 ## ⑧ TTS 反例的第三条出路：宿主已有 `reportUsage` 契约（2026-11-13 追补实测）
@@ -277,11 +277,11 @@ $ grep -rn "reportUsage" packages/ | wc -l
 
 | # | 文件 | 现状 | 改法 |
 |---|---|---|---|
-| 1 | `packages/cap-media-studio/src/vendor/tts.mjs:50-53` | 解析 `j.choices[0].message.audio.data`，把同一响应里的 `j.usage` **丢掉** | 读 `j.usage`，`synthesize()` 返回 `{ provider, voice, usage? }` |
-| 2 | `packages/cap-media-studio/src/index.ts:60-79` | 只有 `renderPipeline` / `ttsPreview` / `onPushToBiliQueue` 三个注入回调 | 加同风格的 `onUsage?: (u, o) => void`（**可选**，纯回调、不引 `cortico/*`） |
-| 3 | `packages/cap-media-studio/src/render.ts:163`、`:279` | `await synthesize(...)` 后只取 provider/voice | 拿到 `usage` 就调 `opts.onUsage?.()` |
-| 4 | `packages/cortico-world-media/src/cortico-world.ts:20-30` | `CorticoWorldHost` 只声明了 `pushEvent` / `log`（本地结构类型，**不 import 宿主**） | 加可选 `reportUsage?`；`:79-95` 的 `start(host)` 里透传 |
-| 5 | `packages/cap-media-studio/src/vendor/tts.mjs:90-104` | 402/429 只是 `catch` 后换 edge-tts，**每次渲染都重试 mimo** | 402/429 记一个冷却（持久化到输出目录旁的 state），冷却期内直接走 edge；停摆写成可读状态（接 #61） |
+| 1 | `packages/capabilities/cap-media-studio/src/vendor/tts.mjs:50-53` | 解析 `j.choices[0].message.audio.data`，把同一响应里的 `j.usage` **丢掉** | 读 `j.usage`，`synthesize()` 返回 `{ provider, voice, usage? }` |
+| 2 | `packages/capabilities/cap-media-studio/src/index.ts:60-79` | 只有 `renderPipeline` / `ttsPreview` / `onPushToBiliQueue` 三个注入回调 | 加同风格的 `onUsage?: (u, o) => void`（**可选**，纯回调、不引 `cortico/*`） |
+| 3 | `packages/capabilities/cap-media-studio/src/render.ts:163`、`:279` | `await synthesize(...)` 后只取 provider/voice | 拿到 `usage` 就调 `opts.onUsage?.()` |
+| 4 | `packages/adapters/cortico-world-media/src/cortico-world.ts:20-30` | `CorticoWorldHost` 只声明了 `pushEvent` / `log`（本地结构类型，**不 import 宿主**） | 加可选 `reportUsage?`；`:79-95` 的 `start(host)` 里透传 |
+| 5 | `packages/capabilities/cap-media-studio/src/vendor/tts.mjs:90-104` | 402/429 只是 `catch` 后换 edge-tts，**每次渲染都重试 mimo** | 402/429 记一个冷却（持久化到输出目录旁的 state），冷却期内直接走 edge；停摆写成可读状态（接 #61） |
 
 ### 仍未验证（别当成已解决）
 
@@ -292,11 +292,11 @@ $ grep -rn "reportUsage" packages/ | wc -l
 
 ## ⑨ 内核分叉实测：90 个用例里 4 个判红，且**都不是本仓的 bug**（2026-11-13 追补）
 
-第三件（最小宿主验证）的前置是「内核归一」。先量：宿主 `persona-core/` 与本仓 `packages/persona-core/` 到底差多少。
+第三件（最小宿主验证）的前置是「内核归一」。先量：宿主 `persona-core/` 与本仓 `packages/kernel/persona-core/` 到底差多少。
 
 ```
 $ ls E:/WorkSpace_Qoder/Cortico-up/persona-core/src | wc -l   → 16
-$ ls packages/persona-core/src | wc -l                        → 21
+$ ls packages/kernel/persona-core/src | wc -l                        → 21
 # 逐文件比对：15 份内容不同，1 份完全相同（naming.ts），宿主独有 0 份
 # 本仓独有 5 份：atomic-write.ts capability.ts cortico-defaults.ts temporal.ts tz.ts
 $ grep -rn "persona-core" E:/WorkSpace_Qoder/Cortico-up/src | wc -l   → 0   （宿主运行时不引用它）
@@ -307,20 +307,20 @@ $ grep -rn "persona-core/src" packages/ | wc -l                       → 51  �
 
 **但本仓并不缺这层覆盖**（2026-11-13 施工时实测，先前的判断错了两次，都记在这里）：
 
-| 本仓 `packages/persona-core/tests/` | 与宿主副本的关系 | 用例数 |
+| 本仓 `packages/kernel/persona-core/tests/` | 与宿主副本的关系 | 用例数 |
 |---|---|---|
 | `conversation-assessment` / `core` / `emotion` / `life-activities` | 逐字节相同 | 9 / 23 / 4 / 5 |
 | `voice-brief` | 仅 fixture 路径不同（本仓 `./fixtures/`，宿主 `../../tests/fixtures/`），本仓的方向才对 | 11 |
 | `budget` / `retrieval` / `rhythm` | **本仓更新**（74/158/127 行 vs 54/113/121 行；7/11/11 用例 vs 6/9/11） | 7 / 11 / 11 |
 | `activity-decision` / `capability` | **本仓独有**（宿主没有） | 6 / 3 |
 
-`node --test packages/persona-core/tests/*.test.mjs` → **90 个用例全绿**，与宿主那 90 个是同一条血脉（其中 3 份本仓更新）。
+`node --test packages/kernel/persona-core/tests/*.test.mjs` → **90 个用例全绿**，与宿主那 90 个是同一条血脉（其中 3 份本仓更新）。
 
 > **两次错误判断（留着，别重犯）**：
 > 1. 初稿写「本仓真内核对应用例数是 0」——错。本仓有 90 个。
 > 2. 我据此去「搬测试」，`cp` 覆盖了本仓已有的 `budget` / `retrieval` / `rhythm` 三份——**用旧副本覆盖了更新的版本**，是倒退。
 >    已 `git checkout --` 全部还原，工作区无残留（`git status` 只剩文档改动）。
-> 根因：我只看了宿主那边有什么，没先看本仓 `packages/persona-core/tests/` 里已有什么。**判断「缺什么」之前先查本仓，别拿对照仓清单当需求单。**
+> 根因：我只看了宿主那边有什么，没先看本仓 `packages/kernel/persona-core/tests/` 里已有什么。**判断「缺什么」之前先查本仓，别拿对照仓清单当需求单。**
 
 ### 探针读数（只读，零 token，脚本已入库）
 
@@ -396,7 +396,7 @@ PROBE_KERNEL=host node --import tsx docs/evidence/probes/rhythm-attrib.mjs
 
 ### 顺带登记（本仓内核的注释漂移，不影响行为）
 
-- `packages/persona-core/src/rhythm.ts:75-81`：注释叙述「0.003/h 是旧口径…0.005/h × 16h」，而常量实际是 **0.02**；
+- `packages/kernel/persona-core/src/rhythm.ts:75-81`：注释叙述「0.003/h 是旧口径…0.005/h × 16h」，而常量实际是 **0.02**；
   `:82-90` 又写「恢复…0.008」，也与 0.02 不符。行为按常量走，注释落后——登记，不改（改注释会动冻结哈希，另开批次）。
 ## ⑩ 顺带实测出一个真缺陷：`host.log` 是对象，不是函数（2026-11-13 起实例时撞到）
 
@@ -404,7 +404,7 @@ PROBE_KERNEL=host node --import tsx docs/evidence/probes/rhythm-attrib.mjs
 
 ```
 ERROR core/world-start-failed: World 启动失败,已跳过: bili-account TypeError: host.log is not a function
-    at Object.log (packages/cortico-world-bilibili/src/cortico-world.ts:117:41)
+    at Object.log (packages/adapters/cortico-world-bilibili/src/cortico-world.ts:117:41)
 ```
 
 **根因**：宿主 `WorldCtx.log` 的类型是 **Logger 对象**（`info/warn/error/emit/child`，`Cortico-up/src/core/types.ts:1181-1190`），
@@ -416,7 +416,7 @@ ERROR core/world-start-failed: World 启动失败,已跳过: bili-account TypeEr
 
 **修法**：`cortico-adapter` 加 `emitHostLog()`，两种形状都认（函数 / Logger 对象 / 都没有 → 什么都不做），
 三处适配器（bilibili / media / 以及以后新增的）统一走它；日志本身抛错也不许拖垮业务。
-回归用例 `packages/cortico-adapter/tests/host-log.test.mjs` 5 条，其中一条就是「Logger 对象形状」。
+回归用例 `packages/adapters/cortico-adapter/tests/host-log.test.mjs` 5 条，其中一条就是「Logger 对象形状」。
 
 **修复前后对照（同一台机器、同一份部署副本）**：
 

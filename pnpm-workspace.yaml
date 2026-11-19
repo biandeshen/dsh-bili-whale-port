@@ -1,2 +1,11 @@
 packages:
-  - "packages/*"
+  # 四层（#90，2026-11-19）：
+  #   kernel/       人格内核（唯一一份 persona-core）
+  #   capabilities/ 业务域能力包（cap-*），只依赖 kernel 与 shared
+  #   adapters/     往宿主/渠道上挂的薄转接头（cortico-*），认识 capabilities
+  #   shared/       跨包工具（原子写盘、幂等键），不认识任何人格概念
+  - "packages/kernel/*"
+  - "packages/capabilities/*"
+  - "packages/adapters/*"
+  - "packages/shared/*"
+  # host/cortico 是 git subtree 收编进来的宿主镜像，有它自己的依赖树，不并入本 workspace。

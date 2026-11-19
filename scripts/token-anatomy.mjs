@@ -25,7 +25,7 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
-import { deployHome } from '../packages/cap-bilibili/src/platform/paths.mjs'
+import { deployHome } from '../packages/capabilities/cap-bilibili/src/platform/paths.mjs'
 
 const argv = process.argv.slice(2)
 const argOf = (name, dflt) => {

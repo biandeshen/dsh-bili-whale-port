@@ -8,11 +8,11 @@
  * 算出来的作息是**另一个人的**，跟线上对不上。
  * 用法：node scripts/simulate-rhythm.mjs [seed]（本仓根下即可，Node 24 原生跑 .ts）
  */
-const { decideAction, restRecoveryDelta, dayKey, ACTION_COST_ENERGY } = await import('../packages/persona-core/src/rhythm.ts')
-const { simulateOfflineTime } = await import('../packages/persona-core/src/decay.ts')
-const { DEFAULT_ATOMIC_FIELDS } = await import('../packages/persona-core/src/types.ts')
-const { createInitialState, deriveNPCState } = await import('../packages/persona-core/src/npc-state-machine.ts')
-const { applyBudgets, emptyBudget } = await import('../packages/persona-core/src/budget.ts')
+const { decideAction, restRecoveryDelta, dayKey, ACTION_COST_ENERGY } = await import('../packages/kernel/persona-core/src/rhythm.ts')
+const { simulateOfflineTime } = await import('../packages/kernel/persona-core/src/decay.ts')
+const { DEFAULT_ATOMIC_FIELDS } = await import('../packages/kernel/persona-core/src/types.ts')
+const { createInitialState, deriveNPCState } = await import('../packages/kernel/persona-core/src/npc-state-machine.ts')
+const { applyBudgets, emptyBudget } = await import('../packages/kernel/persona-core/src/budget.ts')
 
 const seed = Number(process.argv[2] || 42)
 let s = seed >>> 0

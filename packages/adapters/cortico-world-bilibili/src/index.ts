@@ -1,0 +1,182 @@
+/**
+ * cortico-world-bilibili —— B 站整域能力薄转接头（kind: "world", api: 6, World id: "bili-account"）。
+ *
+ * 默认导出是 Cortico 的 WorldDefinition（装载入口）；工厂函数 createBiliWorldAdapter
+ * 是宿主无关版本（给别的底座或测试用）。
+ */
+import path from 'node:path'
+import { homedir } from 'node:os'
+import {
+  validateCapabilityContract,
+} from '../../../kernel/persona-core/src/capability.ts'
+import {
+  createBilibiliCapability,
+  type BilibiliCapabilityOptions,
+} from '../../../capabilities/cap-bilibili/src/index.ts'
+import { createBiliWorld, type BiliWorldOptions, type CorticoWorldHost } from './cortico-world.ts'
+import { readLegacyIdentity } from './legacy-identity.ts'
+
+export { createBiliWorld }
+export type { BiliWorldOptions, CorticoWorldHost }
+
+export interface BiliWorldAdapterOptions extends Omit<BilibiliCapabilityOptions, 'dataDir'> {
+  homeDir: string
+}
+
+export function createBiliWorldAdapter(opts: BiliWorldAdapterOptions) {
+  const dataDir = path.join(opts.homeDir, 'data', 'bilibili')
+  const w = createBiliWorld({
+    ...opts,
+    dataDir,
+    // 与宿主那条装配（definition.create）取同一份路径：凭据文件、判断卡、看片史。
+    // 显式传了的以调用方为准（测试可覆盖）；没传才用默认，而不是干脆不给。
+    ...Object.fromEntries(
+      Object.entries(botPaths(opts.homeDir)).filter(([k]) => (opts as Record<string, unknown>)[k] === undefined),
+    ),
+  })
+  const cap = w.capability
+  const check = validateCapabilityContract(cap)
+  if (!check.ok) {
+    throw new Error(`cap-bilibili contract validation failed: ${check.errors.join('; ')}`)
+  }
+
+  return {
+    id: 'bili-account' as const,
+    label: '小鱼 · B站账号',
+    kind: 'world' as const,
+    api: 6 as const,
+    capability: cap,
+    defaults: () => ({ enabled: true, ...cap.defaultConfig }),
+    configSchema: cap.configSchema,
+    tools: () => w.world.tools(),
+    panels: () => cap.panels(),
+    world: w.world,
+    start: (host: CorticoWorldHost) => w.world.start(host),
+    stop: () => w.world.stop(),
+    invokePanel: async (panelId: string, method: string, params: Record<string, unknown> = {}) => {
+      const p = cap.panels().find((x) => x.id === panelId)
+      if (!p) throw new Error(`Unknown panel "${panelId}"`)
+      const m = p.methods[method]
+      if (!m) throw new Error(`Unknown method "${panelId}.${method}"`)
+      return await m.invoke(params)
+    },
+  }
+}
+
+// ── Cortico 装载入口（默认导出）──────────────────────────────────────────────
+
+const TOOL_SUMMARIES: Record<string, string> = {
+  bili_inbox_read: '读取 B 站四路收件箱（私信 / 评论回复 / @提及 / 收到的赞）',
+  bili_inbox_ack: '把处理完的收件箱条目标为已读',
+  bili_feed: '刷 B 站首页推荐流（自动套用看片偏好与时长标注）',
+  bili_debrief: '深读一条视频：标题、简介、弹幕采样与高赞评论',
+  bili_watch: '看一条视频的画面：下载 + 变化分留帧 + 拼成几张图',
+  bili_subtitles: '读取视频的 CC 或 AI 字幕全文',
+  bili_search: '按关键词搜索 B 站视频',
+  bili_seek: '按她自己的口味定向捞片（只读）：keyword 直搜，或从判「收」的判断卡里取同类',
+  bili_comments: '查看视频评论区与楼中楼',
+  bili_whois: '查询 B 站用户与 UP 主信息',
+  bili_dynamic_recent: '核对账号最近已发布的动态',
+  bili_dynamic_draft: '发起一条图文或纯文字动态（经把关链）',
+  bili_dynamic_edit: '修改一条已发布或待审的动态',
+  bili_comment: '在视频下发表评论或回复别人的评论',
+  bili_danmaku: '向视频发送一条弹幕',
+  bili_dm_reply: '回复 B 站私信（受档位与回信时效窗管控）',
+  bili_like: '为真正喜欢的视频点赞（30 天内不重复）',
+  bili_fav: '收藏值得回看的视频（每天 3 条上限，理由至少 6 个字）',
+}
+
+const EVENT_DESCRIPTIONS = [
+  { type: 'bili-account.inbox', description: 'B 站有新私信 / 评论回复 / @提及 / 收到的赞', trigger: 'wake', tags: ['social'] },
+  { type: 'bili-account.inbox_assigned', description: '主人指派她回复某条消息', trigger: 'wake', tags: ['social'] },
+  { type: 'bili-account.draft_rejected', description: '主人驳回了她的草稿（可带理由要求重写）', trigger: 'wake', tags: ['speak'] },
+  { type: 'bili-account.owner_order_draft', description: '主人点单让她写一条动态或评论', trigger: 'wake', tags: ['speak'] },
+]
+
+function defaultHomeDir(): string {
+  return path.join(homedir(), '.xiaoyu-home')
+}
+
+/**
+ * 她那个家下面与本包相关的路径。**两个装配入口（宿主 `definition.create` 与宿主无关的
+ * `createBiliWorldAdapter`）都从这里取**，不许各拼一套。
+ *
+ * 为什么抽出来（2026-11-19 #88 对账发现的洞）：原来只有 `definition.create` 给了
+ * `credentialsFile` / `fieldsFile`，`createBiliWorldAdapter` 一个都没给。于是同一个 World：
+ *   · 走宿主（线上那条）= 凭据读得到、看片史标得上；
+ *   · 走 adapter（测试、或别的底座）= 凭据永远空、看片史永远不标，
+ *     而且**不报错**——写动作只会在被前置条件拒之后才让人发现。
+ * 两份路径拼法是"同一件事两个真相"的典型：改一处、漏一处，症状是"测试绿的、线上是坏的"或反过来。
+ */
+function botPaths(botDir: string) {
+  const data = path.join(botDir, 'data')
+  return {
+    /** 凭据：与 liveCredentials 的 env 优先规则同一条链，文件只是兜底。 */
+    credentialsFile: path.join(botDir, '.env'),
+    /** 她的判断卡（f-aa12d0 ③）：与 bot 转接头那份同一处账。 */
+    judgmentFile: path.join(data, 'persona', 'judgment.jsonl'),
+    /** 看片史（近 7 天看过 / 同 UP 第几条）：与 bot 转接头同一份状态账。 */
+    fieldsFile: path.join(data, 'persona', 'fields.json'),
+  }
+}
+
+/** 凭据缺失时不要让整个 World 装不起来：拿不到就返回空串（写动作会被前置条件拒）。 */
+function safeSecret(ctx: { secret?: (n: string) => string }, name: string): string {
+  try {
+    return String(ctx.secret?.(name) ?? '')
+  } catch {
+    return ''
+  }
+}
+
+const definition = {
+  id: 'bili-account',
+  label: '小鱼 · B站账号',
+  defaults: () => ({ enabled: true }),
+  create(ctx: {
+    botDir?: string
+    dataDir?: string
+    secret?: (n: string) => string
+    /** 活配置引用（宿主保证）：每次读都拿到最新值，主人在面板改了不用重启。 */
+    cfg?: Record<string, any>
+  }) {
+    // 部署目录才是她的家；凭据文件就是 `<botDir>/.env`。
+    // **不再在这里取一次快照塞进 writeContext**：那样 `bili_jct`/`buvid3` 被写死成空串，
+    // 而且主人换完 cookie 必须重启才生效——评论/点赞/收藏这类写会带着不完整的旧凭据出去。
+    // 现在交给能力包用 liveCredentials 现读（env 优先，与宿主 secretReader 同一条优先级）。
+    const botDir = ctx.botDir ?? defaultHomeDir()
+    /**
+     * 身份（主人 mid / 她自己 mid）：新配置优先，没有就桥接旧共享配置。
+     * 监听器要靠这两条判断"是不是主人找她"以及"这条是不是她自己发的"。
+     */
+    const legacy = readLegacyIdentity()
+    const ident = (ctx.cfg?.identity ?? {}) as { ownerMid?: string; selfMid?: string }
+    const ownerMid = String(ident.ownerMid ?? legacy.ownerMid ?? '').trim()
+    const selfMidHint = String(ident.selfMid ?? legacy.selfMid ?? '').trim()
+    const w = createBiliWorld({
+      homeDir: botDir,
+      // 宿主给的是部署级 data/（多个扩展共用）；本包在自己的子目录里，不跟别人抢文件。
+      dataDir: path.join(ctx.dataDir ?? path.join(botDir, 'data'), 'bilibili'),
+      ...botPaths(botDir),
+      assetsDir: path.join(botDir, 'data', 'media', 'assets'),
+      bgmDir: path.join(botDir, 'data', 'media', 'bgm'),
+      ...(ownerMid ? { ownerMid } : {}),
+      ...(selfMidHint ? { selfMidHint } : {}),
+      // 监听开关**现读**：worlds.bili-account.listen.* 改了下一拍就生效
+      listenConfig: () => (ctx.cfg?.listen ?? {}) as Record<string, never>,
+    } as never)
+    return w.world
+  },
+  describe: {
+    tools: Object.entries(TOOL_SUMMARIES).map(([name, summary]) => ({
+      name,
+      summary,
+      description: summary,
+      parameters: { type: 'object', properties: {} },
+      tags: [],
+    })),
+    events: EVENT_DESCRIPTIONS,
+  },
+}
+
+export default definition

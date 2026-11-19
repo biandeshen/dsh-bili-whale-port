@@ -1,0 +1,11 @@
+{
+  "name": "@xiaoyu/write-dedupe",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "写工具的幂等键（内容指纹 + 最近写过窗口）。多个能力包共用，不属人格内核。",
+  "exports": {
+    ".": "./src/write-dedupe.ts",
+    "./*": "./src/*.ts"
+  }
+}

@@ -7,7 +7,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { mountPanel, settle } from '../helpers/panel-harness.mjs'
-import { memoryCenterPanel } from '../../packages/cap-memory/src/webui/client.ts'
+import { memoryCenterPanel } from '../../packages/capabilities/cap-memory/src/webui/client.ts'
 
 function mkCard(over = {}) {
   return {

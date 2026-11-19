@@ -20,7 +20,7 @@
 接口已做宿主无关设计（能力包严禁 import `cortico/*`；UI 经 `PanelCtx` 注入；模型由宿主发起）。**但目前只有一个真实宿主被验证过：Cortico。** 在未通过最小宿主验证之前，不宣称『可安装到任意底座』。
 
 **上面那句「模型由宿主发起」有一处实测例外，别当全量成立**：配音这一路自己打模型 API ——
-`packages/cap-media-studio/src/vendor/tts.mjs:41` 直接 POST `api.xiaomimimo.com/v1/chat/completions`，
+`packages/capabilities/cap-media-studio/src/vendor/tts.mjs:41` 直接 POST `api.xiaomimimo.com/v1/chat/completions`，
 key 从本机凭据文件或 `MIMO_API_KEY` 取，**不经宿主**；链路是能力包自己的工具
 （`cap-media-studio/src/index.ts:226` → `render.ts:10` → `tts.mjs:96`）。换宿主之后这一路照样自己花钱。
 
@@ -202,7 +202,7 @@ node scripts/start-cortico.mjs
 
 **装完在面板里做三件事**（世界页「小鱼 · 鱼缸」，`http://127.0.0.1:7799/#/provider/world%3Abili-account`）：
 
-1. **填 cookie** —— 进「**连接与凭据**」页（`packages/cap-bilibili/src/index.ts:1319`）。
+1. **填 cookie** —— 进「**连接与凭据**」页（`packages/capabilities/cap-bilibili/src/index.ts:1319`）。
    在 `bilibili.com` 页面按 **F12 → Application（应用）→ Cookies → https://www.bilibili.com**，
    手动复制 `SESSDATA`、`bili_jct`、`buvid3` 三个值粘进去 ✓
    （⚠️ 别用 `document.cookie` ✗ —— `SESSDATA` 是 **HttpOnly**，脚本里读不到，照那个做会得到一份缺件的 cookie 然后卡在体检）
@@ -218,7 +218,7 @@ node scripts/start-cortico.mjs
 > ⚠️ 改**面板客户端代码**必须 `build-webui.mjs` + **重启宿主**（版本在启动期读进 `webUiAssets`）。
 
 设置保存在 `~/.dsh/bili-whale.config.json`（**不含凭据**；落点优先级 `WHALE_HOME → DSH_HOME → <HOME>/.dsh`，
-见 `packages/cap-bilibili/src/platform/paths.mjs:29`）；凭据单独在 `~/.bili-ai/credentials.json`，**永远不回显**。
+见 `packages/capabilities/cap-bilibili/src/platform/paths.mjs:29`）；凭据单独在 `~/.bili-ai/credentials.json`，**永远不回显**。
 
 **这条路径的验证状态（别把"跑起来过"当"本批验过"）**：线上部署 `~/.xiaoyu-home/xiaoyu` 就是这样装起来的；
 但**本批没有重新装一遍**，11 个页签的真浏览器验收也还没做（线上 7799 当前没起）。
@@ -400,11 +400,11 @@ sudo apt install ffmpeg    # Debian / Ubuntu
 
 | 假设 | 现在实际靠什么（实测） | 换环境怎么办 |
 |---|---|---|
-| **宿主能"被唤醒"** | Cortico World 的生活循环：`packages/persona-core/src/rhythm.ts` 每 3–7 分钟评估一次（无聊/想他/歇够了 × 体力 × 随机），到点由宿主往她会话里塞一个回合。**单一调度器就是它** | 新宿主要自己提供**定时器**＋**一个能投递回合的入口**。这正是最小宿主验证要证的四件事之一 |
-| **有一个通知渠道** | 两条路：① 宿主事件总线 —— `packages/cap-bilibili/src/index.ts:447-460` 推 `bili-account.inbox` 事件；② CLI 分发 —— `tools/commands/notify.mjs:173-225`，**9 个后端**：`none`/`desktop`/`webhook`/`ntfy`/`bark`/`command`/`dm`/`stdout`/`file`（`dm` 就是 B站私信，零外部依赖 ✓）| ①要重接新宿主的事件面；②与宿主无关，照用。只要"使用者看得见"成立 ✓ |
+| **宿主能"被唤醒"** | Cortico World 的生活循环：`packages/kernel/persona-core/src/rhythm.ts` 每 3–7 分钟评估一次（无聊/想他/歇够了 × 体力 × 随机），到点由宿主往她会话里塞一个回合。**单一调度器就是它** | 新宿主要自己提供**定时器**＋**一个能投递回合的入口**。这正是最小宿主验证要证的四件事之一 |
+| **有一个通知渠道** | 两条路：① 宿主事件总线 —— `packages/capabilities/cap-bilibili/src/index.ts:447-460` 推 `bili-account.inbox` 事件；② CLI 分发 —— `tools/commands/notify.mjs:173-225`，**9 个后端**：`none`/`desktop`/`webhook`/`ntfy`/`bark`/`command`/`dm`/`stdout`/`file`（`dm` 就是 B站私信，零外部依赖 ✓）| ①要重接新宿主的事件面；②与宿主无关，照用。只要"使用者看得见"成立 ✓ |
 | **不要第二个调度器** | DSH 插件时钟已停用（`clock.enabled=false`、`night.windows=[]`），HKCU `WhaleDraft`（21:30 nightly-scheduler）已删除 —— 见 [docs/CORTICO-RUNBOOK.md](docs/CORTICO-RUNBOOK.md)。**别再加回来，否则会抢着出稿** | 兜底看门狗是可选的：`node scripts/day-watchdog.mjs`（它只补标记，不替她决定做事）|
-| **有 ffmpeg** | 只有"抽帧看画面"用得到。查找顺序 `$FFMPEG` → PATH → `<仓库>/bin` → `~/.dsh/bili-whale/bin`（`packages/cap-vision/src/ffmpeg.ts:7,53`）| 装进 PATH，或 `FFMPEG` 指绝对路径；不装就跳过画面那一路，其余照常 |
-| **B 站账号 + 本机凭据文件** | `~/.bili-ai/credentials.json`（`packages/cap-bilibili/src/platform/paths.mjs:289-294`，**不参与状态目录归一**，读写都留旧家）| 无替代（这就是目标平台）|
+| **有 ffmpeg** | 只有"抽帧看画面"用得到。查找顺序 `$FFMPEG` → PATH → `<仓库>/bin` → `~/.dsh/bili-whale/bin`（`packages/capabilities/cap-vision/src/ffmpeg.ts:7,53`）| 装进 PATH，或 `FFMPEG` 指绝对路径；不装就跳过画面那一路，其余照常 |
+| **B 站账号 + 本机凭据文件** | `~/.bili-ai/credentials.json`（`packages/capabilities/cap-bilibili/src/platform/paths.mjs:289-294`，**不参与状态目录归一**，读写都留旧家）| 无替代（这就是目标平台）|
 | **能 spawn 一个真 node** | 工具链是 `.mjs`，要真 Node 跑：`tools/lib/nodebin.mjs` → `tools/lib/runtime.mjs` 的 `resolveRuntime` | **不能**用 Electron 主程序顶（会静默返回空输出 ✗）；找不到就报错，不猜 |
 | **可写的专用工作目录** | `<部署家>/<bot>/workspace`（`paths.mjs:111-113`：`workspace` / `workspace/diary` / `workspace/memo`）。本机＝`~/.xiaoyu-home/xiaoyu/workspace` | 别用用户主目录（会触发工作区权限问题 ✗）。部署家由 `CORTICO_HOME` + `CORTICO_BOT` 决定（`paths.mjs:65-82`）|
 | **隔壁有一个 Cortico 检出**（构建期）| `scripts/build-webui.mjs:24` 先找 `../Cortico-up/node_modules/esbuild`；本仓没有自己的 esbuild，根 `package.json` 没有任何依赖声明 | 目录名写死在 `:24`。换环境要么改这一行，要么给本仓装上 esbuild。**已登记待修** |
