@@ -19,15 +19,6 @@ import { makeCfg, makeFakeIO, makeFakePersona, makeLoaded, makeTmpDir } from './
 
 function buildHarness() {
   const tmp = makeTmpDir();
-  // 进程环境优先于端点 .env（另有测试覆盖）；本用例要验证 .env，故显式隔离并恢复。
-  const savedKey = process.env.DEEPSEEK_API_KEY;
-  delete process.env.DEEPSEEK_API_KEY;
-  const savedCleanup = tmp.cleanup;
-  tmp.cleanup = () => {
-    if (savedKey === undefined) delete process.env.DEEPSEEK_API_KEY;
-    else process.env.DEEPSEEK_API_KEY = savedKey;
-    savedCleanup();
-  };
   const config = makeCfg();
   config.worlds.qq.enabled = false;
   config.providers = {

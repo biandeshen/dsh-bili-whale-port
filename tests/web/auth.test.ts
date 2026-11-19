@@ -20,9 +20,6 @@ function call(port: number, opts: { method?: string; path: string; cookie?: stri
     const req = request({
       host: '127.0.0.1', port, path: opts.path, method: opts.method ?? 'GET',
       headers: {
-        ...(opts.method && opts.method !== 'GET' && opts.method !== 'HEAD'
-          ? { Origin: `http://127.0.0.1:${port}` }
-          : {}),
         ...(opts.cookie ? { Cookie: opts.cookie } : {}),
         ...(payload !== undefined ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) } : {}),
       },

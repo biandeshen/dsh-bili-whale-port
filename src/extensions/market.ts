@@ -33,16 +33,6 @@ const REPO_OWNER = 'Pal-AI-Lab';
 const REPO_NAME = 'cortico-extensions';
 /** 索引仓 main 上文件的 raw 地址前缀;没配索引源时读索引先问它,图标与截图也用它。 */
 const RAW_BASE = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main`;
-/**
- * 默认索引源候选,按顺序试。有些网络环境里 GitHub 域名的 TLS 会被本机加速器换成自签证书
- * (Node 报 UNABLE_TO_GET_ISSUER_CERT_LOCALLY),此时代理与额外 CA 都救不了 —— 换一个域名就通。
- * 只回落到结构相同的公开镜像,不放宽证书校验;`extensions.indexBase` 配了就以它为先。
- */
-export const INDEX_BASES = [
-  RAW_BASE,
-  `https://cdn.jsdelivr.net/gh/${REPO_OWNER}/${REPO_NAME}@main`,
-  `https://gh-proxy.com/${RAW_BASE}`,
-];
 const CONTENTS_API = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents`;
 /** 每个包一帖的讨论区分类;Announcement 格式,只有维护者(Action)能开帖。 */
 const DISCUSSION_CATEGORY = 'extensions';
@@ -214,14 +204,13 @@ export interface IndexFileOptions {
 }
 
 /**
- * 读索引仓 main 上的一个 JSON 文件。依次问每个索引源候选(`extensions.indexBase` 配了排最前),
- * 都不通再问 GitHub contents API。404 是文件不存在,回 null,不再往下问。全部失败时抛错,逐个写出主机与原因。
+ * 读索引仓 main 上的一个 JSON 文件。先问 `base`(raw 的 CDN 不限次数);连不上、超时、回非 2xx 或正文不是 JSON 时
+ * 改问 GitHub contents API。404 是文件不存在,回 null,不再往下问。两处都失败时抛错,依次写出每一处的主机与原因。
  */
 export async function fetchIndexFile(path: string, opts: IndexFileOptions = {}): Promise<unknown> {
   const fetchImpl = opts.fetch ?? fetch;
-  const bases = opts.base ? [opts.base, ...INDEX_BASES.filter((b) => b !== opts.base)] : INDEX_BASES;
   const sources = [
-    ...bases.map((base) => ({ url: `${base}/${path}`, headers: {}, timeoutMs: RAW_TIMEOUT_MS })),
+    { url: `${opts.base ?? RAW_BASE}/${path}`, headers: {}, timeoutMs: RAW_TIMEOUT_MS },
     {
       url: `${CONTENTS_API}/${path}?ref=main`,
       headers: { Accept: 'application/vnd.github.raw', 'User-Agent': 'Cortico', ...(opts.token ? { Authorization: `Bearer ${opts.token}` } : {}) },

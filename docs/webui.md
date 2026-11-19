@@ -9,14 +9,6 @@
 `web.allowedHosts` 里的名字作 Origin 时算本站,反向代理改写 Host 时靠它放行。监听 `0.0.0.0` 或 `::`
 时不校验 Host。监听非回环地址而没有设访问密码时,启动记一条 warn。
 
-改她人生的写接口还要多一道:非安全方法打到 `/api/config`、`/api/prompts*`、`/api/webui/*`（所有 World
-面板的 invoke 都走这条）、`/api/extensions/{install,uninstall,registry,check,index-base,vote}`、
-`/api/worlds/{activation,restart}` 时,**没有 `Origin` 头也拒**（403）。上一段那条闸门对"省掉 Origin"
-是放行的,而 curl / Node / Python 根本不发这个头——2026-11-01 01:23 本机一个盲 POST 就把
-`publish.draftMode` 从 review 改成了 auto。这一道拦的是"没看过页面的程序化盲写",不是认证:
-同机进程先 `GET /` 再带 Origin 发 POST 仍然通得过,真正的凭据闸在下一节的访问密码。
-运维控制 `/api/run/{resume,pause,shutdown,restart}` 不在此列——本机启动器与看门狗要能叫得动她。
-
 ## 访问密码
 
 `web.password` 或密钥 `CORTICO_WEB_PASSWORD`(进程环境或 `<部署>/.env`,非空时优先)为空时不要求登录。设了之后,
@@ -31,8 +23,6 @@ SameSite=Strict、Max-Age 取浏览器上限 400 天;请求经 HTTPS 或反向�
 
 WebUI 不终结 TLS。经公网使用时放在终结 HTTPS 的反向代理后面,否则密码与 Cookie 明文传输;登录请求从非回环对端
 经明文连接送来时记一条 warn。
-
-本机免口令端口上写接口的实际边界,与两条还没拍的加法,见 [WEBUI-AUTH-2026-11.md](WEBUI-AUTH-2026-11.md)。
 
 ## 页
 
@@ -120,7 +110,7 @@ bot 的展示名。面板、配置组与提示词文档由贡献方声明;
 | `GET /api/config`、`POST /api/config` | 配置组;POST 体 `{ group, values }`,按 schema 校验;`values` 里有组 schema 没声明的键时回 400、一项都不写，回执列出可写的键 |
 | `GET /api/config/options/:kind` | schema 里 `x-options` 为 `kind` 的配置项的当前候选值 |
 | `GET /api/blob?handle=` | 附件字节 |
-| `GET /api/worlds`、`POST /api/worlds/activation` | World 清单;激活或停用,体 `{ id, enabled }` |
+| `GET /api/worlds`、`POST /api/worlds/activation` | World 清单;运行中的 World 环境提示词渲染失败时仍是 `status: active`,`envPrompt` 为空,`envPromptError` 是原因,不影响其他条目。激活或停用,体 `{ id, enabled }` |
 | `POST /api/storage/clear?owner=&key=` | 清除一个存储部分;`owner` 与 `key` 取自各页 manifest 的 `storageParts`,Core 自己的对话历史是 `core` 的 `session`。省略 `owner` 时 `key` 须只有一个归属,有多个时回 409 |
 | `GET /api/theme`、`POST /api/theme` | 部署的配色;GET 回 `{ defaultScheme, theme }`,POST 体是 `StoredTheme`(`src/web/shared/theme.ts`),回 `{ ok, theme }` |
 | `GET /api/avatar`、`POST /api/avatar` | bot 头像 PNG,没有时 404;POST 体是 `image/png` 原始字节，不是 PNG 时回 400 |
@@ -153,6 +143,8 @@ WebUI 网页本身(页面、DOM、类名与 `src/web/client/` 下的模块)是�
 | `POST /api/run/resume` | 继续:积压一次性投递 |
 | `POST /api/run/shutdown` | 分步关机，完成后返回各步骤的结果 |
 | `POST /api/run/restart` | 写入 `data/.restart-request` 后关机；由启动器监管时（`CORTICO_SUPERVISED`）自动重新启动 |
+
+关机开始后,`/api/extensions/install` 与 `/api/extensions/uninstall` 回 503;关机步骤见 [deployment.md](deployment.md)「关机」。
 
 ## 诊断包
 

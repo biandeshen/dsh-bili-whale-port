@@ -143,7 +143,7 @@ describe('全系统集成(控制台对话链路)', () => {
 
     const file = await fetch(`http://127.0.0.1:${port}/api/webui/providers/memory%3Acorti-soulmate/panels/workspace/read`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Origin: `http://127.0.0.1:${port}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ args: ['CONSTITUTION.md'] }),
     });
     expect(file.status).toBe(200);
@@ -165,7 +165,7 @@ describe('全系统集成(控制台对话链路)', () => {
       `http://127.0.0.1:${port}/api/webui/providers/llm%3Aopenai-responses-compat/panels/settings/save`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Origin: `http://127.0.0.1:${port}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ args: [{ name: 'fixture', spec, pricing: [] }] }),
       },
     );
@@ -191,7 +191,7 @@ describe('全系统集成(控制台对话链路)', () => {
     type Groups = { groups: Array<{ group: { id: string; owner: string; schema: { properties: Record<string, unknown> } }; values: Record<string, unknown> }> };
     const cget = async () => (await (await fetch(`http://127.0.0.1:${port}/api/config`)).json()) as Groups;
     const cpost = (body: Record<string, unknown>) => fetch(`http://127.0.0.1:${port}/api/config`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', Origin: `http://127.0.0.1:${port}` }, body: JSON.stringify(body),
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     });
     const pcOf = async () => (await cget()).groups.find((x) => x.group.id === PERSONA_CONFIG_GROUP.id)!;
 

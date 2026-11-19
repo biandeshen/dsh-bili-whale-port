@@ -129,35 +129,6 @@ describe('写请求的同源闸门', () => {
     expect(paused).toBe(false);
   });
 
-  // 2026-11-01 01:23：本机一个不带 Origin 的盲 POST 把 publish.draftMode 从 review 改成 auto。
-  // 上面那些用例拦的是"别的站点的页面"，拦不住根本不发 Origin 头的 Node/curl —— 这一组拦的就是它。
-  it('改她配置的写接口：本机脚本没有 Origin 就吃 403', async () => {
-    for (const path of ['/api/config', '/api/webui/providers/x/panels/y/z', '/api/worlds/activation', '/api/extensions/install']) {
-      const r = await fetch(`http://127.0.0.1:${port}${path}`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: '{"publish":{"draftMode":"auto"},"id":"x","enabled":true,"name":"x","version":"1.0.0"}',
-      });
-      expect(r.status).toBe(403);
-      expect(String(((await r.json()) as { error?: unknown }).error)).toContain('浏览器');
-    }
-  });
-
-  it('同一批接口从同源浏览器进来不看 Origin 缺失这一道', async () => {
-    for (const path of ['/api/config', '/api/webui/providers/x/panels/y/z', '/api/worlds/activation']) {
-      const r = await post(path, { origin: `http://127.0.0.1:${port}`, 'content-type': 'application/json' });
-      expect(r.status).not.toBe(403);
-    }
-  });
-
-  it('运维控制（resume/pause/shutdown）不要求 Origin：本机启动器与看门狗还得叫得动她', async () => {
-    expect((await post('/api/run/resume')).status).toBe(200);
-    expect(paused).toBe(false);
-    expect((await post('/api/run/pause')).status).toBe(200);
-    expect(paused).toBe(true);
-    expect((await post('/api/run/resume')).status).toBe(200);
-  });
-
   it('路径选择同样受同源闸门保护，外站请求不会打开主机对话框', async () => {
     const same = await fetch(`http://127.0.0.1:${port}/api/path-picker`, {
       method: 'POST',

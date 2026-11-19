@@ -9,7 +9,6 @@ export const text: Partial<typeof en> = {
   effortWithoutThinking: '思維鏈關閉時不能帶推理強度',
   temperatureRange: 'temperature 必須在 0–2 之間',
   positiveInteger: (field: string) => `${field} 必須為正整數`,
-  modelOptionsStrings: 'modelOptions 必須是非空字串組成的陣列',
   contextWindowAboveOutput: (window: number, output: number) =>
     `contextWindow 必須大於 maxTokens(目前 ${window} ≤ ${output})`,
   optionsObject: '原生參數必須是物件',

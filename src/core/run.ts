@@ -2,8 +2,8 @@
  * 一次进程运行对应一个 run，运行日志保存在 data/runs/<run>/。
  * index.jsonl 在启动与正常关机时各追加一行；暂停沿用 run，重启创建新 run。
  */
-import { appendFileSync, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
-import { isAbsolute, join, resolve } from 'node:path';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { nowIso, readTextFile } from './util.ts';
 import { retryBusy } from './fs-busy.ts';
@@ -48,60 +48,24 @@ export function listRuns(dataDir: string): string[] {
   return readdirSync(dir).filter((name) => RUN_ID.test(name)).sort();
 }
 
-/**
- * 启动时记下"这一轮跑的是哪份代码"。
- *
- * 为什么之前一直是 null（2026-11-07 查到根因）：这里原先只认 `.git` 是**目录**的常规检出。
- * 而线上这台是 **linked worktree** —— `Cortico-up/.git` 是一个
- * `gitdir: E:/…/Cortico/.git/worktrees/Cortico-up` 指针文件，于是 `readTextFile(.git/HEAD)`
- * 每次抛错、被 catch 静吞，`runs/index.jsonl` 95 条 `gitSha` **100% 为 null**：
- * 任何一次故障都回溯不到当时跑的是哪份构建。家目录分叉能骗过只读评审，这是同一件事的另一半。
- *
- * 现在两种都认：`.git` 目录（常规）与 `gitdir:` 指针（worktree，HEAD 在指针指向的目录里）。
- * 仍然不联网、不起子进程，只读两个小文件；拿不到就照旧返回 null（不编一个看起来像的 sha）。
- */
-export function gitSha(repoRoot: string | undefined): string | null {
+function gitSha(repoRoot: string | undefined): string | null {
   if (!repoRoot) return null;
   try {
-    const dotGit = join(repoRoot, '.git');
-    let gitDir = dotGit;
-    if (statSyncSafe(dotGit)?.isFile()) {
-      // worktree / submodule：`.git` 是 `gitdir: <路径>` 指针，路径可能是相对的
-      const pointed = readTextFile(dotGit).trim().match(/^gitdir:\s*(.+)$/i)?.[1]?.trim();
-      if (!pointed) return null;
-      gitDir = isAbsolute(pointed) ? pointed : resolve(repoRoot, pointed);
-    }
-    const head = readTextFile(join(gitDir, 'HEAD')).trim();
-    if (!head.startsWith('ref:')) return head.slice(0, 12); // 游离 HEAD（detached）
+    const head = readTextFile(join(repoRoot, '.git', 'HEAD')).trim();
+    if (!head.startsWith('ref:')) return head.slice(0, 12);
     const ref = head.slice(4).trim();
-    // worktree 的分支通常存在**公共 gitdir** 里（loose 或 packed 两种都可能），
-    // 而不在 worktree 自己的目录下——上面那句 resolve(gitDir, ref) 因此常常落空。
-    // 刚才第一版修法就栽在这：只补了 packed-refs，实测仍返回 null。
-    const candidates = [gitDir, resolve(gitDir, '..'), resolve(gitDir, '..', '..')]
-    for (const dir of candidates) {
-      const loose = resolve(dir, ref)
-      if (existsSync(loose)) return readTextFile(loose).trim().slice(0, 12);
-      const packed = join(dir, 'packed-refs');
-      if (!existsSync(packed)) continue;
-      for (const line of readTextFile(packed).split('\n')) {
-        if (line.startsWith('#') || line.startsWith('^')) continue;
-        const [sha, name] = line.trim().split(' ');
-        if (name === ref && sha) return sha.slice(0, 12);
-      }
+    const refFile = resolve(repoRoot, '.git', ref);
+    if (existsSync(refFile)) return readTextFile(refFile).trim().slice(0, 12);
+    const packed = join(repoRoot, '.git', 'packed-refs');
+    if (!existsSync(packed)) return null;
+    for (const line of readTextFile(packed).split('\n')) {
+      const [sha, name] = line.trim().split(' ');
+      if (name === ref) return sha.slice(0, 12);
     }
   } catch {
-    // 不在 git 仓库里就不记；但**别再因为"是 worktree"而不记**
+    // 不在 git 仓库里就不记
   }
   return null;
-}
-
-/** stat 但不抛（`.git` 可能不存在或无权限）。 */
-function statSyncSafe(p: string) {
-  try {
-    return statSync(p);
-  } catch {
-    return null;
-  }
 }
 
 /** index.jsonl 按开机、关机的先后追加,最后一行属于最近一次 run。 */

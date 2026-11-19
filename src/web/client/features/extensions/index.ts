@@ -579,36 +579,6 @@ export function mountExtensionContent(ctx: FeatureContext, kind: Category, works
   };
   scrollRoot.addEventListener('scroll', save, { signal, passive: true }); lifecycle.add(save);
   for (const event of ['wheel', 'touchstart', 'pointerdown', 'keydown']) root.addEventListener(event, () => { restoringScroll = false; }, { signal, passive: true });
-  /**
-   * 为什么"已安装却没在工作"：四种状态各一句话。上游这版把状态收进了卡片与详情页，
-   * 但没说原因；主人当初问的就是这个（"为什么有的扩展是已安装未加载"）。
-   */
-  function stateReason(item: ExtensionView): string {
-    if (item.state === 'idle') return S.whyIdle;
-    if (item.state === 'failed') return S.whyFailed(item.reason ?? '');
-    if (item.state === 'pending-restart') return S.whyPendingRestart;
-    if (item.state === 'removed') return S.whyRemoved;
-    return '';
-  }
-
-  /**
-   * 就地开/关一个 World：写 `worlds.<id>.enabled` 并热挂载/热卸，不重启进程。
-   * 停用要按两次（她正在用的手脚，撤下去有代价）；启用一步就行。
-   */
-  async function activation(item: ExtensionView, want: boolean): Promise<void> {
-    const identity = item.name;
-    if (busy.has(identity) || !item.worldId) return;
-    const name = item.metadata?.displayName ?? item.label ?? identity;
-    busy.add(identity);
-    try {
-      await post('/api/worlds/activation', { id: item.worldId, enabled: want }, { signal });
-      if (signal.aborted) return;
-      message(kind, 'management', want ? S.activatedDone(name) : S.deactivatedDone(name));
-      if (!await load()) message(kind, 'management', S.syncedFailed, true);
-    } catch (error) {
-      if (!signal.aborted) message(kind, 'management', S.activationFailed(errorText(error)), true);
-    } finally { busy.delete(identity); if (!signal.aborted) renderInView(); }
-  }
   function message(owner: Category, area: string, text: string, bad = false) {
     states[owner].messages[area] = { text, bad };
     if (owner === kind && messageNodes[area]) { messageNodes[area].textContent = text; messageNodes[area].className = 'msgline' + (bad ? ' bad' : ''); }
@@ -1599,29 +1569,6 @@ export function mountExtensionContent(ctx: FeatureContext, kind: Category, works
           for (const text of data.problems ?? []) below.append(ui.h('p', 'extension-cta-problem', text));
           if (!osSupported(os)) below.append(ui.h('p', 'extension-cta-problem', S.osUnsupported(platformName(platform))));
         }
-      }
-      // World 的就地开关 + "为什么没在工作"（主人当初问的就是这两件）。
-      // 上游这版把状态收进了详情页，所以开关也放这里：看得见状态，才谈得上一键切换。
-      if (owner === 'world' && local && local.state !== 'removed' && local.worldId) {
-        const why = stateReason(local);
-        if (why) below.append(ui.h('p', 'extension-cta-problem extension-reason', why));
-        const label = local.metadata?.displayName ?? local.label ?? local.name;
-        const want = !local.enabled;
-        const blockedByBoot = local.state === 'failed' || local.state === 'pending-restart';
-        const toggle = ui.button(want ? S.activateAction : S.deactivateAction, { size: 'sm', ...(want ? { variant: 'primary' as const } : {}) });
-        toggle.title = blockedByBoot ? (why || S.notToggleable) : want ? S.activateTitle(local.worldId) : S.deactivateTitle(local.worldId);
-        toggle.setAttribute('aria-label', `${want ? S.activateAction : S.deactivateAction} · ${label}`);
-        toggle.disabled = busy.has(local.name) || blockedByBoot;
-        // 停用按两次：撤的是她正在用的手脚。
-        let armed = false;
-        toggle.addEventListener('click', () => {
-          if (!want && !armed) {
-            armed = true; toggle.classList.add('is-armed'); toggle.textContent = S.activateArm;
-            return;
-          }
-          void activation(local, want);
-        }, { signal });
-        below.append(toggle);
       }
       if (owner === 'bot' && local && local.state !== 'removed') below.append(ui.h('p', 'extension-create-help', S.createBody), ui.h('pre', '', 'pnpm start --new'));
       if (owner !== 'world' && local && local.state !== 'removed') {

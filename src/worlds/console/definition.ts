@@ -17,10 +17,6 @@ export const CONSOLE: WorldDefinition<ConsoleConfigSection> = {
         zh: '在 WebUI 控制台页上发一条消息,所有连着的人都能看到。',
         en: 'Posts a message on the WebUI Console page for everyone connected.',
       },
-      console_see_image: {
-        zh: '看控制台上发来的图片（回执带上图片内容，下一轮请求就能看到）。',
-        en: 'Looks at an image sent on the console; the next request carries its bytes.',
-      },
     }),
     events: [
       {

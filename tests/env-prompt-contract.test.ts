@@ -1,7 +1,8 @@
 /**
  * World 模板占位符、WebUI 变量声明与运行时取值保持一致。
  */
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -84,20 +85,9 @@ describe('环境提示词模板契约', () => {
 describe('bot 侧环境提示词覆盖文件', () => {
   it('随源码发布的覆盖模板只使用所属 World 声明的占位符', () => {
     const root = resolve(import.meta.dirname, '..');
-    const paths = (() => {
-      // 不依赖 git：直接扫描 bots/<bot>/worlds/<world>/ENV_PROMPT.md（tarball 解压也能跑）。
-      const botsDir = join(root, 'bots');
-      const out: string[] = [];
-      for (const bot of readdirSync(botsDir)) {
-        const worldsDir = join(botsDir, bot, 'worlds');
-        if (!existsSync(worldsDir)) continue;
-        for (const world of readdirSync(worldsDir)) {
-          const file = join(worldsDir, world, 'ENV_PROMPT.md');
-          if (existsSync(file)) out.push(join('bots', bot, 'worlds', world, 'ENV_PROMPT.md'));
-        }
-      }
-      return out;
-    })();
+    const paths = execFileSync('git', ['ls-files', '-z', '--', 'bots/*/worlds/*/ENV_PROMPT.md'], {
+      cwd: root, encoding: 'utf8',
+    }).split('\0').filter(Boolean);
     const worlds = new Map(MODULES.map((make) => { const mod = make(); return [mod.id, mod]; }));
     for (const path of paths) {
       const id = path.split('/')[3];

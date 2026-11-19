@@ -28,7 +28,6 @@ import type { SessionStats } from '../core/sessions.ts';
 import type { UsageAggregate, UsageBucketOption } from '../core/cost.ts';
 import type { UsageRateSource } from '../core/usage-rates.ts';
 import { estimateMessagesTokens, readTextFile } from '../core/util.ts';
-import { readTranscriptHistory, searchTranscript } from '../core/transcript.ts';
 import { blobScheme } from '../core/blobs.ts';
 import { coerceGroupValues } from '../core/config-schema.ts';
 import { isLanguage, languageTag, LocalizedError, systemLanguage, type Language } from '../core/language.ts';
@@ -38,7 +37,7 @@ import { AUTH_KEY_FILE, WebUiAuth, SESSION_COOKIE, SESSION_COOKIE_MAX_AGE_SEC, c
 import { buildDiagnostics, DIAGNOSTICS_TAIL, type DiagnosticsEndpoint } from './diagnostics.ts';
 import { WebUiAssets, WebUiPageRegistry, type WebUiPageSource } from './webui-pages.ts';
 import { THEME_FILE, readDeploymentTheme, writeDeploymentTheme } from './theme-store.ts';
-import { checkFrameworkRelease, readCurrentVersion } from './framework-release.ts';
+import { checkFrameworkRelease } from './framework-release.ts';
 import { THEME_SCRIPT_ID, type InjectedTheme, type StoredTheme } from './shared/theme.ts';
 import { EXTENSION_ASSET_PREFIX, extensionAssetSegment, type ExtensionWebUiAsset } from '../extensions/manifest.ts';
 import { PREVIOUS_CONTRACT_PANEL_ROUTE, previousContractPagesOnly } from '../extensions/previous-contract.ts';
@@ -114,6 +113,8 @@ export interface WorldInfo {
   prefixDrifted?: boolean;
   /** 人工撰写的环境提示词描述 */
   envPrompt: string;
+  /** Environment rendering failed; the World can still be running. */
+  envPromptError?: string;
   /** 相对persona/的工作区目录(如 worlds/<Worldid>) */
   workspace: string;
   /** World 工具名清单 */
@@ -805,16 +806,6 @@ function parseQueryArgs(raw: unknown, t: ReturnType<typeof serverText>): { args:
 const hasPort = (h: string): boolean => /:\d+$/.test(h);
 const barePort = (h: string): string => h.replace(/:\d+$/, '');
 const DEFAULT_PORTS: Record<string, string> = { 'http:': '80', 'https:': '443' };
-
-/**
- * 哪些写接口算"改她人生"：配置文件、系统提示词、面板放行/改档位、扩展装卸与开关、
- * World 激活/重启、WebUI 面板 invoke（`/api/webui/...` 是所有 World 面板写操作的路由）。
- * 这些一律要求浏览器同源请求；运维控制（run/*）不在里面。
- */
-const LIFE_CONFIG_WRITE = /^\/api\/(config|prompts(?:\/|$)|extensions\/(install|uninstall|registry|check|index-base|vote)|worlds\/(activation|restart)|webui\/)/;
-function isLifeConfigWrite(path: unknown): boolean {
-  return typeof path === 'string' && LIFE_CONFIG_WRITE.test(path);
-}
 
 /**
  * 按 Host 校验 Origin；缺失 Origin 时放行，null、非法或主机不匹配时拒绝。省掉的端口按 Origin 的协议补成默认端口再比:
@@ -1590,28 +1581,6 @@ export class WebApp {
       res.status(403).json({ error: serverText(this.languageOf(req)).crossSiteRejected });
     });
 
-    // 改她人生的写接口只认"浏览器发出的同源请求"。上一道闸对**没有 Origin 头**是放行的
-    // （isForeignOrigin 里 origin 缺失 = false），而 Node/curl/Python 根本不送 Origin——
-    // 2026-11-01 01:23 那次 `publish.draftMode` 被本机一个盲 POST 从 review 改成 auto，
-    // 走的就是这条缝。这一道把"无 Origin 的配置写"也拦掉。
-    // run/resume、run/shutdown、pause 这类运维控制不在拦截名单里：本机启动器与看门狗要能叫得动她。
-    app.use((req, res, next) => {
-      if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
-        next();
-        return;
-      }
-      if (!isLifeConfigWrite(req.path)) {
-        next();
-        return;
-      }
-      if (typeof req.headers.origin === 'string' && req.headers.origin !== '') {
-        next();
-        return;
-      }
-      this.deps.log.warn('拒绝没有 Origin 的配置写请求', { path: req.path, method: req.method });
-      res.status(403).json({ error: serverText(this.languageOf(req)).browserOnlyWrite });
-    });
-
     // Express 4 不接 handler 返回的 promise;async handler 的拒绝与同步异常一样记日志、回 500。
     const wrap = (h: (req: Request, res: Response) => void | Promise<void>) => (req: Request, res: Response) => {
       const fail = (err: unknown) => {
@@ -1685,14 +1654,8 @@ export class WebApp {
       res.json({ ...this.safeStatus(), uptimeSec: Math.round(process.uptime()) });
     }));
 
-    // 查更新是可选网络请求：GitHub 不通时只返回本地版本，别把离线变成 500 + ERROR 日志。
     app.get('/api/framework/release', wrap(async (_req, res) => {
-      try {
-        res.json(await checkFrameworkRelease());
-      } catch (err) {
-        this.deps.log.warn('查框架 Release 失败,跳过更新提示', { error: String(err) });
-        res.json({ currentVersion: await readCurrentVersion() });
-      }
+      res.json(await checkFrameworkRelease());
     }));
 
     app.get('/api/avatar', wrap((_req, res) => {
@@ -1834,32 +1797,6 @@ export class WebApp {
       const messages = src.messages(id);
       if (messages === null) { res.status(404).json({ error: t.noSession(id) }); return; }
       res.json({ id, messages, estTokens: estimateMessagesTokens(messages) });
-    }));
-
-    // 全量对话历史（#59）：当前 session 那一份在交接/清空时会被整体替换，控制台也就只能
-    // 看到"现在这一截"。真正一条不丢的是各 run 目录下的 transcript.jsonl（只追加、
-    // 从不剪枝），过去只有命令行 logq 能读。这条路由把它变成可翻页的接口：
-    // before=游标往回翻，records 按旧→新返回，前端可直接前插。只读，不碰任何写路径。
-    app.get('/api/session/history', wrap((req, res) => {
-      const before = typeof req.query.before === 'string' && req.query.before ? req.query.before : null;
-      const page = readTranscriptHistory(this.deps.dataDir, { before, limit: Number(req.query.limit ?? 120) });
-      res.json(page);
-    }));
-
-    // 检索同一份账本（#67）：分页回答"最近说了什么"，检索回答"某天/某句话在哪"。
-    // date 只按 run 目录名里的日期筛选（不看记录 ts），query 是不区分大小写的子串，
-    // role 用来只看她说的话或只看工具调用。只读，不改任何东西。
-    app.get('/api/session/history/search', wrap((req, res) => {
-      const one = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
-      const role = one(req.query.role);
-      const page = searchTranscript(this.deps.dataDir, {
-        date: one(req.query.date),
-        query: one(req.query.q),
-        role: role === 'user' || role === 'assistant' || role === 'tool' ? role : null,
-        before: one(req.query.before),
-        limit: Number(req.query.limit ?? 40),
-      });
-      res.json(page);
     }));
 
     app.get('/api/storage', wrap((req, res) => {
@@ -2011,9 +1948,6 @@ export class WebApp {
         this.deps.log.warn('World 激活状态已改', { id, enabled: body.enabled });
         res.json({ ok: true, result });
       } catch (err) {
-        // 失败的激活以前只在浏览器里闪一下 toast，服务端一个字都不留——事后查"为什么点不动"
-        // 无从查起。原因（通常是缺一项配置）记进日志，页面那边也把这句话留在卡片上。
-        this.deps.log.warn('World 激活失败', { id, enabled: body.enabled, error: String(err) });
         res.status(400).json({ error: this.errorText(err, req) });
       }
     }));
@@ -2170,7 +2104,7 @@ export class WebApp {
       } catch (err) {
         const error = this.errorText(err, req);
         this.deps.log.error('扩展安装失败', { target, error });
-        res.status(400).json({ error });
+        res.status(err instanceof LocalizedError ? err.status : 400).json({ error });
       }
     }));
 
@@ -2187,7 +2121,7 @@ export class WebApp {
       } catch (err) {
         const error = this.errorText(err, req);
         this.deps.log.error('扩展卸载失败', { name, error });
-        res.status(400).json({ error });
+        res.status(err instanceof LocalizedError ? err.status : 400).json({ error });
       }
     }));
 

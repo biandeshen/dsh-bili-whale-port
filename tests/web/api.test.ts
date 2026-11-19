@@ -335,7 +335,7 @@ describe('/api/prompts 与 session 前缀重载', () => {
 
     const saved = await fetch(base() + '/api/prompts', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Origin: base() },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ key: 'orientation', content: '新定向' }),
     });
     expect(saved.status).toBe(200);
@@ -343,7 +343,7 @@ describe('/api/prompts 与 session 前缀重载', () => {
 
     const bad = await fetch(base() + '/api/prompts', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Origin: base() },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ key: 'missing', content: 'x' }),
     });
     expect(bad.status).toBe(400);
