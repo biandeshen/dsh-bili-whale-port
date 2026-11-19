@@ -28,6 +28,7 @@ import { createMemoryCapability } from '../../../capabilities/cap-memory/src/ind
 import { GitWorkspaceMemory } from '../../../capabilities/cap-memory/src/workspace.ts'
 import { createJournalCapability } from '../../../capabilities/cap-journal/src/index.ts'
 import { createVisionCapability, type OfflineOptions } from '../../../capabilities/cap-vision/src/index.ts'
+import { createHistoryCapability } from '../../../capabilities/cap-history/src/index.ts'
 
 export interface XiaoyuBotHubOptions {
   homeDir: string
@@ -120,12 +121,23 @@ export function createXiaoyuBotHub(opts: XiaoyuBotHubOptions): XiaoyuBotHub {
     ...(opts.vision?.analyze ? { analyze: opts.vision.analyze } : {}),
     ...(opts.vision?.ffmpegPath ? { ffmpegPath: opts.vision.ffmpegPath } : {}),
   })
+  /**
+   * 对话历史与检索：读 `<home>/data/runs/<run>/transcript.jsonl`（只读）。
+   *
+   * 这块原本写在宿主的 core 里（#59/#67 的 228 行 + 一个前端页），
+   * 2026-11-20 迁出来成能力包——功能不该住在别人的代码里。
+   * 它只认 dataDir，换任何底座只要告诉她数据在哪。
+   */
+  const historyCap = createHistoryCapability({
+    dataDir: path.join(opts.homeDir, 'data'),
+  })
 
   const capabilities: readonly XiaoyuCapability<any>[] = [
     stateRhythmCap,
     memoryCap,
     journalCap,
     visionCap,
+    historyCap,
   ]
 
   for (const cap of capabilities) {

@@ -1,0 +1,16 @@
+{
+  "name": "@xiaoyu/cap-history",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "对话历史与检索（只读）：分页往回翻、按日期/关键词/角色找。100% 宿主无关，只吃 dataDir。",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "cortico": {},
+  "files": [
+    "dist",
+    "src"
+  ]
+}

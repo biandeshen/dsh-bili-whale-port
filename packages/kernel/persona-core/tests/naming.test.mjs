@@ -46,9 +46,28 @@ test('改一处称呼，独白 / 禁称表 / 日记抬头一起跟着走', (t) =
 })
 
 test('活动文案里留的是占位符，不是又硬编码一个名字', () => {
-  const texts = pickActivities(DEFAULT_ATOMIC_FIELDS, { now: Date.now(), rng: () => 0.5, k: 7 })
-  assert.ok(texts.every((x) => !x.label.includes('鱼片') && !x.description.includes('鱼片')),
-    '不许再把称呼写死在活动表里')
+  /**
+   * 2026-11-20 修正测法：原来断言"渲染结果不含鱼片"，可默认称呼本来就是「鱼片」，
+   * `{{owner}}` 正确替换之后结果里必然有它——这条断言把"没硬编码"错测成了
+   * "默认称呼不许出现"，永远是红的或永远被跳过。
+   *
+   * 真正要守的是**源头**：模板里有 `{{owner}}` 占位符，且换一个名字之后
+   * 同一句会跟着变。所以：
+   *   ① 换名前后拿到同一条模板 → 文案里出现的是新名字（说明走的是占位符）；
+   *   ② 换名前后的两条 description 必须不同（说明它真的读了称呼，不是写死的）。
+   */
+  const before = pickActivities(DEFAULT_ATOMIC_FIELDS, { now: Date.now(), rng: () => 0.5, k: 7 })
+  setOwnerName('阿鱼')
+  const after = pickActivities(DEFAULT_ATOMIC_FIELDS, { now: Date.now(), rng: () => 0.5, k: 7 })
+  setOwnerName('鱼片')
+
+  const socialBefore = before.find((x) => x.type === 'social')
+  const socialAfter = after.find((x) => x.type === 'social')
+  assert.ok(socialBefore && socialAfter, 'social 类活动要在前 7 条里')
+  assert.notEqual(socialBefore.description, socialAfter.description,
+    '换个称呼文案要跟着变——一样就说明名字是写死的')
+  assert.match(socialAfter.description, /阿鱼/, '换名后该出现新称呼')
+  assert.doesNotMatch(socialAfter.description, /鱼片/, '换名后旧称呼不该还留在同一句里')
 })
 
 test('边界：空值/纯空白/超长都不许把名字清空', () => {
