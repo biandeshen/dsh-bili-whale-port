@@ -9,18 +9,19 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { DSH_HOME as WHALE_HOME, dayEvidencePaths } from '../tools/lib/paths.mjs'
 import { composeDraft } from './draft-dynamic.mjs'
-import { hostImport } from './lib/host-root.mjs'
+/**
+ * 2026-11-19（#88）改回本仓那份：`@xiaoyu/persona-core` 已统一到
+ * `packages/persona-core`，宿主树里那份副本删掉了（它是严格子集，且 `rhythm.ts`
+ * 停在 B14 之前的旧常量）。反事实必须用**和线上同一份**人格函数，否则算出来的差异
+ * 不是"人格带来的"，是"两份代码不一样带来的"。
+ */
+const { buildVoiceBrief } = await import('../packages/persona-core/src/voice-brief.ts')
 
 const argv = process.argv.slice(2)
 const arg = (k, d) => { const i = argv.indexOf('--' + k); return i >= 0 ? argv[i + 1] : d }
 const asJson = argv.includes('--json')
 const DAY_BOUNDARY_HOUR = 0 // 2026-10-31 主人拍板：自然日
 const logicalDay = (now = Date.now()) => new Date(now - DAY_BOUNDARY_HOUR * 3600_000).toLocaleDateString('sv-SE')
-
-// 跨仓加载：宿主检出由 scripts/lib/host-root.mjs 一处解析（CORTICO_ROOT / 本仓 .env），
-// 所以这里只能按绝对路径 import，不能写成 '@xiaoyu/persona-core/...' —— 包名会绑死到本仓的
-// node_modules 解析结果，换一份检出就加载到错的代码。这是有意的例外，不是没做完。
-const { buildVoiceBrief } = await import(hostImport('persona-core/src/voice-brief.ts'))
 
 function readJson(file) { try { return JSON.parse(fs.readFileSync(file, 'utf8')) } catch { return null } }
 function readText(file) { try { return fs.readFileSync(file, 'utf8') } catch { return null } }

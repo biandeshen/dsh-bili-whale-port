@@ -5,6 +5,7 @@
  * 选择由场值打分 + 抖动决定候选，最终由模型挑——代码不替她决定。
  */
 import type { AtomicFields } from './types.ts'
+import { ownerName } from './naming.ts'
 
 export type ActivityType = 'rest' | 'explore' | 'create' | 'social' | 'reflect' | 'exercise' | 'consume'
 
@@ -99,7 +100,8 @@ function scoreActivity(type: ActivityType, f: AtomicFields): number {
 function describe(type: ActivityType, now: number): string {
   const list = TEMPLATES[type]
   const hours = Math.floor(now / 3600_000)
-  return list[((hours % list.length) + list.length) % list.length]
+  // 占位符在这里就换掉：文案一路走到她的唤醒提示词，漏一个 {{owner}} 她就读到字面量。
+  return list[((hours % list.length) + list.length) % list.length].split('{{owner}}').join(ownerName())
 }
 
 /**

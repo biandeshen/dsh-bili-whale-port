@@ -16,6 +16,9 @@ import { contextStageConfigGroup, XIAOYU_CONTEXT_DEFAULTS } from './context-conf
 import { tickConfigGroup, XIAOYU_TICK_DEFAULTS } from './tick-config.ts'
 import { memoryConfigGroup, XIAOYU_MEMORY_DEFAULTS } from './memory-config.ts'
 import { reflectionConfigGroup, XIAOYU_REFLECTION_DEFAULTS } from './reflection-config.ts'
+// 称呼的旧共享配置兜底（只读，不迁移不改写）。转接头之间互相认识是合法的，
+// 能力包本身仍然宿主无关。
+import { readLegacyIdentity } from '../../cortico-world-bilibili/src/legacy-identity.ts'
 
 export const XIAOYU_MEMORY_NAME = 'MEMORY.md'
 
@@ -58,6 +61,8 @@ export function createXiaoyuBotDefinition(homeDir: string) {
       memory: { ...XIAOYU_MEMORY_DEFAULTS },
       // 睡前的反思：**默认关**（要花模型钱，主人显式打开才开）。
       reflection: { ...XIAOYU_REFLECTION_DEFAULTS },
+      // 称呼：留空 = 沿用旧共享配置的 displayName，都没有就用内核默认「鱼片」。
+      identity: { ownerName: '' },
     }),
     build(loaded: { config: Record<string, unknown>; memoryDir: string; rootDir?: string }) {
       // 部署目录才是她的家（数据、记忆、日记都在里面）；拿不到时才退回包默认家。
@@ -73,6 +78,8 @@ export function createXiaoyuBotDefinition(homeDir: string) {
       const memCfg = (loaded.config?.memory ?? {}) as Partial<typeof XIAOYU_MEMORY_DEFAULTS>
       // 睡前反思配置：**默认关**（要花模型钱，主人显式打开才开）。
       const refCfg = (loaded.config?.reflection ?? {}) as Partial<typeof XIAOYU_REFLECTION_DEFAULTS>
+      // 称呼：现读，主人在「心跳与作息」那组改完下一句就跟着走。
+      const identCfg = () => (loaded.config?.identity ?? {}) as { ownerName?: string }
       const context = () => ({
         maxTokens: Number(ctxCfg.maxTokens) > 0 ? Number(ctxCfg.maxTokens) : XIAOYU_CONTEXT_DEFAULTS.maxTokens,
         softRatio: Number(ctxCfg.softRatio) > 0 ? Number(ctxCfg.softRatio) : XIAOYU_CONTEXT_DEFAULTS.softRatio,
@@ -83,6 +90,9 @@ export function createXiaoyuBotDefinition(homeDir: string) {
         homeDir: home,
         rounds: { soft: 6, hard: 12 },
         context,
+        // 称呼现读：新配置 `identity.ownerName` 优先，没配就桥接旧共享配置的 displayName。
+        // 空值交给内核兜底（沿用「鱼片」），不在这里另编一个名字。
+        ownerName: () => String(identCfg().ownerName ?? readLegacyIdentity().ownerName ?? ''),
         // 记忆分层配置现读：WebUI 改完立刻生效，不用重启。
         memoryConfig: () => ({
           residentCap: Number(memCfg.residentCap) > 0 ? Number(memCfg.residentCap) : XIAOYU_MEMORY_DEFAULTS.residentCap,

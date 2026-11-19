@@ -167,6 +167,19 @@ export interface BilibiliCapabilityOptions {
   listenNow?: () => number
   /** 关掉自动起跑（测试与"主人先装配、点一下才开听"的场景）。 */
   listenAutoStart?: boolean
+  /**
+   * 近 7 天看片史（只读注入）。她 10-30 / 10-31 在私人日记里立的两条规矩要靠它：
+   * 「近 7 天看过的不再深读」「同一个 UP 第 N 条不深读」。
+   *
+   * 为什么是注入而不是本包自己算：看片史是她的记忆账（cap-state-rhythm / cap-memory），
+   * 本包不反向依赖它们。没传就只标时长与屏蔽词，回执里也不出现 `recentWatch`。
+   *
+   * **声明位置是这里，不是 `BilibiliReadHandlers`**（2026-11-19 #88 纠）：原来写在那边，
+   * 但 `bili_feed` 的消费点是 `opts.recentWatch`——`readHandlers.feed` 一旦存在就直接返回，
+   * 根本走不到标注段。写在 ReadHandlers 上等于"声明了但没有任何代码会读",
+   * 而本仓没有 typecheck（无 tsconfig），这层错一直没被拦下来。
+   */
+  recentWatch?: () => { bvs: string[]; ups: string[]; upCounts?: Record<string, number> }
 }
 
 /**
@@ -593,6 +606,11 @@ export function createBilibiliCapability(
             // 命中统计：这一条真的被规则拦下了，就记一笔（审计 §2.6 缺失项——
             // 以前只有 CLI 打印"dislike 拦下 N 条"，面板看不到规则有没有生效）
             const hits: Array<{ kind: 'dislike' | 'tooShort'; word: string; title: string }> = []
+            // 看片史（近 7 天看过 / 同 UP 第几条）：读不到就只标偏好，不因此报错。
+            let recent: { bvs: string[]; ups: string[]; upCounts?: Record<string, number> } | null = null
+            try { recent = opts.recentWatch?.() ?? null } catch { recent = null }
+            const seen = new Set(recent?.bvs ?? [])
+            const upCounts = recent?.upCounts ?? {}
             for (const it of r.items) {
               const marks: string[] = []
               if (min > 0 && it.durationSec > 0 && it.durationSec < min) {
@@ -604,11 +622,18 @@ export function createBilibiliCapability(
                 marks.push('命中屏蔽词')
                 hits.push({ kind: 'dislike', word: hitWord, title: it.title })
               }
+              if (seen.has(it.bvid)) marks.push('近 7 天看过')
+              const n = it.up ? Number(upCounts[it.up] ?? 0) : 0
+              if (n > 0) marks.push(`同UP第${n + 1}条：不深读`)
               if (marks.length) it.title = `${it.title}  [${marks.join('；')}]`
             }
             const hitStats = store.recordFeedScan(hits, r.items.length)
             // 源死活必须留在回执里（f-340915）：她要能分清"我不喜欢"和"池子被环境砍了"
-            return { ok: true, source: r.source, prefs, items: r.items, hits: hitStats, ...(r.sourceFails?.length ? { sourceFails: r.sourceFails } : {}) }
+            return {
+              ok: true, source: r.source, prefs, items: r.items, hits: hitStats,
+              ...(recent ? { recentWatch: { seenCount: seen.size, ups: recent.ups.slice(0, 3) } } : {}),
+              ...(r.sourceFails?.length ? { sourceFails: r.sourceFails } : {}),
+            }
           },
         },
         {

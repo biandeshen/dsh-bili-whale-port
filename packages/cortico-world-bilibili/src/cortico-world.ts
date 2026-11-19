@@ -15,6 +15,8 @@ import {
 } from '../../cortico-adapter/src/index.ts'
 import { createBilibiliCapability, type BilibiliCapabilityOptions, type BilibiliReadHandlers } from '../../cap-bilibili/src/index.ts'
 import { listJudgments } from '../../cap-journal/src/judgments-feedback.ts'
+import { loadState } from '../../cap-state-rhythm/src/state-store.ts'
+import { watchedFromMemories } from '../../persona-core/src/retrieval.ts'
 import { fileURLToPath } from 'node:url'
 
 /**
@@ -55,6 +57,12 @@ export interface BiliWorldOptions extends BilibiliCapabilityOptions {
    * 由这里把 `listJudgments` 适配成 tokens 供给 `bili_seek.fromJudgment`。
    */
   judgmentFile?: string
+  /**
+   * 她的状态账（`<botDir>/data/persona/fields.json`）。给了就把近 7 天看片史
+   * 接进 `bili_feed`：她 10-30 / 10-31 立的「看过的不再深读」「同 UP 第 N 条不深读」
+   * 才算得到也送得到。转接头层认识 state-rhythm 合法，能力包本身不反向依赖。
+   */
+  fieldsFile?: string
 }
 
 export function createBiliWorld(opts: BiliWorldOptions) {
@@ -77,6 +85,9 @@ export function createBiliWorld(opts: BiliWorldOptions) {
   const cap = createBilibiliCapability({
     ...opts,
     ...(keptJudgmentTokens ? { readHandlers: { ...(opts.readHandlers ?? {}), keptJudgmentTokens } } : {}),
+    ...(opts.fieldsFile && !opts.recentWatch
+      ? { recentWatch: () => watchedFromMemories(loadState(opts.fieldsFile!).memories, Date.now(), 7) }
+      : {}),
   })
 
   const world = {

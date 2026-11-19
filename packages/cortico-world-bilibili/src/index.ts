@@ -28,6 +28,11 @@ export function createBiliWorldAdapter(opts: BiliWorldAdapterOptions) {
   const w = createBiliWorld({
     ...opts,
     dataDir,
+    // 与宿主那条装配（definition.create）取同一份路径：凭据文件、判断卡、看片史。
+    // 显式传了的以调用方为准（测试可覆盖）；没传才用默认，而不是干脆不给。
+    ...Object.fromEntries(
+      Object.entries(botPaths(opts.homeDir)).filter(([k]) => (opts as Record<string, unknown>)[k] === undefined),
+    ),
   })
   const cap = w.capability
   const check = validateCapabilityContract(cap)
@@ -92,6 +97,29 @@ function defaultHomeDir(): string {
   return path.join(homedir(), '.xiaoyu-home')
 }
 
+/**
+ * 她那个家下面与本包相关的路径。**两个装配入口（宿主 `definition.create` 与宿主无关的
+ * `createBiliWorldAdapter`）都从这里取**，不许各拼一套。
+ *
+ * 为什么抽出来（2026-11-19 #88 对账发现的洞）：原来只有 `definition.create` 给了
+ * `credentialsFile` / `fieldsFile`，`createBiliWorldAdapter` 一个都没给。于是同一个 World：
+ *   · 走宿主（线上那条）= 凭据读得到、看片史标得上；
+ *   · 走 adapter（测试、或别的底座）= 凭据永远空、看片史永远不标，
+ *     而且**不报错**——写动作只会在被前置条件拒之后才让人发现。
+ * 两份路径拼法是"同一件事两个真相"的典型：改一处、漏一处，症状是"测试绿的、线上是坏的"或反过来。
+ */
+function botPaths(botDir: string) {
+  const data = path.join(botDir, 'data')
+  return {
+    /** 凭据：与 liveCredentials 的 env 优先规则同一条链，文件只是兜底。 */
+    credentialsFile: path.join(botDir, '.env'),
+    /** 她的判断卡（f-aa12d0 ③）：与 bot 转接头那份同一处账。 */
+    judgmentFile: path.join(data, 'persona', 'judgment.jsonl'),
+    /** 看片史（近 7 天看过 / 同 UP 第几条）：与 bot 转接头同一份状态账。 */
+    fieldsFile: path.join(data, 'persona', 'fields.json'),
+  }
+}
+
 /** 凭据缺失时不要让整个 World 装不起来：拿不到就返回空串（写动作会被前置条件拒）。 */
 function safeSecret(ctx: { secret?: (n: string) => string }, name: string): string {
   try {
@@ -129,12 +157,9 @@ const definition = {
       homeDir: botDir,
       // 宿主给的是部署级 data/（多个扩展共用）；本包在自己的子目录里，不跟别人抢文件。
       dataDir: path.join(ctx.dataDir ?? path.join(botDir, 'data'), 'bilibili'),
-      credentialsFile: path.join(botDir, '.env'),
+      ...botPaths(botDir),
       assetsDir: path.join(botDir, 'data', 'media', 'assets'),
       bgmDir: path.join(botDir, 'data', 'media', 'bgm'),
-      // 她的判断卡（f-aa12d0 ③）：bili_seek.fromJudgment 按「收」过的 tokens 定向捞。
-      // 路径与 bot 转接头那份 judgmentFile 同一处账（<botDir>/data/persona/judgment.jsonl）。
-      judgmentFile: path.join(botDir, 'data', 'persona', 'judgment.jsonl'),
       ...(ownerMid ? { ownerMid } : {}),
       ...(selfMidHint ? { selfMidHint } : {}),
       // 监听开关**现读**：worlds.bili-account.listen.* 改了下一拍就生效

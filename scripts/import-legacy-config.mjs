@@ -80,7 +80,7 @@ if (!oldCfg) {
   const oldIdentity = {
     ownerMid: String(oldCfg.owner?.mid ?? '').trim(),
     selfMid: String(oldCfg.self?.mid ?? '').trim(),
-    ownerName: String(oldCfg.owner?.displayName ?? oldCfg.owner?.name ?? '').trim(),
+    ownerName: String(oldCfg.owner?.displayName ?? '').trim(),
     selfName: String(oldCfg.self?.name ?? '').trim(),
   }
   const curIdent = bili.identity ?? {}

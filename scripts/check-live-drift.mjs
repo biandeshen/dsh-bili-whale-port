@@ -90,7 +90,17 @@ function checkPersonaCore() {
     ok('宿主 persona-core 不存在', '只有一份，链路唯一')
     return
   }
-  // 宿主那份是否被我们的链引用（相对路径 import 到宿主树）——没有就是另一条链
+  /**
+   * 宿主那份是否被我们的链**真的 import**（不是注释里提了一嘴）。
+   *
+   * 2026-11-19 修：原来只做 `text.includes('Cortico-up')`，于是
+   * `cortico-bot-xiaoyu/src/session-rotation.ts:19` 在那段「上游类型里没有 createSession」
+   * 的说明注释里写了 `Cortico-up/src/core/types.ts:530` 这个出处，就被判成
+   * "我们的链引了宿主树" → 走"必须逐字对齐"分支 → 天天报一条节奏常量假警，
+   * 而那条常量差异按设计就该存在（宿主副本已删，见 #88）。
+   * 判据改成**只认 `from '…'` / `import('…')` 里出现宿主路径**的行。
+   */
+  const IMPORT_HOST_RE = /(?:\bfrom\s*|\bimport\s*\(\s*)['"][^'"]*Cortico-up[^'"]*['"]/
   let linked = false
   const pkgDir = path.join(REPO, 'packages')
   for (const name of fs.readdirSync(pkgDir)) {
@@ -99,12 +109,30 @@ function checkPersonaCore() {
     for (const f of fs.readdirSync(srcDir)) {
       if (!f.endsWith('.ts')) continue
       const text = fs.readFileSync(path.join(srcDir, f), 'utf8')
-      if (text.includes('Cortico-up') || text.includes('../Cortico-up')) { linked = true; break }
+      if (IMPORT_HOST_RE.test(text)) { linked = true; break }
     }
     if (linked) break
   }
   if (!linked) {
-    ok('线上跑的是仓库那份 persona-core', `packages/persona-core（宿主那份是另一条链，当前不参与她的行为）`)
+    /**
+     * 防二次分叉（#88，2026-11-19）。
+     *
+     * 唯一一份 `@xiaoyu/persona-core` 在 `packages/persona-core`。宿主那份已于 2026-11-19 删除
+     * （处置表：`docs/evidence/host-persona-core-disposition.md`）——它当时是严格子集，
+     * 且 `rhythm.ts` 停在 B14 之前的旧常量，`scripts/check-live-drift.mjs` 实测抓到过
+     * `ACTION_COST_ENERGY 0.05 vs 0.015`、`3–7 分钟 vs 30–90 秒`。
+     *
+     * 所以这里默认**判失败**：宿主树里再冒出一份 `persona-core/` 就是又长出了第二个真相，
+     * 而这一轮修掉的正是不知不觉改错份。确实需要保留时，用
+     * `CORTICO_ALLOW_HOST_PERSONA_CORE=1` 显式放行（默认拒绝、显式开关），
+     * 并在处置表里写明理由与同步方式。
+     */
+    if (process.env.CORTICO_ALLOW_HOST_PERSONA_CORE === '1') {
+      warn('宿主有一份 persona-core（已显式放行）', `${theirs}｜放行者须保证它与 packages/persona-core 逐字同步，否则先删`)
+    } else {
+      bad('宿主又出现一份 persona-core（第二份真相）',
+        `${theirs}｜唯一一份应在 packages/persona-core；删掉它，或设 CORTICO_ALLOW_HOST_PERSONA_CORE=1 显式放行并记录理由`)
+    }
     // 补一条当日预算余额的提醒：**改预算代码不会重置当日余额**。
     // 2026-11-06 实锤：budget.ts 08:57 就改成不限了，但 12:47 重启后 energy 仍冻结在
     // 0.807——当时 fields.json 里的 budget.spent['action|energy'] 当天已花满 0.2，

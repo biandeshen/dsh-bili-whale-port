@@ -327,7 +327,7 @@ export class MemoryCardStore {
       tier: targetTier,
       voided: false,
       voidedAt: undefined,
-      voidReason: undefined,
+      // 作废理由留着不擦：恢复之后仍要能看到"当初为什么作废"，否则复盘就断了。
       pinned: targetTier === 'core',
     }
     this.writeCardAtomic(restored)

@@ -1,12 +1,12 @@
 {
-  "frozenAt": "2026-11-12T16:07:37.232Z",
+  "frozenAt": "2026-11-19T02:46:16.554Z",
   "firstFrozenAt": "2026-11-06T04:32:02.354Z",
   "files": {
     "scripts/check-hashes.mjs": "74f0f4ca15f485b7e385616eff7c31e7a913156d6979920eb8462cc255fc6466",
     "scripts/day-report.mjs": "a74ac7fe9c78333f8525208cc4cf490920ffc37eaf08d55953cd05e581827701",
     "scripts/day-snapshot.mjs": "6daf4e09d067a9b4d84f276c350959fe7dac4509a57e879558b3a978e843a9c3",
     "scripts/day-watchdog.mjs": "3a60c51be493a13638ea44358e399eb3670052ac0a1e7119d5f8a0aeeaaff5c7",
-    "scripts/counterfactual.mjs": "c5d7aa322563ce9d621819f89d54e43f51c542e41e3347f972bebdea5bcfbed4",
+    "scripts/counterfactual.mjs": "141508c234768d62e9cc182bd43203c24d4880014685806787d90129fab1e4e8",
     "scripts/run-mjs-tests.mjs": "55f766a3dae6ab2174e713ef5cfb9f90cdaa482e0c206188364fcdbe66bc5b53",
     "scripts/check-consumers.mjs": "ecdc7315ac240cbaff9ec11a793fc5f32d4f4c817b88e1f76d675bbef8718c73",
     "scripts/check-cortico-paths.mjs": "fd4d6b0be516cb88a38c3b9d5b85391fe058119a9d235330de84fe5fbcae8185",
@@ -104,6 +104,13 @@
       "from": null,
       "to": "5681684f523410a9f67d406cc9d2ce0103c2da987f515ecbdcee949e9f2c991f",
       "reason": "B-1 退役批（2026-11-12 删 79 文件，13 日收尾）：把 scripts/check-script-paths.mjs 加进冻结名单——它是唯一拦「脚本又指回已消失文件」的判据，被悄悄加豁免就等于整批退役作废；check-hashes.mjs 自身因加这一行而变哈希。删除依据＝四层引用表 docs/evidence/legacy-refs-2026-11-12.md（删除集 57 个树内文件零 T1/T2a）。其余 14 份判据文件本批未改。"
+    },
+    {
+      "at": "2026-11-19T02:46:16.554Z",
+      "file": "scripts/counterfactual.mjs",
+      "from": "c5d7aa322563ce9d621819f89d54e43f51c542e41e3347f972bebdea5bcfbed4",
+      "to": "141508c234768d62e9cc182bd43203c24d4880014685806787d90129fab1e4e8",
+      "reason": "2026-11-19 #88：宿主 persona-core 副本删除，counterfactual 的 buildVoiceBrief 改读本仓 packages/persona-core（同一份人格函数，反事实才有效）"
     }
   ]
 }

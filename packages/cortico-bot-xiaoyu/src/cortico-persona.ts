@@ -22,6 +22,7 @@ import { readCostToday } from '../../cap-state-rhythm/src/cost-today.ts'
 import { STALL_STEP_MAX, stallScheduleMs, stallNotice } from './stall-backoff.ts'
 import { readStallState, writeStallState, clearStallState } from './stall-state.ts'
 import { isAsleep } from '../../cap-state-rhythm/src/life-stages.ts'
+import { setOwnerName } from '../../persona-core/src/naming.ts'
 import { LifeHeartbeat, quietLine } from '../../cap-state-rhythm/src/life-heartbeat.ts'
 import { XIAOYU_CONTEXT_DEFAULTS, type ContextStagePolicy } from './context-config.ts'
 import { DREAM_SESSION_ID, type DreamReflectionConfig } from '../../cap-state-rhythm/src/dream-reflection.ts'
@@ -96,6 +97,13 @@ export interface XiaoYuPersonaOptions extends XiaoyuBotHubOptions {
    * 由 BotDefinition 从部署配置 `reflection` 段传进来。
    */
   reflection?: () => Partial<DreamReflectionConfig>
+  /**
+   * 她怎么称呼主人（现读）。不给就沿用内核默认「鱼片」。
+   *
+   * 为什么要有这个口：称呼散在独白 / 禁称表 / 日记抬头 / 活动文案四处，
+   * 都从 `persona-core/naming` 取；名字只有装配时交给内核一次，那四处才跟着走。
+   */
+  ownerName?: () => string
 }
 
 export class XiaoYuPersona implements CorticoPersonaShape {
@@ -113,6 +121,8 @@ export class XiaoYuPersona implements CorticoPersonaShape {
   private readonly memoryConfig?: () => { residentCap?: number; activeCap?: number; archiveThreshold?: number }
   /** 睡前反思配置（现读）：默认关，每天最多一次，轮数硬上限 */
   private readonly reflectionConfig?: () => Partial<DreamReflectionConfig>
+  /** 称呼（现读）：每次要用到她的话之前对齐一次内核，主人在面板改完下一句就跟着走 */
+  private readonly ownerNameFn?: () => string
   /** 已经就上下文压力提醒过主人；交接后清零 */
   private pressureWarned = false
 
@@ -132,6 +142,8 @@ export class XiaoYuPersona implements CorticoPersonaShape {
     this.contextPolicy = opts.context ?? ((): ContextStagePolicy => XIAOYU_CONTEXT_DEFAULTS)
     this.memoryConfig = opts.memoryConfig
     this.reflectionConfig = opts.reflection
+    this.ownerNameFn = opts.ownerName
+    this.syncOwnerName()
     // blobs 走 workspace 的 mem: 句柄（与框架 Memory 同一套后端）
     this.blobs = {
       put: (nameHint, bytes, mime) => this.hub.blobs.put(nameHint, bytes, mime),
@@ -236,6 +248,7 @@ export class XiaoYuPersona implements CorticoPersonaShape {
    * 现在 gap/cap/tired/content 四种不动各有各的说法，账面上看得见。
    */
   private rhythmLine(tick: any): string {
+    this.syncOwnerName()
     if (!tick) return '这一拍没人找她——她可以自己决定做点什么（看一条、记一笔、或者就待着），'
       + '但做过的事必须对得上账：没做的不写，写了的要有凭据。'
     const since = Number(tick.lastActionAt ?? 0) > 0
@@ -309,6 +322,15 @@ export class XiaoYuPersona implements CorticoPersonaShape {
   /** 框架在 declareSessions 之前把 CoreApi 交过来；这里留作能力包注入 CoreApi 的通道。 */
   attach(core: unknown): void {
     this.core = core
+  }
+
+  /**
+   * 把配置里的称呼对齐进内核。空值不清名（`setOwnerName` 自己守着），
+   * 所以主人把这栏清空 = 回到默认「鱼片」，不会变成空白称呼。
+   */
+  private syncOwnerName(): void {
+    if (!this.ownerNameFn) return
+    try { setOwnerName(this.ownerNameFn()) } catch { /* 读不到配置就沿用当前称呼 */ }
   }
 
   /** 读她账上的作息（反思要算"睡了多久"）。读不到就当作没睡过。 */
@@ -487,6 +509,7 @@ export class XiaoYuPersona implements CorticoPersonaShape {
 
   /** 汇总三个对内能力包的系统前缀：场值与心情 + 核心记忆 + 意见箱主人批复。 */
   async systemSegments(ctx: { now: Date; timezone: string; worlds: unknown[] }): Promise<Array<{ title: string; text: string; sourceKey?: string }>> {
+    this.syncOwnerName()
     // 人格正本在最前：CONSTITUTION（她是谁+铁律+记忆观）→ ORIENTATION（这一轮怎么做）。
     // 部署 prompts/ 覆盖优先（主人微调不进代码包）；包内 persona/ 是正本。
     const blocks: Array<{ title: string; text: string; sourceKey?: string }> = []
@@ -531,6 +554,7 @@ export class XiaoYuPersona implements CorticoPersonaShape {
    * 单个能力包抛错不拖垮整批：逐包 try/catch。
    */
   async onDelivery(ctx: { now?: Date; timezone?: string; events: ReadonlyArray<{ type: string; source: string; text?: string; atMs?: number; meta?: Record<string, unknown> }> }): Promise<void> {
+    this.syncOwnerName()
     /**
      * 有外部事件到达 = 她被人叫过：重置"安静时长"的起点。
      *

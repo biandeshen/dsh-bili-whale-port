@@ -15,8 +15,12 @@ import { whaleHome } from '../tools/lib/paths.mjs'
 import { hostImport } from './lib/host-root.mjs'
 
 const { loadState, describeState, recentWatch } = await import(hostImport('src/worlds/bili-account/personaAdapter.ts'))
-const { buildVoiceBrief } = await import(hostImport('persona-core/src/voice-brief.ts'))
-const { dayKey } = await import(hostImport('persona-core/src/rhythm.ts'))
+/**
+ * 2026-11-19（#88）：persona-core 改读本仓那份。宿主树里那份副本已删，而且它是严格子集、
+ * 节奏常量停在 B14 之前——预览要复现的是**线上**的她，不是另一份代码里的她。
+ */
+const { buildVoiceBrief } = await import('../packages/persona-core/src/voice-brief.ts')
+const { dayKey } = await import('../packages/persona-core/src/rhythm.ts')
 
 const state = loadState(path.join(whaleHome, 'bili-whale', 'fields.json'))
 const diary = (() => { try { return fs.readFileSync(path.join(whaleHome, 'whale-diary.md'), 'utf8') } catch { return '' } })()

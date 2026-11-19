@@ -46,8 +46,10 @@ export function readLegacyIdentity(): LegacyIdentity {
     return {
       ...(ownerMid ? { ownerMid } : {}),
       ...(selfMid ? { selfMid } : {}),
-      ...(String(j?.owner?.displayName ?? j?.owner?.name ?? '').trim()
-        ? { ownerName: String(j.owner.displayName ?? j.owner.name) } : {}),
+      // 只认 displayName：owner.name 是角色标签（线上就是「主人」），
+      // 当昵称会让她管主人叫"主人"，禁称表也就白设了。
+      ...(String(j?.owner?.displayName ?? '').trim()
+        ? { ownerName: String(j.owner.displayName).trim() } : {}),
       ...(String(j?.self?.name ?? '').trim() ? { selfName: String(j.self.name) } : {}),
       source: f,
     }

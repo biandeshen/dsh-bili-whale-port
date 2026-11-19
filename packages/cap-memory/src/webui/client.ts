@@ -158,7 +158,9 @@ export const memoryCenterPanel = {
       })
       const meta = ui.h('div')
       meta.style.margin = '6px 0'
-      meta.textContent = `标签：${(card0.tags ?? []).join('、') || '（无）'}　${card0.voidReason ? `作废理由：${card0.voidReason}` : ''}`
+      // 恢复过的卡也留着当初的作废理由，但要说清是"曾作废"——否则看起来像还在作废中。
+      const why = card0.voidReason ? `${card0.voided ? '作废' : '曾作废'}理由：${card0.voidReason}` : ''
+      meta.textContent = `标签：${(card0.tags ?? []).join('、') || '（无）'}　${why}`
       const acts = ui.actions()
 
       const content = ui.textarea({ value: card0.content ?? '', rows: 3 })

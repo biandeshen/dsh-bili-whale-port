@@ -126,11 +126,16 @@ test('路径里有空格/中文/~ 也读得到 .env（percent-encode 回归）',
   fs.rmSync(base, { recursive: true, force: true })
 })
 
-test('真仓当前配置解析得出来，且指向的检出里真有 persona-core', () => {
+test('真仓当前配置解析得出来，且指向的检出是真宿主（唯一一份 persona-core 在本仓）', () => {
   const r = spawnSync(process.execPath, ['--input-type=module', '-e',
     `const m = await import(${JSON.stringify('file:///' + LIB.replace(/\\/g, '/'))});console.log(m.hostRoot())`],
     { encoding: 'utf8', timeout: 30000 })
   assert.equal(r.status, 0, r.stderr)
   const host = r.stdout.trim()
-  assert.ok(fs.existsSync(path.join(host, 'persona-core', 'src', 'rhythm.ts')), `${host} 里没有 persona-core`)
+  // 用宿主自己一定有的入口当锚，而不是 persona-core——那份 2026-11-19 已删（#88），
+  // 唯一一份在 packages/persona-core。拿已删的东西当"宿主是真的"的凭据，
+  // 就会把"代码搬走了"误报成"宿主指错了"。
+  assert.ok(fs.existsSync(path.join(host, 'src', 'core', 'loop.ts')), `${host} 不像是宿主检出（缺 src/core/loop.ts）`)
+  assert.equal(fs.existsSync(path.join(host, 'persona-core')), false,
+    `${host} 里又出现了一份 persona-core —— 第二份真相，见 docs/evidence/host-persona-core-disposition.md`)
 })

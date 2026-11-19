@@ -100,6 +100,16 @@ export function tickConfigGroup(id: string): XiaoyuTickConfigGroup {
             + '不动的那一拍不投递、不花模型调用。\n'
             + '0 = 关掉这一拍：她只在有人戳她或来消息时才醒——那她就退回成聊天窗口了。',
         },
+        'identity.ownerName': {
+          type: 'string',
+          title: '她怎么称呼你',
+          maxLength: 24,
+          'x-hot': true,
+          description:
+            '她的独白、日记抬头、冷战时的禁称表、日常活动文案都从这里取名字（只有一处来源）。\n'
+            + '留空 = 沿用旧共享配置里的 owner.displayName；都没有就叫「鱼片」。\n'
+            + '改完下一句话就跟着走，不用重启。',
+        },
       },
     },
   }
