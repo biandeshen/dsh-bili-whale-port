@@ -1,0 +1,242 @@
+{
+  "at": "2026-11-06T13:32:55.354Z",
+  "root": "E:\\WorkSpace_Qoder\\Cortico-up",
+  "gitSha": "a7c5319c020a90e0123d922a64f2213f48de41f7",
+  "node": "v24.16.0",
+  "exit": 0,
+  "discovered": 28,
+  "executed": 28,
+  "counts": {
+    "tests": 229,
+    "pass": 229,
+    "fail": 0
+  },
+  "mismatch": false,
+  "notRun": [],
+  "files": [
+    {
+      "file": "persona-core\\tests\\adapter.test.mjs",
+      "exit": 0,
+      "tests": 12,
+      "pass": 12,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "persona-core\\tests\\budget.test.mjs",
+      "exit": 0,
+      "tests": 6,
+      "pass": 6,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "persona-core\\tests\\conversation-assessment.test.mjs",
+      "exit": 0,
+      "tests": 9,
+      "pass": 9,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "persona-core\\tests\\core.test.mjs",
+      "exit": 0,
+      "tests": 23,
+      "pass": 23,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "persona-core\\tests\\emotion.test.mjs",
+      "exit": 0,
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "persona-core\\tests\\life-activities.test.mjs",
+      "exit": 0,
+      "tests": 5,
+      "pass": 5,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "persona-core\\tests\\retrieval.test.mjs",
+      "exit": 0,
+      "tests": 9,
+      "pass": 9,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "persona-core\\tests\\rhythm.test.mjs",
+      "exit": 0,
+      "tests": 11,
+      "pass": 11,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "persona-core\\tests\\voice-brief.test.mjs",
+      "exit": 0,
+      "tests": 11,
+      "pass": 11,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\approval-reason.test.mjs",
+      "exit": 0,
+      "tests": 5,
+      "pass": 5,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\capabilities.test.mjs",
+      "exit": 0,
+      "tests": 11,
+      "pass": 11,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\causal-ledger.test.mjs",
+      "exit": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\core.test.mjs",
+      "exit": 0,
+      "tests": 18,
+      "pass": 18,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\diary-page.test.mjs",
+      "exit": 0,
+      "tests": 13,
+      "pass": 13,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\dm-reply.test.mjs",
+      "exit": 0,
+      "tests": 7,
+      "pass": 7,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\dm.test.mjs",
+      "exit": 0,
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\draft-rework.test.mjs",
+      "exit": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\env-prompt.test.mjs",
+      "exit": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\feed-hygiene.test.mjs",
+      "exit": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\life-stages.test.mjs",
+      "exit": 0,
+      "tests": 6,
+      "pass": 6,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\memory-recall.test.mjs",
+      "exit": 0,
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\memory-void.test.mjs",
+      "exit": 0,
+      "tests": 7,
+      "pass": 7,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\naming.test.mjs",
+      "exit": 0,
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\session-history.test.mjs",
+      "exit": 0,
+      "tests": 8,
+      "pass": 8,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\settings-write.test.mjs",
+      "exit": 0,
+      "tests": 9,
+      "pass": 9,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\task-queue.test.mjs",
+      "exit": 0,
+      "tests": 6,
+      "pass": 6,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\watch-verdict.test.mjs",
+      "exit": 0,
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\webui-tank.test.mjs",
+      "exit": 0,
+      "tests": 21,
+      "pass": 21,
+      "fail": 0,
+      "ran": true
+    }
+  ]
+}
