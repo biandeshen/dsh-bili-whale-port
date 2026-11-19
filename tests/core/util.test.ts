@@ -61,22 +61,13 @@ describe('readTextFile', () => {
     }
     // 允许直读的两类：
     //   ① 追加型日志（event-store、context-log）：按字节偏移截断或分段读，不走整份文本；
-    //   ② World 侧的状态文件（bili-account 的若干份）：World 不依赖 core 的 util，
-    //      给了它 readTextFile 反而把 Core 的内部工具变成 World 的依赖（边界反了）。
-    // 第二类是现状而非理想；真要收，办法是给 World 一个宿主级文件接口，
-    // 那是解耦方案 C 的事，不该在这条测试里假装已经做完。
+    //   ② （已消失）World 侧的状态文件曾在此列，那是 legacy/bili-account-retired 里的事，
+    //      2026-11-19 整套退役；新 World 在 dsh-bili-whale，不在这棵树的扫描范围里。
     // 名单随文件拆分而增长是预期内的：拆出去的文件仍在同一层边界里，规则不变。
     expect(offenders.sort()).toEqual([
       'src/core/event-store.ts',
       'src/core/transcript.ts',
       'src/protocol/open-responses/context-log.ts',
-      'legacy/bili-account-retired/causal-io.ts',
-      'legacy/bili-account-retired/definition.ts',
-      'legacy/bili-account-retired/paths.ts',
-      'legacy/bili-account-retired/personaAdapter.ts',
-      'legacy/bili-account-retired/prompts.ts',
-      'legacy/bili-account-retired/tank.ts',
-      'legacy/bili-account-retired/task-queue.ts',
     ]);
   });
 });
