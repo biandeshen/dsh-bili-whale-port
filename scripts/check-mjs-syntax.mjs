@@ -15,8 +15,14 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-/** 构建产物与依赖目录不进扫描。 */
-const SKIP = new Set(['node_modules', 'dist', '.git', '.qoder'])
+/**
+ * 构建产物与依赖目录不进扫描。
+ *
+ * `host`：2026-11-19 起宿主 Cortico 以 subtree 收编到 `host/cortico/`（#89）。
+ * 那是**别人的代码**，语法/门禁由宿主自己那套管；本仓扫它只会在宿主升级时集体报错，
+ * 把本仓自己的一处真错误淹没。
+ */
+const SKIP = new Set(['node_modules', 'dist', '.git', '.qoder', 'host'])
 
 /**
  * 每条都是一个正则 + 一句"为什么会错"。

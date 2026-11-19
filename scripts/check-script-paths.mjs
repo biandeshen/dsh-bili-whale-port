@@ -42,7 +42,8 @@ const REPO = path.resolve(arg('root', path.resolve(path.dirname(fileURLToPath(im
 const asJson = process.argv.includes('--json')
 
 const SCAN_DIRS = ['scripts', 'tools', 'tests', 'packages', 'adapters', 'core', 'panel', 'vendor']
-const SKIP = new Set(['node_modules', '.git', 'dist', 'dist-web', 'coverage', '.pnpm-store', 'data', 'days', 'runtime', 'local-resources', 'deployments', '.spike-home', 'spark-output', 'docs', 'attic'])
+// `host`：宿主 Cortico 收编目录（#89），它自己的脚本路径规矩由宿主那套管。
+const SKIP = new Set(['node_modules', '.git', 'dist', 'dist-web', 'coverage', '.pnpm-store', 'data', 'days', 'runtime', 'local-resources', 'deployments', '.spike-home', 'spark-output', 'docs', 'attic', 'host'])
 const EXT = /\.(mjs|cjs|js|ts|tsx|cmd|vbs)$/i
 const REPO_DIRS = ['scripts', 'tools', 'tests', 'packages', 'adapters', 'core', 'panel', 'vendor', 'docs', 'assets']
 const PATH_EXT = '(?:mjs|cjs|js|ts|tsx|json|html|css|cmd|vbs|yml|yaml|md|png|jpg|txt)'

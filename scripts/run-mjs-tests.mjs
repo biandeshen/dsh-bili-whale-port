@@ -28,7 +28,16 @@ const arg = (k, d) => { const i = argv.indexOf('--' + k); return i >= 0 ? argv[i
 const root = path.resolve(arg('root', process.cwd()))
 const loader = arg('import', '') // 例如 tsx
 const reportAt = arg('report', '')
-const SKIP = new Set(['node_modules', '.git', 'dist', 'dist-web', '.spike-home', 'deployments', 'runtime', 'local-resources'])
+/**
+ * 扫测试时整棵跳过的目录。
+ *
+ * `host`：2026-11-19 起宿主 Cortico 以 `git subtree` 收编到 `host/cortico/`（#89）。
+ * 它自带 371 个 `.test.mjs`，那些测的是宿主自己的 core/world，**不是本仓的运行时**；
+ * 混进来跑会有两个坏处：① "发现数=执行数"这条自证被稀释成一千多个文件；
+ * ② 宿主测试要 `--import tsx`，本仓没有那个依赖，全批会红成一片，真正的回归反而看不见。
+ * 宿主测试有它自己的入口（`host/cortico` 里 npm test），由 #91 的门禁单独管。
+ */
+const SKIP = new Set(['node_modules', '.git', 'dist', 'dist-web', '.spike-home', 'deployments', 'runtime', 'local-resources', 'host'])
 
 /**
  * 报告落点。给一个以分隔符结尾的路径（或已存在的目录）时，按当天日期自动命名——

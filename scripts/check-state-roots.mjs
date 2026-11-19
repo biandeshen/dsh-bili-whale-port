@@ -42,7 +42,8 @@ function walk(dir, out = []) {
   let entries
   try { entries = fs.readdirSync(dir, { withFileTypes: true }) } catch { return out }
   for (const e of entries) {
-    if (e.name === 'node_modules' || e.name === '.git') continue
+    // `host`：宿主 Cortico 收编目录（#89），它的状态落点不由本仓这张表管。
+    if (e.name === 'node_modules' || e.name === '.git' || e.name === 'host') continue
     const abs = path.join(dir, e.name)
     if (e.isDirectory()) walk(abs, out)
     else if (/\.(mjs|js)$/.test(e.name) && !/\.test\./.test(e.name)) out.push(abs)

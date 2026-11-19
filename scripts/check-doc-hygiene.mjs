@@ -136,7 +136,8 @@ function readPoints(name) {
   const walk = (dir) => {
     if (!fs.existsSync(dir)) return
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (['node_modules', '.git', 'dist', 'data', 'attic'].includes(e.name)) continue
+      // `host`：宿主 Cortico 收编目录（#89），它有自己那 19 篇文档与卫生规矩。
+      if (['node_modules', '.git', 'dist', 'data', 'attic', 'host'].includes(e.name)) continue
       const p = path.join(dir, e.name)
       if (e.isDirectory()) walk(p)
       else if (/\.(ts|tsx|mjs|js)$/.test(e.name)) {

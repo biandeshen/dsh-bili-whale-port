@@ -24,7 +24,8 @@ const TARGETS = [
   { symbol: 'readMood', home: CORTICO },
 ]
 
-const SKIP_DIR = new Set(['node_modules', '.git', 'dist', 'dist-web', '.spike-home', 'deployments', 'runtime', 'local-resources', 'docs', 'days'])
+// `host`：宿主 Cortico 收编目录（#89），它的消费关系由宿主自己的门禁管。
+const SKIP_DIR = new Set(['node_modules', '.git', 'dist', 'dist-web', '.spike-home', 'deployments', 'runtime', 'local-resources', 'docs', 'days', 'host'])
 const isTest = (p) => /(^|[\\/])tests?([\\/])/.test(p) || /\.test\.[cm]?[jt]s$/.test(p)
 
 function walk(dir, out = []) {
