@@ -57,10 +57,14 @@ check-state-roots      1   ← 与收编无关：本机 ~/.dsh 与 ~/.bili-ai �
 
 1. **宿主自身的测试没跑过**：`host/cortico/node_modules` 不存在（subtree 只搬跟踪文件），
    本机 `tsx`/`vitest` 目录也是空的。要在收编后验证宿主侧，需先 `pnpm install`。
-2. **`host/cortico/package.json` 没有任何 workspace 关系**：它还是宿主那份，
-   里面的 `extensions/*` 依赖仍写作 `link:E:/WorkSpace_Qoder/dsh-bili-whale/packages/...`（绝对路径）。
-   改成相对路径属于 #90（分层重组）的范围。
+2. ~~`extensions/*` 的 `link:E:/...` 绝对路径要改相对~~
+   **这条是错的，撤回**（2026-11-19 复核）：宿主 `.gitignore:36` 写的是 `/extensions/`，
+   整个目录**不进版本控制**——那是每台机器部署时生成的产物。所以 subtree 里本来就没有它，
+   也没有"要改的绝对路径"。上一轮我是在独立工作树里看到未跟踪文件，误记成了仓库内容。
 3. **宿主 `legacy/bili-account-retired/` 仍 import `@xiaoyu/persona-core`**，现在那条 import
-   在本仓树里解析不到。宿主 `typecheck` 会报——随 #90 改指向时一并处理。
+   在本仓树里解析不到。宿主 `typecheck` 会报。
+   **但它今天也不通**：`@xiaoyu/persona-core` 已从宿主 `package.json` / `pnpm-workspace.yaml` 删除，
+   连 `node_modules` 里的 symlink 都没了。处置方式只有两种——要么把 legacy 整个退役，
+   要么给它一条显式指向 `packages/kernel/persona-core` 的路径。**待主人拍板，不在本轮擅自动别人仓的历史资产。**
 4. 本仓根 `pnpm-workspace.yaml` 还没把 `host/cortico` 纳入（也不该纳入：它是 subtree 的镜像，
-   有自己的依赖树）。这条要在 #90 决定"宿主是自己装依赖还是被本仓管"时再定。
+   有自己的依赖树）。

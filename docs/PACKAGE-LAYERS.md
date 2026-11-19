@@ -68,7 +68,8 @@ node scripts/run-mjs-tests.mjs             # 167 文件 / 957 用例
 
 - **没建独立 npm 包**。所有包名（`@xiaoyu/persona-core` 等）不变，包的 `package.json`
   仍靠 workspace glob 解析；没拆成可发布的独立包，也没改 `exports` 之外的元数据。
-- **`host/cortico` 未并入本 workspace**（它有自己的依赖树）。宿主 `extensions/*` 里
-  `link:E:/...` 的绝对路径仍是绝对路径，改成相对路径属 #91 剩余项。
+- **`host/cortico` 未并入本 workspace**（它有自己的依赖树）。
+  （2026-11-19 更正：宿主 `extensions/` 整个目录在 `.gitignore` 里，是每台机器的部署产物，
+  不在 subtree 里，也没有"要改的绝对路径"——上一版这里写错了。）
 - **没有 typecheck**。本仓仍无 tsconfig / tsc；分层契约是运行期字符串扫描，
   能抓跨层 import，抓不到"类型对不上"。
