@@ -30,11 +30,12 @@ const ROOT = path.resolve(argAt >= 0 ? argv[argAt + 1] : (process.env.CORTICO_PA
 const json = argv.includes('--json')
 
 const SCAN_DIRS = ['scripts', 'tools', 'tests', 'packages', 'adapters', 'core', 'panel']
-// `host`：宿主 Cortico 收编目录（#89）。它里面本来就有一堆指向自己的绝对/相对路径，
-// 扫它等于要求第三方的路径写法符合我们本仓的规矩——那不是它的义务。
+// 注意：**不扫 host/**（宿主的规矩由宿主自己管）。这里不是靠 SKIP 名单实现的——
+// SCAN_DIRS 是固定白名单，`host` 本来就不在里面。2026-11-19 #89 收编时实测过：
+// 往 SKIP 里加 'host' 是空操作（这行原来加过，删掉了），别再加回来当"我以为我防住了"。
 const SKIP_DIR = new Set([
   'node_modules', '.git', 'dist', 'dist-web', '.spike-home', 'deployments', 'runtime',
-  'local-resources', 'docs', 'days', 'spark-output', 'data', 'coverage', '.pnpm-store', 'host',
+  'local-resources', 'docs', 'days', 'spark-output', 'data', 'coverage', '.pnpm-store',
 ])
 const EXT = /\.(mjs|cjs|js|ts|tsx|cmd|vbs|json)$/i
 const MAX_BYTES = 2 * 1024 * 1024 // 锁文件/产物清单这类大 JSON 不是人写的路径来源

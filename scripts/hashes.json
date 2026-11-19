@@ -1,5 +1,5 @@
 {
-  "frozenAt": "2026-11-19T02:46:16.554Z",
+  "frozenAt": "2026-11-19T03:36:30.022Z",
   "firstFrozenAt": "2026-11-06T04:32:02.354Z",
   "files": {
     "scripts/check-hashes.mjs": "74f0f4ca15f485b7e385616eff7c31e7a913156d6979920eb8462cc255fc6466",
@@ -7,10 +7,10 @@
     "scripts/day-snapshot.mjs": "6daf4e09d067a9b4d84f276c350959fe7dac4509a57e879558b3a978e843a9c3",
     "scripts/day-watchdog.mjs": "3a60c51be493a13638ea44358e399eb3670052ac0a1e7119d5f8a0aeeaaff5c7",
     "scripts/counterfactual.mjs": "141508c234768d62e9cc182bd43203c24d4880014685806787d90129fab1e4e8",
-    "scripts/run-mjs-tests.mjs": "55f766a3dae6ab2174e713ef5cfb9f90cdaa482e0c206188364fcdbe66bc5b53",
-    "scripts/check-consumers.mjs": "ecdc7315ac240cbaff9ec11a793fc5f32d4f4c817b88e1f76d675bbef8718c73",
-    "scripts/check-cortico-paths.mjs": "fd4d6b0be516cb88a38c3b9d5b85391fe058119a9d235330de84fe5fbcae8185",
-    "scripts/check-script-paths.mjs": "5681684f523410a9f67d406cc9d2ce0103c2da987f515ecbdcee949e9f2c991f",
+    "scripts/run-mjs-tests.mjs": "a9edb41542decdde92f9d9b71d554546085453b8e5b9176b92b193ce53600a5c",
+    "scripts/check-consumers.mjs": "54a589788d573e42c0f5a0416955de2e17aab31c8d1b7408e52a00930e6e0e43",
+    "scripts/check-cortico-paths.mjs": "af3a95c4546a6f98c44c504fab735b9cf5fef9d51bed40b6f3251db17268562a",
+    "scripts/check-script-paths.mjs": "fcae2ddddfa8434b98c4c4d16464743c989ac5f02cc8e97c79cad17369891b94",
     "scripts/lib/host-root.mjs": "e4702ccadc60641e250da4a50db064efb26662ad3be59ffa1a9b7ca754e1d626",
     "scripts/g3b-check.mjs": "a89df7331ecf687693e4b9e849254b7277921acb378946abd1c3a9b353df33d6",
     "scripts/observation-start.mjs": "6502a58661ae637b153eb1bd764417f11bdd3787ce43b1fe7e8dd81a67949f3c",
@@ -111,6 +111,34 @@
       "from": "c5d7aa322563ce9d621819f89d54e43f51c542e41e3347f972bebdea5bcfbed4",
       "to": "141508c234768d62e9cc182bd43203c24d4880014685806787d90129fab1e4e8",
       "reason": "2026-11-19 #88：宿主 persona-core 副本删除，counterfactual 的 buildVoiceBrief 改读本仓 packages/persona-core（同一份人格函数，反事实才有效）"
+    },
+    {
+      "at": "2026-11-19T03:36:30.022Z",
+      "file": "scripts/run-mjs-tests.mjs",
+      "from": "55f766a3dae6ab2174e713ef5cfb9f90cdaa482e0c206188364fcdbe66bc5b53",
+      "to": "a9edb41542decdde92f9d9b71d554546085453b8e5b9176b92b193ce53600a5c",
+      "reason": "2026-11-19 #89：宿主 Cortico 收编到 host/，run-mjs-tests/check-consumers/check-cortico-paths/check-script-paths 四门禁加 host 跳过（实测前两者为必需、后两者为固定白名单外的空操作已回退，最终仍改了两处）"
+    },
+    {
+      "at": "2026-11-19T03:36:30.022Z",
+      "file": "scripts/check-consumers.mjs",
+      "from": "ecdc7315ac240cbaff9ec11a793fc5f32d4f4c817b88e1f76d675bbef8718c73",
+      "to": "54a589788d573e42c0f5a0416955de2e17aab31c8d1b7408e52a00930e6e0e43",
+      "reason": "2026-11-19 #89：宿主 Cortico 收编到 host/，run-mjs-tests/check-consumers/check-cortico-paths/check-script-paths 四门禁加 host 跳过（实测前两者为必需、后两者为固定白名单外的空操作已回退，最终仍改了两处）"
+    },
+    {
+      "at": "2026-11-19T03:36:30.022Z",
+      "file": "scripts/check-cortico-paths.mjs",
+      "from": "fd4d6b0be516cb88a38c3b9d5b85391fe058119a9d235330de84fe5fbcae8185",
+      "to": "af3a95c4546a6f98c44c504fab735b9cf5fef9d51bed40b6f3251db17268562a",
+      "reason": "2026-11-19 #89：宿主 Cortico 收编到 host/，run-mjs-tests/check-consumers/check-cortico-paths/check-script-paths 四门禁加 host 跳过（实测前两者为必需、后两者为固定白名单外的空操作已回退，最终仍改了两处）"
+    },
+    {
+      "at": "2026-11-19T03:36:30.022Z",
+      "file": "scripts/check-script-paths.mjs",
+      "from": "5681684f523410a9f67d406cc9d2ce0103c2da987f515ecbdcee949e9f2c991f",
+      "to": "fcae2ddddfa8434b98c4c4d16464743c989ac5f02cc8e97c79cad17369891b94",
+      "reason": "2026-11-19 #89：宿主 Cortico 收编到 host/，run-mjs-tests/check-consumers/check-cortico-paths/check-script-paths 四门禁加 host 跳过（实测前两者为必需、后两者为固定白名单外的空操作已回退，最终仍改了两处）"
     }
   ]
 }

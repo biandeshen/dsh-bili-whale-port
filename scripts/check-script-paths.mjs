@@ -42,8 +42,9 @@ const REPO = path.resolve(arg('root', path.resolve(path.dirname(fileURLToPath(im
 const asJson = process.argv.includes('--json')
 
 const SCAN_DIRS = ['scripts', 'tools', 'tests', 'packages', 'adapters', 'core', 'panel', 'vendor']
-// `host`：宿主 Cortico 收编目录（#89），它自己的脚本路径规矩由宿主那套管。
-const SKIP = new Set(['node_modules', '.git', 'dist', 'dist-web', 'coverage', '.pnpm-store', 'data', 'days', 'runtime', 'local-resources', 'deployments', '.spike-home', 'spark-output', 'docs', 'attic', 'host'])
+// 同样**不扫 host/**：宿主脚本那一套路径规矩不是本仓的义务。靠 SCAN_DIRS 白名单实现，
+// 不靠 SKIP——2026-11-19 #89 实测过，往 SKIP 里加 'host' 是空操作（原来加过，删了）。
+const SKIP = new Set(['node_modules', '.git', 'dist', 'dist-web', 'coverage', '.pnpm-store', 'data', 'days', 'runtime', 'local-resources', 'deployments', '.spike-home', 'spark-output', 'docs', 'attic'])
 const EXT = /\.(mjs|cjs|js|ts|tsx|cmd|vbs)$/i
 const REPO_DIRS = ['scripts', 'tools', 'tests', 'packages', 'adapters', 'core', 'panel', 'vendor', 'docs', 'assets']
 const PATH_EXT = '(?:mjs|cjs|js|ts|tsx|json|html|css|cmd|vbs|yml|yaml|md|png|jpg|txt)'
