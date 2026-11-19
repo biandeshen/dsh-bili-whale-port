@@ -122,18 +122,38 @@ Tests       1 failed | 5206 passed | 3 skipped (5210)
 （永假，实际不会执行），门禁仍判 OK。也就是说它能抓"名字彻底消失"，
 抓不到"调用被短路/注释掉但名字还在"。要补得改成 AST 级判断，那是独立一项工作。
 
-## 八、仍未处理（要主人拍板的部署侧问题）
+## 八、扩展链接已修（2026-11-19，主人同意后执行）
 
-部署目录 `~/.xiaoyu-home/xiaoyu/extensions/package.json` 里三条 `link:` 仍指向搬迁前的旧路径：
+**先更正一处我写错的话**：这份 `extensions/package.json` **不在**
+`~/.xiaoyu-home/xiaoyu/`（那里根本没有 `extensions/` 目录），
+而在 **`Cortico-up/extensions/`** ——宿主检出的本地工作区。
+宿主 `.gitignore:36` 是 `/extensions/`，所以它既不进 Git、也不进 subtree，
+属于"每台机器自己生成"的部署产物。之前把它说成"线上配置"不准确。
+
+**问题**：三条 `link:` 指向分层前的 `packages/<名>`，三个目录全部不存在，
+`extensions/node_modules` 里三条符号链接**全部悬空**。
+
+**修法**：三行改成 `packages/adapters/<名>`，`pnpm install --ignore-scripts` 重链。
+
+**验证（不看安装输出，看实际加载）**：
 
 ```
-cortico-bot-xiaoyu      → link:E:/WorkSpace_Qoder/dsh-bili-whale/packages/cortico-bot-xiaoyu
-cortico-world-bilibili  → link:E:/WorkSpace_Qoder/dsh-bili-whale/packages/cortico-world-bilibili
-cortico-world-media     → link:E:/WorkSpace_Qoder/dsh-bili-whale/packages/cortico-world-media
+# ① node 视角解析符号链接
+cortico-bot-xiaoyu      → packages/adapters/cortico-bot-xiaoyu      | package.json: true
+cortico-world-bilibili  → packages/adapters/cortico-world-bilibili  | package.json: true
+cortico-world-media     → packages/adapters/cortico-world-media     | package.json: true
+
+# ② 用宿主自己的 tsx 真正 import 三个入口（不是只查文件在不在）
+OK   cortico-bot-xiaoyu      | id=xiaoyu        (cortico.kind=bot,   api=7)
+OK   cortico-world-bilibili  | id=bili-account  (cortico.kind=world, api=6)
+OK   cortico-world-media     | id=media-studio  (cortico.kind=world)
+
+# ③ 扩展发现列表
+cortico-bot-xiaoyu, cortico-world-bilibili, cortico-world-media
 ```
 
-这三个目录在 #90 分层后已不存在（现在在 `packages/adapters/` 下）。
-**下次启动宿主会找不到扩展**，她装不起来。
+备份在 `E:\WorkSpace_Qoder\_backups\Cortico-up-extensions-package.json.bak-pre-layering-20261119`
+（刻意放在 `extensions/` 之外——虽然宿主扫的是目录不是文件，但别留会让人误读的东西）。
 
-这是**部署目录里的文件**（不在 Git，属"线上配置"），而"不碰线上配置"是长期约束，
-所以本轮**只记录、不动**。修法是把三行改成 `packages/adapters/<名>`——需要你点头才能动线上。
+**注意**：这是本机宿主工作区的改动，不在 Git 里，**不会被 subtree 带进本仓**。
+换一台机器或重建宿主检出时，要按同样方式指到 `packages/adapters/`。
