@@ -18,10 +18,15 @@ const CORTICO = argAt > 0 && process.argv[argAt + 1]
 const TARGETS = [
   { symbol: 'buildText', home: ROOT },
   { symbol: 'composeDraft', home: ROOT },
-  { symbol: 'buildVoiceBrief', home: CORTICO },
-  { symbol: 'decideAction', home: CORTICO },
-  { symbol: 'describeState', home: CORTICO },
-  { symbol: 'readMood', home: CORTICO },
+  // 下面四个的 home 原先是 CORTICO（宿主检出）。2026-11-19 宿主 legacy 整域退役后，
+  // 宿主侧再也没有它们的调用点，于是门禁报 UNUSED——但这是**指错了树**：
+  // 它们的真实调用者一直在这边（decideAction→cortico-persona.ts、describeState/readMood
+  // →cap-state-rhythm、buildVoiceBrief→counterfactual.mjs/preview-recall.mjs）。
+  // 唯一一份 persona-core 已在本仓（#88），所以判据应该看本仓。
+  { symbol: 'buildVoiceBrief', home: ROOT },
+  { symbol: 'decideAction', home: ROOT },
+  { symbol: 'describeState', home: ROOT },
+  { symbol: 'readMood', home: ROOT },
 ]
 
 // `host`：宿主 Cortico 收编目录（#89），它的消费关系由宿主自己的门禁管。
