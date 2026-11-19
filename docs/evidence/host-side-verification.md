@@ -111,3 +111,29 @@ pnpm install                 # 补 canvas 原生模块，需不带 --ignore-scri
 # 本仓侧
 node scripts/run-mjs-tests.mjs
 ```
+
+## 六、收尾：宿主全绿（2026-11-19 晚）
+
+上面第五节那 2 条失败（`canvas` 原生模块缺失）已修：`pnpm rebuild canvas` 编译出
+`canvas.node`，实测 `require('canvas').createCanvas(10,10)` 可绘图。
+
+最终读数：
+
+```
+Test Files  290 passed (290)
+Tests       5207 passed | 3 skipped (5210)
+Duration    324s
+```
+
+**第一次全绿。** 3 个跳过都是平台条件显式声明（`it.skipIf(process.platform === 'win32')` 那类），
+不是被环境骗过去的静默跳过；特别核过 `gitAvailable` 那三条 —— `git 2.53.0` 可用，
+`describe.skipIf(!gitAvailable)` 为 false，它们**在跑**，没被跳。
+
+至此三份证据链闭合：
+
+| 证据 | 结论 |
+|---|---|
+| `host-persona-core-disposition.md` | 宿主副本已删，唯一一份在本仓；防二次分叉门禁 |
+| `host-subtree-import.md` | 收编 551 提交历史；门禁跳过 host 的必要性逐条实测 |
+| `host-legacy-retirement.md` | legacy 从未被加载（部署指向本仓新 world）；退役 18 文件 + 18 测试 |
+| 本文 | 宿主 290/290 文件、5207/5210 通过；本仓 167/167、957/957 |
