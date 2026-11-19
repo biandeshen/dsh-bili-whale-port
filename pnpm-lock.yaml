@@ -20,9 +20,6 @@ importers:
       '@codemirror/view':
         specifier: ^6.43.8
         version: 6.43.8
-      '@xiaoyu/persona-core':
-        specifier: workspace:*
-        version: link:persona-core
       canvas:
         specifier: ^3.2.3
         version: 3.2.3
@@ -99,8 +96,6 @@ importers:
       vitest:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.1)(jsdom@30.0.1(canvas@3.2.3))(lightningcss@1.32.0)
-
-  persona-core: {}
 
 packages:
 
