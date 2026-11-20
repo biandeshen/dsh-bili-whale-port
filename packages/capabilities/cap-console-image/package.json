@@ -1,0 +1,16 @@
+{
+  "name": "@xiaoyu/cap-console-image",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "看她收的图：主模型不接收图像时，把控制台上那张图的字节交回去，下一轮请求就能真看到。100% 宿主无关。",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "cortico": {},
+  "files": [
+    "dist",
+    "src"
+  ]
+}

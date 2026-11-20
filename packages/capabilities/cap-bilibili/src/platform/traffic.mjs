@@ -43,7 +43,16 @@ export function createTrafficGuard({ directory, transport = (...a) => globalThis
     while (fd === undefined) {
       try { fd = fs.openSync(lockFile, 'wx'); fs.writeFileSync(fd, JSON.stringify({ pid: process.pid })) }
       catch (e) {
-        if (e.code !== 'EEXIST') throw e
+        /**
+         * 只有"锁被别人捷足先登"才继续等；其它错（磁盘满、路径坏）直接抛。
+         *
+         * 2026-11-20 修：Windows 上 `openSync(path,'wx')` 在**并发**创建同名文件时报的是
+         * `EPERM` 而不是 `EEXIST`。实测 `tests/traffic.test.mjs` 的
+         * "independent Node processes share actual request spacing" 偶发红，栈就停在这一行。
+         * EPERM / EACCES 在这个语境里与 EEXIST 同义：文件刚被另一个进程建出来，我这次没抢到。
+         * 把它们当"继续等"，否则一次锁竞争就变成"整个请求保护不可用"。
+         */
+        if (e.code !== 'EEXIST' && e.code !== 'EPERM' && e.code !== 'EACCES') throw e
         try {
           const age = Date.now() - fs.statSync(lockFile).mtimeMs
           let pid

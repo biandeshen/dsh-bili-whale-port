@@ -1,0 +1,23 @@
+{
+  "name": "cortico-world-console-image",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "控制台图片 World：她能不能真的看到主人发的图。业务在 cap-console-image，这里只接宿主的 store/blob/modelFacts。",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@xiaoyu/cap-console-image": "workspace:*"
+  },
+  "cortico": {
+    "kind": "world",
+    "api": 6,
+    "describe": "describe.json"
+  },
+  "files": [
+    "dist",
+    "src"
+  ]
+}

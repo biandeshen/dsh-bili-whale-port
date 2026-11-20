@@ -47,27 +47,47 @@ test('改一处称呼，独白 / 禁称表 / 日记抬头一起跟着走', (t) =
 
 test('活动文案里留的是占位符，不是又硬编码一个名字', () => {
   /**
-   * 2026-11-20 修正测法：原来断言"渲染结果不含鱼片"，可默认称呼本来就是「鱼片」，
-   * `{{owner}}` 正确替换之后结果里必然有它——这条断言把"没硬编码"错测成了
-   * "默认称呼不许出现"，永远是红的或永远被跳过。
+   * 2026-11-20 修正测法（踩了三次，每次都记下来）：
+   *   ① 原来断言"渲染结果不含鱼片"——默认称呼本来就是「鱼片」，正确替换后必然包含，
+   *      它把"没硬编码"错测成了"默认称呼不许出现"；
+   *   ② 改成"换名前后文案不同"——但 `describe()` 按**小时**取模选模板，
+   *      social 那 5 条里只有 1 条带 `{{owner}}`，当前这一小时未必命中它；
+   *   ③ 所以必须扫一整天的 24 个小时，看"有没有任何一条会随名字变"。
    *
-   * 真正要守的是**源头**：模板里有 `{{owner}}` 占位符，且换一个名字之后
-   * 同一句会跟着变。所以：
-   *   ① 换名前后拿到同一条模板 → 文案里出现的是新名字（说明走的是占位符）；
-   *   ② 换名前后的两条 description 必须不同（说明它真的读了称呼，不是写死的）。
+   * 判据同时钉两头：
+   *   · 至少有文案随名字变（说明占位符真的在工作，不是全写死）；
+   *   · 一变之后旧名不残留（说明替换是整体替换，不是拼接）。
    */
-  const before = pickActivities(DEFAULT_ATOMIC_FIELDS, { now: Date.now(), rng: () => 0.5, k: 7 })
-  setOwnerName('阿鱼')
-  const after = pickActivities(DEFAULT_ATOMIC_FIELDS, { now: Date.now(), rng: () => 0.5, k: 7 })
-  setOwnerName('鱼片')
+  const HOUR = 3600_000
+  const dayStart = Date.UTC(2026, 0, 1, 0, 0, 0)
+  const render = (ms, name) => {
+    setOwnerName(name)
+    return pickActivities(DEFAULT_ATOMIC_FIELDS, { now: ms, rng: () => 0.5, k: 7 })
+      .map((x) => x.description)
+  }
 
-  const socialBefore = before.find((x) => x.type === 'social')
-  const socialAfter = after.find((x) => x.type === 'social')
-  assert.ok(socialBefore && socialAfter, 'social 类活动要在前 7 条里')
-  assert.notEqual(socialBefore.description, socialAfter.description,
-    '换个称呼文案要跟着变——一样就说明名字是写死的')
-  assert.match(socialAfter.description, /阿鱼/, '换名后该出现新称呼')
-  assert.doesNotMatch(socialAfter.description, /鱼片/, '换名后旧称呼不该还留在同一句里')
+  try {
+    const BASE = '鱼片'
+    const ALT = '阿鱼'
+    let changed = 0
+    for (let h = 0; h < 24; h++) {
+      const ms = dayStart + h * HOUR
+      const a = render(ms, BASE)
+      const b = render(ms, ALT)
+      assert.equal(a.length, 7)
+      // 同一时刻、同一个名字渲染两次必须一致（纯函数）
+      assert.deepEqual(render(ms, BASE), a, '同一时刻同一名字要稳定')
+      for (let i = 0; i < a.length; i++) {
+        if (a[i] === b[i]) continue
+        changed++
+        assert.match(b[i], new RegExp(ALT), '变过的文案里应出现新称呼')
+        assert.doesNotMatch(b[i], new RegExp(BASE), '旧称呼不该残留')
+      }
+    }
+    assert.ok(changed > 0, '一整天里至少要有一条文案跟着名字变——全都一样就说明称呼是写死的')
+  } finally {
+    setOwnerName('鱼片')
+  }
 })
 
 test('边界：空值/纯空白/超长都不许把名字清空', () => {
