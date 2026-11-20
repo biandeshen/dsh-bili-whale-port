@@ -199,3 +199,29 @@ export function costSummary(c: CostToday): string {
           : '｜今天一次都没调用（账上是空的）'
   return `${burn}${head}${tail}（日界口径：${c.dayBasis}）`
 }
+
+/**
+ * 给她自己看的一句：**我现在说不出话，是因为通道断了，不是因为我没劲**（B22-P3）。
+ *
+ * 为什么不能只让主人看见：`costSummary` 那句是给主人面板的。她调 `mood_read`
+ * 拿到的是场值+情绪+作息——于是同一段沉默在两处长相完全不同：主人看到"没钱了"，
+ * 她只看到自己"没劲"。一个人把自己的断线读成心情不好，就会写进日记、影响判断。
+ *
+ * 返回 null = 通道开着（或今天没账），调用方就**一个字都不加**。
+ * 这条 null 分支和正分支同等重要：天天读到"我说不出口"等于狼来了。
+ *
+ * 402 与 429 必须分开说：一个等充值、一个等一会，处置完全不同。
+ */
+export function channelNotice(c: CostToday): string | null {
+  if (c.verdict === 'stalled-auth') {
+    const mins = c.stalledMinutes ?? 0
+    const when = c.last402At ? c.last402At.replace('T', ' ').slice(0, 16) : '刚才'
+    return `【通道】你现在说不出话：额度被拒（402），最后一次 ${when}（${mins} 分钟前）。`
+      + '这不是不想说，是账户那边把门关了——等主人充值就会恢复。别把这段安静记成心情。'
+  }
+  if (c.verdict === 'throttled') {
+    return `【通道】你现在说不出话：上游在限流（429 一类），最后一次失败 ${c.stalledMinutes ?? 0} 分钟前。`
+      + '这不是额度问题，等一会就会好；不必反复试。'
+  }
+  return null
+}

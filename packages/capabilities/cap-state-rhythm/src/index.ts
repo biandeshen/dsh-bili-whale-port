@@ -18,7 +18,7 @@ import type {
 } from '../../../kernel/persona-core/src/capability.ts'
 import type { AtomicFields } from '../../../kernel/persona-core/src/types.ts'
 import { dayKey } from '../../../kernel/persona-core/src/rhythm.ts'
-import { readCostToday, costSummary } from './cost-today.ts'
+import { readCostToday, costSummary, channelNotice } from './cost-today.ts'
 import { readLiveness } from './liveness.ts'
 import { WriteDeduper, contentKey } from '../../../shared/write-dedupe/src/write-dedupe.ts'
 import {
@@ -446,7 +446,19 @@ export function createStateRhythmCapability(
             const s = loadState(opts.fieldsFile)
             const { text, recalledIds } = describeStateWithTrace(s, 5, { queryText: args?.query })
             if (recalledIds.length) saveState(opts.fieldsFile, applyRecall(s, recalledIds))
-            return { ok: true, mood: readMood(s), fields: s.fields, text }
+            /**
+             * B22-P3：通道关着的时候，她读到的状态里必须先说这件事。
+             *
+             * 这一行放在 `text` **前面**是有意的：她最先读到的是"我说不出话"，
+             * 然后才是场值与情绪。反过来的话，她很自然会把沉默归因成自己没劲。
+             * 只在 stalled-auth / throttled 时加；通道开着就一个字都不加（见 channelNotice 的 null 分支）。
+             * 读不到成本账就跳过——宁可少这一句，也不要把"读不到"变成她以为自己欠费。
+             */
+            let channel: string | null = null
+            try {
+              channel = channelNotice(readCostToday({ dataDir: path.dirname(path.dirname(opts.lifeFile)) }))
+            } catch { /* 读不到成本账 → 不加通道提示，也不报错 */ }
+            return { ok: true, mood: readMood(s), fields: s.fields, text: channel ? `${channel}\n${text}` : text }
           },
         },
         {
