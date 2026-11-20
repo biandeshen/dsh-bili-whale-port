@@ -89,9 +89,10 @@ if (rootMdCount > 12) {
 // 扫描范围＝**活文档**。`docs/attic/` 与 `docs/evidence/` 不进 R2：
 // attic 的规矩是"按原日期保留、不改写"，evidence 是门禁消费的机器产物；
 // 拿一条会要求改写的门禁去卡一批明令不许改写的文件，只能逼人绕过整条 R2。
-const REF_RE = /(?:^|[\s`('"])((?:\.\.?\/|docs\/|packages\/|scripts\/|tools\/|src\/|adapters\/|vendor\/|core\/|extensions\/|worlds\/|platform\/)[\w./-]*\.(?:tsx|ts|mjs|json|js|md))(?::\d+)?/g
+const REF_RE = /(?:^|[\s`('"])((?:\.\.?\/|docs\/|packages\/|scripts\/|tools\/|src\/|adapters\/|vendor\/|core\/|extensions\/|worlds\/|platform\/)[\w./-]*\.(?:tsx|ts|mjs|jsonl|json|js|md))(?::\d+)?/g
 // 注意扩展名分支的**顺序**：`js|json` 会先吃掉 `.js` 再把 `on` 留在括号外（实测把
 // `extensions/market-index.json` 报成不存在的 `.js`）。长的在前。
+// 2026-11-21 同款又踩一次：`json|js` 先把 `.jsonl` 截成 `.json`，`docs/lessons.jsonl` 被判不存在。
 /**
  * 解析口径（第一版在这里错过一次，把 1256 条好端端的引用报成失效）：
  * ① `docs/`、`packages/` 这类**仓根相对**写法必须从仓根解析，只有 `./`、`../` 才是相对该文档自己；

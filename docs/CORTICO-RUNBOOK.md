@@ -15,6 +15,30 @@
 - 回滚点部署：`~/.xiaoyu-home/rollback/deployments/mybot`（旧人格 `cormini` + 旧数据，703 文件已逐文件 sha256 核对）
 - **单一调度器**：只由 Cortico World 的生活循环决定她做不做事。DSH 插件时钟已停用（`clock.enabled=false`，`night.windows=[]`），HKCU `WhaleDraft`（21:30 nightly-scheduler）已删除；不要再把它们加回来，否则会抢着出稿。
 
+## 底座（host/cortico）：独立克隆，随时拉上游
+
+底座是**别人的**项目（`Pal-AI-Lab/Cortico`），`git clone` 到 `host/cortico`，自带 `.git`。
+我们的代码一行都不放进去，所以它的更新永远是普通的 `git pull`，没有 subtree、没有合并历史。
+
+- `host/` 整棵在 `.gitignore` 里：不进本仓、不占本仓历史。
+- 首次（或换机器）：`node scripts/setup-host.mjs` —— 没有就克隆上游最新，有就只报当前版本。
+- 装依赖：`cd host/cortico && pnpm install`。
+- 挂我们的四个扩展：`node scripts/setup-host.mjs --link` —— 写 `host/cortico/extensions/package.json`
+  并 `pnpm install`，四个包用相对 `link:` 指回 `packages/adapters/`（换盘符也不断）。
+- 更新到上游最新：`node scripts/setup-host.mjs --pull`（`git pull --ff-only`；有未提交改动就停下报错）。
+- 钉某个稳定版：`node scripts/setup-host.mjs --tag v0.2.17`（只在首次克隆时生效；改版本请删掉
+  `host/cortico` 再跑）。
+- 2026-11-21 实测：全新克隆拿到 **v0.2.17**（`cba606f`），`pnpm install` 22.6s，
+  `--link` 后宿主 `describe:extension` 四个扩展全装载——
+  xiaoyu `tools 13 / prompts 2`、bilibili `tools 18 / events 4`、media `tools 2`、console-image `tools 1`。
+- 更新后必跑：`node scripts/build-webui.mjs`（面板产物跟着底座契约走）、
+  `node scripts/check-live-drift.mjs`、`node scripts/run-mjs-tests.mjs`，再起一次实例看四个扩展。
+- `host/cortico/node_modules` **别删**：`bin/cortico.mjs:307` 见它不存在就自动 `pnpm install`，
+  `:166` 用 `node_modules/tsx` 起 launcher。它不是仓库内容，删了只是下次启动重装（约 20 秒）。
+- **不许改底座源码**。需要补的能力一律做进 `packages/`（能力包）+ `adapters/`（转接头）。
+  真遇到上游缺陷，做本地补丁记录在 `docs/evidence/`，别把 `host/cortico` 弄成脏工作树——
+  那样 `--pull` 会直接拒绝更新。
+
 ## 人设（单一来源）
 - 她是谁：`deployments/mybot/workspace/CONSTITUTION.md`（唯一身份事实，改这里）
 - 这一轮做什么：`deployments/mybot/prompts/ORIENTATION.md`（流程与铁律）

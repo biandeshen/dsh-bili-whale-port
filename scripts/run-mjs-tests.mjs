@@ -31,7 +31,7 @@ const reportAt = arg('report', '')
 /**
  * 扫测试时整棵跳过的目录。
  *
- * `host`：2026-11-19 起宿主 Cortico 以 `git subtree` 收编到 `host/cortico/`（#89）。
+ * `host`：底座是独立克隆（`scripts/setup-host.mjs`），放在 `host/cortico/`。
  * 它自带 371 个 `.test.mjs`，那些测的是宿主自己的 core/world，**不是本仓的运行时**；
  * 混进来跑会有两个坏处：① "发现数=执行数"这条自证被稀释成一千多个文件；
  * ② 宿主测试要 `--import tsx`，本仓没有那个依赖，全批会红成一片，真正的回归反而看不见。

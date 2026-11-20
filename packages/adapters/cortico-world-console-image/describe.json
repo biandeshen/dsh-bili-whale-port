@@ -1,0 +1,15 @@
+{
+  "tools": [
+    {
+      "name": "console_see_image",
+      "summary": "看控制台上发来的图片（回执带上图片内容，下一轮请求就能看到）",
+      "description": "看控制台上发来的图片（回执带上图片内容，下一轮请求就能看到）",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "tags": []
+    }
+  ],
+  "events": []
+}

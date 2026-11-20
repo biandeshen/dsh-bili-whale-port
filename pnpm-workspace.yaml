@@ -8,4 +8,4 @@ packages:
   - "packages/capabilities/*"
   - "packages/adapters/*"
   - "packages/shared/*"
-  # host/cortico 是 git subtree 收编进来的宿主镜像，有它自己的依赖树，不并入本 workspace。
+  # host/cortico 是底座的独立 git 克隆（自带依赖树），不在本 workspace 里。

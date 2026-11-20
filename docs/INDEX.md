@@ -53,6 +53,7 @@
 | 文件 | 身份 |
 |---|---|
 | [`INDEX.md`](./INDEX.md) | 本页，唯一入口 |
+| [`LESSONS.md`](./LESSONS.md) · [`lessons.jsonl`](./lessons.jsonl) | **踩过的坑与定下来的规矩**：记「为什么」与「以后怎么做」。md 给人读，jsonl 给机器筛，两边 ID 一一对应 |
 | [`CURRENT.md`](./CURRENT.md) | **台账，不是现状。** 按日期倒序记"到哪了"；自 2026-11-07 起停止追加新条目，"现在是什么"归 specs |
 | [`CORTICO-RUNBOOK.md`](./CORTICO-RUNBOOK.md) · [`STOP-RUNBOOK.md`](./STOP-RUNBOOK.md) | 运维：起（宿主链路）、停 |
 | [`QQ-SETUP.md`](./QQ-SETUP.md) | QQ 通道 |

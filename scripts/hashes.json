@@ -1,5 +1,5 @@
 {
-  "frozenAt": "2026-11-20T14:16:00.255Z",
+  "frozenAt": "2026-11-20T18:42:53.398Z",
   "firstFrozenAt": "2026-11-06T04:32:02.354Z",
   "files": {
     "scripts/check-hashes.mjs": "a9ed8833104a842c63d1dcd7b0102c26cd8761e3f2d3b67a039b0f49021607ed",
@@ -7,7 +7,7 @@
     "scripts/day-snapshot.mjs": "6daf4e09d067a9b4d84f276c350959fe7dac4509a57e879558b3a978e843a9c3",
     "scripts/day-watchdog.mjs": "3a60c51be493a13638ea44358e399eb3670052ac0a1e7119d5f8a0aeeaaff5c7",
     "scripts/counterfactual.mjs": "54cb93588915560d1dd54dd84e278b6171f9e56d895725ef5a7477b2cdb7c412",
-    "scripts/run-mjs-tests.mjs": "a9edb41542decdde92f9d9b71d554546085453b8e5b9176b92b193ce53600a5c",
+    "scripts/run-mjs-tests.mjs": "d70bf39f6aad236beb7725db580f729492e42d311138b2f7f47505e05b75c32b",
     "scripts/check-consumers.mjs": "d7da7a8f55f17a014e22411c9d8d78a2713cd9e8ed89bd247835d0c22c0a7d82",
     "scripts/check-cortico-paths.mjs": "af3a95c4546a6f98c44c504fab735b9cf5fef9d51bed40b6f3251db17268562a",
     "scripts/check-script-paths.mjs": "fcae2ddddfa8434b98c4c4d16464743c989ac5f02cc8e97c79cad17369891b94",
@@ -175,6 +175,13 @@
       "from": "7fa28b106ea64eb4266db41594ed4f4d3114b2638cdb0f0c3418b94cd5109112",
       "to": "d7da7a8f55f17a014e22411c9d8d78a2713cd9e8ed89bd247835d0c22c0a7d82",
       "reason": "2026-11-20 #A方案：底座搬进仓内 host/cortico（原 ../Cortico-up）；check-consumers / check-doc-hygiene 的宿主默认路径随之改变；doc-hygiene 另加一条——宿主运行时产物（extensions/ deployments/）不进 git，算未核不算失效"
+    },
+    {
+      "at": "2026-11-20T18:42:53.398Z",
+      "file": "scripts/run-mjs-tests.mjs",
+      "from": "a9edb41542decdde92f9d9b71d554546085453b8e5b9176b92b193ce53600a5c",
+      "to": "d70bf39f6aad236beb7725db580f729492e42d311138b2f7f47505e05b75c32b",
+      "reason": "2026-11-21 底座改为独立克隆（scripts/setup-host.mjs），host/ 整棵进 .gitignore 不再入本仓。run-mjs-tests.mjs 只改 SKIP 注释里的一句描述（subtree 收编 → 独立克隆），SKIP 集合与全部判据未动；check-mjs-syntax.mjs 同句注释一并更正（不在冻结名单）。"
     }
   ]
 }

@@ -124,6 +124,14 @@ const SPLIT_ALLOWED = {
   'api-cache': { until: '2026-12-01', owner: '批次负责人', why: '只是缓存，读新家即可；旧那份不参与任何判据' },
   'feed-search-cache': { until: '2026-12-01', owner: '批次负责人', why: '同上：缓存分叉不改变她的行为，只可能多打一次网络' },
   'traffic-state': { until: '2026-12-01', owner: '批次负责人（归 #58 状态落点收口）', why: '**同名不同物**：闸内那份记 writeGapSec/pausedUntil/lastWriteAt/seenFingerprints，传输层那份记 accounts/until/streak/riskEndpoint——收口的正确动作是改名，不是把值迁平（见 docs/specs/06-bili-write.md ⑤ 第 5 条）' },
+  // 2026-11-21 登记：三份都是**已过期的旧家残留**，不是活数据。
+  // 判据：新家那份都在（`readHitsLegacy` 第一句 `if (fs.existsSync(fresh)) return false`），
+  // 所以旧家这三份**永远不会被读到**——纯残留，改变不了她的行为。
+  // 迁移工具不自动合并它们是对的（合并计数器/队列要以谁为准是业务判断），
+  // 这里也不删旧家原件（规矩优先于"变绿"）。到期复核：要么删旧家原件，要么把值迁进新家。
+  'dm-await-state': { until: '2026-12-21', owner: '批次负责人（归 #58 状态落点收口）', why: '两份语义完全相同，只有 `at` 时间戳不同（新家 2026-11-02、旧家 2026-11-01）；新家优先读，旧家那份不参与任何判据' },
+  'dm-quota': { until: '2026-12-21', owner: '批次负责人（归 #58 状态落点收口）', why: '两份都是 2026-11-01 当天的私信计数（新 5 / 旧 4），早已过期不被读取；按天滚动的计数器不可能靠合并两份旧值变正确' },
+  'pending-replies': { until: '2026-12-21', owner: '批次负责人（归 #58 状态落点收口）', why: '新家是空队列（`{"items":[]}`，2026-11-02），旧家 9 条是 2026-10-25 的待回、早已超出任何时效；新家优先读，旧家不参与判据' },
 }
 const today = new Date().toISOString().slice(0, 10)
 if (split.length) notes.push(`本轮实测两家都存在且不一致的类：${split.join('、')}`)

@@ -22,7 +22,7 @@ packages/
     fs-atomic/             原子写盘（改名重试）
     write-dedupe/          写工具幂等键
     webui-helpers/         浏览器面板共享控件（只依赖宿主 ui 契约）
-host/cortico/    宿主 Cortico 的 git subtree 镜像（#89），有独立依赖树
+host/cortico/    底座的独立克隆（自带 .git，不在本仓版本控制里），有独立依赖树
 ```
 
 ## 依赖方向（`scripts/check-layer-contract.mjs` 强制）
@@ -69,7 +69,7 @@ node scripts/run-mjs-tests.mjs             # 167 文件 / 957 用例
 - **没建独立 npm 包**。所有包名（`@xiaoyu/persona-core` 等）不变，包的 `package.json`
   仍靠 workspace glob 解析；没拆成可发布的独立包，也没改 `exports` 之外的元数据。
 - **`host/cortico` 未并入本 workspace**（它有自己的依赖树）。
-  （2026-11-19 更正：宿主 `extensions/` 整个目录在 `.gitignore` 里，是每台机器的部署产物，
-  不在 subtree 里，也没有"要改的绝对路径"——上一版这里写错了。）
+  （2026-11-21 更正：底座是**独立 git 克隆**，`host/` 整棵在 `.gitignore` 里，不进本仓；
+  我们只往里放一个 `extensions/package.json`，那是每台机器的部署产物。）
 - **没有 typecheck**。本仓仍无 tsconfig / tsc；分层契约是运行期字符串扫描，
   能抓跨层 import，抓不到"类型对不上"。

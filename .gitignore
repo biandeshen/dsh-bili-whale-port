@@ -34,3 +34,8 @@ Thumbs.db
 
 # ── panel 凭据 ──
 panel.token
+
+# ── 底座：独立克隆，不进本仓 ────────────────────────────
+# host/ 下是别人项目的克隆（默认 host/cortico），自带 .git 与 node_modules。
+# 由 scripts/setup-host.mjs 克隆/更新；我们的代码一行都不放这里。
+/host/

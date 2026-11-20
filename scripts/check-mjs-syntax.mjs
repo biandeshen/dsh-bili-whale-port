@@ -18,7 +18,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 /**
  * 构建产物与依赖目录不进扫描。
  *
- * `host`：2026-11-19 起宿主 Cortico 以 subtree 收编到 `host/cortico/`（#89）。
+ * `host`：底座是独立克隆（`scripts/setup-host.mjs`），放在 `host/cortico/`。
  * 那是**别人的代码**，语法/门禁由宿主自己那套管；本仓扫它只会在宿主升级时集体报错，
  * 把本仓自己的一处真错误淹没。
  */
