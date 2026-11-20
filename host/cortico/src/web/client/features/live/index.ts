@@ -15,7 +15,6 @@ import { openStream } from '../../core/stream.ts';
 import { browserSocketEnv, openFrameworkSocket, type SocketEnv } from '../../core/websocket.ts';
 import { buildCtxPanel, computeCtx, type ContextBreakdown } from './context.ts';
 import { exportDiagnostics } from './diagnostics.ts';
-import { createHistoryView } from './history.ts';
 import { createForkView, MAIN_ID, MAIN_LABEL } from './fork.ts';
 import {
   arr,
@@ -167,23 +166,6 @@ function mountLive(ctx: FeatureContext, env: SocketEnv): Disposable | void {
     netEl = next;
   };
 
-  // localStorage 而不是 ctx.memo：feature 的 context 没有 memo（那是面板才有的）。
-  // 读失败就当没填过，不影响连通。
-  const WHO_KEY = 'cortico.live.who';
-  const readWho = (): string => {
-    try { return String(localStorage.getItem(WHO_KEY) ?? '').trim().slice(0, 32); } catch { return ''; }
-  };
-  const whoName = (): string => readWho() || '控制台';
-  const hello = (): string => JSON.stringify({ type: 'hello', name: whoName() });
-  const whoInput = ui.input({ placeholder: S.whoPlaceholder, value: readWho() });
-  whoInput.setAttribute('aria-label', S.whoLabel);
-  whoInput.addEventListener('change', () => {
-    const v = whoInput.value.trim().slice(0, 32);
-    try { if (v) localStorage.setItem(WHO_KEY, v); else localStorage.removeItem(WHO_KEY); } catch { /* 存不进去只是下次要重填 */ }
-    // 改完立刻重报一次名字，否则这一场对话里她仍按旧名字认人。
-    chatStream?.send(hello());
-  }, { signal: ctx.signal });
-
   const summary = ui.h('div', 'live-summary');
   const connection = createConnectionButton(ui, (name) => ctx.router.navigate(name ? ['providers', name] : ['providers']));
   // 今日花费:`/api/usage` 部署时区的今天;没有 usage 能力、totals 为 null 或取不到时不显示。
@@ -221,7 +203,7 @@ function mountLive(ctx: FeatureContext, env: SocketEnv): Disposable | void {
 
   // 右边三项是一组:放不下时整组换行
   const right = ui.h('div', 'live-summary-right');
-  right.append(ui.field(S.whoLabel, whoInput), connection.el, cost, netEl);
+  right.append(connection.el, cost, netEl);
   summary.append(status.el, right);
   const sessions = ui.h('div', 'live-sessions');
   sessions.append(ui.h('span', 'live-sessions-label', S.sessionsLabel), sessionBand.el);
@@ -257,7 +239,7 @@ function mountLive(ctx: FeatureContext, env: SocketEnv): Disposable | void {
       return true;
     },
   });
-  view.append(timeline.el, createHistoryView(ui, ctx.signal), composer.el);
+  view.append(timeline.el, composer.el);
   timeline.rebuild([], { empty: S.emptyConnecting });
 
   let providerReady = false;
@@ -313,8 +295,7 @@ function mountLive(ctx: FeatureContext, env: SocketEnv): Disposable | void {
     }
   };
 
-  // 她分不清"主人在用控制台"还是"控制台在替主人转述"（意见箱 f-0b2797）。
-  // 让她看到的署名能是真的：本机记一个名字，填了就带出去；默认仍是「控制台」。
+  const hello = JSON.stringify({ type: 'hello', name: '控制台' });
   let chatStream: WebUiStreamHandle | null = null;
 
   // ── fork 视图 ─────────────────────────────────────────────────────
@@ -516,9 +497,9 @@ function mountLive(ctx: FeatureContext, env: SocketEnv): Disposable | void {
         else if (kind === 'warning') ui.toast(text);
       },
       close: (willRetry) => {
-        if (willRetry) chatStream?.send(hello());
+        if (willRetry) chatStream?.send(hello);
       },
     },
   }));
-  chatStream.send(hello());
+  chatStream.send(hello);
 }

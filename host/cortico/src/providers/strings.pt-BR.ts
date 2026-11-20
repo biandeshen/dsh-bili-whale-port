@@ -9,7 +9,6 @@ export const text: Partial<typeof en> = {
   effortWithoutThinking: 'Não é possível definir o esforço de raciocínio com o raciocínio desativado',
   temperatureRange: 'temperature deve estar entre 0 e 2',
   positiveInteger: (field: string) => `${field} deve ser um inteiro positivo`,
-  modelOptionsStrings: 'modelOptions deve ser uma lista de textos não vazios',
   contextWindowAboveOutput: (window: number, output: number) =>
     `contextWindow deve ser maior que maxTokens (atualmente ${window} ≤ ${output})`,
   optionsObject: 'As opções nativas devem ser um objeto',

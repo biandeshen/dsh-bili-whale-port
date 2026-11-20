@@ -86,8 +86,6 @@ export default {
       throw new Error(S.syntheticReasoningTextValue);
   },
   contextOverflow: isContextOverflow,
-  // 模型能力只有部署方知道（网关不提供清单），所以这一格听端点的开关，不问模型名。
-  accepts: (entry, _spec, mime) => entry.multimodal === true && mime.startsWith('image/'),
   create(name, entry, host) {
     const options = compatOptions(entry);
     const apiKey = entry.secret ? host.secret(entry.secret) : undefined;

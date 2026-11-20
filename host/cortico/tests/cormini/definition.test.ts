@@ -27,12 +27,10 @@ const getJ = async (path: string) => {
   const r = await fetch(`http://127.0.0.1:${port}${path}`);
   return { status: r.status, body: (await r.json()) as Record<string, unknown> };
 };
-// 非 GET 的写请求要带同源 Origin：这是本仓的闸门口径（本机免口令端口，
-// 挡的是浏览器里的跨站脚本与无 Origin 的盲写）。测试是"浏览器"，所以要带。
 const postJ = async (path: string, body: unknown) => {
   const r = await fetch(`http://127.0.0.1:${port}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Origin: `http://127.0.0.1:${port}` },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   return { status: r.status, body: (await r.json()) as Record<string, unknown> };

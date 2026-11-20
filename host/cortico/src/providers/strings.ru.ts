@@ -9,7 +9,6 @@ export const text: Partial<typeof en> = {
   effortWithoutThinking: 'Нельзя задать глубину рассуждения, когда рассуждение выключено',
   temperatureRange: 'temperature должна быть в диапазоне от 0 до 2',
   positiveInteger: (field: string) => `${field}: должно быть положительным целым числом`,
-  modelOptionsStrings: 'modelOptions: должен быть массивом непустых строк',
   contextWindowAboveOutput: (window: number, output: number) =>
     `contextWindow должно быть больше maxTokens (сейчас ${window} ≤ ${output})`,
   optionsObject: 'Нативные параметры должны быть объектом',

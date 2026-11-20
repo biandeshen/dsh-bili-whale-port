@@ -325,23 +325,7 @@ export class Core<C extends CoreConfig = CoreConfig> {
         if (!module() || !this.config.providers[this.config.activeProvider]?.spec) return null;
         const spec = this.activeSpec();
         const window = this.contextWindowOf(spec);
-        if (window === undefined) return null;
-        const providerHard = Math.max(0, window - (spec.maxTokens ?? 0));
-        /**
-         * 运维在部署配置里写的**阶段预算**（`context.maxTokens`）必须真的拦得住请求。
-         *
-         * 2026-11-07 之前它是空转的：这一路只认物理窗口（本机 1,048,576 − 8,192 = 1,040,384），
-         * 而部署里写的 500,000 全仓唯一读取点是 web 前端算"软阈值"**显示**用的
-         * （`src/web/client/features/live/context.ts:113`）——面板能调、配置会落盘、
-         * 服务端一次都没用它拦过。实测 2026-11-06 单次 input p50=615,918、132 次撞顶。
-         *
-         * 取 min 的方向是**只收紧、不放宽**：阶段预算永远不能越过模型物理窗口。
-         * 交接机制（handoff / forcedHandoffHard / 不可达标记）一行不动，只是更早触发；
-         * 代价是交接次数上升，而一次交接本身也要花调用——收益与代价必须成对测，见
-         * dsh-bili-whale/docs/A-KNIFE-CONTEXT-BUDGET-2026-11-07.md。
-         */
-        const budget = Number((this.config.context as { maxTokens?: unknown } | undefined)?.maxTokens ?? 0);
-        return Number.isFinite(budget) && budget > 0 ? Math.min(providerHard, Math.floor(budget)) : providerHard;
+        return window === undefined ? null : Math.max(0, window - (spec.maxTokens ?? 0));
       },
       estimateTokens: (records) => module()?.estimateTokens?.(records, this.activeSpec()) ?? estimateMessagesTokens(records),
       contextOverflow: (error) => module()?.contextOverflow?.(error) ?? false,
@@ -606,15 +590,6 @@ export class Core<C extends CoreConfig = CoreConfig> {
         if (lease.active) this.reportWorldUsage(mod.id, usage, opts);
       },
       llmStalls: async (withinMs) => this.loop.llmStalls(withinMs),
-      // 归属按挂载表查：认不出提供方名字的工具来自 Persona 自己或装配层的补充项。
-      listTools: () => this.loop.getToolSchemas().map((t) => ({
-        name: t.name,
-        description: t.description,
-        tags: t.tags,
-        owner: this.worlds.find((m) => m.tools().some((own) => own.name === t.name))?.id ?? 'persona',
-      })),
-      // 挂载表与工具表分开问：只出画面/事件不出工具的 World，在工具表里根本不存在。
-      listWorlds: () => this.worlds.map((m) => ({ id: m.id, visible: this.isWorldVisible(m.id), tools: m.tools().length })),
       // 每次访问重新检查 Persona 开关，关闭后 getter 立即返回 undefined。
       get cognition(): CognitionHost | undefined {
         return lease.active ? self.makeCognition(mod, () => lease.active) : undefined;

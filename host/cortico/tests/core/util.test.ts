@@ -59,16 +59,7 @@ describe('readTextFile', () => {
         if (/readFile(Sync)?\([^;]*?['"]utf-?8['"]/.test(readFileSync(join(repo, path), 'utf8'))) offenders.push(path);
       }
     }
-    // 允许直读的两类：
-    //   ① 追加型日志（event-store、context-log）：按字节偏移截断或分段读，不走整份文本；
-    //   ② （已消失）World 侧的状态文件曾在此列，那是 legacy/bili-account-retired 里的事，
-    //      2026-11-19 整套退役；新 World 在 dsh-bili-whale，不在这棵树的扫描范围里。
-    // 名单随文件拆分而增长是预期内的：拆出去的文件仍在同一层边界里，规则不变。
-    expect(offenders.sort()).toEqual([
-      'src/core/event-store.ts',
-      'src/core/transcript.ts',
-      'src/protocol/open-responses/context-log.ts',
-    ]);
+    expect(offenders.sort()).toEqual(['src/core/event-store.ts', 'src/protocol/open-responses/context-log.ts']);
   });
 });
 

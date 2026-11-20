@@ -179,13 +179,12 @@ describe('装配上下文', () => {
 });
 
 describe('激活 / 停用 / 重启', () => {
-  it('激活:前置检查 → 挂载;检查或挂载失败都把 enabled 回滚成 false 并换新实例', async () => {
+  it('激活:前置检查 → 写回 enabled → 挂载;失败时回滚 enabled 并换新实例', async () => {
     let allow = false;
     const def = probeDefinition('a', { preflight: () => { if (!allow) throw new Error('还没配好'); } });
     const { assembly, json, mounts } = assemblyOf([def], []);
     const first = assembly.slot('a').instance;
     await expect(assembly.activate('a')).rejects.toThrow('还没配好');
-    // 失败必须复原：留一个 enabled=true 的世界会让"开了但没跑"变成新的一种假象。
     expect(json().worlds.a?.enabled ?? false).toBe(false);
     expect(mounts).toEqual([]);
     allow = true;
@@ -236,22 +235,6 @@ describe('激活 / 停用 / 重启', () => {
     expect(assembly.slot('a').failure).toBeUndefined();
     expect(assembly.mounted.map((m) => m.id)).toEqual(['a']);
     expect(lifecycle.map((e) => e.kind)).toEqual(['start-failed', 'mounted']);
-  });
-
-  it('前置检查失败不挡住配置:启用意图落过盘,补上缺项再点一次就成', async () => {
-    // 死锁的形状:检查要求填某项，而那一项要世界挂载后页面才渲染得出来；
-    // 若失败时连 enabled 都不写，人就永远没有"先填再开"的路。
-    const cfg: { browser?: string } = {};
-    const def = probeDefinition('a', {
-      preflight: () => { if (!cfg.browser) throw new Error('worlds.a.browser 没配'); },
-    });
-    const { assembly, json } = assemblyOf([def], []);
-    await expect(assembly.activate('a')).rejects.toThrow('browser 没配');
-    expect(json().worlds.a?.enabled ?? false).toBe(false);
-    // 世界页能读到的配置组不依赖挂载：补上缺的那一项
-    cfg.browser = 'chrome';
-    expect(await assembly.activate('a')).toContain('已启用');
-    expect(assembly.slot('a').mounted).toBe(true);
   });
 
   it('停用:stop 旧实例、出表、写回 false,槽位换上从未 start 的新实例', async () => {

@@ -18,12 +18,6 @@ function versionParts(version: string): bigint[] | null {
   return match ? match.slice(1).map((part) => BigInt(part)) : null;
 }
 
-/** 本地版本：查更新失败时也要能返回，界面字标不依赖网络。 */
-export async function readCurrentVersion(root = repoRoot()): Promise<string> {
-  const { version } = JSON.parse(readTextFile(join(root, 'package.json'))) as { version: string };
-  return version;
-}
-
 function isNewer(latest: string, current: string): boolean {
   const left = versionParts(latest);
   const right = versionParts(current);

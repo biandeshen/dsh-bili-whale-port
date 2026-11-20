@@ -40,7 +40,6 @@ export const panel: Partial<typeof en> = {
   modelsFetched: (count: number) => `${count} ${count === 1 ? 'modello recuperato' : 'modelli recuperati'}.`,
   modelListFailed: (message: string) => `Impossibile recuperare l'elenco dei modelli: ${message}`,
   selectModel: 'Scegli un modello',
-  modelCandidates: (count: number) => `L'endpoint dichiara ${count} candidati: premi un nome o scrivilo sopra.`,
   unsupportedTier: (current: string) => `Livello attuale non supportato: ${current}`,
   thinkingOn: 'attivo',
   thinkingOff: 'disattivo',

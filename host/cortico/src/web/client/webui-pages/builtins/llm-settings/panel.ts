@@ -417,26 +417,6 @@ export const llmSettingsPanel: WebUiPanel = {
         });
         row.append(control, fetchModels);
         modelHolder.replaceChildren(ui.field(S.modelFieldLabel, row));
-        // 端点没有 /models 时（本机 OFM 网关就是 404），模型格只能手打。允许在端点
-        // config.json 里声明一份候选（spec.modelOptions）→ 变成"可输入 + 可下拉"，
-        // 与扩展页 npm 源同一口径：不逼人记 id，也不锁死只能选。
-        const declaredRaw = (spec as unknown as { modelOptions?: unknown }).modelOptions;
-        const declared = Array.isArray(declaredRaw) ? declaredRaw.map(String).filter((s) => s.trim()) : [];
-        if (declared.length && !catalog.length) {
-          // 候选要看得见：datalist 只在打字时才弹，端点声明的清单等于藏起来了。
-          const picks = ui.rowbar();
-          for (const id of declared)
-            picks.append(ui.button(id, {
-              size: 'sm',
-              ...(id === spec.model ? { variant: 'primary' as const } : {}),
-              onClick: () => {
-                spec.model = id;
-                saveSpec();
-                renderModelField();
-              },
-            }));
-          modelHolder.append(picks, ui.msgline(S.modelCandidates(declared.length)));
-        }
       }
       /** 取目录:成功换成选单并带出上下文窗口,失败把原因留在模型格下面。 */
       async function fetchCatalog(...locked: WebUiDisablable[]): Promise<void> {

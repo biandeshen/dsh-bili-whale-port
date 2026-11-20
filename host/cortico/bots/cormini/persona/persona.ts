@@ -320,7 +320,7 @@ export class Cormini implements Persona {
 
   /** 心跳那一行的文本(投递刻渲染);变体覆写(如带上时刻)。 */
   protected tickText(quietSeconds: number): string {
-    return quietLine(quietSeconds) + ' 现在按 ORIENTATION 的「每次醒来做什么」执行一轮；必须调用工具，完成后简短汇报。';
+    return quietLine(quietSeconds);
   }
 
   /** 此刻该读哪份自述:部署侧有覆盖就是它,否则是包里那份。 */
@@ -819,9 +819,7 @@ export class Cormini implements Persona {
 
   /** 软轮数上限那一轮拼在回执末尾的提醒;变体可改措辞或返回 null 不提醒。 */
   protected softCapHint(): string | null {
-    // 不要把“步数多”等同于“该收尾”：她的 ORIENTATION 里还有没做完的步骤（尤其是草稿）时，
-    // 先做完再结束。否则第 6 步草稿会被这条提示截掉（10-29 16:44 实测）。
-    return '[system] 这一轮已经连续行动很多步。先按 ORIENTATION 把这一轮该做的做完（尤其是今天还没出的草稿），再调 end_turn。';
+    return '[system] 这一轮已经连续行动很多步。手上的事做完就调 end_turn 结束这一轮。';
   }
 
   /** 挂载 World 的工具(可给 tag 只取一类,如 fork 只拿 read 类);World 可见性由 core 在工具装配后过滤。 */

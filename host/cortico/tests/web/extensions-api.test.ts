@@ -24,7 +24,7 @@ const get = async (path: string): Promise<{ status: number; body: any }> => {
 const post = async (path: string, body?: unknown): Promise<{ status: number; body: any }> => {
   const r = await fetch(`${base()}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Origin: base() },
+    headers: { 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   return { status: r.status, body: (await r.json()) as any };
@@ -73,7 +73,10 @@ beforeAll(async () => {
         installed.push(target);
         return '已安装';
       },
-      uninstall: async (name) => { uninstalled.push(name); return '已卸载'; },
+      uninstall: async (name) => {
+        if (name === 'running') throw new LocalizedError(() => 'Extension in use', 409);
+        uninstalled.push(name); return '已卸载';
+      },
     },
     market: {
       merge: async (search) => ({ hits: (await search).map((h) => ({ ...h, tags: ['t'] })), index: { tags: { t: { label: 'T', hint: 'h' } } } }),
@@ -168,6 +171,8 @@ describe('/api/extensions', () => {
     expect((await post('/api/extensions/uninstall', { name: 'a' })).body).toMatchObject({ ok: true, restartRequired: true });
     expect(uninstalled).toEqual(['a']);
     expect((await post('/api/extensions/uninstall', {})).status).toBe(400);
+    expect((await post('/api/extensions/uninstall', { name: 'running' })).status).toBe(409);
+    expect(uninstalled).toEqual(['a']);
   });
 
   it('能力位 extensions 跟着依赖走;没挂时四个端点都 503', async () => {
@@ -182,8 +187,8 @@ describe('/api/extensions', () => {
       expect((await fetch(`http://127.0.0.1:${p2}/api/extensions/updates`)).status).toBe(503);
       expect((await fetch(`http://127.0.0.1:${p2}/api/extensions/search`)).status).toBe(503);
       expect((await fetch(`http://127.0.0.1:${p2}/api/extensions/package?name=x`)).status).toBe(503);
-      expect((await fetch(`http://127.0.0.1:${p2}/api/extensions/install`, { method: 'POST', headers: { Origin: `http://127.0.0.1:${p2}` } })).status).toBe(503);
-      expect((await fetch(`http://127.0.0.1:${p2}/api/extensions/uninstall`, { method: 'POST', headers: { Origin: `http://127.0.0.1:${p2}` } })).status).toBe(503);
+      expect((await fetch(`http://127.0.0.1:${p2}/api/extensions/install`, { method: 'POST' })).status).toBe(503);
+      expect((await fetch(`http://127.0.0.1:${p2}/api/extensions/uninstall`, { method: 'POST' })).status).toBe(503);
     } finally {
       await bare.stop();
     }
