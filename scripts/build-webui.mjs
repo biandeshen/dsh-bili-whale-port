@@ -16,17 +16,18 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const PACKAGES_DIR = path.join(ROOT, 'packages')
 
 /**
- * 优先用 Cortico 检出里的 esbuild（走 JS API，不依赖 .CMD 可执行文件——
+ * 优先用底座（`host/cortico`）里的 esbuild（走 JS API，不依赖 .CMD 可执行文件——
  * Windows 上 .bin/esbuild 是 shell 脚本，execFileSync 会 ENOENT）。
  *
- * 第三个候选 `ESBUILD_LIB`：本仓没有 node_modules（仓库只放源码，依赖装在宿主检出里），
- * 而宿主检出的 .pnpm 目录被清过时它是空的——这时用环境变量指到机器上任意一份能用的
- * esbuild，别为了一个打包器把整个门禁卡死。只按 JS API 加载，不执行任何二进制。
+ * 2026-11-20：底座已搬进仓内 `host/cortico`（单仓），原来的 `../Cortico-up` 不再存在。
+ *
+ * `ESBUILD_LIB` 仍是逃生口：底座的 .pnpm 被清空时用它指到机器上任意一份能用的 esbuild，
+ * 别为了一个打包器把整个门禁卡死。只按 JS API 加载，不执行任何二进制。
  */
 async function loadEsbuild() {
   const candidates = [
     process.env.ESBUILD_LIB || '',
-    path.join(ROOT, '..', 'Cortico-up', 'node_modules', 'esbuild', 'lib', 'main.js'),
+    path.join(ROOT, 'host', 'cortico', 'node_modules', 'esbuild', 'lib', 'main.js'),
     path.join(ROOT, 'node_modules', 'esbuild', 'lib', 'main.js'),
   ].filter(Boolean)
   for (const c of candidates) {
@@ -35,7 +36,7 @@ async function loadEsbuild() {
       return mod.default ?? mod
     }
   }
-  throw new Error('找不到 esbuild（试过 ESBUILD_LIB / Cortico-up/node_modules/esbuild 与本仓 node_modules/esbuild）')
+  throw new Error('找不到 esbuild（试过 ESBUILD_LIB / host/cortico/node_modules/esbuild 与本仓 node_modules/esbuild）')
 }
 
 /**

@@ -58,7 +58,7 @@ export function diffKind(dir, from, to) {
   return { kind: files.every((f) => DOCS_ONLY_RE.test(f)) ? 'docs' : 'code', files }
 }
 
-/** 锚定：把当前 live 的两份代码指纹写进 control/live-code.json。 */export function setAnchor({ cortico = path.resolve(ROOT, '..', 'Cortico-up'), note = '', now = Date.now() } = {}) {
+/** 锚定：把当前 live 的两份代码指纹写进 control/live-code.json。 */export function setAnchor({ cortico = path.resolve(ROOT, 'host', 'cortico'), note = '', now = Date.now() } = {}) {
   const hosts = [
     { name: 'dsh', ...codeFingerprint(ROOT) },
     { name: 'cortico', ...codeFingerprint(cortico) },

@@ -94,7 +94,7 @@ function checkPrompts() {
  * 都参与同一条链时才要求一致——否则只报差异、不报错（免得天天报一个不影响行为的差异）。
  */
 function checkPersonaCore() {
-  const hostRoot = process.env.CORTICO_ROOT || path.join(REPO, '..', 'Cortico-up')
+  const hostRoot = process.env.CORTICO_ROOT || path.join(REPO, 'host', 'cortico')
   const mine = path.join(REPO, 'packages', 'kernel', 'persona-core')
   const theirs = path.join(hostRoot, 'persona-core')
   if (!fs.existsSync(theirs)) {
@@ -254,7 +254,7 @@ function checkDescribe() {
       bad(`${name} describe.json 过期`,
         (missing.length ? `缺 ${missing.join(',')}` : '') + (missing.length && stale.length ? '；' : '') +
         (stale.length ? `多 ${stale.join(',')}（源码里已没有）` : ''))
-      lines.push('    修法：cd Cortico-up && pnpm describe:extension ../dsh-bili-whale/packages/' + name)
+      lines.push('    修法：cd host/cortico && pnpm describe:extension ../../packages/' + name)
     }
   }
 }
