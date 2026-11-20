@@ -119,7 +119,7 @@ function collectCorpus() {
     try { texts.push(fs.readFileSync(f, 'utf8')) } catch { /* 没有就不算 */ }
   }
   // 宿主内置 world（QQ 那类功能在宿主树里，也算"有实现"）
-  const host = process.env.CORTICO_ROOT || path.resolve(ROOT, '..', 'Cortico-up')
+  const host = process.env.CORTICO_ROOT || path.resolve(ROOT, 'host', 'cortico')
   walk(path.join(host, 'src'), (f) => f.endsWith('.ts'))
   return texts.join('\n')
 }

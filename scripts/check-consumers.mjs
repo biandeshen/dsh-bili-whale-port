@@ -13,7 +13,7 @@ const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace
 const argAt = process.argv.indexOf('--cortico')
 const CORTICO = argAt > 0 && process.argv[argAt + 1]
   ? path.resolve(ROOT, process.argv[argAt + 1])
-  : path.resolve(ROOT, '..', 'Cortico-up')
+  : path.resolve(ROOT, 'host', 'cortico')
 
 const TARGETS = [
   { symbol: 'buildText', home: ROOT },

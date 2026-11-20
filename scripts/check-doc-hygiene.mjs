@@ -100,8 +100,18 @@ const REF_RE = /(?:^|[\s`('"])((?:\.\.?\/|docs\/|packages\/|scripts\/|tools\/|sr
  *    宿主不在场时报「未核」而不是「失效」，否则换台机器跑门禁就是一片假红。
  * 用错基准，R2 就变成一把只会喊狼来的尺——假违规比漏违规更坏，它会让下一个人直接加白名单绕过整条门禁。
  */
-const HOST = process.env.CORTICO_ROOT || path.resolve(ROOT, '..', 'Cortico-up')
+const HOST = process.env.CORTICO_ROOT || path.resolve(ROOT, 'host', 'cortico')
 const hostPresent = fs.existsSync(HOST)
+/**
+ * 宿主**运行时生成**的目录：`extensions/`（扩展市场索引与已装包）与 `deployments/`（各部署的数据）。
+ * 它们在 `.gitignore` 里，不进任何一份 git 检出——所以"宿主目录存在"不等于"这些文件存在"。
+ *
+ * 2026-11-20 修：底座搬进仓内 `host/cortico` 后，`hostPresent` 变成 true，
+ * 而 `extensions/market-index.json` 这类运行时产物仍然不存在（它本来就是本机生成的），
+ * 于是两条文档引用被判成"失效"——假红。按原来的口径它们该算"未核"。
+ */
+const HOST_RUNTIME_DIRS = ['extensions/', 'deployments/']
+const isHostRuntimeArtifact = (target) => HOST_RUNTIME_DIRS.some((d) => target.startsWith(d))
 let r2Unchecked = 0
 function resolveRef(docFile, target) {
   if (target.startsWith('./') || target.startsWith('../')) {
@@ -121,7 +131,7 @@ for (const f of livingDocs) {
     const target = m[1]
     const cands = resolveRef(f, target)
     if (cands.cands.some((c) => fs.existsSync(c))) continue
-    if (cands.needsHost && !hostPresent) { r2Unchecked += 1; continue }
+    if (cands.needsHost && (!hostPresent || isHostRuntimeArtifact(target))) { r2Unchecked += 1; continue }
     problems.push({ rule: 'R2 引用指向不存在的文件', where: `${rel(f)}:${text.slice(0, m.index).split('\n').length}`, detail: target })
   }
 }
