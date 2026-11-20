@@ -16,12 +16,13 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const PACKAGES_DIR = path.join(ROOT, 'packages')
 
 /**
- * 优先用底座（`host/cortico`）里的 esbuild（走 JS API，不依赖 .CMD 可执行文件——
+ * 优先用底座里的 esbuild（走 JS API，不依赖 .CMD 可执行文件——
  * Windows 上 .bin/esbuild 是 shell 脚本，execFileSync 会 ENOENT）。
  *
- * 2026-11-20：底座已搬进仓内 `host/cortico`（单仓），原来的 `../Cortico-up` 不再存在。
+ * 底座是**外面克隆的别人项目**，不在本仓里：默认同级目录 `../Cortico-up`
+ * （由 CORTICO_ROOT / 本仓 .env 覆盖，与其它脚本同一处约定）。
  *
- * `ESBUILD_LIB` 仍是逃生口：底座的 .pnpm 被清空时用它指到机器上任意一份能用的 esbuild，
+ * `ESBUILD_LIB` 是逃生口：底座依赖被清空或换了位置时，用它指到任意一份能用的 esbuild，
  * 别为了一个打包器把整个门禁卡死。只按 JS API 加载，不执行任何二进制。
  */
 async function loadEsbuild() {
@@ -103,14 +104,27 @@ for (const name of targets()) {
   // A4 版本缓存自动化：宿主的扩展 asset URL 是 /assets/extensions/<包>/<版本>/<文件>，
   // 版本不变浏览器永远拿旧 bundle（实测踩坑：改了代码页面不更新）。把产物内容哈希写进
   // patch 位——内容变了哈希变、版本自动 bump；内容没动版本不变、缓存继续有效。
+  // A4 版本缓存自动化：宿主的扩展 asset URL 是 /assets/extensions/<包>/<版本>/<文件>，
+  // 版本不变浏览器永远拿旧 bundle（实测踩坑：改了代码页面不更新）。把产物内容哈希放进
+  // **prerelease 位**——内容变了哈希变、版本自动 bump；内容没动版本不变、缓存继续有效。
+  //
+  // 2026-11-20 修：原来直接写 patch 位（`0.1.<hash>`），hex 含字母 → 非法 semver。
+  // 在本仓里没暴露是因为从没被 pnpm 校验过；**换成外面克隆的底座后，
+  // `pnpm install` 会校验依赖版本，直接 ERR_PNPM_BAD_PACKAGE_JSON**。
+  // 现在写成 `0.1.0-<hash>`：合法，且换内容就换版本的效果不变。
   const pkgFile = path.join(pkgDir, 'package.json')
   const pkg = JSON.parse(fs.readFileSync(pkgFile, 'utf8'))
   const isExtension = Boolean(pkg.cortico?.kind)
   if (isExtension) {
     const hash = createHash('sha256').update(fs.readFileSync(outfile)).digest('hex').slice(0, 8)
-    const [maj, min, pat] = String(pkg.version ?? '0.0.0').split('.')
-    if (pat !== hash) {
-      pkg.version = `${maj}.${min}.${hash}`
+    // 规范化成 `<maj>.<min>.<patch>-<hash>`：旧版本可能是 `0.1.<hex>`（历史遗留的非法写法），
+    // 要先把非数字的 patch 位压回 0，否则会拼出 `0.1.d249e872-d249e872` 这种怪串。
+    const parts = String(pkg.version ?? '0.0.0').split('-')[0].split('.')
+    const num = (v, d) => (/^\d+$/.test(String(v)) ? String(v) : d)
+    const base = `${num(parts[0], '0')}.${num(parts[1], '1')}.${num(parts[2], '0')}`
+    const next = `${base}-${hash}`
+    if (pkg.version !== next) {
+      pkg.version = next
       fs.writeFileSync(pkgFile, JSON.stringify(pkg, null, 2) + '\n', 'utf8')
     }
     if (!pkg.cortico.webUiClient) {
