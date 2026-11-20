@@ -77,31 +77,74 @@ export function readCostToday(opts: { dataDir: string; basis?: 'utc' | 'local'; 
   const statusCounts: Record<string, number> = {}
 
   // 文件可能有半行（进程被杀），逐行 try-parse，不整块 require
-  const raw = fs.readFileSync(file, 'utf8')
+  //
+  // 2026-11-21 对抗演练修：**只读尾部，不整份扫**。
+  // 实测线上 usage.jsonl 6.5MB / 7940 行，整份读 33ms + 解析 79ms ≈ 110ms；
+  // 心跳每 30–90 秒一次，这个开销是常驻的，而且日志只增不减，会越来越慢。
+  //
+  // 语义不变：当日累计只数今天，通道健康只认"最后一次失败/成功"——
+  // 这两件事都只需要最近的一段，不需要全部历史。
+  // 读多少：从文件尾往前取够一个「跨天窗口」的量（默认 2MB），保证
+  // 昨天的最后一次失败也在这个窗口里；取不到那么多就是整个文件（小文件场景）。
+  const TAIL_BYTES = 2 * 1024 * 1024
+  const size = fs.statSync(file).size
+  const start = Math.max(0, size - TAIL_BYTES)
+  const raw = (() => {
+    if (start === 0) return fs.readFileSync(file, 'utf8')
+    const fd = fs.openSync(file, 'r')
+    try {
+      const buf = Buffer.alloc(size - start)
+      fs.readSync(fd, buf, 0, buf.length, start)
+      const text = buf.toString('utf8')
+      // 从中间切开时，第一行可能不完整 → 丢掉它（除非恰好从行首开始）
+      const nl = text.indexOf('\n')
+      return text.slice(nl >= 0 ? nl + 1 : 0)
+    } finally {
+      fs.closeSync(fd)
+    }
+  })()
   for (const line of raw.split('\n')) {
     if (!line.trim()) continue
     let rec: any
     try { rec = JSON.parse(line) } catch { continue }
     const a = rec?.attempt
     const started = String(a?.startedAt ?? '')
-    if (!started || dayKey(started, basis) !== today) continue
-    calls += 1
+    if (!started) continue
+    /**
+     * 2026-11-21 对抗演练修：**跨天不许把「最近一次失败」一起扔掉**。
+     *
+     * 原来的 `if (dayKey(started) !== today) continue` 让跨天后 `lastErrMs` 永远是 0，
+     * 于是 verdict 落成 `quiet`；而心跳把 `quiet` 当成"通道可以了"，直接清零退避。
+     * 402 欠费**不会因为过了零点就恢复**——这是 2026-11-14 那条"恢复必须由成功调用证明"
+     * 在跨天场景下的漏洞（当时只测了同一天内的窗口）。
+     *
+     * 现在分两层：
+     *   · 当日累计（calls / paid / tokens / statusCounts / atCeiling）—— 只数今天，口径不变
+     *   · 通道健康（last402Ms / lastErrMs / lastPaidMs）—— 跨天扫，只认时间先后
+     * 后者是"通没通"的唯一依据，跟着日期走就会自欺。
+     */
+    const startedMs = Date.parse(started) || 0
+    const isToday = dayKey(started, basis) === today
     const input = Number(a?.meters?.input ?? 0)
     const status = a?.status == null ? null : String(a.status)
+    // 先记通道健康（不分天），再决定要不要计入当日累计
+    if (input > 0) {
+      lastPaidMs = Math.max(lastPaidMs, startedMs)
+    } else {
+      lastErrMs = Math.max(lastErrMs, startedMs)
+      if (status === '402') last402Ms = Math.max(last402Ms, startedMs)
+    }
+    if (!isToday) continue
+    calls += 1
     if (status) statusCounts[status] = (statusCounts[status] ?? 0) + 1
     if (input > 0) {
       paid += 1
       inputTokens += input
       outputTokens += Number(a?.meters?.output ?? 0)
-      // 2026-11-14 补：`lastPaidMs` 声明了却从没赋值，于是 `recentlyPaid` 永远为 false、
-      // `recoveredSinceFail` 也永远为 false —— verdict 从来不可能判成 'ok'，
-      // "上游恢复"只能靠 quiet 猜（正是这次被假冒恢复坑到的那处）。按时间取最大。
-      lastPaidMs = Math.max(lastPaidMs, Date.parse(started) || 0)
       if (input >= CEILING * 0.95) atCeiling += 1
     } else {
+      // 通道健康上面已经记过（跨天），这里只数当天的失败笔数
       failed += 1
-      lastErrMs = Math.max(lastErrMs, Date.parse(started) || 0)
-      if (status === '402') last402Ms = Math.max(last402Ms, Date.parse(started) || 0)
     }
   }
 

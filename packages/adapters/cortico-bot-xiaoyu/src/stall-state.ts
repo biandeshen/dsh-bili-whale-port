@@ -35,8 +35,20 @@ export function readStallState(dataDir: string, now = Date.now()): StallState {
     const until = Number(j?.until)
     const step = Number(j?.step)
     if (!Number.isFinite(until) || !Number.isFinite(step)) return { ...EMPTY }
-    // 过期太久的记录（比如一周前的）不要拖着：退避最多 1 小时，留 6 小时冗余足够
-    if (until > 0 && now - until > 6 * 3600_000) return { ...EMPTY }
+    /**
+     * 2026-11-21 对抗演练修：原来"退避窗口过去 6 小时就整份丢弃"会把 `step` 一起扔掉。
+     *
+     * 反例（真跑过）：8 小时后读回 `step=0`。而 402 欠费**不会自己好**，
+     * 主人隔一天才充值的话，退避就从封顶的 60 分钟退回 2 分钟重爬，一夜又能撞十几次——
+     * 正是 2026-11-14 修过的那个毛病在长停摆下复发。
+     *
+     * 现在的规则分开处置两件事：
+     *   · `until` 过期 → 窗口结束，可以试（这是对的，不算"恢复"）
+     *   · `step` 只有**通道真的恢复**（`clearStallState`）才归零，不因为时间流逝而归零
+     * 只保留一条兜底：一周以上的记录当作陈年残留（那时 step 早该被 clear 掉）。
+     * 用 `>=`：恰好一周也算过期，与 `stall-stoploss.test.mjs` ③ 的口径一致。
+     */
+    if (until > 0 && now - until >= 7 * 24 * 3600_000) return { ...EMPTY }
     return {
       until: Math.max(0, until),
       step: Math.max(0, step),
