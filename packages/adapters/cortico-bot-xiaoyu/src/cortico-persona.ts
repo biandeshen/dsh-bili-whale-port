@@ -207,7 +207,35 @@ export class XiaoYuPersona implements CorticoPersonaShape {
              */
             try {
               const dataDir = path.join(this.memoryDir, 'data')
-              const c = readCostToday({ dataDir })
+              /**
+               * 只按**当前端点**算停摆（2026-11-21 真机验收修）。
+               *
+               * 现场：把 activeProvider 从 mimo 换成本地 lmstudio，实例起来第一件事却是
+               * 「上游不通，心跳退避 2 分钟（402）lastFailure: 2026-11-14」——
+               * 那 141 条 402 全是六天前 mimo 的账。她拿着别人的欠费记录不敢动。
+               *
+               * 取不到端点名就传 undefined（退回旧行为：全部历史都算），
+               * 因为"读不到"不该变成"不设防"。
+               */
+              /**
+               * 取当前端点名，只按它算停摆（2026-11-21 真机验收修）。
+               *
+               * 现场：把 activeProvider 从 mimo 换成本地 lmstudio，实例起来第一件事却是
+               * 「上游不通，心跳退避 2 分钟（402）lastFailure: 2026-11-14」——
+               * 那 141 条 402 全是六天前 mimo 的账。她拿着别人的欠费记录不敢动。
+               *
+               * **不能从 core 取**：`attach()` 收到的是 `CoreApi`（core/types.ts:522），
+               * 里面没有 activeEndpoint；带它的那个对象在 `bot.ts` 的 debug 段里，
+               * 是给 WebUI 的，persona 拿不到。所以直接读部署配置——`memoryDir` 就是部署根。
+               * 读不到就传 undefined（退回旧行为），"读不到"不该变成"不设防"。
+               */
+              const providerName = (() => {
+                try {
+                  const j = JSON.parse(fs.readFileSync(path.join(this.memoryDir, 'config.json'), 'utf8'))
+                  return typeof j?.activeProvider === 'string' && j.activeProvider ? j.activeProvider : undefined
+                } catch { return undefined }
+              })()
+              const c = readCostToday({ dataDir, ...(providerName ? { provider: providerName } : {}) })
               // 退避状态落盘（2026-11-14）：只放 this 上时，重启即清零，刚欠费的机器又按 30 秒一拍往回撞。
               const st = readStallState(dataDir)
               if (c.verdict === 'stalled-auth' || c.verdict === 'throttled') {

@@ -312,6 +312,23 @@ node scripts/check-hashes.mjs --write --note "为什么改、改了什么、判�
 
 这也是我一度以为"修了但没生效"的原因——其实是缓存。
 
+### STALL-04 · 换 provider 后旧端点的 402 不许继续拦 `critical`
+
+成本账要**按端点实例过滤**（记录里的 `origin.instance`）；停摆判定只认当前端点。
+
+**实战**：把 `activeProvider` 从 `mimo` 换成本地 `lmstudio`，她启动第一件事就是
+「上游不通，心跳退避 2 分钟（额度被拒 402），lastFailure: 2026-11-14」——那 141 条 402 全是六天前 mimo 的账。**她拿着别人的欠费记录不敢动。**
+
+上轮 STALL-02「跨天不许把失败扔掉」是对的（欠费不会自己好），但**换端点是另一回事**。
+
+### HOST-06 · `attach()` 给的是 CoreApi，不是 BotApi `important`
+
+persona 想用的宿主能力，**先确认在 `host/cortico/src/core/types.ts` 的 `CoreApi` 里**。不在就不存在。
+
+**我踩的**：在 `bot.ts` 里看到 `activeEndpoint`，就直接写 `core.activeEndpoint()`——永远 `undefined`。因为 `attach(core)` 收到的是 `this.makeApi()`（`CoreApi`），而带 `activeEndpoint` 的那个对象在 `bot.ts` 的 `debug` 段里，是给 WebUI 的**另一个** API。
+
+**教训**：查类型定义，别只看调用点附近长得像的字段。
+
 ---
 
 ## 待办：还没变成规矩的观察

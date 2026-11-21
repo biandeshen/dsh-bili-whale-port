@@ -57,8 +57,19 @@ function dayKey(iso: string, basis: 'utc' | 'local'): string {
     : new Date(d.getTime() + (0 - d.getTimezoneOffset()) * 60_000).toISOString().slice(0, 10)
 }
 
-export function readCostToday(opts: { dataDir: string; basis?: 'utc' | 'local'; now?: number }): CostToday {
+/**
+ * 读当日成本与通道健康。
+ *
+ * `provider`（2026-11-21 增）：只统计**这个端点实例**的记录。
+ * 为什么必须有它：把 activeProvider 从 mimo 换成本地 lmstudio 之后，
+ * 她启动第一件事就是「上游不通，心跳退避 2 分钟（额度被拒 402）」——
+ * 那 141 条 402 全是六天前 **mimo** 的账。欠费不会自己好（上轮修的，对），
+ * 但**换端点是另一回事**：人家的欠费跟新端点无关。
+ * 不传 = 按全部历史算（老调用点与老测试的行为不变）。
+ */
+export function readCostToday(opts: { dataDir: string; basis?: 'utc' | 'local'; now?: number; provider?: string }): CostToday {
   const basis = opts.basis ?? 'utc'
+  const provider = opts.provider
   const file = path.join(opts.dataDir, 'usage.jsonl')
   const now = opts.now ?? Date.now()
   const empty: CostToday = {
@@ -123,6 +134,15 @@ export function readCostToday(opts: { dataDir: string; basis?: 'utc' | 'local'; 
      *   · 通道健康（last402Ms / lastErrMs / lastPaidMs）—— 跨天扫，只认时间先后
      * 后者是"通没通"的唯一依据，跟着日期走就会自欺。
      */
+    /**
+     * 只统计当前端点（2026-11-21）。`origin.instance` 是记录里已有的字段
+     * （provider 端点名，如 mimo / lmstudio），不用新加数据。
+     * 不传 provider 就不过滤——老调用点与老测试行为不变。
+     */
+    if (provider) {
+      const inst = String(a?.origin?.instance ?? '')
+      if (inst && inst !== provider) continue
+    }
     const startedMs = Date.parse(started) || 0
     const isToday = dayKey(started, basis) === today
     const input = Number(a?.meters?.input ?? 0)
