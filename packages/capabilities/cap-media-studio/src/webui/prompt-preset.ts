@@ -16,7 +16,12 @@
  * 按生成类型触发（我们只有"生图"一种用途）。
  */
 import type { PanelCtx } from '../../../../shared/webui-helpers/src/webui-helpers.ts'
-import { call, actionButton, createDirtyGuard, debounce } from '../../../../shared/webui-helpers/src/webui-helpers.ts'
+import { call, actionButton, createDirtyGuard } from '../../../../shared/webui-helpers/src/webui-helpers.ts'
+
+/** 浏览器全局里用到的：剪贴板（复制提示词）与选区（无剪贴板权限时帮他选中）。 */
+declare const navigator: { clipboard?: { writeText: (t: string) => Promise<void> } }
+declare const window: { getSelection: () => { removeAllRanges(): void; addRange(r: unknown): void } | null }
+declare const document: { createRange: () => { selectNodeContents(n: unknown): void } }
 
 /** 五个开关的显示名与说明。key 必须与后端 PromptSelection 的布尔键一致。 */
 const TOGGLES = [
@@ -35,7 +40,15 @@ export const promptPresetPanel = {
     const card = ui.sheet({
       title: '生图提示词预设',
       en: 'prompt presets',
-      desc: '每一段都能单独关；预览框里的就是最后会送出去的那段字。',
+      /**
+       * 描述必须诚实（2026-11-21 面板审计改）。
+       *
+       * 原文写的是"预览框里的就是最后会送出去的那段字"——**那句是假的**：
+       * 本包不生出图（`grep composeFromSelection` 除本文件外只有这里的预览调用），
+       * 8 张底图是预生成素材。这段提示词的真实用途是**导出成文本，拿去外部出图工具**。
+       * 把"会送出去"写成承诺，等于让人以为在这儿点几下就能出新图。
+       */
+      desc: '每段可单独开关，拼好后复制出去用（本包不自己出图——8 张底图是现成素材）。',
     })
     root.appendChild(card.el)
     const msg = ui.msgline()
@@ -95,15 +108,19 @@ export const promptPresetPanel = {
       // 预览区：字符 / token / 正文
       const stats = ui.h('div')
       const previewBox = ui.h('div')
-      previewBox.style.cssText = 'white-space:pre-wrap;border:1px solid var(--line,#ddd);border-radius:8px;padding:10px;margin-top:8px;max-height:280px;overflow:auto;font-size:12px;line-height:1.7;'
+      previewBox.style.cssText = 'white-space:pre-wrap;border:1px solid var(--line,#ddd);border-radius:8px;padding:10px;margin-top:8px;max-height:280px;overflow:auto;font-size:12px;line-height:1.7;user-select:text;'
 
       const partsBox = ui.h('div')
       partsBox.style.marginTop = '8px'
+
+      /** 上一次预览成功的正文——"复制"按钮读它，保证复制到的就是屏幕上那份。 */
+      let lastPrompt = ''
 
       async function preview() {
         const r = await call<any>(ctx, msg, 'composePrompt', { ...sel })
         partsBox.replaceChildren()
         if (!r?.ok) {
+          lastPrompt = ''
           previewBox.textContent = String(r?.error ?? '组合失败')
           stats.replaceChildren()
           return
@@ -114,7 +131,8 @@ export const promptPresetPanel = {
           { k: 'token 估算', v: r.tokens ?? 0 },
           { k: '启用段', v: (r.parts ?? []).filter((p: any) => p.enabled).length },
         ]))
-        previewBox.textContent = r.preview ?? r.prompt ?? ''
+        lastPrompt = String(r.preview ?? r.prompt ?? '')
+        previewBox.textContent = lastPrompt
         // 分段明细：哪几段在场、各占多少字
         const t = ui.table({ head: ['来源', '状态', '字符'] })
         for (const p of r.parts ?? []) {
@@ -125,6 +143,34 @@ export const promptPresetPanel = {
           ])
         }
         partsBox.append(t.el)
+      }
+
+      /**
+       * 真正的出口（面板审计补的）。
+       *
+       * 这一段提示词的用途本来就是"复制出去、贴进外部出图工具"——
+       * 之前面板只显示不给出路，等于把最后一步扔给主人手抄。
+       * 复制走 `navigator.clipboard`，失败时退回"选中正文让他自己 Ctrl+C"，
+       * 不假装成功（有些环境没有剪贴板权限）。
+       */
+      const copyBtn = ui.h('button', 'btn', '📋 复制这段提示词')
+      copyBtn.onclick = async () => {
+        if (!lastPrompt) {
+          msg.textContent = '还没有可复制的提示词（先选场景）'
+          return
+        }
+        try {
+          await (navigator as any).clipboard.writeText(lastPrompt)
+          msg.textContent = `已复制 ${lastPrompt.length} 个字符，去外部出图工具粘上就行。`
+        } catch {
+          // 没有剪贴板权限：帮他选中正文，让他自己按 Ctrl+C。不谎报成功。
+          const range = document.createRange()
+          range.selectNodeContents(previewBox)
+          const selRange = window.getSelection()
+          selRange?.removeAllRanges()
+          selRange?.addRange(range)
+          msg.textContent = '这个环境不给剪贴板权限；正文已选中，按 Ctrl+C 复制。'
+        }
       }
 
       // 预设区
@@ -146,12 +192,26 @@ export const promptPresetPanel = {
           const ops = ui.h('div')
           const apply = ui.h('button', 'btn', '套用')
           apply.onclick = () => {
+            /**
+             * 套用要做三件事，缺一件就"看起来变了其实没变"（面板审计③）：
+             *   1. 换掉内存里的选择        ← 原来只有这个
+             *   2. 把下拉框的**显示值**也换  ← sceneSel.value 直接赋值不触发 onChange，
+             *     但原生 HTMLSelectElement 的 .value 是双向的，所以显示会同���；
+             *     危险在于**不能靠它触发副作用**——以后谁加一行依赖 onChange 的逻辑就会漏。
+             *   3. 重算预览 + 清脏基线      ← 套用等于"这就是我要的"，不该再被脏问话
+             */
             sel = { ...p.selection }
             sceneSel.value = sel.sceneId
             formSel.value = sel.form ?? 'chibi'
             for (const b of boxes) b.sync()
+            /**
+             * 基线跟着挪到"刚套用的这套"——否则套用之后立刻被自己的脏守卫拦。
+             * 注意这里**不能**用 `guard.reset()`：它会连名字框/导入框的监视一起清掉，
+             * 那两个之后就不再算脏了（这是 reset 的语义，不是 bug）。
+             */
+            savedKey = selectionKey()
             void preview()
-            msg.textContent = `已套用「${p.name}」（还没保存，出图前可继续调）`
+            msg.textContent = `已套用「${p.name}」。这就是当前这套；点上面「复制」拿走，或再改。`
           }
           const del = ui.h('button', 'btn', '删除')
           del.onclick = async () => {
@@ -227,6 +287,10 @@ export const promptPresetPanel = {
       const ioRow = ui.actions()
       ioRow.append(exportBtn, importBtn)
 
+      // 复制按钮自己一行——它是这一页的**出口**，不该混在其它按钮里
+      const copyRow = ui.actions()
+      copyRow.append(copyBtn)
+
       // 变量提示
       const varHint = ui.pill(
         `可用变量：${Object.keys(vars).map((k) => `{{${k}}}`).join(' ') || '（无）'}`,
@@ -238,7 +302,9 @@ export const promptPresetPanel = {
         ui.field('形态档', formSel),
         ui.field('分段开关', toggleRow),
         varHint,
-        ui.field('预览（最终送出去的那段字）', previewBox),
+        // 标签改成实话：本包不出图，"拿走出"才是它的出路（面板审计①）
+        ui.field('预览（复制出去用）', previewBox),
+        copyRow,
         stats,
         ui.field('分段明细', partsBox),
         ui.h('h3', null, '预设'),
@@ -253,7 +319,17 @@ export const promptPresetPanel = {
         ioRow,
       )
 
-      // 脏跟踪：只盯"名字框"与"导入框"这类手打内容；开关变化不算脏（那是快速试）
+      /**
+       * 脏跟踪（2026-11-21 面板审计②改）。
+       *
+       * 原来只盯名字框和导入框，理由是"开关变化是快速试，不算脏"——**那是错的**：
+       * 五个开关 + 两个下拉框正是这一页最常调的东西，刷新时静默丢掉最难发现。
+       * 现在把"当前这套选择"整体当成脏值：拿 `selectionKey(sel)` 与基线比，
+       * 只要开关或下拉变过，刷新前就会问一句。
+       */
+      const selectionKey = () => JSON.stringify(sel)
+      let savedKey = selectionKey()
+      guard.watch({ get value() { return selectionKey() } } as { value: string }, () => savedKey)
       guard.watch(presetName, () => '')
       guard.watch(ioTa, () => '')
 
