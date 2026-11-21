@@ -68,7 +68,13 @@ test('cap-media-studio：契约校验、面板方法与推送队列接线（注�
   assert.equal(world.id, 'media-studio')
   assert.equal(world.api, 6)
   assert.equal(validateCapabilityContract(world.capability).ok, true)
-  assert.equal(world.panels().length, 1)
+  /**
+   * 2026-11-21 从 1 改成 2：加了独立的「生图提示词预设」面板。
+   * 分开的理由写在该面板声明处——工作台是"今天出片"的动线，
+   * 预设是"调好长期用"的设置，混一页会让出片按钮离台词框越来越远。
+   */
+  assert.equal(world.panels().length, 2)
+  assert.deepEqual(world.panels().map((p) => p.id), ['media-studio', 'prompt-preset'])
   assert.equal(world.tools().length, 2)
 
   // listAssets 读到真实 CC0 曲库（按 catalog.json 声明顺序，不是文件名字母序）与本地底图

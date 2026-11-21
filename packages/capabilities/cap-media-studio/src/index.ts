@@ -13,7 +13,23 @@ import type { XiaoyuCapability } from '../../../kernel/persona-core/src/capabili
 import { listBgm, resolveBgm } from './vendor/bgm.mjs'
 import { MEDIA_DEFAULTS } from './vendor/media-config.mjs'
 import { ttsPlan, describeTts } from './vendor/tts.mjs'
-import { loadPromptLibrary, composeImagePrompt, PROMPT_DIR } from './image-prompt.ts'
+import {
+  loadPromptLibrary,
+  composeImagePrompt,
+  composeFromSelection,
+  listParts,
+  PROMPT_DIR,
+  DEFAULT_SELECTION,
+  type PromptSelection,
+} from './image-prompt.ts'
+import {
+  readPresets,
+  upsertPreset,
+  deletePreset as deletePresetStore,
+  importPresets as importPresetsStore,
+  exportPresets as exportPresetsStore,
+} from './prompt-presets.ts'
+import { resolveSelection, readOverrides, writeOverrides, clearDeployOverride } from './prompt-layers.ts'
 import { choosePortrait, alternatePortrait, SCENE_LABEL } from './portrait.ts'
 import {
   renderVideoSlice,
@@ -83,6 +99,43 @@ export interface MediaStudioCapabilityOptions {
    * 穿结构由宿主决定，本包只承诺 shape：{ usage, provider, model }。
    */
   onUsage?: (u: { usage: Record<string, unknown>; provider: string; model: string }) => void
+}
+
+/**
+ * 提示词里可用的变量（`{{name}}` 会被替换）。
+ *
+ * 只给本包真的知道的：今天日期、当前年份季节。主人名 / 她的情绪这些
+ * 本包拿不到（那是 persona 与 state-rhythm 的域）——**拿不到就不编**，
+ * 让 `interpolate` 把未知变量原样留着，比塞一个假值好。
+ * 外层若想补，走 `MediaStudioCapabilityOptions.promptVars` 注入。
+ */
+function promptVars(extra?: () => Record<string, string>): Record<string, string> {
+  const now = new Date()
+  const month = now.getMonth() + 1
+  const season = month >= 3 && month <= 5 ? '春' : month >= 6 && month <= 8 ? '夏' : month >= 9 && month <= 11 ? '秋' : '冬'
+  return {
+    today: now.toLocaleDateString('sv-SE'),
+    year: String(now.getFullYear()),
+    month: String(month),
+    season,
+    ...(extra ? extra() : {}),
+  }
+}
+
+/**
+ * 面板传来的选择可能是部分字段（旧客户端只传 sceneId/form）。
+ * 这里只做"形状收窄"：布尔键只认真布尔，字符串键只认真字符串，其余交给 DEFAULT。
+ */
+function sanitizeSelectionInput(input: Record<string, unknown> | undefined): Partial<PromptSelection> {
+  if (!input || typeof input !== 'object') return {}
+  const out: Partial<PromptSelection> = {}
+  if (typeof input.sceneId === 'string' && input.sceneId) out.sceneId = input.sceneId
+  if (typeof input.form === 'string' && input.form) out.form = input.form
+  for (const k of ['style', 'formOn', 'character', 'scene', 'negative'] as const) {
+    if (typeof input[k] === 'boolean') out[k] = input[k] as boolean
+  }
+  if (typeof input.refNote === 'string' && input.refNote) out.refNote = input.refNote
+  return out
 }
 
 function ffmpegAvailable(binDir?: string): { ffmpeg: string | null; ffprobe: string | null } {
@@ -368,28 +421,7 @@ export function createMediaStudioCapability(
           title: '音视频创作工作台',
           description: '浏览底图与 CC0 BGM 曲库、试听 TTS 语音、一键合成视频草稿并送入 B 站待放行队列',
           methods: {
-            listPrompts: {
-              name: 'listPrompts',
-              verb: 'GET',
-              summary: '读生图提示词库：形象正本、形态档、场景清单',
-              writable: false,
-              invoke(params: { dir?: string } = {}) {
-                const lib = loadPromptLibrary(params?.dir ?? opts.promptDir ?? PROMPT_DIR)
-                if (!lib) return { ok: false, error: `提示词库缺失（character.txt 不在 ${params?.dir ?? opts.promptDir ?? PROMPT_DIR}）` }
-                return { ok: true, scenes: lib.scenes.map((s) => ({ id: s.id, name: s.name })), forms: Object.keys(lib.forms), negativeCount: lib.negative.length }
-              },
-            },
-            composePrompt: {
-              name: 'composePrompt',
-              verb: 'POST',
-              summary: '按场景+形态档组合一份完整正向提示词（形象正本自动带上）',
-              writable: true,
-              invoke(params: { sceneId: string; form?: string }) {
-                const lib = loadPromptLibrary(opts.promptDir ?? PROMPT_DIR)
-                if (!lib) return { ok: false, error: '提示词库缺失' }
-                return composeImagePrompt(lib, { sceneId: params?.sceneId, form: params?.form })
-              },
-            },
+            /**
             listAssets: {
               name: 'listAssets',
               verb: 'GET',
@@ -426,6 +458,31 @@ export function createMediaStudioCapability(
              * 所以像 cap-vision 的缩略图那样自己出图；原图 1024×1536 有 ~1.8MB，
              * 面板刷新一次扛不住，先缩到 420 宽。
              */
+            listAssets: {
+              name: 'listAssets',
+              verb: 'GET',
+              summary: '列出日常底图、CC0 BGM 曲目、ffmpeg/TTS 工具链可用性与历史成片',
+              writable: false,
+              invoke() {
+                const bins = ffmpegAvailable(opts.binDir)
+                return {
+                  ok: true,
+                  images: listDailyImages(),
+                  bgmTracks: listBgm(opts.bgmDir),
+                  toolchain: {
+                    ffmpeg: bins.ffmpeg,
+                    ffprobe: bins.ffprobe,
+                    ffmpegReady: Boolean(bins.ffmpeg && bins.ffprobe),
+                    tts: describeTtsStatus(),
+                    // 402/429 冷却：欠费时配音会静默降级到 edge。不能只留在日志里——
+                    // 面板上要能看出"为什么这次不是她自己的声音"（B22-P3 的可见面）。
+                    ttsCooldown: ttsCooldownStatus(opts.outputDir),
+                  },
+                  limits: VIDEO_SIZE_LIMITS,
+                  drafts: readDraftRecords().reverse(),
+                }
+              },
+            },
             portrait: {
               name: 'portrait',
               verb: 'GET',
@@ -478,6 +535,145 @@ export function createMediaStudioCapability(
               }) {
                 return await runBuildVideoDraft(params)
               },
+            },
+          },
+        },
+        {
+          /**
+           * 提示词预设（2026-11-21）。独立一个面板而不是塞进工作台，理由：
+           * 工作台是"今天出片"的动线，预设是"调好长期用"的设置——两者节奏不同，
+           * 混在一页会让出片按钮离台词框越来越远。
+           *
+           * 方法直接内联：与工作台只有签名相同、实现各管各的（工作台的 composePrompt
+           * 保留给"按场景快速拼一份"，这里的是"按整套选择拼并带分段明细"）。
+           */
+          id: 'prompt-preset',
+          title: '生图提示词预设',
+          description: '分段开关、实时预览、token 估算、变量插值、预设的保存/导入导出与重置',
+          methods: {
+            listPrompts: {
+              name: 'listPrompts',
+              verb: 'GET',
+              summary: '读生图提示词库：场景清单、形态档、分段明细与可用变量',
+              writable: false,
+              invoke(params: { dir?: string } = {}) {
+                const dir = params?.dir ?? opts.promptDir ?? PROMPT_DIR
+                const lib = loadPromptLibrary(dir)
+                if (!lib) return { ok: false, error: `提示词库缺失（character.txt 不在 ${dir}）` }
+                if (!lib.scenes.length) return { ok: false, error: '提示词库里没有场景（NN-*.txt）' }
+                const selection: PromptSelection = { ...DEFAULT_SELECTION, sceneId: lib.scenes[0].id }
+                return {
+                  ok: true,
+                  scenes: lib.scenes.map((s) => ({ id: s.id, name: s.name })),
+                  forms: Object.keys(lib.forms),
+                  negativeCount: lib.negative.length,
+                  selection,
+                  parts: listParts(lib, selection),
+                  vars: Object.keys(promptVars()),
+                }
+              },
+            },
+            composePrompt: {
+              name: 'composePrompt',
+              verb: 'POST',
+              summary: '按三层覆盖解析出最终选择并组合预览（run > deploy > base）',
+              writable: true,
+              invoke(params: Partial<PromptSelection> & { sceneId?: string; form?: string; dir?: string }) {
+                const dir = params?.dir ?? opts.promptDir ?? PROMPT_DIR
+                const lib = loadPromptLibrary(dir)
+                if (!lib) return { ok: false, error: '提示词库缺失' }
+                if (!lib.scenes.length) return { ok: false, error: '提示词库里没有场景（NN-*.txt）' }
+                /**
+                 * 三层：base 用库里的第一个场景兜底；deploy 从部署家读；run 是这次传的。
+                 * 面板不传 sceneId（只改开关）时也要能出预览——所以 base 必须有场景。
+                 */
+                const base: PromptSelection = { ...DEFAULT_SELECTION, sceneId: lib.scenes[0].id }
+                const run = sanitizeSelectionInput(params)
+                const resolved = resolveSelection(opts.outputDir, { base, run })
+                const r = composeFromSelection(lib, resolved.selection, promptVars())
+                return r.ok ? { ...r, layers: resolved.layers, selection: resolved.selection } : r
+              },
+            },
+            /** 把当前一套选择写成部署默认（长期生效，重启后仍是它）。 */
+            setDeployOverride: {
+              name: 'setDeployOverride',
+              verb: 'POST',
+              summary: '把一套选择保存为部署层默认（base 之上的长期覆盖）',
+              writable: true,
+              invoke(params: { selection: PromptSelection }) {
+                const r = resolveSelection(opts.outputDir, { base: DEFAULT_SELECTION, run: sanitizeSelectionInput(params?.selection) })
+                writeOverrides(opts.outputDir, { deploy: r.selection })
+                return { ok: true, deploy: r.selection }
+              },
+            },
+            clearDeployOverride: {
+              name: 'clearDeployOverride',
+              verb: 'POST',
+              summary: '清掉部署层默认，回到代码包基线',
+              writable: true,
+              invoke() {
+                clearDeployOverride(opts.outputDir)
+                return { ok: true }
+              },
+            },
+            getLayers: {
+              name: 'getLayers',
+              verb: 'GET',
+              summary: '读当前三层覆盖状态（base 恒有、deploy 有没有设过）',
+              writable: false,
+              invoke() {
+                const o = readOverrides(opts.outputDir)
+                return { ok: true, deploy: o.deploy ?? null, note: o.note ?? null }
+              },
+            },
+            listPresets: {
+              name: 'listPresets',
+              verb: 'GET',
+              summary: '列出已保存的提示词预设',
+              writable: false,
+              invoke() { return { ok: true, ...readPresets(opts.outputDir) } },
+            },
+            savePreset: {
+              name: 'savePreset',
+              verb: 'POST',
+              summary: '保存/覆盖一条预设（同 id 覆盖）',
+              writable: true,
+              invoke(params: { id?: string; name: string; selection: PromptSelection; note?: string }) {
+                const r = upsertPreset(opts.outputDir, {
+                  id: params?.id,
+                  name: String(params?.name ?? ''),
+                  selection: params?.selection as PromptSelection,
+                  ...(params?.note ? { note: String(params.note) } : {}),
+                })
+                return r.ok ? { ok: true, preset: r.preset, presets: r.store.presets } : r
+              },
+            },
+            deletePreset: {
+              name: 'deletePreset',
+              verb: 'POST',
+              summary: '删除一条预设',
+              writable: true,
+              invoke(params: { id: string }) {
+                const r = deletePresetStore(opts.outputDir, String(params?.id ?? ''))
+                return r.ok ? { ok: true, presets: r.store.presets } : r
+              },
+            },
+            importPresets: {
+              name: 'importPresets',
+              verb: 'POST',
+              summary: '导入预设（{presets:[...]} 或 [...]；同 id 覆盖，有坏条目整批拒收）',
+              writable: true,
+              invoke(params: { payload: unknown }) {
+                const r = importPresetsStore(opts.outputDir, params?.payload)
+                return r.ok ? { ok: true, added: r.added, replaced: r.replaced, presets: r.store.presets } : r
+              },
+            },
+            exportPresets: {
+              name: 'exportPresets',
+              verb: 'GET',
+              summary: '导出全部预设（可直接存文件再导回）',
+              writable: false,
+              invoke() { return { ok: true, ...exportPresetsStore(opts.outputDir) } },
             },
           },
         },

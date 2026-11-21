@@ -11,6 +11,7 @@
  */
 import type { PanelCtx } from '../../../../shared/webui-helpers/src/webui-helpers.ts'
 import { call, actionButton, createDirtyGuard } from '../../../../shared/webui-helpers/src/webui-helpers.ts'
+import { promptPresetPanel } from './prompt-preset.ts'
 
 export const mediaStudioPanel = {
   mount(ctx: PanelCtx) {
@@ -156,4 +157,4 @@ export const mediaStudioPanel = {
   },
 }
 
-export default { panels: { 'media-studio': mediaStudioPanel } }
+export default { panels: { 'media-studio': mediaStudioPanel, 'prompt-preset': promptPresetPanel } }
