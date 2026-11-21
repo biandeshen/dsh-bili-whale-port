@@ -55,9 +55,11 @@ test('cortico-bot-xiaoyu：一拖三转接坞汇聚 3 个对内能力包 + 存�
   assert.ok(hub.panels().some((p) => p.id === 'feedback-triage'), '意见箱要有独立的分诊台')
   assert.ok(hub.panels().some((p) => p.id === 'day'), '「她的一天」要挂上她的 persona 页')
   // 工具数以 hub.tools() 实测为准，不在注释里写死（加一个 judgment_revisit 就过期了）。
-  // 现在 15 个：mood_read / mood_apply / life_do / 记忆 3 / 日记 4 / judgment 3 / 意见箱 1 / 看画面 1
-  //              / 对话历史 2（history_page / history_search）。
-  assert.equal(hub.tools().length, 15)
+  // 现在 16 个：mood_read / mood_apply / life_do / 记忆 4（remember/recall/void/supersede）
+  //              / 日记 4 / judgment 3 / 意见箱 1 / 看画面 1 / 对话历史 2。
+  // 2026-11-21 从 15 改 16：新增 memory_supersede（标记旧说法被新说法取代）。
+  assert.equal(hub.tools().length, 16)
+  assert.ok(hub.tools().some((t) => t.name === 'memory_supersede'), '新旧说法矛盾时要能标取代（不删原文）')
   assert.ok(hub.tools().some((t) => t.name === 'life_do'), '她做过的事要能自己记一笔（记账层原来是断的）')
   assert.ok(hub.tools().some((t) => t.name === 'see_video'), '看画面得真的挂在她这一轮能用的工具里')
   assert.ok(hub.tools().some((t) => t.name === 'history_search'), '她得能按日期/关键词找回更早的对话')

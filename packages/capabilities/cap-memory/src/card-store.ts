@@ -48,6 +48,14 @@ export function serializeMemoryCard(card: MemoryCard): string {
     voided: Boolean(card.voided),
     ...(card.voidedAt ? { voidedAt: card.voidedAt } : {}),
     ...(card.voidReason ? { voidReason: card.voidReason } : {}),
+    /**
+     * 时间有效性（2026-11-21）。**必须序列化**——第一版漏了这三个字段，
+     * 表现是「标记成功、返回对象里有 supersededBy，但重新读盘就没了」。
+     * 那种半成功最坏：调用方以为记下了，下一轮召回完全当它没发生。
+     */
+    ...(card.validFrom ? { validFrom: card.validFrom } : {}),
+    ...(card.validUntil ? { validUntil: card.validUntil } : {}),
+    ...(card.supersededBy ? { supersededBy: card.supersededBy } : {}),
   }
   const lines = ['---']
   for (const [k, v] of Object.entries(meta)) {
@@ -98,6 +106,10 @@ export function parseMemoryCard(raw: string, tier: MemoryTier, fallbackId = 'mem
     voided: tier === 'voided' || Boolean(meta.voided),
     ...(meta.voidedAt ? { voidedAt: String(meta.voidedAt) } : {}),
     ...(meta.voidReason ? { voidReason: String(meta.voidReason) } : {}),
+    // 时间有效性（2026-11-21）：读回时也要认，否则序列化写了等于白写
+    ...(meta.validFrom ? { validFrom: String(meta.validFrom) } : {}),
+    ...(meta.validUntil ? { validUntil: String(meta.validUntil) } : {}),
+    ...(meta.supersededBy ? { supersededBy: String(meta.supersededBy) } : {}),
     tier,
   }
 }
@@ -316,6 +328,50 @@ export class MemoryCardStore {
     }
     this.commit(`memory: 作废「${target.content.slice(0, 24)}」（${cleanReason.slice(0, 30)}）`)
     return { ok: true, card: voidedCard }
+  }
+
+  /**
+   * 标记"这条被更新的说法取代了"（2026-11-21，记忆域分析 ②）。
+   *
+   * 与 `voidCard` 的**语义差别是本质的**：
+   *   void     = 当初就记错了（假记忆，移入 voided/，退出召回）
+   *   supersede = 当初是对的，现在有了新说法（留在原层，只标 supersededBy + validUntil）
+   *
+   * 为什么不用 void 顶替：把她"以前以为的事"当成"错事"处理，
+   * 等于改写她的人生史。她的历史里该留得下"我曾经这么想"。
+   *
+   * `byId` 指向取代它的那条（可以还没建，先记 id）；`validUntil` 默认取当下——
+   * 新说法成立的时刻就是旧说法失效的时刻。
+   */
+  supersedeCard(
+    sel: { id?: string; match?: string },
+    byId: string,
+    now = Date.now(),
+  ): { ok: true; card: MemoryCard } | { ok: false; error: string; candidates?: string[] } {
+    const cleanBy = String(byId ?? '').trim()
+    if (!cleanBy) return { ok: false, error: '要说清被哪条取代（byId）' }
+    const pool = this.readAll({ tier: 'all' }).filter((c) => c.tier !== 'voided' && !c.voided)
+    const hits = sel.id
+      ? pool.filter((c) => c.id === sel.id)
+      : pool.filter((c) => sel.match && c.content.toLowerCase().includes(sel.match.trim().toLowerCase()))
+    if (hits.length === 0) return { ok: false, error: '没有找到匹配的未作废记忆' }
+    if (hits.length > 1) {
+      return {
+        ok: false,
+        error: `匹配到 ${hits.length} 条记忆，请指定唯一 id`,
+        candidates: hits.map((h) => `${h.id}: ${h.content.slice(0, 30)}`),
+      }
+    }
+    const target = hits[0]
+    if (target.id === cleanBy) return { ok: false, error: '不能自己取代自己' }
+    const next: MemoryCard = {
+      ...target,
+      supersededBy: cleanBy,
+      validUntil: new Date(now).toISOString(),
+    }
+    this.writeCardAtomic(next)
+    this.commit(`memory: 「${target.content.slice(0, 20)}」被 ${cleanBy} 取代`, AUTHOR_OPERATOR)
+    return { ok: true, card: next }
   }
 
   restoreCard(id: string, targetTier: 'active' | 'core' = 'active'): { ok: true; card: MemoryCard } | { ok: false; error: string } {

@@ -16,6 +16,16 @@ const SOURCE_DECAY_RATES: Record<MemorySource, number> = {
 const BASE_DECAY_RATE = 0.02;
 
 /**
+ * 已失效 / 被取代的记忆在召回分上的**下调系数**（2026-11-21，记忆域分析 ①）。
+ *
+ * 为什么是 0.25 而不是 0：过期不等于假——她说过"我以前以为主人不喜欢猫"是有意义的，
+ * 归零就等于把这段历史抹掉（违背"content 永不删除"的老规矩）。
+ * 为什么不是 0.5：0.5 仍可能压过一条低鲜活度的有效记忆，那就本末倒置了。
+ * 0.25 的实测效果：明显排到有效记忆后面，但关键词高度命中时仍能挤进 k 名之内。
+ */
+export const SUPERSEDE_WEIGHT = 0.25;
+
+/**
  * Decay memory vividness over time.
  * Vividness decreases naturally — memories fade.
  * - Pinned memories are immune to decay.

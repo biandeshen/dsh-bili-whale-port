@@ -25,7 +25,7 @@ import {
   type MemoryCard,
 } from './card-store.ts'
 import { GitWorkspaceMemory } from './workspace.ts'
-import { recallMemories, RECALL_WEIGHTS } from '../../../kernel/persona-core/src/retrieval.ts'
+import { recallMemories, RECALL_WEIGHTS, supersedeCandidates } from '../../../kernel/persona-core/src/retrieval.ts'
 import { WriteDeduper, contentKey } from '../../../shared/write-dedupe/src/write-dedupe.ts'
 
 export {
@@ -253,6 +253,18 @@ export function createMemoryCapability(
               }
             }
             const mood = opts.getCurrentMood ? opts.getCurrentMood() : 0
+            /**
+             * 冲突提示（2026-11-21，记忆域分析 ②）：记下这条之前，先看它可能和哪条旧说法矛盾。
+             *
+             * **只提示、不覆盖**——跟 `prefs.like` 那条同一个原则：系统不下结论，
+             * 只把候选摆出来，让主人或她自己决定哪条算数。
+             * 覆盖要显式做（面板上标 supersededBy），不能因为"听起来更新"就自动作废旧事实。
+             */
+            const conflicts = supersedeCandidates(args.content, store.readAll({ tier: 'all' }))
+              .slice(0, 3)
+            const conflictReceipt = conflicts.length
+              ? '（注意：可能和这几条旧记忆矛盾，哪条算数要你定——' + conflicts.map((c) => c.content.slice(0, 24)).join(' / ') + '）'
+              : ''
             if (args.firstTag) {
               const card = store.rememberFirst(args.content, args.firstTag, {
                 sender: 'npc',
@@ -260,7 +272,7 @@ export function createMemoryCapability(
                 tags: args.tags,
               })
               memDeduper.remember(mKey, { id: card.id, tier: card.tier, flashbulb: card.flashbulb })
-              return { ok: true, id: card.id, tier: card.tier, flashbulb: card.flashbulb }
+              return { ok: true, id: card.id, tier: card.tier, flashbulb: card.flashbulb, ...(conflicts.length ? { conflicts, receipt: conflictReceipt } : {}) }
             }
             const card = store.create({
               content: args.content,
@@ -271,7 +283,7 @@ export function createMemoryCapability(
               source: 'npc_self',
             })
             memDeduper.remember(mKey, { id: card.id, tier: card.tier, flashbulb: card.flashbulb })
-            return { ok: true, id: card.id, tier: card.tier, flashbulb: card.flashbulb }
+            return { ok: true, id: card.id, tier: card.tier, flashbulb: card.flashbulb, ...(conflicts.length ? { conflicts, receipt: conflictReceipt } : {}) }
           },
         },
         {
@@ -314,6 +326,26 @@ export function createMemoryCapability(
           mutatesState: true,
           execute(args: { id?: string; match?: string; reason: string }) {
             return store.voidCard({ id: args.id, match: args.match }, args.reason)
+          },
+        },
+        {
+          name: 'memory_supersede',
+          summary: '标记一条旧记忆被新说法取代（不删原文，只标出处）',
+          description:
+            '与 memory_void 的区别：void 是「当初就记错了」，supersede 是「当初对、现在有新说法」。'
+            + '旧记忆留在原层、仍可召回，但会降权并在回执里注明「这是过去的」。',
+          parameters: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', description: '旧的记忆卡片 id' },
+              match: { type: 'string', description: '或唯一匹配的旧正文子串' },
+              byId: { type: 'string', description: '取代它的那条记忆 id' },
+            },
+            required: ['byId'],
+          },
+          mutatesState: true,
+          execute(args: { id?: string; match?: string; byId: string }) {
+            return store.supersedeCard({ id: args.id, match: args.match }, args.byId)
           },
         },
       ]
@@ -668,6 +700,59 @@ export function createMemoryCapability(
                 } catch (e: any) {
                   return { ok: false, error: String(e?.message ?? e) }
                 }
+              },
+            },
+            /**
+             * 记忆容量水位（2026-11-21，记忆域分析 ③）。
+             *
+             * 召回是 O(n) 全量扫（card-store.ts 的 readAll），卡多了会悄悄变慢。
+             * 这里只做**看得见**：数张数、数字节、给判级。不做自动压缩——
+             * 摘要要调模型、要定压什么留什么，是独立一批活，不该混进来。
+             *
+             * 阈值为什么是这两个数：activeCap 默认 200，所以 watch 取它的 1/4（50）=
+             * 该开始想压缩了；full 取 3/4（150）= 再不压，召回开销会开始难受。
+             * 都跟 residentCap/activeCap 同一把尺子，不另发明刻度。
+             */
+            watermark: {
+              name: 'watermark',
+              verb: 'GET',
+              summary: '记忆容量水位：各层张数、总字节、是否该压缩（只读）',
+              writable: false,
+              invoke() {
+                const conf = cfg()
+                /**
+                 * 直接复用 `store.tierSize()`——它跟 storageParts 用的是同一个口径。
+                 * 第一版我自己在面板里 `readdirSync(store.memoRoot)`，结果读错了目录
+                 * （空库能过、写过卡的反而数到 0）。有现成口径就别另写一份，
+                 * 这就是"两处各算一遍必然漂"的经典形态。
+                 */
+                const tiers: Record<string, number> = { core: 0, active: 0, archived: 0, voided: 0 }
+                let bytes = 0
+                for (const tierName of ['core', 'active', 'archived', 'voided'] as const) {
+                  const s = store.tierSize(tierName)
+                  tiers[tierName] = s.count
+                  bytes += s.bytes
+                }
+                const total = tiers.core + tiers.active + tiers.archived + tiers.voided
+                /**
+                 * 阈值跟 `activeCap` 同一把尺子，不另发明刻度。
+                 *
+                 * 第一版写成 `max(10, floor(cap/4))` 与 `max(watch+10, floor(cap*3/4))`，
+                 * 小配置下两个数会撞在一起（cap=20 → 10 和 20），档位形状变形。
+                 * 现在改成按比例算且**保证 watch < full**：
+                 *   watch = cap/4（至少 2）
+                 *   full  = cap*3/4（至少 watch+1）
+                 */
+                const watchAt = Math.max(2, Math.floor(conf.activeCap / 4))
+                const fullAt = Math.max(watchAt + 1, Math.floor((conf.activeCap * 3) / 4))
+                const level: 'ok' | 'watch' | 'full' = total >= fullAt ? 'full' : total >= watchAt ? 'watch' : 'ok'
+                const mb = (bytes / 1024 / 1024).toFixed(2)
+                const line = level === 'full'
+                  ? `记忆水位 full：${total} 张 / ${mb}MB（≥ ${fullAt}）。该压缩了——召回是全量扫，再涨会开始变慢。`
+                  : level === 'watch'
+                    ? `记忆水位 watch：${total} 张 / ${mb}MB（≥ ${watchAt}）。还没到该压的程度，但可以开始整理。`
+                    : `记忆水位 ok：${total} 张 / ${mb}MB。`
+                return { ok: true, total, bytes, tiers, level, watchAt, fullAt, line }
               },
             },
             rollback: {

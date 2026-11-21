@@ -73,6 +73,48 @@
 4. **60% 的分数与查询无关**：`vivid+mood+recency` 三项共 0.60 只看卡片自身（`retrieval.ts:172-175`），
    无关但新鲜的事能顶掉相关的；且 `kw = hit/maxIdf`（`:176-181`）单点罕见词即饱和。
    复现：`node --test packages/kernel/persona-core/tests/retrieval.test.mjs`（11 项全用 2–3 条合成卡验算术，任改一权重立刻红）。
+
+### 功能域对标（2026-11-21，与 Mem0 / Zep / Letta 逐项对照后新增）
+
+对照方法：先从代码提取工具/面板/字段（不靠印象），再只看竞品一手文档。结论分三类——**我们更深的 / 我们缺的 / 我们不该抄的**。
+
+**我们更深的**（竞品没有）：四因子确定性召回且四因子的原始值与贡献都可查（竞品基本黑盒）；
+作废不删原文（`content` 永不删除，只盖章移出召回）；核心常驻有人工退位审阅台。
+
+**我们缺的（下面 5–7 条已修，8 条未修）**：
+
+5. ~~无时间有效性~~ **已修（2026-11-21）**：`Memory` 新增 `validFrom/validUntil/supersededBy`；
+   召回时已失效/被取代的**乘 `SUPERSEDE_WEIGHT`（0.25）降权**而不是排除——过期不等于假，
+   归零等于抹掉"我以前以为…"那段历史。回执会注明「已失效——这是过去的」。
+   `content` 仍永不删除。复现：`node --test tests/memory-validity.test.mjs`（10 项）。
+   改这个时踩过一个坑：第一版排序测试让两条内容完全相同、靠 id 升序蒙对，变异（拆掉降权）仍绿；
+   现已改成"让过期那条各项都更占优、id 反而排前面"，变异立刻红。
+
+6. ~~无冲突消解~~ **已修（2026-11-21，只做提示）**：`memory_remember` 写入时用关键词重叠找可能矛盾的旧记忆
+   （`supersedeCandidates`，阈值 0.34），**只提示不覆盖**——回执写「哪条算数要你定」。
+   显式覆盖走新工具 `memory_supersede(id|match, byId)`：只标 `supersededBy`，不删原文。
+   与 `memory_void` 的语义区分写在代码注释里：void = 当初就记错了；supersede = 当初对、现在有新说法。
+   复现：`node --test tests/memory-conflict-chain.test.mjs`（5 项，走真实工具链）。
+   **改这个时抓到一个真 bug**：`serializeMemoryCard` / `parseMemoryCard` 漏了这三个新字段，
+   表现是「标记成功、返回值里有 supersededBy，但重新读盘就没了」——半成功最坏，
+   调用方以为记下了，下一轮召回完全当它没发生。
+
+7. ~~无容量水位~~ **已修（2026-11-21，只做可见）**：面板 `watermark` 方法数各层张数与字节，
+   给 `ok / watch / full` 三级；阈值跟 `activeCap` 同一把尺子（watch = cap/4、full = cap*3/4），不另发明刻度。
+   **不做自动摘要**：那要调模型、要定"压什么留什么"，是独立一批活。
+   复现：`node --test tests/memory-watermark.test.mjs`（5 项）。
+   踩坑：我手写 `readdirSync(store.memoRoot)` 与既有 `store.tierSize()` 口径不一致，
+   空库能过、写过卡的反而数到 0；已改成复用 `tierSize()`。
+
+8. **仍缺 procedural memory（她"学会的做法"）**：`ORIENTATION.md` 里的流程是硬写在提示词里的，
+   她没法把"我发现更合适的顺序"记成一条可复用的方法。Mem0 对此的解法很轻（`agent_id` 分组 + `infer=False`），
+   我们已有 `tags` 与四层，加一个「流程」类型不难，但**要定"学到的流程什么时候生效、和提示词里的冲突听谁的"**，
+   属语义变更，需先提案。复现：`grep -rn "procedur\|routine" packages/capabilities/cap-memory/src/ packages/kernel/persona-core/src/memory.ts` → 0。
+
+**我们不该抄的**：知识图谱（Zep/Graphiti）。它的收益在多跳、计数、枚举、否定查询——
+那是企业知识库的需求，我们是单个个体。`native-first-oss-adoption` 那条讲"别把成熟整套拆成低配自研"，
+反向也成立：**别为了对标完整度而引入用不上的复杂度**。
+向量检索同理（`retrieval.ts:3-5` 已写明理由：不可复现、要外部依赖、解释不了"为什么想起这条"）。
 5. **检索没有任何评测集**：无 query→期望命中 id 的样本，因此"改权重是变好还是变坏"今天无法回答。
    复现：`grep -rln "expect.*recall\|期望命中" packages/kernel/persona-core/tests packages/capabilities/cap-memory/tests` → 无。
 6. **可达性黑洞①（最老的 core 掉出常驻）**：排序新→旧（`card-store.ts:184`）+ `slice(0, residentCap)`（`index.ts:175`），

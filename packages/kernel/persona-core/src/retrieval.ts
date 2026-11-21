@@ -12,6 +12,7 @@
  * 同一份状态 + 同一个 seed → 永远同一批结果；测试可以断言，线上可以复现。
  */
 import type { Memory } from './types.ts'
+import { SUPERSEDE_WEIGHT } from './memory.ts'
 
 export interface RecallContext {
   /** 当前情境文本（日记片段、因果描述等） */
@@ -133,6 +134,93 @@ function whyOf(m: Memory, parts: { kw: number; vivid: number; emo: number; days:
   return why
 }
 
+// ── 时间有效性（2026-11-21，记忆域分析 ①） ──────────────────────────────
+
+const msOr = (v: unknown): number => {
+  if (typeof v !== 'string' || !v) return NaN
+  const t = Date.parse(v)
+  return Number.isFinite(t) ? t : NaN
+}
+
+/**
+ * 这条记忆**此刻**还成立吗。
+ *
+ * 三条判据，缺一不可：
+ *   · `validUntil` 到了 → 过期（`now >= until`，到点即失效，不留半秒含糊）
+ *   · `validFrom` 还没到 → 尚未生效（提前记下"将来才成立"的事）
+ *   · 被别的记忆取代（`supersededBy`）→ 失效
+ *
+ * 没有 `voided` 的语义——作废是"记错了"，过期是"曾经对过"。两者分开。
+ */
+export function isExpired(m: Memory, now = Date.now()): boolean {
+  const until = msOr(m.validUntil)
+  if (Number.isFinite(until) && now >= until) return true
+  const from = msOr(m.validFrom)
+  if (Number.isFinite(from) && now < from) return true
+  return false
+}
+
+/** 被新事实取代了吗（不删原文，只标出处）。 */
+export function isSuperseded(m: Memory): boolean {
+  return typeof m.supersededBy === 'string' && m.supersededBy !== ''
+}
+
+/**
+ * 时间有效性对分数的**下调系数**。
+ *
+ * 1 = 照常参与；SUPERSEDE_WEIGHT = 降权但**不排除**。
+ * 为什么不排除：过期不等于假——"我以前以为主人不喜欢猫"是有意义的记忆。
+ * 归零等于把那段历史抹掉，违背"content 永不删除"这条老规矩。
+ */
+export function validityFactor(m: Memory, now = Date.now()): number {
+  return isExpired(m, now) || isSuperseded(m) ? SUPERSEDE_WEIGHT : 1
+}
+
+/** 给回执用的那一句：说清楚为什么这条被降权了。 */
+function validityWhy(m: Memory, now: number): string | null {
+  if (isSuperseded(m)) return '已被后来的说法取代——这是过去的'
+  if (isExpired(m, now)) {
+    const from = msOr(m.validFrom)
+    if (Number.isFinite(from) && now < from) return '还没到成立的时候——先记着'
+    return '已失效——这是过去的，不是现在'
+  }
+  return null
+}
+
+/**
+ * 找"可能和这条新说法矛盾"的旧记忆（记忆域分析 ② 的底层）。
+ *
+ * 只看两件事，都是可断言的数，不猜语义：
+ *   · 关键词重叠度（沿用召回那套 CJK 双字 + 拉丁词）
+ *   · 旧的那条**还成立**（已失效/已取代的不再报，免得天天提示同一件旧事）
+ *
+ * **只提示，不自动覆盖。** 谁是准的，交给人或她自己判断——
+ * 这跟 `prefs.like` 那条一样：系统不下结论，只把候选摆出来。
+ */
+export function supersedeCandidates(
+  newContent: string,
+  existing: Memory[],
+  opts: { now?: number; minOverlap?: number } = {},
+): Array<{ id: string; content: string; overlap: number }> {
+  const now = opts.now ?? Date.now()
+  const minOverlap = Number.isFinite(opts.minOverlap) ? Number(opts.minOverlap) : 0.34
+  const newTokens = new Set(tokensOf(newContent))
+  if (!newTokens.size) return []
+  const out: Array<{ id: string; content: string; overlap: number }> = []
+  for (const m of existing ?? []) {
+    if (!m?.id || m.voided === true) continue
+    if (isSuperseded(m) || isExpired(m, now)) continue
+    const oldTokens = new Set(tokensOf(m.content))
+    if (!oldTokens.size) continue
+    // 重叠按"新说法里有多少词也在旧记忆里"算：新说法短、旧记忆长时不会被稀释
+    let hit = 0
+    for (const t of newTokens) if (oldTokens.has(t)) hit += 1
+    const overlap = hit / newTokens.size
+    if (overlap >= minOverlap) out.push({ id: m.id, content: m.content, overlap: Number(overlap.toFixed(3)) })
+  }
+  return out.sort((a, b) => b.overlap - a.overlap)
+}
+
 /**
  * 召回一批记忆。纯函数：相同入参（含 now）必得相同顺序。
  */
@@ -180,16 +268,22 @@ export function recallMemories(memories: Memory[], opts: RecallOptions = {}): Re
       for (const tok of querySet) if (tokenSets[i].has(tok)) hit += idf(tok)
       kw = Math.min(1, hit / maxIdf)
     }
-    const score = RECALL_WEIGHTS.keyword * kw + RECALL_WEIGHTS.vivid * vivid
+    const raw = RECALL_WEIGHTS.keyword * kw + RECALL_WEIGHTS.vivid * vivid
       + RECALL_WEIGHTS.mood * emo + RECALL_WEIGHTS.recency * recency
-    return { m, days, vivid, emo, kw, recency, score, accessCount: Number(m.accessCount ?? 0) }
+    /**
+     * 时间有效性降权（2026-11-21）。乘在总分上而不是某个因子上：
+     * 过期跟"关键词命中多少 / 多鲜活"都是两回事，混进任一因子会让回执说不清。
+     */
+    const vFactor = validityFactor(m, now)
+    const score = raw * vFactor
+    return { m, days, vivid, emo, kw, recency, raw, vFactor, score, accessCount: Number(m.accessCount ?? 0) }
   })
 
   // 4) 常规槽：分数降序，同分按 id 升序（稳定）
   const core = [...scored]
     .sort((a, b) => b.score - a.score || a.m.id.localeCompare(b.m.id))
     .slice(0, k)
-    .map((s) => toRecalled(s, 'core', whyOf(s.m, s)))
+    .map((s) => toRecalled(s, 'core', withValidity(whyOf(s.m, s), s.m, now)))
 
   // 5) 意外槽：只在"至少 7 天、从没被想起过"的旧事里挑，按 hash(id + seed) 固定。
   //    不拿最近的事凑数——那叫主槽，不叫意外。
@@ -200,12 +294,19 @@ export function recallMemories(memories: Memory[], opts: RecallOptions = {}): Re
       || (hash32(a.m.id + seed) - hash32(b.m.id + seed))
       || a.m.id.localeCompare(b.m.id))
   const surprise = candidates.slice(0, surprises).map((s) => {
-    const why = whyOf(s.m, s)
+    const why = withValidity(whyOf(s.m, s), s.m, now)
     why.push(s.accessCount === 0 ? '一直没被想起' : '好久没想了')
     return toRecalled(s, 'surprise', why)
   })
 
   return [...core, ...surprise]
+}
+
+/** 把"这条现在还成不成立"拼进回执；成立就一个字都不加。 */
+function withValidity(why: string[], m: Memory, now: number): string[] {
+  const note = validityWhy(m, now)
+  if (note) why.unshift(note)
+  return why
 }
 
 function toRecalled(
