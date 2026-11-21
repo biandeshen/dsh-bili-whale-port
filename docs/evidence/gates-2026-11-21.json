@@ -1,14 +1,14 @@
 {
-  "at": "2026-11-21T04:46:08.721Z",
+  "at": "2026-11-21T06:45:12.620Z",
   "root": "E:\\WorkSpace_Qoder\\dsh-bili-whale",
-  "gitSha": "7f604ff4acd492de9a2b3466cb7eb52e7d75893a",
+  "gitSha": "cd2f930ad4760a202765819fc5592ddf30cfd8e3",
   "node": "v24.16.0",
   "exit": 0,
-  "discovered": 179,
-  "executed": 179,
+  "discovered": 180,
+  "executed": 180,
   "counts": {
-    "tests": 1036,
-    "pass": 1036,
+    "tests": 1042,
+    "pass": 1042,
     "fail": 0,
     "skipped": 0,
     "todo": 0,
@@ -1757,6 +1757,17 @@
     },
     {
       "file": "tests\\ops-day.test.mjs",
+      "exit": 0,
+      "tests": 6,
+      "pass": 6,
+      "fail": 0,
+      "skipped": 0,
+      "todo": 0,
+      "cancelled": 0,
+      "ran": true
+    },
+    {
+      "file": "tests\\panel-rpc-shape.test.mjs",
       "exit": 0,
       "tests": 6,
       "pass": 6,

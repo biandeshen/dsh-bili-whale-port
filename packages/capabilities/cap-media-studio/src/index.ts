@@ -622,8 +622,15 @@ export function createMediaStudioCapability(
               summary: '读当前三层覆盖状态（base 恒有、deploy 有没有设过）',
               writable: false,
               invoke() {
+                /**
+                 * 2026-11-21 真浏览器验收抓到的 bug：`readOverrides` 返回的是
+                 * `{ overrides, note }`，这里原先写成 `o.deploy`——永远 undefined，
+                 * 于是"设了部署默认却读不回来"。`composePrompt` 走的是
+                 * `resolveSelection`（内部读对了），所以同一件事两处表现不一致：
+                 * 预览生效、状态栏说没有。这类"一半对"比全错更难发现。
+                 */
                 const o = readOverrides(opts.outputDir)
-                return { ok: true, deploy: o.deploy ?? null, note: o.note ?? null }
+                return { ok: true, deploy: o.overrides.deploy ?? null, note: o.note ?? null }
               },
             },
             listPresets: {
@@ -631,7 +638,18 @@ export function createMediaStudioCapability(
               verb: 'GET',
               summary: '列出已保存的提示词预设',
               writable: false,
-              invoke() { return { ok: true, ...readPresets(opts.outputDir) } },
+              /**
+               * 返回形状必须与面板读的一致（2026-11-21 真浏览器验收抓到的第二个 bug）。
+               *
+               * `readPresets` 返回 `{store:{presets:[...]}, note?}`，原来的
+               * `...readPresets()` 把 `store` 整个摊平进响应 —— 面板读的是 `r.presets`，
+               * 于是**永远看到"还没有保存过预设"**，而其实已经存进去了。
+               * 现在显式摊平：`presets` 与 `note` 直接挂在顶层，与面板同一套契约。
+               */
+              invoke() {
+                const { store, note } = readPresets(opts.outputDir)
+                return { ok: true, presets: store.presets, ...(note ? { note } : {}) }
+              },
             },
             savePreset: {
               name: 'savePreset',
