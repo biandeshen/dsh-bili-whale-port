@@ -298,6 +298,20 @@ node scripts/check-hashes.mjs --write --note "为什么改、改了什么、判�
 
 分开测各自都对，只有对账才抓得到。
 
+### UI-05 · 能力包面板必须登记进 adapter 的 client.ts `critical`
+
+新增 `cap-*` 面板后，**必须回到 `packages/adapters/cortico-*/src/webui/client.ts` 加一行 import 与 panels 键**。能力包自己构建出的 `dist/webui.js` **宿主不读**。
+
+**我犯的**：给 media-studio 建了 `prompt-preset` 面板，只构建了能力包。产物确实生成了（14113 B），但宿主加载的是 adapter 那个 bundle（5556 B），里面没有它。浏览器现实报「面板产物中没有 prompt-preset」。
+
+**最难发现的地方**：构建脚本打印「cap-media-studio → dist/webui.js (14113 B)」，看起来**成功**。它确实成功了——只是那份产物没人在用。
+
+### UI-06 · 宿主按 pageId 缓存 bundle，换版本要整页刷新 `important`
+
+宿主 `loader` 的 `loaded` Map 以 `pageId`（如 `world:media-studio`）为键，**不看版本号**。同一浏览器会话第一次加载后，改代码、重启宿主、`location.reload()` 都可能还拿旧的；只有**新开页面 / 新进程**才彻底刷新。
+
+这也是我一度以为"修了但没生效"的原因——其实是缓存。
+
 ---
 
 ## 待办：还没变成规矩的观察
